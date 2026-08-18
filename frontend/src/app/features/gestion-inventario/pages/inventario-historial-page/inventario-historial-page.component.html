@@ -459,12 +459,16 @@
           <input
             type="date"
             class="ux-input"
-            [min]="fechaMovimientoMin"
-            [max]="fechaMovimientoMax"
+            [min]="editFechaMin"
+            [max]="editFechaMax"
             [(ngModel)]="editFecha"
             [disabled]="editSaving" />
           <small class="ux-hint">
-            Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+            @if (editType === 'ingresos') {
+              {{ editHint }}
+            } @else {
+              Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+            }
           </small>
         </div>
         @if (editError) {

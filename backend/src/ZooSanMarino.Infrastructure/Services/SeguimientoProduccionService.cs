@@ -12,10 +12,17 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser? _current;
 
-    public SeguimientoProduccionService(ZooSanMarinoContext ctx, ICurrentUser? current = null)
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
+
+    public SeguimientoProduccionService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser? current = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
+        _validacion = validacion;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -209,6 +216,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             PesoHuevo = dto.PesoHuevo,
             Observaciones = dto.Observaciones,
             TipoAlimento = "",                     // NOT NULL en la canónica (la deprecada no tenía la columna)
+            // Ídem los otros Crud: con el flag apagado el registro ya aplicó su efecto ⇒ nace validado.
+            Validado = !await RequiereValidacionSeguimientoAsync(ct),
             CompanyId = _current?.CompanyId ?? 0,
             CreatedByUserId = currentUserId,
             CreatedAt = DateTime.UtcNow
@@ -224,7 +233,43 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             0, 0,
             resta: true, ct);
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────
+        // `AplicarDescuentoLppAsync` frena el descuento cuando la empresa separa —pero este service
+        // NO separaba nada—, así que con el flag encendido las bajas no bajaban el saldo al guardar y
+        // tampoco existía reserva que aplicar al validar: la mortalidad se evaporaba.
+        await SepararAvesAsync(entity, ct);
+
         return MapToDto(entity);
+    }
+
+    /// <summary>
+    /// Separa las bajas del registro cuando la empresa opera con doble validación.
+    ///
+    /// <para>
+    /// Solo aves: este service no toca inventario (su DTO trae el consumo como un total en kg, sin
+    /// ítems), así que no hay alimento que separar y la reserva de aves no lleva ubicación.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>SepararAsync</c> libera primero lo que el registro tuviera activo, así que sirve igual para
+    /// el alta y para la edición —no hay delta que calcular—.
+    /// </para>
+    /// </summary>
+    private async Task SepararAvesAsync(SeguimientoProduccion entity, CancellationToken ct)
+    {
+        if (_validacion is null) return;
+        if (!ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync(ct))) return;
+
+        await _validacion.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+            ModuloSeguimiento.Produccion, entity.Id, paisId: null,
+            farmId: 0, nucleoId: null, galponId: null,
+            loteRefInt: entity.LotePosturaProduccionId ?? entity.LoteId,
+            loteRef: entity.LoteId.ToString(),
+            fechaRegistro: entity.Fecha,
+            metadata: null,
+            entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
+            entity.MortalidadM, entity.SelM, entity.ErrorSexajeMachos,
+            poblacionEsMixta: false), ct);
     }
 
     public async Task<SeguimientoProduccionDto?> UpdateAsync(UpdateSeguimientoProduccionDto dto)
@@ -282,6 +327,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 resta: true, CancellationToken.None);
         }
 
+        // Reescribe la reserva con los valores nuevos (el delta de arriba no corre con el flag ON).
+        await SepararAvesAsync(entity, CancellationToken.None);
+
         return MapToDto(entity);
     }
 
@@ -316,6 +364,12 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                     entity.ErrorSexajeHembras, entity.ErrorSexajeMachos,
                     resta: false, CancellationToken.None);
             }
+
+            // Sin esto la reserva quedaba ACTIVA para siempre: el disponible del lote seguía
+            // comprometido por un registro que ya no existe. Con el flag apagado no hay nada que
+            // liberar y el método no hace una sola consulta de más.
+            if (_validacion is not null)
+                await _validacion.LiberarAsync(ModuloSeguimiento.Produccion, entity.Id, CancellationToken.None);
 
             _ctx.SeguimientoProduccion.Remove(entity);
             await _ctx.SaveChangesAsync();
@@ -448,6 +502,11 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     private async Task AplicarDescuentoLppAsync(int loteId, int mortH, int mortM,
         int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
+        // Doble validación: en las empresas que la usan el saldo no se mueve al guardar. El gate va
+        // dentro del método porque este service descuenta desde cuatro vías distintas (alta, edición,
+        // borrado y merge sobre traslado) y basta con que una se olvide para descontar dos veces.
+        if (await RequiereValidacionSeguimientoAsync(ct)) return;
+
         var deltaH = mortH + selH + errH;
         var deltaM = mortM + selM + errM;
         if (deltaH == 0 && deltaM == 0) return;
@@ -579,6 +638,20 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             s.FechaTraslado = null;
         }
     }
+    /// <summary>
+    /// ¿La empresa activa difiere el descuento hasta validar el registro? Fail-closed: sin empresa
+    /// resoluble devuelve <c>false</c>, que es el comportamiento previo (descontar al guardar).
+    /// </summary>
+    private async Task<bool> RequiereValidacionSeguimientoAsync(CancellationToken ct)
+    {
+        var companyId = _current?.CompanyId ?? 0;
+        if (companyId <= 0) return false;
+        return await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.RequiereValidacionSeguimientoDiario)
+            .FirstOrDefaultAsync(ct);
+    }
+
 
     private static SeguimientoProduccionDto MapToDto(SeguimientoProduccion e) =>
         new SeguimientoProduccionDto(

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Infrastructure.Persistence;
+using ZooSanMarino.Infrastructure.Services;
 
 namespace ZooSanMarino.API.Infrastructure;
 
@@ -48,9 +50,10 @@ public sealed class ActiveCompanyMiddleware
             var claim = context.User.FindFirst(ClaimTypes.NameIdentifier) ?? context.User.FindFirst("sub");
             if (claim != null && Guid.TryParse(claim.Value, out var uid))
             {
-                var userEmail = await db.UserLogins.AsNoTracking().Include(ul => ul.Login).Where(ul => ul.UserId == uid).Select(ul => ul.Login.email).FirstOrDefaultAsync();
-                var isSuperAdmin = !string.IsNullOrWhiteSpace(userEmail) && userEmail.Trim().Equals("moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase);
-                var canUse = isSuperAdmin || await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid);
+                var isSuperAdmin = await SuperAdminLookup.EsSuperAdminAsync(db, uid);
+                var canUse = EmpresaActivaCalculos.PuedeUsarEmpresa(
+                    isSuperAdmin,
+                    await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid));
                 if (canUse)
                 {
                     context.Items[EffectiveCompanyIdItemKey] = cid;
@@ -104,27 +107,13 @@ public sealed class ActiveCompanyMiddleware
             return;
         }
 
-        // Super admin: permitido para cualquier empresa (misma regla que UserPermissionService)
-        var email = await db.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userGuid)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-
-        if (!string.IsNullOrWhiteSpace(email) &&
-            email.Trim().Equals("moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase))
-        {
-            context.Items[EffectiveCompanyIdItemKey] = companyId.Value;
-            context.Items[EffectiveCompanyNameItemKey] = companyName;
-            await _next(context);
-            return;
-        }
-
-        // Validar pertenencia del usuario a la empresa activa
-        var allowed = await db.UserCompanies
-            .AsNoTracking()
-            .AnyAsync(uc => uc.UserId == userGuid && uc.CompanyId == companyId.Value);
+        // ¿Puede usar esta empresa? Super admin (atraviesa el aislamiento a propósito) o miembro.
+        // La regla vive en EmpresaActivaCalculos y es la misma de la rama de arriba.
+        var allowed = EmpresaActivaCalculos.PuedeUsarEmpresa(
+            await SuperAdminLookup.EsSuperAdminAsync(db, userGuid),
+            await db.UserCompanies
+                .AsNoTracking()
+                .AnyAsync(uc => uc.UserId == userGuid && uc.CompanyId == companyId.Value));
 
         if (allowed)
         {

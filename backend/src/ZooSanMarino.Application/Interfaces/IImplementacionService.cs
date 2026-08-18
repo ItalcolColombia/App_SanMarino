@@ -16,6 +16,13 @@ public interface IImplementacionService
     Task<ImplementacionPlanDto?> UpdatePlanAsync(int planId, ImplementacionPlanUpdateRequest req, CancellationToken ct = default);
     Task<bool> DeletePlanAsync(int planId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Enlaza el plan con ItalJira: crea su historia si no la tiene y una tarea del tablero por cada
+    /// punto que todavía no tenga la suya. Idempotente. Exige <c>tickets.gestionar</c> (lo aplican
+    /// los propios servicios de ItalJira). <c>null</c> si el plan no existe o no es de la empresa.
+    /// </summary>
+    Task<ImplementacionItalJiraDto?> SincronizarConItalJiraAsync(int planId, CancellationToken ct = default);
+
     // Tareas del checklist
     Task<ImplementacionTareaDto?> CreateTareaAsync(int planId, ImplementacionTareaCreateRequest req, CancellationToken ct = default);
     Task<ImplementacionTareaDto?> UpdateTareaAsync(int tareaId, ImplementacionTareaUpdateRequest req, CancellationToken ct = default);
@@ -29,6 +36,13 @@ public interface IImplementacionService
     Task<ImplementacionMiFirmaDto?> FirmarAsync(int tareaId, ImplementacionFirmarRequest req, CancellationToken ct = default);
     Task<ImplementacionMiFirmaDto?> RechazarAsync(int tareaId, ImplementacionRechazarRequest req, CancellationToken ct = default);
     Task<List<ImplementacionMiFirmaDto>> GetMisFirmasAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Solo lo que el usuario tiene REALMENTE por firmar hoy: puntos donde es participante, sigue
+    /// sin responder y el encargado ya los dio por realizados. Es lo que alimenta el panel de
+    /// pendientes del inicio, por eso no arrastra el historial de firmas ya dadas.
+    /// </summary>
+    Task<List<ImplementacionMiFirmaDto>> GetMisPendientesFirmaAsync(CancellationToken ct = default);
 
     // Consultas de apoyo
     Task<List<ImplementacionMiTareaDto>> GetMisTareasAsync(CancellationToken ct = default);

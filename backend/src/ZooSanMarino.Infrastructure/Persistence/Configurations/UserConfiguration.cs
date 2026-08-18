@@ -53,6 +53,10 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
             e.Property(u => u.IsLocked)
              .HasDefaultValue(false);
 
+            // Default NEUTRO: nadie es super admin salvo que el dato lo diga.
+            e.Property(u => u.IsSuperAdmin)
+             .HasDefaultValue(false);
+
             e.Property(u => u.FailedAttempts)
              .HasDefaultValue(0);
 

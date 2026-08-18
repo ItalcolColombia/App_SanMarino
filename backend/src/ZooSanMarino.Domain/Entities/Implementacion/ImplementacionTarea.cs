@@ -27,6 +27,13 @@ public class ImplementacionTarea : AuditableEntity
     /// <summary>Usuario que debe confirmar el cumplimiento (opcional).</summary>
     public Guid? AsignadoUserId { get; set; }
 
+    /// <summary>
+    /// Tarea de ItalJira que ejecuta este punto del checklist (cuelga de la historia del plan).
+    /// Null = el punto no se sigue en el tablero. Cuando esa tarea pasa a LISTO, este punto se
+    /// marca <c>completada</c>, que es justo el gate que habilita las firmas de los participantes.
+    /// </summary>
+    public long? TicketTareaId { get; set; }
+
     /// <summary>"pendiente" | "completada" | "confirmada".</summary>
     public string Estado { get; set; } = "pendiente";
 

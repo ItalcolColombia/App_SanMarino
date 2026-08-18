@@ -50,5 +50,9 @@ public record UpdateCompanyDto(
     /// <summary>El inventario se ubica en silos/bodegas de la granja, no en el galpón.</summary>
     bool?    ManejaInventarioPorSilo = null,
     /// <summary>Los reportes leen el alimento del inventario unificado, no de la tabla vieja.</summary>
-    bool?    ReportesAlimentoDesdeInventarioUnificado = null
+    bool?    ReportesAlimentoDesdeInventarioUnificado = null,
+    /// <summary>Los seguimientos diarios exigen doble validación (separan al guardar, descuentan al validar).</summary>
+    bool?    RequiereValidacionSeguimientoDiario = null,
+    bool?    SeguimientoEngordeMixto = null,
+    bool?    ReporteCostosAlimentoDesdeFuentesReales = null
 );

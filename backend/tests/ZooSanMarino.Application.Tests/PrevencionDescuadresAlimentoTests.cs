@@ -65,6 +65,47 @@ public class PrevencionDescuadresAlimentoTests
         Assert.Contains("Cuadra", CuadreAlimentoEngordeCalculos.Describir(0m, 0));
     }
 
+    // ─── Correcciones manuales de stock: la causa del 78 % de los descuadres de Panamá ────
+    //
+    // `AjusteStock` y `EliminacionStock` se espejan como INV_OTRO, que fn_seguimiento_diario_engorde
+    // no lee en ninguna de sus 5 CTE: el stock baja, la tabla diaria no se entera y el galpón queda
+    // descuadrado. El cuadre ahora lo DICE — pero no lo compensa.
+
+    [Theory]                                         // T1-T3: sin ajustes, el texto no cambia
+    [InlineData(7960, 0)]
+    [InlineData(-7960, 1)]
+    [InlineData(0, 0)]
+    public void Cuadre_SinAjustesManuales_ElDetalleEsIdenticoAlDeSiempre(decimal descuadre, int negativas)
+        => Assert.Equal(CuadreAlimentoEngordeCalculos.Describir(descuadre, negativas),
+                        CuadreAlimentoEngordeCalculos.DescribirConAjustes(descuadre, negativas, 0m, 0));
+
+    [Fact]                                           // T4: G0477 real — el ajuste explica TODO
+    public void Cuadre_ConAjusteQueExplicaElDescuadre_LoNombra()
+    {
+        var texto = CuadreAlimentoEngordeCalculos.DescribirConAjustes(544m, 1, 544m, 1);
+        Assert.Contains("de MÁS", texto);            // no pierde lo que ya decía
+        Assert.Contains("544.0 kg", texto);
+        Assert.Contains("1 vez", texto);
+        Assert.Contains("la tabla diaria no ve", texto);
+    }
+
+    [Fact]                                           // T5: G0475 real — explica una parte
+    public void Cuadre_ConVariosAjustes_UsaElPlural()
+    {
+        var texto = CuadreAlimentoEngordeCalculos.DescribirConAjustes(18650.4m, 1, 25862.5m, 5);
+        Assert.Contains("5 vec", texto);
+        Assert.Contains("25,862.5 kg", texto);
+    }
+
+    [Fact]                                           // T6: Ecuador — cuadra, no se ensucia la fila
+    public void Cuadre_SiCuadra_LosAjustesNoSeMencionan()
+    {
+        Assert.Equal(CuadreAlimentoEngordeCalculos.Describir(0m, 0),
+                     CuadreAlimentoEngordeCalculos.DescribirConAjustes(0m, 0, 99999m, 12));
+        Assert.Equal(CuadreAlimentoEngordeCalculos.Describir(0m, 3),
+                     CuadreAlimentoEngordeCalculos.DescribirConAjustes(0m, 3, 99999m, 12));
+    }
+
     // ─── Aviso de fecha fuera de ciclo ────────────────────────────────────────
 
     private const int DiasPrevios = 10;   // ItalcolEcuador
@@ -144,5 +185,43 @@ public class PrevencionDescuadresAlimentoTests
 
         Assert.Null(AvisoFechaFueraDeCicloCalculos.Evaluar(new DateTime(2026, 6, 5), unico, 0));
         Assert.NotNull(AvisoFechaFueraDeCicloCalculos.Evaluar(new DateTime(2026, 6, 4), unico, 0));
+    }
+
+    // ─── El cuadre y la doble validación ──────────────────────────────────────
+    // Ninguna fn del esquema mira `validado`, así que `fn_seguimiento_diario_engorde` ya descuenta el
+    // consumo de un registro PENDIENTE mientras el inventario todavía no lo movió. La reserva ACTIVA
+    // es exactamente ese movimiento pendiente: el stock comparable es `stock − reservado`.
+
+    [Fact]
+    public void UnRegistroPendiente_NoEsUnDescuadre()
+    {
+        // El galpón separó 80 kg sin validar: la fn los descontó, el inventario no. Crudo da -80.
+        const decimal descuadreCrudo = -80m, reservado = 80m;
+
+        var ajustado = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(descuadreCrudo, reservado);
+
+        Assert.Equal(0m, ajustado);
+        Assert.Equal(EstadoCuadreAlimento.Ok, CuadreAlimentoEngordeCalculos.Clasificar(ajustado, 0));
+        // Sin el ajuste, el mismo galpón se reportaba como defecto.
+        Assert.Equal(EstadoCuadreAlimento.Descuadrado,
+            CuadreAlimentoEngordeCalculos.Clasificar(descuadreCrudo, 0));
+    }
+
+    [Fact]
+    public void FlagApagado_ElDescuadreEsExactamenteElDeAntes()
+    {
+        // Sin doble validación no hay reservas activas ⇒ reservado = 0 ⇒ el número no se mueve.
+        foreach (var crudo in new[] { 0m, -480m, 37_880m, 0.4m })
+            Assert.Equal(crudo, CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(crudo, 0m));
+    }
+
+    [Fact]
+    public void UnDescuadreREAL_SigueSiendoDescuadreAunqueHayaReservas()
+    {
+        // 80 kg separados y además 480 kg que faltan de verdad: el ajuste no puede taparlos.
+        var ajustado = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(-560m, 80m);
+
+        Assert.Equal(-480m, ajustado);
+        Assert.Equal(EstadoCuadreAlimento.Descuadrado, CuadreAlimentoEngordeCalculos.Clasificar(ajustado, 0));
     }
 }

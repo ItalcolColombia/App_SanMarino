@@ -43,12 +43,8 @@ public class UserFarmScopeService : IUserFarmScopeService
         if (farmCompanyId is null)
             throw new InvalidOperationException($"Granja con ID {farmId} no encontrada.");
 
-        // Super Admin (mismo criterio vigente en FarmService/NucleoService)
-        var email = await _ctx.UserLogins.AsNoTracking()
-            .Where(ul => ul.UserId == guid.Value)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-        if (email != null && email.ToLower() == "moiesbbuga@gmail.com") return;
+        // Super Admin (mismo criterio, y ahora el mismo lector, que el resto del backend)
+        if (await SuperAdminLookup.EsSuperAdminAsync(_ctx, guid)) return;
 
         var esAdminDeLaEmpresa = await _ctx.UserRoles.AsNoTracking()
             .Where(ur => ur.UserId == guid.Value && ur.CompanyId == farmCompanyId.Value)

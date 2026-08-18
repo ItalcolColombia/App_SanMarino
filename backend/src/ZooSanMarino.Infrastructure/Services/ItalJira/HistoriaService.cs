@@ -50,6 +50,13 @@ public partial class HistoriaService : IHistoriaService
             throw new InvalidOperationException("No tenés permisos para gestionar ItalJira.");
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Expone <see cref="PuedeGestionar"/> sin duplicar la regla: quien la necesite desde otro
+    /// módulo pregunta acá en vez de volver a escribir el <c>Permissions.Contains(...)</c>.
+    /// </remarks>
+    public bool PuedeGestionarItalJira() => PuedeGestionar();
+
     // ───────────────────────────── Identidad ─────────────────────────────
 
     private async Task<Dictionary<Guid, string>> NombresPorGuidAsync(

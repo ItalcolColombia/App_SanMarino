@@ -1,5 +1,6 @@
 ﻿// src/ZooSanMarino.Infrastructure/Services/CompanyResolver.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -21,6 +22,15 @@ public class CompanyResolver : ICompanyResolver
     {
         if (string.IsNullOrWhiteSpace(companyName))
             return null;
+
+        // Atajo determinista: si el nombre pedido es el de la empresa activa YA VALIDADA por el
+        // middleware, se responde con SU id. El middleware resolvió ese nombre contra la base y ese
+        // es el id que autorizó; volver a buscarlo por nombre acá abriría una segunda fuente de
+        // verdad que además no es determinista (`companies.name` no tiene índice único y la búsqueda
+        // de abajo es un `FirstOrDefault` sin orden). De paso ahorra una consulta por llamada.
+        var idActivo = EmpresaActivaCalculos.IdDeLaEmpresaActivaSiCoincide(
+            companyName, _currentUser.ActiveCompanyName, _currentUser.CompanyId);
+        if (idActivo.HasValue) return idActivo;
 
         var name = companyName.Trim();
         var company = await _context.Companies
@@ -67,7 +77,10 @@ public class CompanyResolver : ICompanyResolver
                 c.ProgramacionLotesEngorde,
                 c.NombreLoteIncluyeCorrida,
                 c.ManejaInventarioPorSilo,
-                c.ReportesAlimentoDesdeInventarioUnificado
+                c.ReportesAlimentoDesdeInventarioUnificado,
+                c.RequiereValidacionSeguimientoDiario,
+                c.SeguimientoEngordeMixto,
+                c.ReporteCostosAlimentoDesdeFuentesReales
             ))
             .FirstOrDefaultAsync();
 
@@ -117,7 +130,10 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.ProgramacionLotesEngorde,
                 uc.Company.NombreLoteIncluyeCorrida,
                 uc.Company.ManejaInventarioPorSilo,
-                uc.Company.ReportesAlimentoDesdeInventarioUnificado
+                uc.Company.ReportesAlimentoDesdeInventarioUnificado,
+                uc.Company.RequiereValidacionSeguimientoDiario,
+                uc.Company.SeguimientoEngordeMixto,
+                uc.Company.ReporteCostosAlimentoDesdeFuentesReales
             ))
             .ToListAsync();
 

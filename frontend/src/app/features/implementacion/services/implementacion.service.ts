@@ -7,6 +7,7 @@ import { Observable, timeout } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   ImplementacionConfirmarRequest,
+  ImplementacionItalJiraDto,
   ImplementacionFirmarRequest,
   ImplementacionMiFirmaDto,
   ImplementacionMiTareaDto,
@@ -56,6 +57,14 @@ export class ImplementacionService {
     return this.conTimeout(this.http.delete<void>(`${this.base}/planes/${id}`));
   }
 
+  /**
+   * Enlaza el plan con ItalJira (historia + una tarea por punto). Idempotente: llamarlo de nuevo
+   * después de agregar puntos crea sólo los que faltan.
+   */
+  sincronizarConItalJira(id: number): Observable<ImplementacionItalJiraDto> {
+    return this.conTimeout(this.http.post<ImplementacionItalJiraDto>(`${this.base}/planes/${id}/italjira`, {}));
+  }
+
   // Tareas (ítems de validación del cronograma)
   createTarea(planId: number, req: ImplementacionTareaRequest): Observable<ImplementacionTareaDto> {
     return this.conTimeout(this.http.post<ImplementacionTareaDto>(`${this.base}/planes/${planId}/tareas`, req));
@@ -96,6 +105,11 @@ export class ImplementacionService {
 
   getMisFirmas(): Observable<ImplementacionMiFirmaDto[]> {
     return this.conTimeout(this.http.get<ImplementacionMiFirmaDto[]>(`${this.base}/mis-firmas`));
+  }
+
+  /** Solo lo pendiente de firmar hoy (puntos ya realizados). Alimenta el panel del inicio. */
+  getMisPendientesFirma(): Observable<ImplementacionMiFirmaDto[]> {
+    return this.conTimeout(this.http.get<ImplementacionMiFirmaDto[]>(`${this.base}/mis-pendientes-firma`));
   }
 
   // Consultas de apoyo

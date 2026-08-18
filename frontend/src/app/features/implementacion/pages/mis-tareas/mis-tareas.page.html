@@ -70,6 +70,32 @@
       </ul>
     </section>
 
+    <!-- Participo, pero el encargado todavía no dio el punto por realizado -->
+    <section *ngIf="firmasProgramadas.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header">
+        <h2>🕒 Aún no te toca firmar ({{ firmasProgramadas.length }})</h2>
+        <span class="imp-card__meta">Vas a poder firmarlos cuando el encargado los dé por realizados</span>
+      </div>
+      <ul>
+        <li
+          *ngFor="let f of firmasProgramadas; trackBy: trackByFirma"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ f.tareaTitulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">
+              {{ f.planNombre }} · {{ f.categoria }}
+              <ng-container *ngIf="f.fechaProgramada">
+                · programado para el {{ f.fechaProgramada | date: 'dd/MM/yyyy' }}
+              </ng-container>
+            </div>
+          </div>
+          <span class="chip" style="color: var(--ital-muted); background: var(--ital-cream)">Programado</span>
+        </li>
+      </ul>
+    </section>
+
     <!-- Esperan mi confirmación (asignado) -->
     <section *ngIf="porConfirmar.length" class="ux-card imp-card overflow-hidden">
       <div class="imp-card__header" style="background: var(--ital-orange-100)">
@@ -155,9 +181,13 @@
             <div class="font-semibold" style="color: var(--ital-text)">{{ f.tareaTitulo }}</div>
             <div class="text-xs" style="color: var(--ital-muted)">{{ f.planNombre }} · {{ f.categoria }}</div>
             <div *ngIf="f.miEstado === 'firmada'" class="firma-detalle mt-0.5">
+              <img *ngIf="f.firmaImagen" [src]="f.firmaImagen" alt="Tu firma" class="firma-detalle__trazo" />
               ✍️ Firmaste como <span class="firma-detalle__texto">"{{ f.firmaTexto }}"</span>
               el {{ f.fechaRespuesta | date: 'dd/MM/yyyy HH:mm' }}
               <ng-container *ngIf="f.nota"> · Obs.: {{ f.nota }}</ng-container>
+              <div *ngIf="f.contenidoCambio" class="mt-0.5" style="color: var(--danger)">
+                ⚠️ Este punto se editó después de tu firma; lo que firmaste no coincide con el texto actual.
+              </div>
             </div>
             <div *ngIf="f.miEstado === 'rechazada'" class="firma-detalle mt-0.5" style="color: var(--danger)">
               ⚠️ Novedad ({{ f.fechaRespuesta | date: 'dd/MM/yyyy HH:mm' }}): {{ f.nota }}

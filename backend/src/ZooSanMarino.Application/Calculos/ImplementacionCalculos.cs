@@ -28,6 +28,10 @@ public static class ImplementacionCalculos
     public const string FirmaFirmada   = "firmada";
     public const string FirmaRechazada = "rechazada";
 
+    // Tipo de trazo con el que el participante firmó
+    public const string FirmaTipoDigitada   = "digitada";
+    public const string FirmaTipoManuscrita = "manuscrita";
+
     public sealed record ResumenPlan(
         int TotalTareas,
         int Completadas,
@@ -141,6 +145,77 @@ public static class ImplementacionCalculos
     }
 
     /// <summary>
+    /// El participante recién puede firmar cuando el encargado dio por terminado el punto
+    /// (<c>completada</c>) — o cuando ya se confirmó. Mientras la tarea siga <c>pendiente</c> el
+    /// punto se ve como "programado" y la firma queda cerrada: se firma lo que ya se hizo, no lo
+    /// que está por hacerse. Estado desconocido → false (fail-closed).
+    /// </summary>
+    public static bool TareaHabilitadaParaFirmar(string? estadoTarea)
+        => estadoTarea is TareaCompletada or TareaConfirmada;
+
+    /// <summary>
+    /// Longitud máxima del PNG en base64 de la firma manuscrita (~700 KB de data URL ≈ 512 KB de
+    /// imagen). Un canvas de 600×200 comprimido pesa 10–25 KB: el tope solo frena payloads absurdos.
+    /// </summary>
+    public const int FirmaImagenMaxChars = 700_000;
+
+    /// <summary>
+    /// Valida y normaliza el trazo manuscrito: data URL PNG (<c>data:image/png;base64,…</c>) con
+    /// contenido real. Devuelve la data URL normalizada, o null si no se envió trazo (el llamador
+    /// decide si eso es válido según el tipo de firma).
+    /// </summary>
+    public static string? ValidarFirmaImagen(string? imagen)
+    {
+        var img = (imagen ?? "").Trim();
+        if (img.Length == 0) return null;
+
+        const string prefijo = "data:image/png;base64,";
+        if (!img.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("La firma debe ser una imagen PNG (data:image/png;base64,…).");
+        if (img.Length > FirmaImagenMaxChars)
+            throw new InvalidOperationException("La firma dibujada es demasiado pesada; volvé a firmarla.");
+
+        var payload = img[prefijo.Length..];
+        // Un canvas en blanco produce un PNG muy chico: exigimos trazo real, no una hoja vacía.
+        if (payload.Length < 200)
+            throw new InvalidOperationException("La firma está vacía; dibujá tu firma antes de aceptar.");
+        if (!IsBase64(payload))
+            throw new InvalidOperationException("La firma dibujada llegó corrupta; volvé a firmarla.");
+
+        return prefijo + payload;
+    }
+
+    private static bool IsBase64(string s)
+    {
+        Span<byte> buffer = new byte[s.Length];
+        return Convert.TryFromBase64String(s, buffer, out _);
+    }
+
+    /// <summary>
+    /// Huella de LO QUE SE FIRMÓ (plan + punto + fecha en que se dio por realizado). Se guarda junto
+    /// a la firma para que, si alguien edita el título o la descripción del punto después, el detalle
+    /// pueda mostrar que el contenido cambió respecto de lo aceptado. Sin esto una firma manuscrita
+    /// prueba menos que la digitada: sería una imagen sin objeto.
+    /// </summary>
+    /// <remarks>
+    /// Los campos van separados por <c>\n</c> con etiqueta fija, de modo que reordenar o renombrar
+    /// una propiedad del DTO no cambie el hash de firmas viejas. Se calcula SIEMPRE en el servidor.
+    /// </remarks>
+    public static string CalcularContenidoHash(
+        string planNombre, string categoria, string titulo, string? descripcion, DateTime? fechaCompletada)
+    {
+        var canon = string.Join('\n',
+            "plan="        + (planNombre ?? "").Trim(),
+            "categoria="   + (categoria  ?? "").Trim(),
+            "titulo="      + (titulo     ?? "").Trim(),
+            "descripcion=" + (descripcion ?? "").Trim(),
+            "completada="  + (fechaCompletada?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") ?? ""));
+
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canon));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
     /// Checklist estándar de entrega de la aplicación, usado al crear un plan con "usar plantilla".
     /// El orden es global (1..n) para que el cronograma quede secuenciado entre categorías.
     /// </summary>
@@ -158,4 +233,45 @@ public static class ImplementacionCalculos
         new PlantillaTarea("Puesta en marcha",  "Acompañamiento primera semana de operación",          10),
         new PlantillaTarea("Puesta en marcha",  "Acta de entrega y cierre de implementación",          11),
     };
+
+    // ─── Vínculo con ItalJira (I1.3) ──────────────────────────────────────────
+
+    /// <summary>
+    /// Estado que debe tomar un punto del checklist cuando su tarea de ItalJira cambia de columna, o
+    /// <c>null</c> si no hay que tocarlo.
+    ///
+    /// <para>
+    /// El punto y la tarea del tablero son el <b>mismo trabajo contado dos veces</b>: quien lo ejecuta
+    /// lo mueve en el tablero y quien lo recibe lo firma en el plan. Que haya que marcarlo a mano en
+    /// los dos lados garantiza que tarde o temprano queden distintos — y el que manda es el tablero,
+    /// porque es donde está la persona que lo hizo.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Una tarea que sale de LISTO devuelve el punto a pendiente</b>: si se reabrió es porque no
+    /// estaba terminado, y dejarlo completado habilitaría firmar algo que se está rehaciendo.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔒 <b>Una punto CONFIRMADO no se toca nunca.</b> Confirmar es un acto de una persona —el
+    /// asignado dijo que lo recibió— y detrás vienen las firmas, con su hash de contenido. Un cambio
+    /// de columna en el tablero no puede deshacer eso; si hay que reabrirlo, se reabre a mano y queda
+    /// el rastro de quién lo hizo.
+    /// </para>
+    /// </summary>
+    /// <param name="estadoTareaItalJiraEsTerminal">
+    /// Si la columna del tablero cuenta como terminada (<c>TicketTareaEstados.EsTerminal</c>). Se
+    /// recibe ya evaluado para no atar Application a las constantes de Domain.
+    /// </param>
+    /// <param name="estadoPuntoActual">Estado de hoy del punto del checklist.</param>
+    public static string? EstadoPuntoSegunTareaItalJira(
+        bool estadoTareaItalJiraEsTerminal, string? estadoPuntoActual)
+    {
+        var actual = (estadoPuntoActual ?? "").Trim().ToLowerInvariant();
+
+        if (actual == TareaConfirmada) return null;
+
+        var objetivo = estadoTareaItalJiraEsTerminal ? TareaCompletada : TareaPendiente;
+        return actual == objetivo ? null : objetivo;
+    }
 }

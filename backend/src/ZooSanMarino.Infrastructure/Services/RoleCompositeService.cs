@@ -283,17 +283,7 @@ public class RoleCompositeService : IRoleCompositeService
     /// </summary>
     private async Task<bool> IsCurrentUserSuperAdminAsync()
     {
-        var userGuid = _currentUser.UserGuid;
-        if (!userGuid.HasValue) return false;
-
-        var userEmail = await _ctx.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userGuid.Value)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-
-        return userEmail?.ToLowerInvariant() == "moiesbbuga@gmail.com";
+        return await SuperAdminLookup.EsSuperAdminAsync(_ctx, _currentUser.UserGuid);
     }
 
     public async Task<RoleDto?> Roles_GetByIdAsync(int id)

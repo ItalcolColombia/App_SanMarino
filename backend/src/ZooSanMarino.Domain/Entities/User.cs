@@ -11,6 +11,15 @@ namespace ZooSanMarino.Domain.Entities
         public string? Zona { get; set; }     // 'Zona 1' | 'Zona 2' | NULL = sin restricción (Panamá)
         public bool IsActive { get; set; } = true;
         public bool IsLocked { get; set; } = false;
+
+        /// <summary>
+        /// Super Admin: atraviesa el aislamiento multiempresa (puede operar sobre empresas a las que
+        /// no pertenece) y ve el catálogo global. Es un DATO, no un correo en el código: hasta
+        /// ago-2026 la regla estaba escrita a mano en 14 sitios comparando un email, así que
+        /// concederla o quitarla exigía desplegar. Va en el usuario y no en el rol a propósito: el
+        /// rol `Admin` lo tiene más de una persona, y la marca no puede ampliarse sola.
+        /// </summary>
+        public bool IsSuperAdmin { get; set; } = false;
         public DateTime? LockedAt { get; set; }
         public int FailedAttempts { get; set; } = 0;
         public DateTime CreatedAt { get; set; }

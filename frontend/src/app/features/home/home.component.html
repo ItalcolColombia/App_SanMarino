@@ -27,6 +27,16 @@
       </div>
     }
 
+    <!-- Lo que el usuario tiene que aceptar/firmar (no se dibuja si no hay nada) -->
+    @if (!loadingMenu && !menuError) {
+      <app-panel-pendientes-firma />
+    }
+
+    <!-- Vacunas que faltan aplicar en sus lotes (tampoco se dibuja si no hay nada) -->
+    @if (!loadingMenu && !menuError) {
+      <app-panel-pendientes-vacunacion />
+    }
+
     <!-- Welcome content -->
     @if (!loadingMenu && !menuError) {
       <div class="welcome-container">

@@ -5,6 +5,26 @@ namespace ZooSanMarino.Domain.Entities;
 /// <summary>
 /// Seguimiento diario por lote aves de engorde (Ecuador). Tabla: seguimiento_diario_aves_engorde_ecuador.
 /// Un registro por lote_ave_engorde_id por fecha.
+///
+/// <para>
+/// ⚠️ <b>SIN USO — no es la fuente del seguimiento de engorde de Ecuador.</b> La tabla la creó
+/// <c>20260517104629_SplitSeguimientoDiarioAvesEngordeByCountry</c>, pero el split se abandonó:
+/// <c>SeguimientoAvesEngordeEcuadorService</c> persiste en <c>_ctx.SeguimientoDiarioAvesEngorde</c>
+/// —la tabla COMPARTIDA— igual que el service de Colombia/Panamá. En la base local la tabla partida
+/// ni siquiera existe pese a que su migración figura aplicada, y donde existe está vacía.
+/// </para>
+///
+/// <para>
+/// Leer por acá costó el bug de agosto-2026: las ramas <c>ENGORDE_EC</c> de
+/// <c>ValidacionSeguimientoService</c> consultaban esta entidad, así que con la doble validación
+/// encendida el alta reventaba con 42P01 y validar marcaba el registro sin encontrar sus reservas.
+/// <b>Si necesitás el seguimiento de engorde, usá <c>SeguimientoDiarioAvesEngorde</c>.</b>
+/// </para>
+///
+/// <para>
+/// Se deja mapeada a propósito: desmapearla cambia el ModelSnapshot y obliga a una migración de
+/// esquema sobre una tabla que en unos entornos existe y en otros no.
+/// </para>
 /// </summary>
 public class SeguimientoDiarioAvesEngordeEcuador
 {
@@ -59,6 +79,21 @@ public class SeguimientoDiarioAvesEngordeEcuador
     /// Estructura: [{ nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida }]
     /// </summary>
     public JsonDocument? HistoricoConsumoAlimento { get; set; }
+
+    // ── Doble validación ───────────────────────────────────────────
+    /// <summary>
+    /// Segunda confirmación del registro. Mientras está en <c>false</c> el seguimiento se puede
+    /// editar y eliminar, y el alimento y las aves quedan SEPARADOS (ver
+    /// <see cref="SeguimientoReservaAlimento"/>) en vez de descontados; al validar se aplica el
+    /// consumo real y el descuento de aves.
+    /// <para>
+    /// Solo tiene efecto en empresas con <c>requiere_validacion_seguimiento_diario</c>. En las demás
+    /// quedó en <c>true</c> por el backfill y nada lo lee.
+    /// </para>
+    /// </summary>
+    public bool Validado { get; set; }
+    public DateTime? ValidadoAt { get; set; }
+    public string? ValidadoPor { get; set; }
 
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

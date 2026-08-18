@@ -5,6 +5,8 @@ export type EstadoPlan = 'borrador' | 'en_progreso' | 'completado' | 'cancelado'
 export type EstadoTarea = 'pendiente' | 'completada' | 'confirmada';
 export type TipoPlan = 'implementacion' | 'capacitacion' | 'mixto';
 export type EstadoFirma = 'pendiente' | 'firmada' | 'rechazada';
+/** Con qué trazo firmó el participante. Null en las firmas anteriores a la firma manuscrita. */
+export type TipoFirma = 'digitada' | 'manuscrita';
 
 export interface ImplementacionPlanDto {
   id: number;
@@ -28,6 +30,12 @@ export interface ImplementacionPlanDto {
   porcentajeAvance: number;
   porcentajeConfirmado: number;
   createdAt: string;
+
+  /**
+   * Historia (épica) de ItalJira donde se ejecuta el plan. `null` = todavía no está enlazado y la
+   * pantalla ofrece el botón para hacerlo.
+   */
+  historiaId?: number | null;
 }
 
 export interface ImplementacionPlanCreateRequest {
@@ -63,6 +71,8 @@ export interface ImplementacionFirmaDto {
   email: string | null;
   estado: EstadoFirma;
   firmaTexto: string | null;
+  firmaImagen: string | null;
+  firmaTipo: TipoFirma | null;
   nota: string | null;
   fechaRespuesta: string | null;
 }
@@ -87,6 +97,12 @@ export interface ImplementacionTareaDto {
   confirmadaPorNombre: string | null;
   observaciones: string | null;
   firmas: ImplementacionFirmaDto[];
+
+  /**
+   * Tarea de ItalJira que ejecuta este punto. Cuando existe, el estado del punto lo manda el
+   * tablero: al pasarla a LISTO el punto queda completado y habilita las firmas.
+   */
+  ticketTareaId?: number | null;
 }
 
 export interface ImplementacionPlanDetalleDto {
@@ -115,6 +131,8 @@ export interface ImplementacionParticipantesRequest {
 export interface ImplementacionFirmarRequest {
   firmaTexto: string;
   nota: string | null;
+  /** Trazo manuscrito en data URL PNG (dedo o mouse). Opcional: sin él la firma queda "digitada". */
+  firmaImagen?: string | null;
 }
 
 export interface ImplementacionRechazarRequest {
@@ -154,8 +172,15 @@ export interface ImplementacionMiFirmaDto {
   implementadorNombre: string | null;
   miEstado: EstadoFirma;
   firmaTexto: string | null;
+  /** PNG base64 del trazo manuscrito; null si se firmó solo con el nombre digitado. */
+  firmaImagen: string | null;
+  firmaTipo: TipoFirma | null;
   nota: string | null;
   fechaRespuesta: string | null;
+  /** El encargado ya dio por realizado el punto: recién ahí se habilita firmar. */
+  habilitadaParaFirmar: boolean;
+  /** El punto se editó DESPUÉS de firmado (no invalida la firma, la marca). */
+  contenidoCambio: boolean;
 }
 
 export interface ImplementacionUsuarioAsignableDto {
@@ -163,6 +188,12 @@ export interface ImplementacionUsuarioAsignableDto {
   nombre: string;
   cedula: string;
   email: string | null;
+
+  /**
+   * Roles del usuario **en la empresa activa**. Permite elegir participantes por rol sin otra
+   * consulta. Vacío = no tiene rol en esta empresa (sólo se lo puede elegir a mano).
+   */
+  rolIds?: number[];
 }
 
 export interface ImplementacionRolAsignableDto {
@@ -194,3 +225,17 @@ export const ESTADO_FIRMA_LABEL: Record<EstadoFirma, string> = {
   firmada: 'Firmada',
   rechazada: 'Con novedad',
 };
+
+/**
+ * Resultado de enlazar un plan con ItalJira.
+ *
+ * Los conteos vienen separados porque la operación es idempotente: sin distinguir lo que ya estaba
+ * de lo que se creó ahora, "no hizo falta hacer nada" y "no hizo nada" se ven igual en pantalla.
+ */
+export interface ImplementacionItalJiraDto {
+  historiaId: number;
+  historiaCodigo: string;
+  historiaCreada: boolean;
+  puntosYaEnlazados: number;
+  puntosEnlazadosAhora: number;
+}

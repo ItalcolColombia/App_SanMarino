@@ -420,8 +420,34 @@ public partial class InventarioGestionService : IInventarioGestionService
         var galpones = await _db.Galpones.AsNoTracking().Where(g => list.Select(x => x.GalponId).Contains(g.GalponId)).ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct);
         var silos = await NombresDeSilosAsync(list.Select(x => x.SiloId), ct);
 
+        // Separación pendiente de validar: kilos que un seguimiento diario ya comprometió pero que
+        // todavía no se descontaron. Se resuelve acá, en la ÚNICA consulta que responde el saldo, para
+        // que ninguna pantalla tenga que acordarse de restarlo por su cuenta.
+        var farmsEnVista = list.Select(x => x.FarmId).Distinct().ToList();
+        var reservas = farmsEnVista.Count == 0
+            ? new List<(int FarmId, int ItemId, string? NucleoId, string? GalponId, int? SiloId, decimal Kg)>()
+            : (await _db.SeguimientoReservaAlimento.AsNoTracking()
+                .Where(r => farmsEnVista.Contains(r.FarmId) && r.Estado == EstadoReservaSeguimiento.Activa)
+                .GroupBy(r => new { r.FarmId, r.ItemInventarioEcuadorId, r.NucleoId, r.GalponId, r.SiloId })
+                .Select(g => new
+                {
+                    g.Key.FarmId, g.Key.ItemInventarioEcuadorId, g.Key.NucleoId, g.Key.GalponId, g.Key.SiloId,
+                    Kg = g.Sum(r => r.CantidadKg)
+                })
+                .ToListAsync(ct))
+                .Select(g => (FarmId: g.FarmId, ItemId: g.ItemInventarioEcuadorId, NucleoId: g.NucleoId, GalponId: g.GalponId, SiloId: g.SiloId, Kg: g.Kg))
+                .ToList();
+
+        static string NormUbic(string? v) => (v ?? "").Trim();
+        var reservadoPorUbicacion = reservas.ToDictionary(
+            r => (r.FarmId, r.ItemId, NormUbic(r.NucleoId), NormUbic(r.GalponId), r.SiloId ?? 0),
+            r => r.Kg);
+
         return list.Select(x =>
         {
+            var reservado = reservadoPorUbicacion.TryGetValue(
+                (x.FarmId, x.ItemInventarioEcuadorId, NormUbic(x.NucleoId), NormUbic(x.GalponId), x.SiloId ?? 0),
+                out var kgReservado) ? kgReservado : 0m;
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
             string? galponNombre = x.GalponId != null && galpones.TryGetValue((x.GalponId, x.FarmId), out var gn) ? gn : null;
             var itemTypeOut = x.ItemInventario.Concepto ?? x.ItemInventario.TipoItem ?? "alimento";
@@ -436,7 +462,12 @@ public partial class InventarioGestionService : IInventarioGestionService
                 x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt,
                 AvisoFechaFueraDeCiclo: null,
                 SiloId: x.SiloId,
-                SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null);
+                SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null,
+                // DisponibleKg ya no se pasa: es una propiedad DERIVADA del DTO (Quantity − ReservadoKg,
+                // la misma cuenta que hacía ReservaSeguimientoCalculos.DisponibleAlimento). Como
+                // parámetro, los nueve sitios que arman este DTO a mano para las respuestas de ingreso,
+                // traslado y consumo lo dejaban en 0 y el front habría leído «no hay nada».
+                ReservadoKg: reservado);
         }).ToList();
     }
 
@@ -1519,32 +1550,13 @@ public partial class InventarioGestionService : IInventarioGestionService
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
-        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
-        if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
-        var isAlimento = IsAlimento(item);
 
-        // El lote consume de SU silo. La validacion de que el silo este entre los del lote es de la
-        // Fase C (la hace el service de consumo del seguimiento diario, que es quien conoce el lote);
-        // acá se garantiza lo que este camino sí puede garantizar: que el silo sea de esta granja.
-        var modoConsumo = await ResolverModoUbicacionAsync(req.FarmId, ct);
-        var errorSiloConsumo = InventarioUbicacionSiloCalculos.ValidarUbicacion(
-            modoConsumo, req.SiloId, req.GalponId, isAlimento);
-        if (errorSiloConsumo is not null) throw new InvalidOperationException(errorSiloConsumo);
-
-        if (modoConsumo == ModoUbicacionInventario.PorSilo)
-            await ValidarSiloDeGranjaAsync(req.FarmId, req.SiloId!.Value, ct);
-        else if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
-
-        if (modoConsumo == ModoUbicacionInventario.Clasico && !isAlimento &&
-            (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
-            req = req with { NucleoId = null, GalponId = null };
-
-        var (nucleoId, galponId, siloId) = InventarioUbicacionSiloCalculos.NormalizarUbicacion(
-            modoConsumo,
-            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.NucleoId!.Trim() : null,
-            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.GalponId!.Trim() : null,
-            req.SiloId);
+        // La resolución de la ubicación vive en un solo lugar porque `ValidarStockConsumoAsync` la
+        // necesita IDÉNTICA: si la validación previa buscara el stock en otra clave que el descuento,
+        // aprobaría un consumo que después falla —o al revés— y volveríamos a tener dos verdades
+        // sobre el mismo número.
+        var (item, nucleoId, galponId, siloId) = await ResolverUbicacionConsumoAsync(req, ct);
+        req = AjustarUbicacionRequest(req, item);
 
         // A2 — descuento ATÓMICO. Antes esto era read-modify-write:
         //     if (stock.Quantity < req.Quantity) throw;  stock.Quantity -= req.Quantity;

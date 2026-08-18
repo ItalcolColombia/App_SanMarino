@@ -26,6 +26,55 @@ public partial class TicketTareaService : ITicketTareaService
         _currentUser = currentUser;
     }
 
+    // ────────────────── Reflejo en el checklist de Implementación (I1.3) ──────────────────
+
+    /// <summary>
+    /// Propaga el estado de una tarea del tablero al punto del checklist de Implementación que la
+    /// tiene enlazada, si hay alguno.
+    ///
+    /// <para>
+    /// <b>Se llama ANTES de <c>SaveChangesAsync</c></b>, desde los cuatro sitios que mueven una tarea
+    /// de columna (editar y mover, en el camino del caso y en el de ItalJira). Así el punto y la
+    /// tarjeta commitean juntos: no puede quedar una tarea en LISTO con su punto pendiente porque el
+    /// proceso se cayó en el medio.
+    /// </para>
+    ///
+    /// <para>
+    /// La regla —qué estado toma el punto, y el candado sobre lo ya confirmado— vive en
+    /// <see cref="ImplementacionCalculos.EstadoPuntoSegunTareaItalJira"/>, que es pura y está testeada.
+    /// Acá sólo se resuelve el enlace y se sellan fecha y autor.
+    /// </para>
+    /// </summary>
+    private async Task ReflejarEnChecklistImplementacionAsync(
+        long tareaId, string estadoTarea, DateTime now, CancellationToken ct)
+    {
+        var punto = await _ctx.ImplementacionTareas
+            .FirstOrDefaultAsync(t => t.TicketTareaId == tareaId && t.DeletedAt == null, ct);
+        if (punto is null) return;
+
+        var nuevo = ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(
+            TicketTareaEstados.EsTerminal(estadoTarea), punto.Estado);
+        if (nuevo is null) return;
+
+        punto.Estado = nuevo;
+
+        if (nuevo == ImplementacionCalculos.TareaCompletada)
+        {
+            punto.FechaCompletada     = now;
+            punto.CompletadaPorUserId = _currentUser.UserGuid;
+        }
+        else
+        {
+            // Volver a pendiente limpia el sello: si después se vuelve a completar, la fecha tiene
+            // que ser la de la vez que quedó, no la del intento anterior.
+            punto.FechaCompletada     = null;
+            punto.CompletadaPorUserId = null;
+        }
+
+        punto.UpdatedByUserId = _currentUser.UserId;
+        punto.UpdatedAt       = now;
+    }
+
     // ───────────────────────────── Visibilidad ─────────────────────────────
 
     /// <summary>Datos mínimos del caso necesarios para decidir visibilidad y auditoría.</summary>
@@ -321,8 +370,11 @@ public partial class TicketTareaService : ITicketTareaService
         tarea.UpdatedAt = now;
 
         if (!estadoAnterior.Equals(tarea.Estado, StringComparison.OrdinalIgnoreCase))
+        {
             RegistrarEventoTarea(ticketId,
                 $"Tarea {tarea.Codigo}: {estadoAnterior} → {tarea.Estado}.", now);
+            await ReflejarEnChecklistImplementacionAsync(tarea.Id, tarea.Estado, now, ct);
+        }
 
         await _ctx.SaveChangesAsync(ct);
 
@@ -375,7 +427,10 @@ public partial class TicketTareaService : ITicketTareaService
         movida.FechaFinReal = finReal;
 
         if (!estadoAnterior.Equals(destino, StringComparison.OrdinalIgnoreCase))
+        {
             RegistrarEventoTarea(ticketId, $"Tarea {movida.Codigo}: {estadoAnterior} → {destino}.", now);
+            await ReflejarEnChecklistImplementacionAsync(movida.Id, destino, now, ct);
+        }
 
         await _ctx.SaveChangesAsync(ct);
         return await ProyectarTareasAsync(ticketId, ct);

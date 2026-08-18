@@ -265,6 +265,16 @@ public class ReporteContableService : IReporteContableService
             semanaActualFinal = (1, fechaPrimeraLlegada, fechaPrimeraLlegada.AddDays(6));
         }
 
+        // Alcance del kardex de bultos: los movimientos de alimento se traen por GRANJA (no hay dato
+        // de lote con que filtrarlos), asi que cuando la granja tiene mas de un lote padre los
+        // reportes de todos muestran los mismos kilos. Se cuenta para poder decirlo — no se cambia
+        // ningun numero. Medido en ago-2026: 10 de los 11 padres de Sanmarino estan en ese caso.
+        var lotesPadreEnGranja = await _ctx.Lotes.AsNoTracking()
+            .CountAsync(l => l.CompanyId == _currentUser.CompanyId
+                          && l.GranjaId == lotePadre.GranjaId
+                          && l.DeletedAt == null
+                          && l.LotePadreId == null, ct);
+
         return new ReporteContableCompletoDto
         {
             LotePadreId = lotePadre.LoteId ?? 0,
@@ -277,7 +287,10 @@ public class ReporteContableService : IReporteContableService
             SemanaContableActual = semanaActualFinal.Semana,
             FechaInicioSemanaActual = semanaActualFinal.FechaInicio,
             FechaFinSemanaActual = semanaActualFinal.FechaFin,
-            ReportesSemanales = reportesSemanales
+            ReportesSemanales = reportesSemanales,
+            LotesPadreEnGranja = lotesPadreEnGranja,
+            AdvertenciaBultos = ReporteContableBultosCalculos.AdvertenciaAlcance(
+                lotesPadreEnGranja, lotePadre.Farm?.Name)
         };
     }
 

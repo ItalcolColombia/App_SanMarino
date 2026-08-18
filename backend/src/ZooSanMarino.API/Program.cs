@@ -247,6 +247,8 @@ builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
 builder.Services.AddScoped<IVacunacionCronogramaService, VacunacionCronogramaService>();
 builder.Services.AddScoped<IVacunacionRegistroService, VacunacionRegistroService>();
 builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService>();
+builder.Services.AddScoped<IVacunacionPlantillaService, VacunacionPlantillaService>();
+builder.Services.AddScoped<IVacunacionMaterializadorService, VacunacionMaterializadorService>();
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
@@ -285,6 +287,8 @@ builder.Services.AddScoped<IFarmSiloService, FarmSiloService>();
 builder.Services.AddScoped<IGalponSiloService, GalponSiloService>();
 builder.Services.AddScoped<ILoteSiloService, LoteSiloService>();
 builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
+// Doble validación de los seguimientos diarios: separa al guardar, descuenta al validar.
+builder.Services.AddScoped<IValidacionSeguimientoService, ValidacionSeguimientoService>();
 builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 
@@ -479,6 +483,18 @@ builder.Services.AddAuthorization(opt =>
     // TODO(seguridad): endurecer a permisos específicos (claim "permission") por política.
     foreach (var policyName in new[] { "CanManageMenus", "CanManageUsers", "CanManageRoles" })
         opt.AddPolicy(policyName, p => p.RequireAuthenticatedUser());
+
+    // ESCRITURA sobre los catálogos GLOBALES (permisos y menús): solo el administrador de la
+    // aplicación. Son estructuras compartidas por todas las empresas — borrar una key de permiso o
+    // un ítem de menú se lo lleva puesto a todos los países a la vez. Antes esto no estaba cerrado
+    // por ningún lado: PermissionController no tenía un solo [Authorize] y CanManageMenus era
+    // "usuario autenticado", así que cualquier sesión válida podía escribir el catálogo.
+    // Las LECTURAS quedan como estaban a propósito: un usuario no admin necesita GET /api/Permission
+    // para asignarle permisos a un rol y GET /api/Menu/tree para ver etiquetas en la tabla de roles.
+    // La regla vive en Application/Calculos (pura y con tests), no acá.
+    opt.AddPolicy("AdminAplicacion", p => p.RequireAssertion(ctx =>
+        CatalogoGlobalAutorizacionCalculos.PuedeEscribirCatalogoGlobal(
+            ctx.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))));
 });
 
 // ─────────────────────────────────────

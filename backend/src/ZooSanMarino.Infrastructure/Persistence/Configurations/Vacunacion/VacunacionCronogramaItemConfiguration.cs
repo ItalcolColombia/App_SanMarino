@@ -38,6 +38,9 @@ public class VacunacionCronogramaItemConfiguration : IEntityTypeConfiguration<Va
         b.Property(x => x.Activo).HasColumnName("activo").HasDefaultValue(true).IsRequired();
         b.Property(x => x.Notas).HasColumnName("notas").HasMaxLength(2000);
 
+        b.Property(x => x.OrigenPlantillaItemId).HasColumnName("origen_plantilla_item_id");
+        b.Property(x => x.GeneradoAutomatico).HasColumnName("generado_automatico").HasDefaultValue(false).IsRequired();
+
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
@@ -51,6 +54,12 @@ public class VacunacionCronogramaItemConfiguration : IEntityTypeConfiguration<Va
         b.HasIndex(x => x.LotePosturaProduccionId).HasDatabaseName("ix_vacunacion_cronograma_item_produccion");
         b.HasIndex(x => x.LoteAveEngordeId).HasDatabaseName("ix_vacunacion_cronograma_item_engorde");
         b.HasIndex(x => x.ItemInventarioId).HasDatabaseName("ix_vacunacion_cronograma_item_item_inventario");
+        b.HasIndex(x => x.OrigenPlantillaItemId).HasDatabaseName("ix_vacunacion_cronograma_item_origen_plantilla");
+
+        // La UNICIDAD de (lote, origen_plantilla_item_id) —lo que hace idempotente al materializador—
+        // vive SOLO en la migración, como índice parcial sobre COALESCE(...) de los tres FK de línea.
+        // EF no sabe expresar una expresión así, y declararla acá generaría un índice distinto que
+        // pelearía con el de la base en cada 'migrations add'. Ver ux_vci_origen_plantilla_item.
 
         b.ToTable(t =>
         {
@@ -103,6 +112,15 @@ public class VacunacionCronogramaItemConfiguration : IEntityTypeConfiguration<Va
             .HasForeignKey(x => x.LoteAveEngordeId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // SetNull y no Restrict ni Cascade: vacunacion_plan_plantilla_item cascadea desde su
+        // plantilla, así que con Cascade borrar un plan se llevaría puesto el cronograma de lotes
+        // reales (y su registro de aplicación), y con Restrict el borrado del plan fallaría. El ítem
+        // del lote es historia sanitaria: sobrevive y sólo pierde el vínculo con el plan.
+        b.HasOne<VacunacionPlanPlantillaItem>().WithMany()
+            .HasForeignKey(x => x.OrigenPlantillaItemId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // La relación 1:1 con VacunacionRegistroAplicacion (FK del lado dependiente) se configura
         // en VacunacionRegistroAplicacionConfiguration para no duplicar la definición.

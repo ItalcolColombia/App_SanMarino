@@ -1,19 +1,22 @@
 // src/app/features/implementacion/components/modal-participantes/modal-participantes.component.ts
 // Asignación de participantes (asistentes) de un ítem: quiénes estuvieron en la capacitación/entrega
 // y deben firmar el recibido. Los que ya respondieron (firma o novedad) no se pueden quitar.
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ImplementacionService } from '../../services/implementacion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { mensajeErrorHttp } from '../../funciones/resumen-firmas.funcion';
+import { filtrarUsuariosAsignables } from '../../funciones/filtrar-usuarios-asignables.funcion';
 import {
+  ImplementacionRolAsignableDto,
   ImplementacionTareaDto,
   ImplementacionUsuarioAsignableDto,
 } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-participantes-implementacion',
   standalone: true,
   imports: [CommonModule, FormsModule],
@@ -54,6 +57,24 @@ import {
             [(ngModel)]="busqueda"
             (ngModelChange)="filtrar()"
           />
+
+          <!-- El rol ACOTA la lista; no marca a nadie solo. Un rol de la empresa incluye gente que
+               no estuvo en esta capacitación, y una firma de más es alguien afirmando algo que no
+               vio. El visto lo pone una persona, con el atajo de "marcar los visibles". -->
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <select class="input-italfoods flex-1" [(ngModel)]="rolId" (ngModelChange)="filtrar()">
+              <option [ngValue]="null">Todos los roles</option>
+              <option *ngFor="let r of roles" [ngValue]="r.id">{{ r.nombre }}</option>
+            </select>
+            <button
+              type="button"
+              class="btn-italfoods-secondary text-xs"
+              [disabled]="!usuariosFiltrados.length"
+              (click)="marcarVisibles()"
+            >
+              Marcar los {{ usuariosFiltrados.length }} visibles
+            </button>
+          </div>
         </div>
 
         <div class="flex-1 overflow-y-auto px-5 py-3 text-sm">
@@ -113,6 +134,7 @@ export class ModalParticipantesImplementacionComponent implements OnChanges {
   @Input() open = false;
   @Input() tarea: ImplementacionTareaDto | null = null;
   @Input() usuarios: ImplementacionUsuarioAsignableDto[] = [];
+  @Input() roles: ImplementacionRolAsignableDto[] = [];
 
   @Output() cerrado = new EventEmitter<void>();
   @Output() guardado = new EventEmitter<void>();
@@ -120,6 +142,8 @@ export class ModalParticipantesImplementacionComponent implements OnChanges {
   readonly trackByUsuario = (_: number, u: ImplementacionUsuarioAsignableDto): string => u.id;
 
   busqueda = '';
+  /** Rol por el que se acota la lista. `null` = todos. */
+  rolId: number | null = null;
   /** Lista memoizada (referencia estable para el template; se recalcula solo al escribir o abrir). */
   usuariosFiltrados: ImplementacionUsuarioAsignableDto[] = [];
   seleccion = new Set<string>();
@@ -132,6 +156,7 @@ export class ModalParticipantesImplementacionComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['open']?.currentValue && this.tarea) {
       this.busqueda = '';
+      this.rolId = null;
       this.guardando = false;
       this.seleccion = new Set(this.tarea.firmas.map((f) => f.userId));
       this.bloqueados = new Set(this.tarea.firmas.filter((f) => f.estado !== 'pendiente').map((f) => f.userId));
@@ -142,12 +167,16 @@ export class ModalParticipantesImplementacionComponent implements OnChanges {
   }
 
   filtrar(): void {
-    const q = this.busqueda.trim().toLowerCase();
-    this.usuariosFiltrados = !q
-      ? this.usuarios
-      : this.usuarios.filter((u) =>
-          [u.nombre, u.cedula, u.email].some((v) => (v ?? '').toLowerCase().includes(q))
-        );
+    this.usuariosFiltrados = filtrarUsuariosAsignables(this.usuarios, this.busqueda, this.rolId);
+  }
+
+  /**
+   * Marca a todos los usuarios de la lista visible. Sólo AGREGA: no desmarca a nadie que ya estaba
+   * seleccionado y quedó fuera del filtro, porque el filtro es una ayuda de búsqueda y perder una
+   * selección al escribir en el buscador sería una trampa.
+   */
+  marcarVisibles(): void {
+    for (const u of this.usuariosFiltrados) this.seleccion.add(u.id);
   }
 
   toggle(userId: string): void {

@@ -12,12 +12,16 @@
 Hola,
 
 Les escribo porque la plataforma ItalGranja (`zootecnico.sanmarino.com.co`) **no puede enviar correos
-desde el 3 de junio de 2026**. Esto tiene afectados tres procesos del día a día:
+desde el 3 de junio de 2026** — a hoy, **75 días**. En ese período quedaron **71 correos sin
+entregar**, y no son avisos prescindibles:
 
-- **Recuperación de contraseña**: un usuario que olvida su clave no puede volver a entrar por sus
-  propios medios.
-- **Alta de usuarios nuevos**: no reciben sus credenciales de acceso.
-- **Notificaciones de tickets de soporte**: no llegan avisos de creación, asignación ni solución.
+| Correo que no salió | Cantidad | Qué significa para la persona |
+|---|---|---|
+| Recuperación de contraseña | **20** | Se quedó afuera del sistema y no puede volver a entrar por sus propios medios |
+| Bienvenida / alta de usuario | **16** | Nunca recibió sus credenciales de acceso |
+| Notificaciones de tickets | **35** | No se entera de la creación, asignación ni solución de su caso |
+
+El último intento fallido es del **15 de agosto de 2026**, así que el problema sigue activo.
 
 **Ya verificamos que el problema no está en nuestra aplicación.** El 12 de agosto probamos, contra el
 mismo buzón y con las mismas credenciales:
@@ -90,6 +94,8 @@ y coordinamos.
 | Origen que funciona | Red corporativa (IP `186.86.52.65`) |
 | Origen que falla | AWS ECS, región us-east-2 (IP variable) |
 | Último envío exitoso | 3 de junio de 2026 |
+| Último intento fallido | 15 de agosto de 2026 |
+| Correos sin entregar | 71 |
 
 Quedo atento a lo que necesiten de nuestro lado. Adjunto el informe técnico con el detalle de todas
 las pruebas.

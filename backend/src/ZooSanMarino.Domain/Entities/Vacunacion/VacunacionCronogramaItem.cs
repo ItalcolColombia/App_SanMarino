@@ -45,6 +45,32 @@ public class VacunacionCronogramaItem : AuditableEntity
     public bool Activo { get; set; } = true;
     public string? Notas { get; set; }
 
+    /// <summary>
+    /// Ítem de la plantilla de empresa del que salió esta fila, o <c>null</c> si se cargó a mano.
+    ///
+    /// <para>
+    /// Es la clave de idempotencia del materializador: <c>(lote, origen_plantilla_item_id)</c> es
+    /// único, así que aplicar el plan N veces deja el mismo cronograma. Se conserva aunque el ítem
+    /// deje de estar gobernado por el plan (ver <see cref="GeneradoAutomatico"/>) —justamente para
+    /// que no se pueda crear un duplicado— y la FK es <c>ON DELETE SET NULL</c>: el ítem del lote es
+    /// historia sanitaria y sobrevive al borrado de la plantilla de la que nació.
+    /// </para>
+    /// </summary>
+    public int? OrigenPlantillaItemId { get; set; }
+
+    /// <summary>
+    /// <c>true</c> mientras esta fila la gobierna el plan de la empresa; <c>false</c> si la escribió
+    /// —o la corrigió— una persona.
+    ///
+    /// <para>
+    /// Todo lo que existía antes del materializador nace en <c>false</c>, que es exactamente lo que
+    /// es: cargado a mano. Y editar por el CRUD un ítem generado lo pasa a <c>false</c>: una
+    /// corrección sobre <b>este</b> lote es una decisión explícita, y el plan de la empresa no la
+    /// puede deshacer en silencio en la próxima materialización.
+    /// </para>
+    /// </summary>
+    public bool GeneradoAutomatico { get; set; }
+
     public Farm Farm { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
     public Galpon? Galpon { get; set; }

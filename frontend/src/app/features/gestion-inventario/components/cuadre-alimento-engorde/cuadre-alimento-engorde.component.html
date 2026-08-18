@@ -1,0 +1,209 @@
+<!--
+  Dos paneles: el cuadre por galpón (invariante del alimento) y los lotes que se liquidaron dejando
+  alimento en el galpón (anomalía R2). Ninguno bloquea nada: señalan.
+-->
+<div class="cuadre">
+
+  <!-- ── PANEL 1 · Cuadre por galpón ─────────────────────────────────────── -->
+  <section class="cuadre__panel" aria-label="Cuadre de alimento por galpón">
+    <header class="cuadre__head">
+      <div>
+        <h3 class="cuadre__title">Cuadre de alimento por galpón</h3>
+        <p class="cuadre__subtitle">
+          Saldo del ciclo activo contra el stock físico, descontando lo que se movió después del último
+          seguimiento.
+        </p>
+      </div>
+      <div class="cuadre__actions">
+        <label class="cuadre__check">
+          <input type="checkbox" [(ngModel)]="soloConProblemas" (ngModelChange)="cargarCuadre()" />
+          Solo los que requieren atención
+        </label>
+        <button type="button" class="btn btn--outline" (click)="cargarCuadre()" [disabled]="cargandoCuadre">
+          Actualizar
+        </button>
+      </div>
+    </header>
+
+    @if (errorCuadre) {
+      <p class="cuadre__error" role="alert">{{ errorCuadre }}</p>
+    }
+    @if (cargandoCuadre) {
+      <p class="cuadre__hint">Cargando cuadre…</p>
+    }
+
+    @if (cuadre && !cargandoCuadre) {
+      <div class="cuadre__chips">
+        <span class="chip">Galpones: <strong>{{ cuadre.totalGalpones }}</strong></span>
+        <span class="chip chip--ok">Cuadran: <strong>{{ cuadre.cuadran }}</strong></span>
+        <span class="chip" [class.chip--danger]="cuadre.descuadrados > 0">
+          No cuadran: <strong>{{ cuadre.descuadrados }}</strong>
+        </span>
+        <span class="chip" [class.chip--warn]="cuadre.conSaldoNegativo > 0">
+          Con días en negativo: <strong>{{ cuadre.conSaldoNegativo }}</strong>
+        </span>
+        <span class="chip">Diferencia absoluta: <strong>{{ cuadre.kgErrorAbsoluto | number:'1.0-1' }} kg</strong></span>
+      </div>
+
+      @if (cuadre.galpones.length === 0) {
+        <p class="cuadre__hint">
+          @if (cuadre.totalGalpones === 0) {
+            Esta empresa no tiene galpones de engorde con seguimiento cargado.
+          } @else {
+            Todos los galpones cuadran con el inventario.
+          }
+        </p>
+      } @else {
+        <div class="cuadre__table-wrap">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th>Granja</th>
+                <th>Núcleo / Galpón</th>
+                <th>Lote</th>
+                <th>Últ. seguimiento</th>
+                <th class="text-right">Saldo tabla</th>
+                <th class="text-right">Movs. posteriores</th>
+                <th class="text-right">Stock</th>
+                <th class="text-right">Descuadre</th>
+                <th class="text-right">Ajustes manuales</th>
+                <th>Estado</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of cuadre.galpones; track f.loteAveEngordeId) {
+                <tr>
+                  <td>{{ f.granja }}</td>
+                  <td>{{ f.nucleoId }} / {{ f.galponId }}</td>
+                  <td>{{ f.loteNombre }} <small class="muted">#{{ f.loteAveEngordeId }}</small></td>
+                  <td>{{ fecha(f.ultimoSeguimiento) }}</td>
+                  <td class="text-right">{{ f.saldoTablaKg | number:'1.0-1' }}</td>
+                  <td class="text-right">{{ f.movPostKg | number:'1.0-1' }}</td>
+                  <td class="text-right">{{ f.stockKg | number:'1.0-1' }}</td>
+                  <td class="text-right"><strong>{{ f.descuadreKg | number:'1.0-1' }}</strong></td>
+                  <td class="text-right">
+                    @if (f.ajustesManualesCount > 0) {
+                      {{ f.ajustesManualesKg | number:'1.0-1' }}
+                      <small class="muted">({{ f.ajustesManualesCount }})</small>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td><span [class]="claseEstadoCuadre(f)">{{ textoEstadoCuadre(f) }}</span></td>
+                  <td class="cuadre__detalle">{{ f.detalle }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </section>
+
+  <!-- ── PANEL 2 · Liquidados con alimento (anomalía R2) ──────────────────── -->
+  <section class="cuadre__panel" aria-label="Lotes liquidados con alimento en el galpón">
+    <header class="cuadre__head">
+      <div>
+        <h3 class="cuadre__title">Lotes liquidados con alimento sin trasladar</h3>
+        <p class="cuadre__subtitle">
+          Al liquidar, el galpón tiene que quedar en cero: el sobrante se traslada. Acá está lo que
+          quedó, según la foto congelada de cada liquidación.
+        </p>
+      </div>
+      <div class="cuadre__actions">
+        <label class="cuadre__check">
+          <input type="checkbox" [(ngModel)]="soloAnomalias" (ngModelChange)="cargarLiquidados()" />
+          Ocultar los que sí se trasladaron
+        </label>
+        <button type="button" class="btn btn--outline" (click)="cargarLiquidados()" [disabled]="cargandoLiquidados">
+          Actualizar
+        </button>
+      </div>
+    </header>
+
+    @if (errorLiquidados) {
+      <p class="cuadre__error" role="alert">{{ errorLiquidados }}</p>
+    }
+    @if (cargandoLiquidados) {
+      <p class="cuadre__hint">Cargando liquidaciones…</p>
+    }
+
+    @if (liquidados && !cargandoLiquidados) {
+      <div class="cuadre__chips">
+        <span class="chip">Liquidaciones vigentes: <strong>{{ liquidados.totalLiquidados }}</strong></span>
+        <span class="chip" [class.chip--warn]="liquidados.conSaldo > 0">
+          Con alimento al liquidar: <strong>{{ liquidados.conSaldo }}</strong>
+        </span>
+        <span class="chip" [class.chip--danger]="liquidados.sinRespaldoFisico > 0">
+          Sin respaldo físico: <strong>{{ liquidados.sinRespaldoFisico }}</strong>
+        </span>
+        <span class="chip">Sin trasladar: <strong>{{ liquidados.kgSinTrasladar | number:'1.0-1' }} kg</strong></span>
+        <span class="chip">Sin respaldo: <strong>{{ liquidados.kgSinRespaldo | number:'1.0-1' }} kg</strong></span>
+      </div>
+
+      @if (liquidados.sinDatoCongelado > 0) {
+        <p class="cuadre__hint">
+          {{ liquidados.sinDatoCongelado }} liquidación(es) son copias de backfill y no guardaron el
+          saldo de alimento: no se les inventa un número, quedan fuera del detalle.
+        </p>
+      }
+
+      @if (liquidados.lotes.length === 0) {
+        <p class="cuadre__hint">
+          @if (liquidados.totalLiquidados === 0) {
+            Esta empresa no tiene liquidaciones de engorde congeladas.
+          } @else {
+            Ninguna liquidación quedó con alimento pendiente en el galpón.
+          }
+        </p>
+      } @else {
+        <div class="cuadre__table-wrap">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th>Granja</th>
+                <th>Núcleo / Galpón</th>
+                <th>Lote</th>
+                <th>Liquidado</th>
+                <th class="text-right">Saldo congelado</th>
+                <th class="text-right">Salidas posteriores</th>
+                <th class="text-right">Stock hoy</th>
+                <th class="text-right">Sin trasladar</th>
+                <th class="text-right">Sin respaldo</th>
+                <th>Ciclo siguiente</th>
+                <th>Estado</th>
+                <th>Qué hacer</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of liquidados.lotes; track f.loteAveEngordeId) {
+                <tr>
+                  <td>{{ f.granja }}</td>
+                  <td>{{ f.nucleoId }} / {{ f.galponId }}</td>
+                  <td>{{ f.loteNombre }} <small class="muted">#{{ f.loteAveEngordeId }}</small></td>
+                  <td>{{ fecha(f.liquidadoAt) }}</td>
+                  <td class="text-right">{{ f.saldoCongeladoKg | number:'1.0-1' }}</td>
+                  <td class="text-right">{{ f.salidasPostKg | number:'1.0-1' }}</td>
+                  <td class="text-right">{{ f.stockGalponKg | number:'1.0-1' }}</td>
+                  <td class="text-right"><strong>{{ f.kgSinTrasladar | number:'1.0-1' }}</strong></td>
+                  <td class="text-right"><strong>{{ f.kgSinRespaldo | number:'1.0-1' }}</strong></td>
+                  <td>
+                    @if (f.loteSiguienteNombre) {
+                      {{ f.loteSiguienteNombre }}
+                      <small class="muted">({{ fecha(f.loteSiguienteEncaset) }})</small>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td><span [class]="claseEstadoLiquidado(f)">{{ textoEstadoLiquidado(f) }}</span></td>
+                  <td class="cuadre__detalle">{{ f.detalle }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </section>
+</div>

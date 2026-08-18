@@ -200,6 +200,34 @@
         /// </summary>
         public bool ReportesAlimentoDesdeInventarioUnificado { get; set; }
 
+        /// <summary>
+        /// Los seguimientos diarios de esta empresa exigen una <b>doble validación</b>: al guardar, el
+        /// registro queda pendiente y el alimento y las aves consumidas se <b>separan</b> (reservan) en
+        /// vez de descontarse. El descuento real ocurre recién cuando alguien con permiso valida el
+        /// registro.
+        ///
+        /// <para>
+        /// Nace de un problema concreto de operación: el registro se puede editar y borrar después de
+        /// guardado, así que cada corrección obligaba a devolver inventario y recalcular saldos a mano.
+        /// Separando, editar es reescribir la reserva — no hay nada que devolver porque nunca se
+        /// descontó—. Y como el mismo galpón alimenta a dos lotes, la reserva es además lo que permite
+        /// distinguir qué se llevó cada uno: el disponible pasa a ser <c>stock − reservas activas</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// Trae aparejado el resto del control: un registro sin validar pasado el día queda «en
+        /// retraso» (fila roja, alarma y modal al entrar al lote) y bloquea el alta de días nuevos en
+        /// ese lote.
+        /// </para>
+        ///
+        /// <para>
+        /// <c>false</c> (default) = comportamiento previo intacto: se descuenta al guardar, no se
+        /// separa nada y ningún registro se pinta ni bloquea. Se enciende empresa por empresa —cambiar
+        /// el momento del descuento mueve inventario en producción—.
+        /// </para>
+        /// </summary>
+        public bool RequiereValidacionSeguimientoDiario { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

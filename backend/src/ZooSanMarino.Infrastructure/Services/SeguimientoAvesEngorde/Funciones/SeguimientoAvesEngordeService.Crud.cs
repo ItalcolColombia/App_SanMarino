@@ -79,6 +79,26 @@ public partial class SeguimientoAvesEngordeService
         if (string.Equals(lote.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se pueden agregar registros diarios.");
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // `separa` decide TODO lo que sigue: con la empresa en doble validación no se descuenta nada
+        // al guardar, se separa. Con el flag apagado queda en false y el método corre igual que antes.
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        // Panamá captura en Mixto aunque el lote tenga sexos: el mensaje tiene que nombrar el
+        // campo que el usuario realmente ve.
+        var loteEsMixto = SeparacionSeguimientoHelper.FormularioCapturaEnMixto(
+            await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId),
+            lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0);
+
+        if (separa)
+        {
+            // Los vencidos bloquean el día nuevo: el mensaje nombra las fechas que hay que validar.
+            await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Engorde, dto.LoteId);
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
+        }
+
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
@@ -134,6 +154,12 @@ public partial class SeguimientoAvesEngordeService
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
+            // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+            // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en false —el
+            // default— hacía que el día que la empresa encendiera la doble validación todos sus
+            // registros previos aparecieran pendientes, pasaran a EN RETRASO a las 24 h y bloquearan
+            // el alta de días nuevos de cada lote, sin tener nada que validar.
+            Validado = !separa,
             Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
@@ -175,14 +201,17 @@ public partial class SeguimientoAvesEngordeService
         };
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
 
-        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2).
-        var modeloInv = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2). El país RESUELTO se reusa en la
+        // reserva de la doble validación: `lote.PaisId` crudo puede venir NULL, y una reserva con país 0
+        // se aplica contra el modelo `Ninguno` ⇒ registro validado sin descontar un kilo.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modeloInv = InventarioConsumoGate.ResolverModelo(paisIdLote);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2, mirror levante) ──
         // Valida stock B de TODOS los ítems ANTES de commitear; guarda el seguimiento + descuenta en
         // UNA transacción. Si falta stock/ítem → throw por ítem → rollback → NO se guarda. Los ítems
         // Colombia traen catalogItemId (id-mapping A→B por código dentro del servicio).
-        if (modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
+        if (!separa && modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
         {
             var byItem = ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -200,11 +229,19 @@ public partial class SeguimientoAvesEngordeService
         }
         else
         {
+            // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el
+            // consumo iba después dentro de un catch que se comía el rechazo: se podía cargar un día
+            // de un alimento sin un solo kilo en el galpón.
+            if (!separa && _inventarioGestionService != null && dto.Metadata != null && modeloInv == ModeloInventarioConsumo.ModeloB)
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
+                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (con núcleo/galpón).
             // Este servicio atiende engorde Colombia → un lote Colombia usa el bloque atómico de arriba.
-            if (_inventarioGestionService != null && dto.Metadata != null && modeloInv == ModeloInventarioConsumo.ModeloB)
+            if (!separa && _inventarioGestionService != null && dto.Metadata != null && modeloInv == ModeloInventarioConsumo.ModeloB)
             {
                 try
                 {
@@ -228,7 +265,7 @@ public partial class SeguimientoAvesEngordeService
         var (bajasH, bajasM) = RetiroAvesEngordeCalculos.BajasDelDia(
             dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
             dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos);
-        if (bajasH > 0 || bajasM > 0)
+        if (!separa && (bajasH > 0 || bajasM > 0))
         {
             try
             {
@@ -239,6 +276,22 @@ public partial class SeguimientoAvesEngordeService
             // Si el descuento falla, el registro queda creado y el maestro SIN descontar: hay que poder
             // verlo. A Console no lo lee nadie en ECS; al logger sí (caso lote 107, jul-2026).
             catch (Exception ex) { _logger?.LogError(ex, "Error al descontar aves desde seguimiento engorde (lote {LoteId}, seguimiento {SeguimientoId})", dto.LoteId, ent.Id); }
+        }
+
+        // La separación va DESPUÉS de persistir: necesita el id del registro para poder liberarla o
+        // aplicarla después. Nada de esto toca stock ni el maestro de aves.
+        if (separa)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Engorde, ent.Id, paisIdLote,
+                lote.GranjaId, lote.NucleoId, lote.GalponId,
+                dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                // POBLACIÓN, no formulario: es lo que decide de qué bucket del maestro salen
+                // las bajas. En Panamá el formulario es mixto pero el lote puede tener sexos.
+                RetiroAvesEngordeCalculos.EsLoteMixto(
+                    new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0))));
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, _current.CompanyId);
@@ -262,6 +315,28 @@ public partial class SeguimientoAvesEngordeService
                          where s.Id == dto.Id && l.CompanyId == companyId && l.DeletedAt == null
                          select s).SingleOrDefaultAsync();
         if (ent is null) return null;
+
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        // Panamá captura en Mixto aunque el lote tenga sexos: el mensaje tiene que nombrar el
+        // campo que el usuario realmente ve.
+        var loteEsMixto = SeparacionSeguimientoHelper.FormularioCapturaEnMixto(
+            await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId),
+            lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0);
+
+        if (separa)
+        {
+            // Un registro validado ya movió inventario y aves: para corregirlo hay que quitarle la
+            // validación primero (permiso propio), que es lo que devuelve esas unidades.
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, ent.Validado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
+
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
+        }
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
@@ -361,14 +436,17 @@ public partial class SeguimientoAvesEngordeService
         _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
         _ctx.Entry(ent).Property(e => e.HistoricoConsumoAlimento).IsModified = true;
 
-        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2).
-        var modeloInv = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2). El país RESUELTO se reusa en la
+        // reserva de la doble validación: `lote.PaisId` crudo puede venir NULL, y una reserva con país 0
+        // se aplica contra el modelo `Ninguno` ⇒ registro validado sin descontar un kilo.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modeloInv = InventarioConsumoGate.ResolverModelo(paisIdLote);
         var newByItemIdInv = dto.Metadata != null ? ParseMetadataItemsToKg(dto.Metadata.RootElement) : new Dictionary<int, decimal>();
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (mirror levante) ──
         // diff old/new por catalogItemId: diff>0 = consumo adicional; diff<0 = devolución. Valida el
         // stock B de los diff POSITIVOS ANTES de commitear; update + diff en UNA tx (todo-o-nada).
-        if (modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
+        if (!separa && modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
         {
             // Diff TIPADO (conserva el origen del id) — el diff plano (oldByItemId/newByItemIdInv)
             // sigue siendo el de la rama Ecuador/Panamá de abajo.
@@ -392,10 +470,25 @@ public partial class SeguimientoAvesEngordeService
         }
         else
         {
+            // Solo los INCREMENTOS consumen: una edición a la baja devuelve, y devolver nunca puede
+            // quedarse sin stock. Se comprueban antes de guardar, igual que en el alta.
+            if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+                modeloInv == ModeloInventarioConsumo.ModeloB)
+            {
+                var incrementos = new Dictionary<int, decimal>();
+                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(newByItemIdInv.Keys)))
+                {
+                    var diff = newByItemIdInv.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                    if (diff > 0) incrementos[itemId] = diff;
+                }
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), incrementos);
+            }
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (con núcleo/galpón).
-            if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+            if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
                 modeloInv == ModeloInventarioConsumo.ModeloB)
             {
                 try
@@ -428,7 +521,7 @@ public partial class SeguimientoAvesEngordeService
         var (newHRet, newMRet) = RetiroAvesEngordeCalculos.BajasDelDia(
             dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
             dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos);
-        if (newHRet != oldHRet || newMRet != oldMRet)
+        if (!separa && (newHRet != oldHRet || newMRet != oldMRet))
         {
             try
             {
@@ -437,6 +530,22 @@ public partial class SeguimientoAvesEngordeService
                     bajasHembrasNuevas: newHRet, bajasMachosNuevas: newMRet);
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al ajustar el descuento de aves desde seguimiento engorde (lote {LoteId}, seguimiento {SeguimientoId})", dto.LoteId, ent.Id); }
+        }
+
+        // Editar un pendiente REESCRIBE la separación: se libera la anterior y se separa lo nuevo. No
+        // hay diff ni devolución porque nunca se descontó nada.
+        if (separa)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Engorde, ent.Id, paisIdLote,
+                lote.GranjaId, lote.NucleoId, lote.GalponId,
+                dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                // POBLACIÓN, no formulario: es lo que decide de qué bucket del maestro salen
+                // las bajas. En Panamá el formulario es mixto pero el lote puede tener sexos.
+                RetiroAvesEngordeCalculos.EsLoteMixto(
+                    new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0))));
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);
@@ -456,8 +565,24 @@ public partial class SeguimientoAvesEngordeService
         if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Borrar un pendiente solo LIBERA la separación: no hay devolución que hacer porque el
+        // inventario y el maestro de aves nunca se movieron.
+        var separaDel = _validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaDel)
+        {
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, ent.Seguimiento.Validado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
+
+            await _validacion!.LiberarAsync(ModuloSeguimiento.Engorde, ent.Seguimiento.Id);
+        }
+
         // Modelo de inventario según país del lote (S1 / Fase 3 paso 2).
-        var modeloInv = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(ent.GranjaId, ent.PaisId));
+        var modeloInv = separaDel
+            ? ModeloInventarioConsumo.Ninguno
+            : InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(ent.GranjaId, ent.PaisId));
 
         // ── Colombia (modelo B nivel granja) — devolución total por eliminación (mirror levante) ──
         // Los ítems Colombia traen catalogItemId (id-mapping A→B por código dentro del servicio).
@@ -520,10 +645,11 @@ public partial class SeguimientoAvesEngordeService
         catch (Exception ex) { Console.WriteLine($"Error al anular INV_CONSUMO al eliminar seguimiento aves engorde: {ex.Message}"); }
 
         // Devolución de las aves descontadas por este registro + anulación de su fila en el histórico.
+        // Con separación no hay nada que devolver: la baja estaba reservada, no aplicada, y ya se liberó.
         var (retH, retM) = RetiroAvesEngordeCalculos.BajasDelDia(
             ent.Seguimiento.MortalidadHembras ?? 0, ent.Seguimiento.SelH ?? 0, ent.Seguimiento.ErrorSexajeHembras ?? 0,
             ent.Seguimiento.MortalidadMachos ?? 0, ent.Seguimiento.SelM ?? 0, ent.Seguimiento.ErrorSexajeMachos ?? 0);
-        if (retH > 0 || retM > 0)
+        if (!separaDel && (retH > 0 || retM > 0))
         {
             try
             {

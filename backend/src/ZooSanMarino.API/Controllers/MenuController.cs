@@ -49,8 +49,12 @@ public class MenuController : ControllerBase
         => Ok(await _svc.GetForUserAsync(userId, companyId));
 
     /// <summary>Crea un ítem de menú.</summary>
+    /// <remarks>
+    /// Catálogo GLOBAL: el árbol de menús lo comparten todas las empresas. Escritura reservada al
+    /// administrador de la aplicación — <c>CanManageMenus</c> solo pide sesión válida.
+    /// </remarks>
     [HttpPost]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -62,9 +66,9 @@ public class MenuController : ControllerBase
         return Created($"/api/menu/tree", created);
     }
 
-    /// <summary>Actualiza un ítem de menú.</summary>
+    /// <summary>Actualiza un ítem de menú. Catálogo global: solo el admin de la aplicación.</summary>
     [HttpPut("{id:int}")]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -78,9 +82,12 @@ public class MenuController : ControllerBase
         return upd is null ? NotFound() : Ok(upd);
     }
 
-    /// <summary>Elimina un ítem de menú. No permite eliminar si tiene hijos.</summary>
+    /// <summary>
+    /// Elimina un ítem de menú. No permite eliminar si tiene hijos.
+    /// Catálogo global: solo el admin de la aplicación.
+    /// </summary>
     [HttpDelete("{id:int}")]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)

@@ -1,5 +1,5 @@
 // src/app/features/vacunacion/pages/cronograma-administracion/cronograma-administracion.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -11,6 +11,7 @@ import { ModalItemCronogramaComponent } from '../../components/modal-item-cronog
 import { construirFilasCronograma, trackByFilaCronograma, FilaCronograma } from '../../funciones/construir-filas-cronograma.funcion';
 import { calcularKpisCronograma, KpisCronograma } from '../../funciones/calcular-kpis-cronograma.funcion';
 import { exportarCronogramaExcel } from '../../funciones/exportar-cronograma-excel.funcion';
+import { resumirImpactoLote } from '../../funciones/resumir-impacto-materializacion.funcion';
 import {
   FarmDtoLite,
   LINEA_PRODUCTIVA_LABEL,
@@ -18,8 +19,10 @@ import {
   VacunacionLoteOpcionDto,
   VacunacionVacunaOpcionDto,
 } from '../../models/vacunacion.model';
+import { VacunacionMaterializacionLoteDto } from '../../models/vacunacion-materializador.model';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-cronograma-administracion',
   standalone: true,
   imports: [CommonModule, FormsModule, HasPermissionDirective, ModalItemCronogramaComponent],
@@ -46,6 +49,10 @@ export class CronogramaAdministracionPage implements OnInit {
 
   cargandoFiltros = false;
   cargandoCronograma = false;
+  aplicandoPlan = false;
+
+  /** Sólo cuando hay algo para escribir; si el lote está al día, es `null` y no se muestra aviso. */
+  pendienteDelPlan: VacunacionMaterializacionLoteDto | null = null;
 
   modalAbierto = false;
   itemEditar: VacunacionCronogramaItemDto | null = null;
@@ -103,6 +110,7 @@ export class CronogramaAdministracionPage implements OnInit {
     this.items = [];
     this.filas = [];
     this.kpis = null;
+    this.pendienteDelPlan = null;
     if (!lote) return;
 
     this.cargandoCronograma = true;
@@ -114,6 +122,62 @@ export class CronogramaAdministracionPage implements OnInit {
       this.toast.error('No se pudo cargar el cronograma del lote.');
     } finally {
       this.cargandoCronograma = false;
+    }
+
+    await this.revisarPlanDelLote(lote);
+  }
+
+  // ─── Aviso: este lote tiene vacunas del plan sin bajar (W2) ───────────────
+
+  /**
+   * Pregunta si al lote le falta algo de su plan. Va aparte del cronograma —y después— porque es
+   * información secundaria: si falla o tarda, la pantalla ya mostró lo que el usuario vino a ver.
+   *
+   * <p>Es una LECTURA. La materialización no se dispara sola al abrir el cronograma: las filas
+   * nacerían a nombre de quien pasó a mirar la pantalla, y este módulo existe justamente para poder
+   * decir quién programó qué y cuándo.</p>
+   */
+  private async revisarPlanDelLote(lote: VacunacionLoteOpcionDto): Promise<void> {
+    try {
+      const preview = await firstValueFrom(
+        this.vacunacionSvc.previewMaterializacionLote(lote.lineaProductiva, lote.loteId)
+      );
+      this.pendienteDelPlan = preview.conteos.escribeAlgo ? preview : null;
+    } catch {
+      // Sin permiso de plantillas, o el lote no resuelve a ninguna: no es un error de esta pantalla.
+      this.pendienteDelPlan = null;
+    }
+  }
+
+  get resumenPendienteDelPlan(): string {
+    return this.pendienteDelPlan ? resumirImpactoLote(this.pendienteDelPlan.conteos) : '';
+  }
+
+  /** Baja el plan a ESTE lote. El impacto ya está en pantalla en el aviso, así que sólo se confirma. */
+  async aplicarPlanAlLote(): Promise<void> {
+    const lote = this.loteSeleccionado;
+    const pendiente = this.pendienteDelPlan;
+    if (!lote || !pendiente) return;
+
+    const ok = await this.confirmDialog.ask({
+      title: 'Aplicar el plan a este lote',
+      message:
+        `Se van a escribir en el cronograma de ${lote.loteNombre}: ${resumirImpactoLote(pendiente.conteos)} ` +
+        'Lo ya aplicado y lo cargado a mano no se toca, y no se borra ninguna fila.',
+      type: 'info',
+      confirmText: 'Aplicar',
+    });
+    if (!ok) return;
+
+    this.aplicandoPlan = true;
+    try {
+      await firstValueFrom(this.vacunacionSvc.aplicarMaterializacionLote(lote.lineaProductiva, lote.loteId));
+      this.toast.success('El plan quedó aplicado al cronograma del lote.');
+      await this.onLoteChange(lote);
+    } catch (err: any) {
+      this.toast.error(err?.error?.error ?? 'No se pudo aplicar el plan al lote.');
+    } finally {
+      this.aplicandoPlan = false;
     }
   }
 

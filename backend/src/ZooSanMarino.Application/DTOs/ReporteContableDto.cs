@@ -177,6 +177,18 @@ public record ReporteContableCompletoDto
     public DateTime FechaInicioSemanaActual { get; init; }
     public DateTime FechaFinSemanaActual { get; init; }
     public List<ReporteContableSemanalDto> ReportesSemanales { get; init; } = new();
+
+    /// <summary>
+    /// Cuántos lotes padres vivos tiene HOY la granja. Con más de uno, el kardex de bultos que muestra
+    /// este reporte es el mismo que muestran los demás: los movimientos de alimento son de la granja.
+    /// </summary>
+    public int LotesPadreEnGranja { get; init; }
+
+    /// <summary>
+    /// Aviso de alcance de la sección BULTO, o <c>null</c> si el padre es el único de su granja.
+    /// Lo decide <c>ReporteContableBultosCalculos.AdvertenciaAlcance</c>.
+    /// </summary>
+    public string? AdvertenciaBultos { get; init; }
 }
 
 /// <summary>

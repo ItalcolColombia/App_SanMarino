@@ -248,6 +248,9 @@
                       <th>Peso H (kg)</th>
                       <th>Peso M (kg)</th>
                       <th>Obs. pesaje</th>
+                      @if (requiereValidacion) {
+                        <th scope="col">Estado</th>
+                      }
                       <th class="sticky-actions text-right">Acciones</th>
                     </tr>
                   </thead>
@@ -271,7 +274,8 @@
                       <tr class="ux-row"
                         [class.fila--traslado]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)+(s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
                         [class.fila--traslado-salida]="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
-                        [class.fila--traslado-ingreso]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0">
+                        [class.fila--traslado-ingreso]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0"
+                        [ngClass]="claseFilaValidacion(s.id)">
                         <td class="mono">
                           @if (((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0) {
                             <span class="prod-traslado-tag" title="Salida de aves por traslado">🔀 SALIDA</span>
@@ -325,9 +329,20 @@
                           <!-- Ver detalle siempre; editar y eliminar solo con el lote abierto -->
                           <div class="btn-group">
                             <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
+                            @if (puedeValidarFila(s.id)) {
+                              <button type="button" (click)="onValidar(s.id)" class="icon-btn icon-btn--validar"
+                                title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura."
+                                aria-label="Validar registro">✓</button>
+                            }
                             @if (!loteCerrado) {
-                              <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
-                              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                              <button type="button" (click)="onEdit(s)" class="icon-btn"
+                                [disabled]="esSoloLecturaPorValidacion(s.id)"
+                                [title]="esSoloLecturaPorValidacion(s.id) ? 'Registro validado: quítele la validación para corregirlo' : 'Editar'"
+                                aria-label="Editar registro">✎</button>
+                              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger"
+                                [disabled]="esSoloLecturaPorValidacion(s.id)"
+                                [title]="esSoloLecturaPorValidacion(s.id) ? 'Registro validado: quítele la validación para poder eliminarlo' : 'Eliminar'"
+                                aria-label="Eliminar registro">🗑</button>
                             } @else {
                               <span class="icon-btn" title="El lote de producción está cerrado" aria-label="Lote cerrado">🔒</span>
                             }

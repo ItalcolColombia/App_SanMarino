@@ -56,6 +56,13 @@ export interface CompanyFlags {
    * Habilita además las pantallas de asignación de silos (lista maestra, granja, galpón y lote).
    */
   manejaInventarioPorSilo: boolean;
+  /**
+   * Los seguimientos diarios exigen DOBLE VALIDACION: al guardar, el registro queda pendiente y el
+   * alimento y las aves se SEPARAN (reservan) en vez de descontarse; el descuento real ocurre al
+   * validar. Habilita la columna Estado, el boton Validar, el semaforo de retraso y el modal de
+   * pendientes al entrar al lote.
+   */
+  requiereValidacionSeguimientoDiario: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -68,7 +75,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   primerRegistroSegunHoraLlegada: false,
   programacionLotesEngorde: false,
   nombreLoteIncluyeCorrida: false,
-  manejaInventarioPorSilo: false
+  manejaInventarioPorSilo: false,
+  requiereValidacionSeguimientoDiario: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -90,6 +98,7 @@ interface CompanyFlagsResponse {
   programacionLotesEngorde?: boolean | null;
   nombreLoteIncluyeCorrida?: boolean | null;
   manejaInventarioPorSilo?: boolean | null;
+  requiereValidacionSeguimientoDiario?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -143,6 +152,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa ubica el inventario en silos/bodegas en vez del galpón? */
   readonly manejaInventarioPorSilo$: Observable<boolean> = this.flags$.pipe(
     map(f => f.manejaInventarioPorSilo),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿los seguimientos diarios de la empresa activa exigen doble validación? */
+  readonly requiereValidacionSeguimientoDiario$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.requiereValidacionSeguimientoDiario),
     distinctUntilChanged()
   );
 
@@ -254,7 +269,8 @@ export class ActiveCompanyConfigService {
       primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true,
       programacionLotesEngorde: dto?.programacionLotesEngorde === true,
       nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true,
-      manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true
+      manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true,
+      requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true
     };
   }
 
@@ -271,7 +287,8 @@ export class ActiveCompanyConfigService {
       actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada &&
       actual.programacionLotesEngorde === flags.programacionLotesEngorde &&
       actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida &&
-      actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo
+      actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo &&
+      actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario
     ) return;
     this.flagsSubject.next(flags);
   }

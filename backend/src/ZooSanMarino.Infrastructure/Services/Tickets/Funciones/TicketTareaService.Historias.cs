@@ -222,9 +222,14 @@ public partial class TicketTareaService
         tarea.UpdatedByUserId = _currentUser.UserId;
         tarea.UpdatedAt = now;
 
-        // Si la tarea pertenece a un caso, el cambio de columna sigue quedando en su bitácora.
-        if (tarea.TicketId is { } casoId && !estadoAnterior.Equals(tarea.Estado, StringComparison.OrdinalIgnoreCase))
-            RegistrarEventoTarea(casoId, $"Tarea {tarea.Codigo}: {estadoAnterior} → {tarea.Estado}.", now);
+        if (!estadoAnterior.Equals(tarea.Estado, StringComparison.OrdinalIgnoreCase))
+        {
+            // Si la tarea pertenece a un caso, el cambio de columna sigue quedando en su bitácora.
+            if (tarea.TicketId is { } casoId)
+                RegistrarEventoTarea(casoId, $"Tarea {tarea.Codigo}: {estadoAnterior} → {tarea.Estado}.", now);
+
+            await ReflejarEnChecklistImplementacionAsync(tarea.Id, tarea.Estado, now, ct);
+        }
 
         await _ctx.SaveChangesAsync(ct);
         return await ProyectarUnaAsync(tareaId, ct);
@@ -268,8 +273,13 @@ public partial class TicketTareaService
         movida.FechaInicioReal = inicioReal;
         movida.FechaFinReal = finReal;
 
-        if (movida.TicketId is { } casoId && !estadoAnterior.Equals(destino, StringComparison.OrdinalIgnoreCase))
-            RegistrarEventoTarea(casoId, $"Tarea {movida.Codigo}: {estadoAnterior} → {destino}.", now);
+        if (!estadoAnterior.Equals(destino, StringComparison.OrdinalIgnoreCase))
+        {
+            if (movida.TicketId is { } casoId)
+                RegistrarEventoTarea(casoId, $"Tarea {movida.Codigo}: {estadoAnterior} → {destino}.", now);
+
+            await ReflejarEnChecklistImplementacionAsync(movida.Id, destino, now, ct);
+        }
 
         await _ctx.SaveChangesAsync(ct);
         return await ProyectarTareasAsync(UniversoDe(movida).AsNoTracking(), ct);

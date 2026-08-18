@@ -170,7 +170,11 @@
           [cohortesRefreshTrigger]="cohortesRefreshTrigger"
           [loteCerrado]="loteProduccionCerrado"
           [loading]="loading"
-          (create)="openDailyTrackingModal()"
+                  [requiereValidacion]="requiereValidacion"
+        [puedeValidar]="puedeValidar"
+        [estadoValidacionPorId]="estadoValidacionPorId"
+        (validar)="onValidarSeguimiento($event)"
+        (create)="openDailyTrackingModal()"
           (edit)="editDailyTracking($event)"
           (delete)="deleteDailyTracking($event)"
           (viewDetail)="openDetailModal($event)">

@@ -102,6 +102,12 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.TrasladoSalidaHembras ).HasColumnName("traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
         b.Property(x => x.TrasladoSalidaMachos  ).HasColumnName("traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
 
+        // Doble validación — mientras no esté validado, el consumo y las bajas están SEPARADOS
+        // (seguimiento_reserva_*), no descontados.
+        b.Property(x => x.Validado).HasColumnName("validado").HasDefaultValue(false).IsRequired();
+        b.Property(x => x.ValidadoAt).HasColumnName("validado_at");
+        b.Property(x => x.ValidadoPor).HasColumnName("validado_por").HasMaxLength(64);
+
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").HasMaxLength(64);
         b.Property(x => x.UpdatedByUserId).HasColumnName("updated_by_user_id").HasMaxLength(64);
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();

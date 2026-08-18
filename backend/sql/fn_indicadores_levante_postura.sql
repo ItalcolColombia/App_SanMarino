@@ -187,6 +187,7 @@ DECLARE
     r_err_tot     double precision;
     r_tras_sal    double precision;
     r_tras_ing    double precision;
+    r_venta_tot   double precision;   -- venta de aves: sale del lote y no llega a ningún otro
     r_dias        integer;
     r_aves_fin    double precision;
     -- por semana / por género
@@ -202,6 +203,8 @@ DECLARE
     r_tras_sal_m  double precision;
     r_tras_ing_h  double precision;
     r_tras_ing_m  double precision;
+    r_venta_h     double precision;
+    r_venta_m     double precision;
     r_aves_fin_h  double precision;
     r_aves_fin_m  double precision;
     r_aves_prom_h double precision;
@@ -279,6 +282,7 @@ BEGIN
        AND COALESCE(sl.error_sexaje_hembras,0) = 0 AND COALESCE(sl.error_sexaje_machos,0) = 0
        AND COALESCE(sl.consumo_kg_hembras,0) = 0 AND COALESCE(sl.consumo_kg_machos,0) = 0
        AND COALESCE(sl.peso_prom_hembras,0) = 0 AND COALESCE(sl.peso_prom_machos,0) = 0
+       AND COALESCE(sl.venta_aves_hembras,0) = 0 AND COALESCE(sl.venta_aves_machos,0) = 0
        AND (COALESCE(sl.traslado_salida_hembras,0) + COALESCE(sl.traslado_salida_machos,0)
           + COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0)) > 0;
     v_first_ing_h := COALESCE(v_first_ing_h, 0);
@@ -340,6 +344,13 @@ BEGIN
             COALESCE(sl.traslado_salida_machos,0)  AS tras_sal_m,
             COALESCE(sl.traslado_ingreso_hembras,0) AS tras_ing_h,
             COALESCE(sl.traslado_ingreso_machos,0)  AS tras_ing_m,
+            -- Venta de aves (2026-08-17): salen del lote igual que un traslado de salida, pero no
+            -- llegan a ningún otro lote. Se usan los splits por sexo —no `venta_aves_cantidad`—
+            -- porque el saldo también se lleva por sexo; es el mismo criterio de
+            -- `fn_resumen_semanal_ra_pesadas_levante`, y el mixto se arma como h+m igual que
+            -- mort/sel/err/traslados.
+            COALESCE(sl.venta_aves_hembras,0)       AS venta_h,
+            COALESCE(sl.venta_aves_machos,0)        AS venta_m,
             COALESCE(sl.peso_prom_hembras,0)  AS ph,
             COALESCE(sl.peso_prom_machos,0)   AS pm,
             COALESCE(sl.uniformidad_hembras,0) AS uh,
@@ -357,10 +368,12 @@ BEGIN
         (err_h + err_m)                           AS err,
         (tras_sal_h + tras_sal_m)                 AS tras_sal,
         (tras_ing_h + tras_ing_m)                 AS tras_ing,
+        (venta_h + venta_m)                       AS venta,
         mort_h, mort_m, sel_h, sel_m, err_h, err_m,
         cons_kg_h_num::double precision           AS cons_kg_h,
         cons_kg_m_num::double precision           AS cons_kg_m,
         tras_sal_h, tras_sal_m, tras_ing_h, tras_ing_m,
+        venta_h, venta_m,
         ph, pm, uh, um, id
       FROM base
      WHERE NOT (
@@ -369,6 +382,10 @@ BEGIN
         AND err_h = 0 AND err_m = 0
         AND cons_kg_h_num = 0 AND cons_kg_m_num = 0
         AND ph = 0 AND pm = 0
+        -- Una fila que trae VENTA no es «puro traslado»: descartarla perdería esas aves, que es el
+        -- defecto que este cambio viene a cerrar. El mismo término se agrega al predicado gemelo de
+        -- `v_first_ing_*` — los dos tienen que seguir siendo idénticos o las aves cuentan dos veces.
+        AND venta_h = 0 AND venta_m = 0
         AND (tras_sal_h + tras_sal_m + tras_ing_h + tras_ing_m) > 0
      );
 
@@ -386,17 +403,27 @@ BEGIN
                COALESCE(SUM(err_h),0),  COALESCE(SUM(err_m),0),
                COALESCE(SUM(cons_kg_h),0), COALESCE(SUM(cons_kg_m),0),
                COALESCE(SUM(tras_sal_h),0), COALESCE(SUM(tras_sal_m),0),
-               COALESCE(SUM(tras_ing_h),0), COALESCE(SUM(tras_ing_m),0)
+               COALESCE(SUM(tras_ing_h),0), COALESCE(SUM(tras_ing_m),0),
+               COALESCE(SUM(venta),0), COALESCE(SUM(venta_h),0), COALESCE(SUM(venta_m),0)
           INTO r_mort_tot, r_sel_tot, r_cons_kg, r_err_tot, r_tras_sal, r_tras_ing, r_dias,
                r_mort_h, r_mort_m, r_sel_h, r_sel_m, r_err_h, r_err_m,
-               r_cons_kg_h, r_cons_kg_m, r_tras_sal_h, r_tras_sal_m, r_tras_ing_h, r_tras_ing_m
+               r_cons_kg_h, r_cons_kg_m, r_tras_sal_h, r_tras_sal_m, r_tras_ing_h, r_tras_ing_m,
+               r_venta_tot, r_venta_h, r_venta_m
           FROM _seg_sem WHERE sem = s;
 
-        -- Saldo físico Feature-13: salidas = mort + sel + err + traslado_salida - traslado_ingreso.
-        r_aves_fin := v_aves_acum - r_mort_tot - r_sel_tot - r_err_tot - r_tras_sal + r_tras_ing;
-        -- Saldo por género (REQ-002e).
-        r_aves_fin_h := v_aves_acum_h - r_mort_h - r_sel_h - r_err_h - r_tras_sal_h + r_tras_ing_h;
-        r_aves_fin_m := v_aves_acum_m - r_mort_m - r_sel_m - r_err_m - r_tras_sal_m + r_tras_ing_m;
+        -- Saldo físico Feature-13: salidas = mort + sel + err + traslado_salida + VENTA - traslado_ingreso.
+        --
+        -- ⭐ 2026-08-17: la VENTA entró acá. Antes esta fn era el único lector del saldo de levante
+        -- que no la descontaba, así que el mismo lote y la misma semana mostraban dos conteos según
+        -- la pantalla (lote 143 sem 24: 10.619 acá contra 10.329 en `fn_reporte_semanal_levante_extras`,
+        -- diferencia = la venta acumulada). Una ave vendida sale del lote: no contarla infla el saldo
+        -- y, en cascada, subestima el consumo por ave — el mismo mecanismo por el que en su momento
+        -- hubo que sumar el error de sexaje. La especificación ejecutable es
+        -- `SaldoAvesLevanteCalculos.BajasNetas`, que ya la incluía.
+        r_aves_fin := v_aves_acum - r_mort_tot - r_sel_tot - r_err_tot - r_tras_sal - r_venta_tot + r_tras_ing;
+        -- Saldo por género (REQ-002e). Por sexo se usan los splits dedicados, no `venta_aves_cantidad`.
+        r_aves_fin_h := v_aves_acum_h - r_mort_h - r_sel_h - r_err_h - r_tras_sal_h - r_venta_h + r_tras_ing_h;
+        r_aves_fin_m := v_aves_acum_m - r_mort_m - r_sel_m - r_err_m - r_tras_sal_m - r_venta_m + r_tras_ing_m;
 
         -- Pesaje: último registro (por fecha, luego id) de la semana con peso>0.
         SELECT ph, pm, uh, um INTO r_pH, r_pM, r_uH, r_uM

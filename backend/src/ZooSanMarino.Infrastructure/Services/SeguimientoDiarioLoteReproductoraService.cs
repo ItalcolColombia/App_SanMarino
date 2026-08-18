@@ -16,15 +16,19 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
     private readonly IInventarioGestionService? _inventarioGestionService;
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     public SeguimientoDiarioLoteReproductoraService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
-        IInventarioGestionService? inventarioGestionService = null)
+        IInventarioGestionService? inventarioGestionService = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
         _inventarioGestionService = inventarioGestionService;
+        _validacion = validacion;
     }
 
     private static SeguimientoLoteLevanteDto MapToDto(SeguimientoDiarioLoteReproductoraAvesEngorde e)
@@ -68,7 +72,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             QqMachos: e.QqMachos,
             Confirmado: e.Confirmado,
             ConfirmadoAt: e.ConfirmadoAt,
-            ConfirmadoPor: e.ConfirmadoPor
+            ConfirmadoPor: e.ConfirmadoPor,
+            // Reproductora no tiene columna propia: su `confirmado` ES la validación.
+            Validado: e.Confirmado,
+            ValidadoAt: e.ConfirmadoAt,
+            ValidadoPor: e.ConfirmadoPor
         );
     }
 
@@ -244,11 +252,56 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             QqHembras = dto.QqHembras,
             QqMachos = dto.QqMachos
         };
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Reproductora ya tenía `confirmado`; ahora esa marca es la MISMA doble validación: mientras
+        // no se confirma, el alimento queda separado (no descontado) y el cruce a pollo engorde sigue
+        // sin dispararse, que es como venía funcionando.
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separa)
+        {
+            // Era el único de los cinco módulos que no cortaba el alta con días vencidos sin confirmar,
+            // aunque el flag lo promete por escrito. Sin esto, un lote acumula días sin confirmar y el
+            // alimento queda separado sin techo.
+            await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Reproductora, dto.LoteId);
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+        }
+
+        // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el consumo
+        // iba después dentro de un catch que ni siquiera logueaba (Console.WriteLine): se podía cargar
+        // un día de un alimento sin un solo kilo en el galpón y nadie se enteraba.
+        if (!separa && _inventarioGestionService != null && dto.Metadata != null)
+        {
+            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
+            if (ubicacionPrev.HasValue &&
+                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
+            {
+                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(),
+                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
+            }
+        }
+
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
 
+        if (separa)
+        {
+            var ubicacionSep = await GetLoteUbicacionAsync(dto.LoteId);
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Reproductora, ent.Id,
+                ubicacionSep.HasValue ? await ResolverPaisIdPorGranjaAsync(ubicacionSep.Value.FarmId) : null,
+                ubicacionSep?.FarmId ?? 0, ubicacionSep?.NucleoId, ubicacionSep?.GalponId,
+                dto.LoteId, dto.LoteId.ToString(), dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                poblacionEsMixta: false));
+        }
+
         // Descontar inventario por ítems consumidos
-        if (_inventarioGestionService != null && dto.Metadata != null)
+        if (!separa && _inventarioGestionService != null && dto.Metadata != null)
         {
             try
             {
@@ -324,6 +377,13 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                         : "La fecha del seguimiento supera la primera semana de recogida contada desde el encasetamiento.");
         }
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        var separaUpd = _validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaUpd)
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+
         // Capturar ítems anteriores antes de actualizar
         var oldByItemId = ent.Metadata != null
             ? ParseMetadataItemsToKg(ent.Metadata.RootElement)
@@ -365,14 +425,51 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // La entidad se cargó con una query con joins AsNoTracking → NO queda rastreada,
         // por lo que asignar propiedades no emite UPDATE. Forzar el estado Modified para
         // persistir TODAS las columnas (incl. fecha y jsonb) y disparar el trigger de cruce.
+        // Solo los INCREMENTOS consumen: la edición a la baja devuelve, y devolver nunca se queda sin
+        // stock. Se comprueban ANTES de guardar, igual que en el alta.
+        if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        {
+            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
+            if (ubicacionPrev.HasValue &&
+                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
+            {
+                var nuevos = dto.Metadata != null
+                    ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
+                    : new Dictionary<int, decimal>();
+                var incrementos = new Dictionary<int, decimal>();
+                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(nuevos.Keys)))
+                {
+                    var diff = nuevos.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                    if (diff > 0) incrementos[itemId] = diff;
+                }
+                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(), incrementos);
+            }
+        }
+
         // Mismo patrón que SeguimientoAvesEngordeService.UpdateAsync.
         _ctx.Entry(ent).State = EntityState.Modified;
         _ctx.Entry(ent).Property(e => e.Metadata).IsModified = true;
         _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
         await _ctx.SaveChangesAsync();
 
+        // Editar un pendiente REESCRIBE la separación: nada que devolver, nunca se descontó.
+        if (separaUpd)
+        {
+            var ubicacionUpd = await GetLoteUbicacionAsync(dto.LoteId);
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Reproductora, ent.Id,
+                ubicacionUpd.HasValue ? await ResolverPaisIdPorGranjaAsync(ubicacionUpd.Value.FarmId) : null,
+                ubicacionUpd?.FarmId ?? 0, ubicacionUpd?.NucleoId, ubicacionUpd?.GalponId,
+                dto.LoteId, dto.LoteId.ToString(), dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                poblacionEsMixta: false));
+        }
+
         // Ajustar inventario: consumir diferencia positiva, devolver diferencia negativa
-        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
         {
             try
             {
@@ -443,6 +540,17 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // día pone al día el maestro de aves sin tocar nada más).
         if (ent.Confirmado)
         {
+            await SincronizarBajasCruceAsync(ent.LoteReproductoraAveEngordeId);
+            return MapToDto(ent);
+        }
+
+        // Con doble validación, confirmar ES validar: aplica el alimento que estaba separado y recién
+        // después escribe `confirmado` (lo que dispara el cruce). Sin el flag, el camino es el de
+        // siempre — el alimento ya se había descontado al crear.
+        if (_validacion is not null && await _validacion.RequiereValidacionAsync())
+        {
+            await _validacion.ValidarAsync(ModuloSeguimiento.Reproductora, ent.Id);
+            await _ctx.Entry(ent).ReloadAsync();
             await SincronizarBajasCruceAsync(ent.LoteReproductoraAveEngordeId);
             return MapToDto(ent);
         }
@@ -519,8 +627,15 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                     "El lote reproductora está cerrado. Reábralo con una novedad para poder eliminar registros.");
         }
 
+        // Doble validación: borrar un pendiente solo libera la separación; no hay stock que restituir
+        // porque nunca se descontó.
+        var separaDel = _validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaDel)
+            await _validacion!.LiberarAsync(ModuloSeguimiento.Reproductora, ent.Id);
+
         // Restituir stock antes de eliminar
-        if (_inventarioGestionService != null && ent.Metadata != null)
+        if (!separaDel && _inventarioGestionService != null && ent.Metadata != null)
         {
             try
             {

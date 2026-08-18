@@ -1,5 +1,5 @@
 // src/app/features/vacunacion/components/modal-item-cronograma/modal-item-cronograma.component.ts
-import { Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -14,6 +14,7 @@ import {
 } from '../../models/vacunacion.model';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-item-cronograma',
   standalone: true,
   imports: [CommonModule, FormsModule],

@@ -66,7 +66,8 @@ escribe nada.
 | `src/app/core/pwa/` | Servicios de actualización, instalación y conexión + funciones puras con tests |
 | `/diagnostico` | Pantalla de soporte. Sin `authGuard`, sin datos de negocio |
 | `src/app/shared/offline/` | Consulta offline (F2): caché de GET en IndexedDB, particionada por `{userId, companyId, paisId}` |
-| `scripts/verificar-lista-cacheable.js` | Contrasta la lista blanca contra los endpoints que la app pide de verdad |
+| `scripts/verificar-lista-cacheable.js` | Contrasta la lista blanca contra los endpoints que la app pide de verdad. Corre en CI y **hace fallar** el gate de tests |
+| `scripts/verificar-change-detection.js` | Exige `changeDetection` explícito en cada `@Component`. Corre en CI y **hace fallar** el gate de tests |
 
 ### Consulta offline (F2)
 
@@ -77,10 +78,13 @@ la petición falla por falta de red** (`status === 0`). Nunca se sirve caché ha
 - **Partición `{userId, companyId, paisId}`, fail-closed.** Sin los tres, no se guarda ni se lee.
 - **TTL duro de 16 h.** Vencida no se sirve; se propaga el error de red.
 - **Se purga** en logout (todo) y al cambiar de empresa (esa partición).
-- **Lista blanca.** Al agregar un módulo, corré `node scripts/verificar-lista-cacheable.js`: un nombre
-  mal escrito no rompe nada y solo se nota en la granja. Fuera de la lista quedan, por escrito, el
-  dinero (costos, liquidaciones, contabilidad), la identidad (auth/users/roles/permisos), los
-  reportes y las herramientas internas.
+- **Lista blanca.** Al agregar un módulo hay que decidir si sus GET se guardan. El CI corre
+  `node scripts/verificar-lista-cacheable.js` y **corta** si aparece un endpoint que no está ni en
+  `ENDPOINTS_OPERATIVOS` ni en `EXCLUIDOS`, o una entrada de la lista que la app nunca pide (typo:
+  no hace nada y solo se nota en la granja). El script no elige por nadie — exige que alguien haya
+  elegido. Fuera de la lista quedan, por escrito, el dinero (costos, liquidaciones, contabilidad), la
+  identidad (auth/users/roles/permisos), la doble validación, los reportes y las herramientas
+  internas.
 
 ### ⛔ Prohibido: `dataGroups` sobre `/api/**`
 

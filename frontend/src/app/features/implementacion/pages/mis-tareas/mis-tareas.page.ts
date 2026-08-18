@@ -1,5 +1,5 @@
 // src/app/features/implementacion/pages/mis-tareas/mis-tareas.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -15,6 +15,7 @@ import { mensajeErrorHttp } from '../../funciones/resumen-firmas.funcion';
 import { ImplementacionMiFirmaDto, ImplementacionMiTareaDto } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-implementacion-mis-tareas',
   standalone: true,
   imports: [CommonModule, ModalFirmarImplementacionComponent],
@@ -29,6 +30,8 @@ export class MisTareasPage implements OnInit {
 
   /** Puntos donde soy participante y me falta firmar. */
   porFirmar: ImplementacionMiFirmaDto[] = [];
+  /** Puntos donde participo pero que el encargado todavía no dio por realizados. */
+  firmasProgramadas: ImplementacionMiFirmaDto[] = [];
   /** Mis firmas/novedades ya respondidas (historial). */
   firmasRespondidas: ImplementacionMiFirmaDto[] = [];
 
@@ -72,7 +75,11 @@ export class MisTareasPage implements OnInit {
       this.porConfirmar = tareas.filter((t) => t.estado === 'completada');
       this.enProceso = tareas.filter((t) => t.estado === 'pendiente');
       this.confirmadas = tareas.filter((t) => t.estado === 'confirmada');
-      this.porFirmar = firmas.filter((f) => f.miEstado === 'pendiente');
+      // Solo lo que ya se puede firmar (el encargado lo dio por realizado). Lo que sigue
+      // programado va a "Aún no te toca": se ve, pero no ofrece un botón que el backend rechaza.
+      // `!== false` conserva el comportamiento con un backend anterior que no manda el flag.
+      this.porFirmar = firmas.filter((f) => f.miEstado === 'pendiente' && f.habilitadaParaFirmar !== false);
+      this.firmasProgramadas = firmas.filter((f) => f.miEstado === 'pendiente' && f.habilitadaParaFirmar === false);
       this.firmasRespondidas = firmas.filter((f) => f.miEstado !== 'pendiente');
     } catch (err: any) {
       this.errorMsg = mensajeErrorHttp(err, 'No se pudieron cargar tus tareas de implementación.');
@@ -84,6 +91,7 @@ export class MisTareasPage implements OnInit {
   get sinNada(): boolean {
     return (
       !this.porFirmar.length &&
+      !this.firmasProgramadas.length &&
       !this.firmasRespondidas.length &&
       !this.porConfirmar.length &&
       !this.enProceso.length &&

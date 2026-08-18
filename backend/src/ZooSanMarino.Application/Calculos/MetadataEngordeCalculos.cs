@@ -91,6 +91,46 @@ public static class MetadataEngordeCalculos
     }
 
     /// <summary>
+    /// Kilos por BLOQUE del formulario (hembras / machos / generales), sin acumular por ítem.
+    ///
+    /// <para>
+    /// <see cref="ParseMetadataItemsToKg"/> suma los tres bloques en un solo total por ítem, que es lo
+    /// correcto para descontar del inventario pero borra la información que necesita la regla de
+    /// «alimento obligatorio»: esa regla no pregunta cuántos kilos hay, pregunta <b>en qué bloque</b>
+    /// están —Mixto en engorde, hembras y/o machos en postura—. Un registro con el alimento cargado en
+    /// el lugar equivocado tiene el mismo total y sigue siendo el error que se quiere frenar.
+    /// </para>
+    /// </summary>
+    public static (decimal KgHembras, decimal KgMachos, decimal KgGenerales) ParseKgPorBloque(JsonElement root)
+    {
+        decimal Sumar(string propName)
+        {
+            if (!root.TryGetProperty(propName, out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return 0m;
+            var total = 0m;
+            foreach (var e in arr.EnumerateArray())
+            {
+                // Sin ítem seleccionado no hay alimento, aunque el usuario haya tipeado una cantidad:
+                // es el caso de la fila vacía que el formulario deja abierta por defecto.
+                var id = 0;
+                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+                    id = pid.GetInt32();
+                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid) && cid.ValueKind != JsonValueKind.Null)
+                    id = cid.GetInt32();
+                if (id <= 0) continue;
+
+                var cant = e.TryGetProperty("cantidad", out var c) && c.ValueKind == JsonValueKind.Number
+                    ? c.GetDouble() : 0;
+                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
+                total += ToKg(cant, un);
+            }
+            return total;
+        }
+
+        return (Sumar("itemsHembras"), Sumar("itemsMachos"), Sumar("itemsGenerales"));
+    }
+
+    /// <summary>
     /// <c>siloId</c> de un ítem del metadata. Tolera que falte, que sea <c>null</c> o que venga como
     /// string (lo que manda un form a medio serializar); cualquier valor no positivo se trata como
     /// «sin silo», que es el comportamiento de todas las empresas sin el flag.

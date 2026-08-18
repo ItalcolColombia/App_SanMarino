@@ -8,7 +8,7 @@ import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSegui
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
@@ -1306,8 +1306,10 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       if (loadId !== this.inventarioLoadId) return;
       this.inventarioPorItem.clear();
       rows.forEach(r => {
+        // DISPONIBLE, no existencia física: lo que otro registro sin validar ya separó no se puede
+        // volver a comprometer. Sin doble validación, `disponibleKg` == `quantity`.
         const prev = this.inventarioPorItem.get(r.itemInventarioEcuadorId);
-        const q = prev ? prev.quantity + r.quantity : r.quantity;
+        const q = (prev?.quantity ?? 0) + saldoComprometible(r);
         this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
       });
       this.alimentosCatalog = this.itemsEcuadorPanama.map(i => itemEcuadorToCatalogItem(i))

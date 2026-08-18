@@ -4,7 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Ab
 import { CrearSeguimientoRequest, SeguimientoItemDto, HuevoItemSeguimiento, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -1592,8 +1592,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     ).subscribe((rows: InventarioGestionStockDto[]) => {
       this.inventarioPorItem.clear();
       rows.forEach(r => {
+        // DISPONIBLE, no existencia física: lo que otro registro sin validar ya separó no se puede
+        // volver a comprometer. Sin doble validación, `disponibleKg` == `quantity`.
         const prev = this.inventarioPorItem.get(r.itemInventarioEcuadorId);
-        const q = prev ? prev.quantity + r.quantity : r.quantity;
+        const q = (prev?.quantity ?? 0) + saldoComprometible(r);
         this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
       });
       // El mismo stock, abierto por silo: es el saldo que ve cada fila cuando la empresa maneja silos.

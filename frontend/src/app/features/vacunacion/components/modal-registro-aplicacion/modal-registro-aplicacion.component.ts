@@ -1,13 +1,18 @@
 // src/app/features/vacunacion/components/modal-registro-aplicacion/modal-registro-aplicacion.component.ts
-import { Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { VacunacionService } from '../../services/vacunacion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { VacunacionCronogramaItemDto, VacunacionUsuarioOpcionDto } from '../../models/vacunacion.model';
+import { evaluarAplicacionHoy, EvaluacionAplicacionHoy } from '../../funciones/evaluar-aplicacion-hoy.funcion';
+
+/** Estado neutro: sin ítem todavía, o ítem sin franja. Constante para no alocar por ciclo. */
+const SIN_DESVIACION: EvaluacionAplicacionHoy = { fueraDeRango: false, diasDesviacion: 0, mensaje: null };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-registro-aplicacion',
   standalone: true,
   imports: [CommonModule, FormsModule],
@@ -86,9 +91,19 @@ import { VacunacionCronogramaItemDto, VacunacionUsuarioOpcionDto } from '../../m
             />
           </div>
 
+          <div
+            *ngIf="modo === 'aplicado' && evaluacion.fueraDeRango"
+            class="rounded-xl border px-3 py-2 text-xs"
+            style="background: #fffbeb; border-color: #fde68a; color: #92400e"
+            role="alert"
+          >
+            <strong>Fuera de la franja programada.</strong> {{ evaluacion.mensaje }}
+            Contá qué pasó: la novedad queda en el historial del lote.
+          </div>
+
           <div>
             <label class="form-label" for="mra-motivo">
-              Motivo {{ modo === 'no-aplicado' ? '(obligatorio)' : '(obligatorio solo si quedó fuera de la franja)' }}
+              Motivo {{ motivoObligatorio ? '(obligatorio)' : '(opcional: hoy está dentro de la franja)' }}
             </label>
             <textarea id="mra-motivo" rows="3" class="form-input" [(ngModel)]="motivo"></textarea>
           </div>
@@ -96,7 +111,13 @@ import { VacunacionCronogramaItemDto, VacunacionUsuarioOpcionDto } from '../../m
 
         <div class="flex justify-end gap-2 border-t px-5 py-4" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
           <button type="button" class="btn-ghost text-sm" (click)="cerrar()">Cancelar</button>
-          <button type="button" class="btn-primary text-sm" [disabled]="guardando" (click)="confirmar()">
+          <button
+            type="button"
+            class="btn-primary text-sm"
+            [disabled]="guardando || faltaMotivo"
+            [title]="faltaMotivo ? 'Indicá el motivo para poder confirmar' : ''"
+            (click)="confirmar()"
+          >
             {{ guardando ? 'Guardando…' : 'Confirmar' }}
           </button>
         </div>
@@ -119,6 +140,22 @@ export class ModalRegistroAplicacionComponent implements OnChanges {
   motivo = '';
   guardando = false;
 
+  /**
+   * Si aplicar HOY cae fuera de la franja. Se calcula al abrir el modal (no es un getter: un getter
+   * que devuelve objeto nuevo por ciclo rompe el change detection) con la misma regla y la misma
+   * base de fecha que el backend.
+   */
+  evaluacion: EvaluacionAplicacionHoy = SIN_DESVIACION;
+
+  /** El backend exige motivo en "no aplicado" siempre, y en "aplicado" sólo fuera de franja. */
+  get motivoObligatorio(): boolean {
+    return this.modo === 'no-aplicado' || this.evaluacion.fueraDeRango;
+  }
+
+  get faltaMotivo(): boolean {
+    return this.motivoObligatorio && !this.motivo.trim();
+  }
+
   constructor(private vacunacionSvc: VacunacionService, private toast: ToastService) {}
 
   @HostListener('document:keydown.escape')
@@ -133,6 +170,9 @@ export class ModalRegistroAplicacionComponent implements OnChanges {
       this.aplicadoPorNombreLibre = '';
       this.aplicadoPorUserId = null;
       this.motivo = '';
+      this.evaluacion = this.item
+        ? evaluarAplicacionHoy(this.item.fechaInicioFranja, this.item.fechaFinFranja)
+        : SIN_DESVIACION;
     }
   }
 
@@ -143,8 +183,14 @@ export class ModalRegistroAplicacionComponent implements OnChanges {
   async confirmar(): Promise<void> {
     if (!this.item) return;
 
-    if (this.modo === 'no-aplicado' && !this.motivo.trim()) {
-      this.toast.warning('El motivo es obligatorio para marcar "no aplicado".');
+    // El botón ya está deshabilitado en este caso; queda como red de seguridad (y por si el modal
+    // se abre con el ítem cambiado desde afuera).
+    if (this.faltaMotivo) {
+      this.toast.warning(
+        this.modo === 'no-aplicado'
+          ? 'El motivo es obligatorio para marcar "no aplicado".'
+          : 'La aplicación queda fuera de la franja programada: indicá el motivo.'
+      );
       return;
     }
     if (this.modo === 'aplicado') {

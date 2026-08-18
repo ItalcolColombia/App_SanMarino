@@ -28,6 +28,13 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
   'userfarm',
   'regional',
 
+  // Silos: en Santa Reyes el silo ES la ubicación del alimento, así que para esa empresa son
+  // estructura igual que núcleo y galpón — sin ellos el inventario no puede pintar sus selectores.
+  'silocatalogo',
+  'farmsilo',
+  'galponsilo',
+  'lotesilo',
+
   // Geografía: la usan los formularios de granja y de cliente.
   'countries',
   'cities',
@@ -97,6 +104,22 @@ const EXCLUIDOS: readonly string[] = [
   // respuesta no tendría sentido, y servirla desde caché haría creer que se sincronizó algo que
   // nunca salió del dispositivo.
   'sync',
+
+  // Doble validación: es un gate de negocio, no un dato de operación. Cachear `configuracion`
+  // congelaría en la tablet un flag que la empresa puede apagar, y `validar` exige red igual, así
+  // que guardarlo no habilita nada. Sin caché el cliente ya cae a `SIN_PENDIENTES` (fail-closed).
+  'seguimientovalidacion',
+
+  // Plan de vacunación de la EMPRESA (plantillas). Lo que el galponero consulta en el galpón es el
+  // cronograma de SU lote —ese sí se cachea—; la plantilla es la fuente aguas arriba, se edita desde
+  // una oficina con red y alcanza a todos los lotes futuros. Servirla desde caché mostraría un plan
+  // viejo como si fuera el vigente, que es justo el problema que el módulo vino a resolver.
+  'vacunacionplantilla',
+
+  // Bajar el plan de la empresa a los lotes (materializador). Es una acción de oficina y de
+  // ESCRITURA: el preview tiene que ser fresco —uno servido de caché diría que va a crear filas
+  // que ya existen— y aplicar exige red igual. Mismo criterio que la plantilla de la que sale.
+  'vacunacionmaterializador',
 
   // Identidad y autorización.
   'auth',

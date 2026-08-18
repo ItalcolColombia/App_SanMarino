@@ -9,14 +9,7 @@ public partial class CompanyService
         var userIdGuid = _currentUser.UserGuid
             ?? new Guid(userId.ToString("D32").PadLeft(32, '0'));
 
-        var email = await _ctx.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userIdGuid)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-
-        return email?.ToLower() == "moiesbbuga@gmail.com";
+        return await SuperAdminLookup.EsSuperAdminAsync(_ctx, userIdGuid);
     }
 
     private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)

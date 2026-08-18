@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -33,16 +34,44 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
     private readonly ICompanyResolver _companyResolver;
     private readonly ILoteService _loteService;
 
+    /// <summary>
+    /// Doble validación. Opcional a propósito: con el flag apagado —o si no está registrado, como en
+    /// los tests— el disponible es el de siempre. No hay ciclo de DI: nada de la cadena de
+    /// <c>ValidacionSeguimientoService</c> (inventario-gestión y consumo Colombia) depende de este
+    /// service.
+    /// </summary>
+    private readonly IValidacionSeguimientoService? _validacion;
+
     public TrasladoAvesDesdeSegService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         ICompanyResolver companyResolver,
-        ILoteService loteService)
+        ILoteService loteService,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _loteService = loteService;
+        _validacion = validacion;
+    }
+
+    /// <summary>
+    /// Aves que un seguimiento SIN validar ya dio de baja en este lote y que todavía no salieron del
+    /// maestro. Es lo que hay que restarle al saldo para no ofrecer aves ya muertas.
+    ///
+    /// <para>
+    /// <c>Mixtas</c> se suma a hembras: en postura la separación nunca las usa
+    /// (<c>ReservaSeguimientoCalculos.LineasDeAves</c> solo manda al bucket mixto en lotes de engorde
+    /// mixtos), pero ignorarlas convertiría una reserva mixta en saldo fantasma.
+    /// </para>
+    /// </summary>
+    private async Task<(int Hembras, int Machos)> ReservadoSinValidarAsync(
+        string modulo, int loteId, CancellationToken ct)
+    {
+        if (_validacion is null) return (0, 0);
+        var r = await _validacion.ReservadoDeAvesAsync(modulo, loteId, ct);
+        return (r.Hembras + r.Mixtas, r.Machos);
     }
 
     /// <summary>
@@ -105,6 +134,7 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
             // ── Saldo REAL: si el LPL tiene Lote base asociado, usar resumen-mortalidad
             int avesHReal = lpl.AvesHActual ?? 0;
             int avesMReal = lpl.AvesMActual ?? 0;
+            var saldoSaleDelMaestro = true;
             if (lpl.LoteId is int loteBaseId)
             {
                 var resumen = await _loteService.GetMortalidadResumenAsync(loteBaseId);
@@ -112,7 +142,22 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
                 {
                     avesHReal = resumen.SaldoHembras;
                     avesMReal = resumen.SaldoMachos;
+                    // Ese resumen es `base − mortCaja − mort − sel − err + trasIn − trasOut` sumando
+                    // las filas de seguimiento_diario, así que las bajas SIN VALIDAR ya están adentro.
+                    saldoSaleDelMaestro = false;
                 }
+            }
+
+            // Solo se resta la separación cuando el saldo vino del MAESTRO, que con doble validación no
+            // se descontó. Restarla también sobre el resumen contaría las bajas dos veces y bloquearía
+            // traslados de aves que sí existen — el mismo error que dio origen a
+            // AvesDisponiblesEngordeCalculos.
+            if (saldoSaleDelMaestro)
+            {
+                var (resH, resM) = await ReservadoSinValidarAsync(
+                    ModuloSeguimiento.Levante, loteId, ct);
+                avesHReal = ReservaSeguimientoCalculos.DisponibleAves(avesHReal, resH);
+                avesMReal = ReservaSeguimientoCalculos.DisponibleAves(avesMReal, resM);
             }
 
             return new DisponibilidadAvesDto(
@@ -138,6 +183,17 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
                 .FirstOrDefaultAsync(ct);
 
             if (lpp is null) return null;
+
+            // NO se resta la separación: en producción `aves_h_actual` NO es un maestro, es una CACHÉ.
+            // `ProduccionService.Consultas` recalcula el saldo con `fn_seguimiento_diario_produccion` y
+            // lo PERSISTE de vuelta en la columna, y esa fn suma las bajas de todas las filas sin mirar
+            // `validado` (ninguna fn del esquema lo mira). O sea que las bajas sin validar ya están
+            // adentro del número, igual que en levante con lote base: restarlas otra vez las contaría
+            // dos veces y bloquearía traslados de aves que sí existen.
+            //
+            // Es el mismo error que dio origen a AvesDisponiblesEngordeCalculos, y no se detectó antes
+            // porque la única empresa con el flag encendido no tiene lotes de postura: con el flag
+            // apagado la reserva es 0 y la resta de más no se ve.
 
             return new DisponibilidadAvesDto(
                 LoteId: loteId,

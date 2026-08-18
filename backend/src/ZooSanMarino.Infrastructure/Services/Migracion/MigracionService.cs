@@ -39,6 +39,11 @@ public partial class MigracionService : IMigracionService
     /// dependencia el espejo simplemente no se refresca.
     /// </summary>
     private readonly IEspejoHuevoProduccionSyncService? _espejoHuevoSync;
+    /// <summary>
+    /// Doble validación. Solo se usa para <b>suspenderla</b> mientras corre el import: un archivo
+    /// histórico no son días pendientes de validar. Opcional por el mismo motivo que las de arriba.
+    /// </summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     static MigracionService()
     {
@@ -59,8 +64,10 @@ public partial class MigracionService : IMigracionService
         ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService,
         IInventarioGestionService? inventarioGestion = null,
         IColombiaInventarioConsumoService? colombiaConsumo = null,
-        IEspejoHuevoProduccionSyncService? espejoHuevoSync = null)
+        IEspejoHuevoProduccionSyncService? espejoHuevoSync = null,
+        IValidacionSeguimientoService? validacion = null)
     {
+        _validacion = validacion;
         _inventarioGestion = inventarioGestion;
         _colombiaConsumo = colombiaConsumo;
         _espejoHuevoSync = espejoHuevoSync;

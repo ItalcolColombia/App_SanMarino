@@ -15,8 +15,6 @@ namespace ZooSanMarino.Infrastructure.Services;
 /// </summary>
 public sealed class DbStudioAuthorization : IDbStudioAuthorization
 {
-    private const string SuperAdminEmail = "moiesbbuga@gmail.com";
-
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
     private readonly DbStudioOptions _opts;
@@ -62,12 +60,7 @@ public sealed class DbStudioAuthorization : IDbStudioAuthorization
 
             if (!result)
             {
-                var email = await _ctx.UserLogins.AsNoTracking()
-                    .Include(ul => ul.Login)
-                    .Where(ul => ul.UserId == guid)
-                    .Select(ul => ul.Login!.email)
-                    .FirstOrDefaultAsync(ct);
-                result = string.Equals(email, SuperAdminEmail, StringComparison.OrdinalIgnoreCase);
+                result = await SuperAdminLookup.EsSuperAdminAsync(_ctx, guid, ct);
             }
         }
 

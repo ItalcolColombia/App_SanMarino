@@ -22,6 +22,23 @@ public class VacunacionRegistroController : ControllerBase
         _current = current;
     }
 
+    /// <summary>
+    /// Bandeja "hoy me toca": vacunas sin registrar de los lotes vivos que el usuario ve (vencidas,
+    /// en franja, o por abrir dentro del horizonte). Sólo lectura.
+    /// </summary>
+    /// <param name="diasHorizonte">Cuántos días hacia adelante mirar. 0 = sólo vencidas y de hoy.</param>
+    [HttpGet("pendientes")]
+    [ProducesResponseType(typeof(IEnumerable<VacunacionPendienteDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Pendientes([FromQuery] int diasHorizonte = 7, CancellationToken ct = default)
+    {
+        // La bandeja existe para empujar la acción de registrar: se pide el mismo permiso que aplicar.
+        if (!_current.Permissions.Contains("vacunacion.registro.aplicar"))
+            return Forbid();
+
+        return Ok(await _svc.GetPendientesAsync(diasHorizonte, ct));
+    }
+
     /// <summary>Confirma aplicado. La fecha de aplicación la fija el servidor (no viaja en el body).</summary>
     [HttpPost("{cronogramaItemId:int}/aplicar")]
     [ProducesResponseType(typeof(VacunacionCronogramaItemDto), StatusCodes.Status200OK)]

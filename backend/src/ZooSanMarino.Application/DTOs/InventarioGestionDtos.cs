@@ -89,8 +89,33 @@ public sealed record InventarioGestionStockDto(
     /// <c>null</c> en todas las demás, donde la ubicación sigue siendo núcleo/galpón.
     /// </summary>
     int? SiloId = null,
-    string? SiloNombre = null
-);
+    string? SiloNombre = null,
+    /// <summary>
+    /// Kilos <b>separados</b> (reservados) por seguimientos diarios que todavía no se validaron.
+    /// <para>
+    /// No se descontaron del stock: están comprometidos. Existe porque el mismo galpón alimenta a dos
+    /// lotes y, sin esto, los dos ven el saldo completo y los dos creen tenerlo. Siempre 0 en las
+    /// empresas sin doble validación.
+    /// </para>
+    /// </summary>
+    decimal ReservadoKg = 0
+)
+{
+    /// <summary>
+    /// Lo que realmente se puede comprometer: <c>Quantity − ReservadoKg</c>. Puede quedar NEGATIVO si
+    /// se separó de más; no se recorta a cero porque ese número es la señal de que dos lotes se
+    /// pisaron sobre el mismo galpón.
+    ///
+    /// <para>
+    /// <b>Es DERIVADA, no un parámetro más.</b> Hay nueve sitios en <c>InventarioGestionService</c>
+    /// que arman este DTO a mano para las respuestas de ingreso, traslado y consumo; ninguno llegaba
+    /// hasta el último parámetro, así que como parámetro posicional todos habrían devuelto
+    /// <c>disponible = 0</c> y el front habría leído «no hay nada» sobre un galpón lleno. Derivada, es
+    /// imposible de olvidar y la fórmula tiene un solo dueño.
+    /// </para>
+    /// </summary>
+    public decimal DisponibleKg => Quantity - ReservadoKg;
+}
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>
 public sealed record InventarioGestionIngresoRequest(
@@ -414,4 +439,23 @@ public sealed record InventarioGestionActualizarDestinoCicloRequest(
 public sealed record InventarioGestionVentanaAlimentoPrevioDto(
     DateTime? ProximoEncaset,
     int DiasVentanaEmpresa
+);
+
+/// <summary>
+/// Ventana de fechas que la PANTALLA puede ofrecer para un ingreso (D4). Es informativa: la que
+/// decide sigue siendo la del controller —el conjunto admitido no es contiguo y esto es su rango
+/// envolvente—, pero permite que el datepicker no recorte la fecha real del alimento previo al
+/// encasetamiento y que el hint nombre el encaset concreto en vez de una promesa vaga.
+/// </summary>
+/// <param name="Min">Primera fecha ofrecible (<c>yyyy-MM-dd</c>).</param>
+/// <param name="Max">Última fecha ofrecible: siempre hoy, el futuro no lo abre ninguna vía.</param>
+/// <param name="ProximoEncaset">Encasetamiento que justifica la apertura, o <c>null</c> si no hay.</param>
+/// <param name="DiasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c> de la empresa de la granja.</param>
+/// <param name="Ayuda">Texto ya armado para el hint, para que backend y front digan lo mismo.</param>
+public sealed record InventarioGestionVentanaFechaIngresoDto(
+    DateOnly Min,
+    DateOnly Max,
+    DateOnly? ProximoEncaset,
+    int DiasVentanaEmpresa,
+    string Ayuda
 );

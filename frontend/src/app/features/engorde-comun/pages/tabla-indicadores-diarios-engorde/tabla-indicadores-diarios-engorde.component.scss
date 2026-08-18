@@ -1,4 +1,8 @@
-@use '../../../lote-levante/pages/tabla-indicadores-diarios/tabla-indicadores-diarios.component.scss' as *;
+// Base de la tabla de indicadores diarios. Vivía dentro del componente de levante
+// `tabla-indicadores-diarios`, que quedó huérfano cuando `fn_indicadores_levante_postura` se llevó
+// el cálculo al backend (nadie lo importaba ni lo montaba). Al retirar ese componente, esta hoja se
+// mudó acá, que es donde está su único consumidor.
+@use './tabla-indicadores-diarios-base.scss' as *;
 
 .indicadores-diarios__head-row {
   display: flex;

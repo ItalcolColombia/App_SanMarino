@@ -61,6 +61,12 @@ public class SeguimientoDiarioAvesEngordeConfiguration : IEntityTypeConfiguratio
 
         b.Property(x => x.OrigenCruce).HasColumnName("origen_cruce").HasDefaultValue(false);
 
+        // Doble validación — mientras no esté validado, el consumo y las bajas están SEPARADOS
+        // (seguimiento_reserva_*), no descontados.
+        b.Property(x => x.Validado).HasColumnName("validado").HasDefaultValue(false).IsRequired();
+        b.Property(x => x.ValidadoAt).HasColumnName("validado_at");
+        b.Property(x => x.ValidadoPor).HasColumnName("validado_por").HasMaxLength(64);
+
         b.HasIndex(x => x.LoteAveEngordeId).HasDatabaseName("ix_seguimiento_diario_aves_engorde_lote");
         b.HasIndex(x => x.Fecha).HasDatabaseName("ix_seguimiento_diario_aves_engorde_fecha");
 

@@ -1,5 +1,6 @@
 // Implementacion/ImplementacionService.cs
 // Partial 'ancla': campos, ctor, helpers compartidos y la interfaz. La lógica por concern vive en Funciones/.
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -13,11 +14,49 @@ public partial class ImplementacionService : IImplementacionService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
+    private readonly IHttpContextAccessor _http;
 
-    public ImplementacionService(ZooSanMarinoContext ctx, ICurrentUser current)
+    /// <summary>
+    /// Los dos servicios de ItalJira, para el enlace del plan con el tablero (I1.2). Opcionales
+    /// porque el plan puede vivir sin tablero, que es el comportamiento previo; el enlace es un
+    /// pedido explícito. Se usan los MISMOS servicios que el tablero para no abrir un segundo
+    /// escritor de <c>historias</c> ni de <c>ticket_tareas</c>.
+    /// </summary>
+    private readonly IHistoriaService? _historias;
+    private readonly ITicketTareaService? _ticketTareas;
+
+    public ImplementacionService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser current,
+        IHttpContextAccessor http,
+        IHistoriaService? historias = null,
+        ITicketTareaService? ticketTareas = null)
     {
         _ctx = ctx;
         _current = current;
+        _http = http;
+        _historias = historias;
+        _ticketTareas = ticketTareas;
+    }
+
+    /// <summary>Navegador desde el que llega la petición (evidencia de la firma; nunca del body).</summary>
+    private string? UserAgentActual()
+        => _http.HttpContext?.Request.Headers.UserAgent.ToString();
+
+    /// <summary>
+    /// IP del cliente. Detrás del ALB la real viaja en <c>X-Forwarded-For</c> (primer valor);
+    /// si no hay proxy se usa la conexión directa.
+    /// </summary>
+    private string? IpActual()
+    {
+        var ctx = _http.HttpContext;
+        if (ctx is null) return null;
+
+        var fwd = ctx.Request.Headers["X-Forwarded-For"].ToString();
+        if (!string.IsNullOrWhiteSpace(fwd))
+            return fwd.Split(',')[0].Trim();
+
+        return ctx.Connection.RemoteIpAddress?.ToString();
     }
 
     private static string NombreCompleto(User? u)
@@ -38,6 +77,8 @@ public partial class ImplementacionService : IImplementacionService
         EmailDe(f.User),
         f.Estado,
         f.FirmaTexto,
+        f.FirmaImagen,
+        f.FirmaTipo,
         f.Nota,
         f.FechaRespuesta);
 
@@ -64,7 +105,8 @@ public partial class ImplementacionService : IImplementacionService
             .Where(f => f.DeletedAt == null)
             .OrderBy(f => f.Id)
             .Select(MapFirma)
-            .ToList());
+            .ToList(),
+        t.TicketTareaId);
 
     /// <summary>Nombre completo + correo de un usuario por Guid (una consulta; (null, null) si no existe).</summary>
     private async Task<(string? Nombre, string? Email)> NombreYEmailAsync(Guid? userId, CancellationToken ct)

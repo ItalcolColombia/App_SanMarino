@@ -115,6 +115,21 @@ public class SeguimientoProduccion : AuditableEntity
     public DateTime? FechaTraslado { get; set; }
     public string? TrasladoObservaciones { get; set; }
 
+    // ── Doble validación ───────────────────────────────────────────
+    /// <summary>
+    /// Segunda confirmación del registro. Mientras está en <c>false</c> el seguimiento se puede
+    /// editar y eliminar, y el alimento y las aves quedan SEPARADOS (ver
+    /// <see cref="SeguimientoReservaAlimento"/>) en vez de descontados; al validar se aplica el
+    /// consumo real y el descuento de aves.
+    /// <para>
+    /// Solo tiene efecto en empresas con <c>requiere_validacion_seguimiento_diario</c>. En las demás
+    /// quedó en <c>true</c> por el backfill y nada lo lee.
+    /// </para>
+    /// </summary>
+    public bool Validado { get; set; }
+    public DateTime? ValidadoAt { get; set; }
+    public string? ValidadoPor { get; set; }
+
     // Navegación opcional (Opción B: lote_id es int FK a lotes; Lote.LoteId es int? por tanto no se configura FK en EF)
 }
 

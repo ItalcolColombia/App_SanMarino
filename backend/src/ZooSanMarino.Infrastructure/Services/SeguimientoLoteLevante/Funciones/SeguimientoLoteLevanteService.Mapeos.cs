@@ -75,7 +75,13 @@ public partial class SeguimientoLoteLevanteService
             HuevoOtro: u.HuevoOtro,
             PesoHuevo: u.PesoHuevo,
             HuevoTot: u.HuevoTot,
-            HuevoInc: u.HuevoInc
+            HuevoInc: u.HuevoInc,
+            // Doble validación: el front necesita el estado para pintar la fila y ofrecer el ✓.
+            // `EstadoValidacion` va nulo a propósito: el literal lo deriva el front con la función
+            // compartida, que es la única que conoce el día del usuario.
+            Validado: u.Validado,
+            ValidadoAt: u.ValidadoAt,
+            ValidadoPor: u.ValidadoPor
         );
     }
 

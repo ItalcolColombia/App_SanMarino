@@ -1,5 +1,5 @@
 // src/app/features/implementacion/pages/plan-detail/plan-detail.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -41,6 +41,7 @@ import {
 } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-implementacion-plan-detail',
   standalone: true,
   imports: [
@@ -236,6 +237,50 @@ export class PlanDetailPage implements OnInit {
       await this.cargar();
     } catch (err: any) {
       this.toast.error(mensajeErrorHttp(err, 'No se pudo eliminar el ítem.'));
+    }
+  }
+
+  /** Estado del botón de enlace con ItalJira (evita el doble click sobre una operación de red). */
+  enlazandoItalJira = false;
+
+  /**
+   * Enlaza el plan con ItalJira: historia del plan y una tarea del tablero por cada punto.
+   *
+   * Pide confirmación porque crea trabajo VISIBLE para todo el equipo de desarrollo: una épica y N
+   * tarjetas en el backlog compartido. Es idempotente, así que el riesgo no es duplicar sino
+   * ensuciar el tablero de un plan que en realidad no se ejecuta ahí.
+   */
+  async enlazarConItalJira(): Promise<void> {
+    if (!this.plan || this.enlazandoItalJira) return;
+
+    const yaEnlazado = this.plan.historiaId != null;
+    const ok = await this.confirmDialog.ask({
+      title: yaEnlazado ? 'Actualizar en ItalJira' : 'Enlazar con ItalJira',
+      message: yaEnlazado
+        ? 'Se van a crear en el tablero las tarjetas de los puntos que todavía no tengan la suya. Los que ya están enlazados no se tocan.'
+        : `Se va a crear la historia "${this.plan.nombre}" en ItalJira y una tarea por cada punto del checklist. ` +
+          'Desde ahí, pasar una tarea a LISTO completa el punto y habilita las firmas.',
+      type: 'info',
+      confirmText: yaEnlazado ? 'Actualizar' : 'Enlazar',
+    });
+    if (!ok) return;
+
+    this.enlazandoItalJira = true;
+    try {
+      const r = await firstValueFrom(this.svc.sincronizarConItalJira(this.plan.id));
+
+      // El desglose importa: sin él, "ya estaba todo enlazado" y "no hizo nada" se leen igual.
+      const partes: string[] = [];
+      if (r.historiaCreada) partes.push(`historia ${r.historiaCodigo} creada`);
+      if (r.puntosEnlazadosAhora > 0) partes.push(`${r.puntosEnlazadosAhora} tarea(s) nueva(s)`);
+      if (r.puntosYaEnlazados > 0) partes.push(`${r.puntosYaEnlazados} ya estaba(n)`);
+
+      this.toast.success(partes.length ? `ItalJira: ${partes.join(' · ')}.` : 'ItalJira: nada que enlazar.');
+      await this.cargar();
+    } catch (err: any) {
+      this.toast.error(mensajeErrorHttp(err, 'No se pudo enlazar con ItalJira.'));
+    } finally {
+      this.enlazandoItalJira = false;
     }
   }
 }

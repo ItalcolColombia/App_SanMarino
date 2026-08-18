@@ -84,7 +84,9 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             x.CreatedByUserId, x.CreatedAt, x.UpdatedAt, x.UpdatedByUserId,
             x.EsTraslado, x.TrasladoLoteContraparteId, x.TrasladoGranjaContraparteId, x.TrasladoDireccion,
             x.TrasladoIngresoHembras, x.TrasladoIngresoMachos, x.TrasladoSalidaHembras, x.TrasladoSalidaMachos,
-            x.TipoAlimentoHembrasNombre, x.TipoAlimentoMachosNombre
+            x.TipoAlimentoHembrasNombre, x.TipoAlimentoMachosNombre,
+            // Doble validación: el estado viaja hasta el front para pintar la fila.
+            x.Validado, x.ValidadoAt, x.ValidadoPor
         );
     }
 
@@ -299,8 +301,16 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
 
         var createdBy = dto.CreatedByUserId ?? _current.UserGuid?.ToString() ?? _current.UserId.ToString();
 
+        // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+        // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en el default
+        // (false) hacía que el día que la empresa encendiera la doble validación todos los registros
+        // creados desde el backfill aparecieran pendientes, pasaran a EN RETRASO a las 24 h y
+        // bloquearan el alta de días nuevos —sin tener nada que validar—.
+        var separaEsteRegistro = await RequiereValidacionSeguimientoAsync(ct);
+
         var ent = new SeguimientoDiario
         {
+            Validado = !separaEsteRegistro,
             TipoSeguimiento = tipo,
             LoteId = loteId,
             LotePosturaLevanteId = dto.LotePosturaLevanteId,
@@ -406,34 +416,31 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
     private async Task AplicarDescuentoLevanteAsync(int? lplId, string loteIdStr,
         int mortH, int mortM, int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
-        // Cálculo puro compartido: mortalidad + selección + error de sexaje. Vive en
-        // Application/Calculos con tests que fijan, entre otras cosas, la equivalencia entre
-        // "revertir y reaplicar" y "aplicar el delta neto" — que es lo que hizo seguro mover esta
-        // regla acá desde el módulo de levante (A7).
-        var deltaH = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortH, selH, errH);
-        var deltaM = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortM, selM, errM);
-        if (deltaH == 0 && deltaM == 0) return;
+        // Doble validación: en las empresas que la usan, el saldo NO se mueve al guardar — las bajas
+        // quedan separadas y se aplican al validar. El gate va acá, dentro del método, y no en cada
+        // llamador: este service descuenta desde el alta, la edición, el borrado y el merge sobre
+        // traslado, y basta con que una de esas vías se olvide del gate para que el saldo se mueva
+        // dos veces (una al guardar y otra al validar).
+        if (await RequiereValidacionSeguimientoAsync(ct)) return;
 
-        Domain.Entities.LotePosturaLevante? lpl = null;
-        if (lplId.HasValue)
-        {
-            lpl = await _ctx.LotePosturaLevante
-                .Where(l => l.LotePosturaLevanteId == lplId.Value && l.DeletedAt == null)
-                .FirstOrDefaultAsync(ct);
-        }
-        if (lpl == null && int.TryParse(loteIdStr, out var loteIdInt))
-        {
-            lpl = await _ctx.LotePosturaLevante
-                .Where(l => l.LoteId == loteIdInt && l.DeletedAt == null)
-                .FirstOrDefaultAsync(ct);
-        }
-        if (lpl == null) return;
+        // La cuenta se movió tal cual a DescuentoAvesPosturaAplicador para que la doble validación
+        // aplique el MISMO descuento al validar, en vez de reescribirlo. Sin cambios de aritmética.
+        await DescuentoAvesPosturaAplicador.AplicarLevanteAsync(
+            _ctx, lplId, loteIdStr, mortH, mortM, selH, selM, errH, errM, resta, ct);
+    }
 
-        var sign = resta ? -1 : 1;
-        lpl.AvesHActual = DescuentoAvesSeguimientoCalculos.AplicarDelta(lpl.AvesHActual ?? 0, sign * deltaH);
-        lpl.AvesMActual = DescuentoAvesSeguimientoCalculos.AplicarDelta(lpl.AvesMActual ?? 0, sign * deltaM);
-        lpl.UpdatedAt = DateTime.UtcNow;
-        await _ctx.SaveChangesAsync(ct);
+    /// <summary>
+    /// ¿La empresa activa difiere el descuento hasta validar el registro? Fail-closed: ante una
+    /// empresa no resoluble devuelve <c>false</c>, que es el comportamiento previo (descontar).
+    /// </summary>
+    private async Task<bool> RequiereValidacionSeguimientoAsync(CancellationToken ct)
+    {
+        var companyId = _current.CompanyId;
+        if (companyId <= 0) return false;
+        return await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.RequiereValidacionSeguimientoDiario)
+            .FirstOrDefaultAsync(ct);
     }
 
     /// <summary>
@@ -465,26 +472,12 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
     /// </summary>
     private async Task AplicarDescuentoLppAsync(int lppId, int mortH, int mortM, int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
-        // Cálculo puro compartido: mortalidad + selección + error de sexaje. Vive en
-        // Application/Calculos con tests que fijan, entre otras cosas, la equivalencia entre
-        // "revertir y reaplicar" y "aplicar el delta neto" — que es lo que hizo seguro mover esta
-        // regla acá desde el módulo de levante (A7).
-        var deltaH = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortH, selH, errH);
-        var deltaM = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortM, selM, errM);
-        if (deltaH == 0 && deltaM == 0) return;
+        if (await RequiereValidacionSeguimientoAsync(ct)) return;
 
-        var lpp = await _ctx.LotePosturaProduccion.FindAsync(new object[] { lppId }, ct);
-        if (lpp == null) return;
-
-        // Inicializar aves actuales si son null (usar iniciales)
-        var avesH = lpp.AvesHActual ?? lpp.HembrasInicialesProd ?? lpp.AvesHInicial ?? 0;
-        var avesM = lpp.AvesMActual ?? lpp.MachosInicialesProd ?? lpp.AvesMInicial ?? 0;
-
-        var sign = resta ? -1 : 1;
-        lpp.AvesHActual = Math.Max(0, avesH + sign * deltaH);
-        lpp.AvesMActual = Math.Max(0, avesM + sign * deltaM);
-        lpp.UpdatedAt = DateTime.UtcNow;
-        await _ctx.SaveChangesAsync(ct);
+        // Ídem levante: la cuenta vive ahora en DescuentoAvesPosturaAplicador, sin tocar el orden de
+        // fallback de las aves iniciales.
+        await DescuentoAvesPosturaAplicador.AplicarProduccionAsync(
+            _ctx, lppId, mortH, mortM, selH, selM, errH, errM, resta, ct);
     }
 
     public async Task<SeguimientoDiarioDto?> UpdateAsync(UpdateSeguimientoDiarioDto dto, CancellationToken ct = default)

@@ -56,6 +56,12 @@ public class SeguimientoDiarioAvesEngordeEcuadorConfiguration : IEntityTypeConfi
         b.Property(x => x.SaldoAlimentoKg).HasColumnName("saldo_alimento_kg").HasPrecision(18, 3);
         b.Property(x => x.HistoricoConsumoAlimento).HasColumnName("historico_consumo_alimento").HasColumnType("jsonb");
 
+        // Doble validación — mientras no esté validado, el consumo y las bajas están SEPARADOS
+        // (seguimiento_reserva_*), no descontados.
+        b.Property(x => x.Validado).HasColumnName("validado").HasDefaultValue(false).IsRequired();
+        b.Property(x => x.ValidadoAt).HasColumnName("validado_at");
+        b.Property(x => x.ValidadoPor).HasColumnName("validado_por").HasMaxLength(64);
+
         b.HasIndex(x => x.LoteAveEngordeId).HasDatabaseName("ix_seguimiento_diario_aves_engorde_ecuador_lote");
         b.HasIndex(x => x.Fecha).HasDatabaseName("ix_seguimiento_diario_aves_engorde_ecuador_fecha");
 

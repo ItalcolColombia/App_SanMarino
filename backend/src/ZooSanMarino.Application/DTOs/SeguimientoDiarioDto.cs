@@ -89,7 +89,13 @@ public record SeguimientoDiarioDto(
     int TrasladoSalidaMachos = 0,
     // Levante — alimento independiente Hembras/Machos (nombre resuelto al guardar)
     string? TipoAlimentoHembrasNombre = null,
-    string? TipoAlimentoMachosNombre = null
+    string? TipoAlimentoMachosNombre = null,
+    // ── Doble validación ──
+    // Mientras Validado es false, el alimento y las aves del registro están SEPARADOS
+    // (reservados), no descontados, y el registro se puede editar y eliminar.
+    bool Validado = false,
+    DateTime? ValidadoAt = null,
+    string? ValidadoPor = null
 );
 
 /// <summary>

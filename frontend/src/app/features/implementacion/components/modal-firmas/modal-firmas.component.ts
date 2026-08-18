@@ -1,12 +1,13 @@
 // src/app/features/implementacion/components/modal-firmas/modal-firmas.component.ts
 // Detalle (solo lectura) de las firmas de un ítem: quién estuvo, quién firmó (firma digitada + nota,
 // usuario con su correo de la aplicación) y las novedades (rechazos con motivo) resaltadas.
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { estiloEstadoFirma } from '../../funciones/estado-tarea.funcion';
 import { ImplementacionFirmaDto, ImplementacionTareaDto } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-firmas-implementacion',
   standalone: true,
   imports: [CommonModule],
@@ -63,7 +64,13 @@ import { ImplementacionFirmaDto, ImplementacionTareaDto } from '../../models/imp
             </div>
 
             <div *ngIf="f.estado === 'firmada'" class="firma-detalle mt-1">
-              ✍️ Firma digitada: <span class="firma-detalle__texto">"{{ f.firmaTexto }}"</span>
+              <img
+                *ngIf="f.firmaImagen"
+                [src]="f.firmaImagen"
+                alt="Firma de {{ f.nombre }}"
+                class="firma-detalle__trazo"
+              />
+              ✍️ Firmó como <span class="firma-detalle__texto">"{{ f.firmaTexto }}"</span>
               · {{ f.fechaRespuesta | date: 'dd/MM/yyyy HH:mm' }}
               <div *ngIf="f.nota" class="mt-0.5">Observación: {{ f.nota }}</div>
             </div>

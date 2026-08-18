@@ -50,6 +50,30 @@ export interface VacunacionCronogramaItemDto {
   registro: VacunacionRegistroAplicacionDto | null;
 }
 
+/** Situación de un pendiente contra el día de hoy (VacunacionPendientesCalculos, backend). */
+export type SituacionPendiente = 'Vencido' | 'EnFranja' | 'Proximo';
+
+/** Una vacuna sin registrar: la bandeja "hoy me toca". */
+export interface VacunacionPendienteDto {
+  cronogramaItemId: number;
+  lineaProductiva: LineaProductiva;
+  loteId: number;
+  loteNombre: string;
+  granjaId: number;
+  granjaNombre: string | null;
+  nucleoId: string | null;
+  galponId: string | null;
+  itemInventarioId: number;
+  itemInventarioNombre: string;
+  unidadObjetivo: UnidadObjetivo;
+  valorObjetivo: number | null;
+  fechaInicioFranja: string;
+  fechaFinFranja: string;
+  situacion: SituacionPendiente;
+  /** Positivo = días de atraso · 0 = hoy está dentro de la franja · negativo = faltan tantos días. */
+  dias: number;
+}
+
 export interface VacunacionCronogramaItemCreateRequest {
   lineaProductiva: LineaProductiva;
   loteId: number;

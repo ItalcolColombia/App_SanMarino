@@ -102,6 +102,33 @@
     </div>
   </section>
 
+  <!-- Aviso: al lote le falta bajar parte del plan de la empresa.
+       Es un aviso, no una acción automática: materializar al abrir la pantalla dejaría las filas a
+       nombre de quien pasó a mirar, y este módulo existe para poder decir quién programó qué. -->
+  <div
+    *ngIf="pendienteDelPlan as pendiente"
+    class="ux-card mb-4 flex flex-wrap items-center justify-between gap-3 border-l-4 px-4 py-3"
+    style="border-left-color: var(--ital-orange); background: var(--ital-cream)"
+  >
+    <div class="text-sm">
+      <p class="font-bold" style="color: var(--ital-orange-dark)">
+        Este lote tiene vacunas del plan sin programar
+      </p>
+      <p style="color: var(--ital-text)">
+        Según «{{ pendiente.plantillaNombre }}»: {{ resumenPendienteDelPlan }}
+      </p>
+    </div>
+    <button
+      type="button"
+      *appHasPermission="'vacunacion.cronograma.administrar'"
+      class="btn-primary text-sm"
+      [disabled]="aplicandoPlan"
+      (click)="aplicarPlanAlLote()"
+    >
+      {{ aplicandoPlan ? 'Aplicando…' : '⇩ Aplicar el plan a este lote' }}
+    </button>
+  </div>
+
   <!-- KPIs del lote -->
   <div *ngIf="kpis && loteSeleccionado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
     <div class="ux-card p-3 text-center">

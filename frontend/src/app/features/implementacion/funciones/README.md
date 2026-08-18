@@ -9,6 +9,7 @@ devuelven resultado. Los componentes/páginas quedan delgados y delegan acá.
 | `estado-tarea.funcion.ts` | Presentación de estados (label + colores por token CSS) para tareas, planes, tipos de cronograma y firmas. Referencias constantes → estables para el template. |
 | `filtrar-planes.funcion.ts` | Filtro client-side de la lista de cronogramas (búsqueda/tipo/estado) — instantáneo, sin HTTP. |
 | `filtrar-tareas.funcion.ts` | Filtro client-side de los ítems del detalle (búsqueda/categoría/estado/solo vencidas, incluye participantes). |
+| `filtrar-usuarios-asignables.funcion.ts` | Acota la lista de participantes por texto y por **rol de la empresa activa**. El rol filtra, nunca selecciona: una firma de más es alguien afirmando algo que no vio. |
 | `resumen-firmas.funcion.ts` | Conteos de firmas por ítem (espejo de `ImplementacionCalculos.CalcularResumenFirmas`) + `mensajeErrorHttp` (timeout/401/403 legibles). |
 
 Reutilización multi-empresa/país: todo el scoping (empresa/país activos) lo resuelve el backend por

@@ -54,7 +54,12 @@ public partial class ImplementacionService
                 u.Id,
                 u.firstName + " " + u.surName,
                 u.cedula,
-                u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()))
+                u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault(),
+                // Roles EN LA EMPRESA ACTIVA: el mismo usuario puede tener otros en otra empresa, y
+                // ofrecerlos acá dejaría elegir participantes por un rol que en esta no ejerce.
+                _ctx.UserRoles.Where(ur => ur.UserId == u.Id && ur.CompanyId == _current.CompanyId)
+                    .Select(ur => ur.RoleId)
+                    .ToList()))
            .ToListAsync(ct);
 
     public Task<List<ImplementacionRolAsignableDto>> GetRolesAsignablesAsync(CancellationToken ct = default)

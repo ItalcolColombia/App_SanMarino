@@ -13,9 +13,14 @@ import {
   GalponLiteDto,
 } from '../../services/gestion-inventario.service';
 import {
+  esFechaIngresoOfrecible,
   esFechaMovimientoPermitida,
+  extremosFechaIngreso,
+  hintFechaIngreso,
   mensajeFechaFueraDeVentana,
+  mensajeFechaIngresoFueraDeVentana,
   ventanaFechaMovimiento,
+  type VentanaFechaIngreso,
 } from '../../funciones/ventana-fecha-movimiento.funcion';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -112,6 +117,15 @@ export class InventarioHistorialPageComponent implements OnInit {
   fechaMovimientoMin = '';
   fechaMovimientoMax = '';
 
+  /**
+   * D4 — el modal de fecha lo comparten traslados e ingresos, pero la excepción del alimento previo
+   * al encasetamiento es SOLO de los ingresos (igual que en el backend). `null` ⇒ regla dura.
+   */
+  ventanaEdicion: VentanaFechaIngreso | null = null;
+  editFechaMin = '';
+  editFechaMax = '';
+  editHint = '';
+
   // ── Delete confirm modal ──────────────────────────────────────────────────────
   deleteOpen = false;
   deleteType: ActiveTab = 'traslados';
@@ -124,6 +138,7 @@ export class InventarioHistorialPageComponent implements OnInit {
     const ventana = ventanaFechaMovimiento(new Date());
     this.fechaMovimientoMin = ventana.min;
     this.fechaMovimientoMax = ventana.max;
+    this.aplicarVentanaEdicion(null);
     this.loadFilterData();
     this.loadTraslados();
   }
@@ -179,6 +194,8 @@ export class InventarioHistorialPageComponent implements OnInit {
     this.editId = t.transferGroupId;
     this.editFecha = t.fechaMovimiento.substring(0, 10);
     this.editError = '';
+    // El traslado conserva la regla dura: D4 es del alimento que llega antes que los pollitos.
+    this.aplicarVentanaEdicion(null);
     this.editOpen = true;
   }
 
@@ -225,7 +242,24 @@ export class InventarioHistorialPageComponent implements OnInit {
     this.editId = i.movimientoId;
     this.editFecha = i.fechaMovimiento.substring(0, 10);
     this.editError = '';
+    this.aplicarVentanaEdicion(null);
     this.editOpen = true;
+    // D4 — la ubicación sale del movimiento, no del modal. Fail-OPEN: si falla, queda la regla dura
+    // y el rechazo lo hace el controller (cerrar acá repondría el bloqueo que esto viene a sacar).
+    this.svc.getVentanaFechaIngresoExistente(i.movimientoId).subscribe({
+      next: v => this.aplicarVentanaEdicion(v ?? null),
+      error: () => this.aplicarVentanaEdicion(null)
+    });
+  }
+
+  /** Deja extremos y hint del modal listos para el template (referencias estables). */
+  private aplicarVentanaEdicion(ventana: VentanaFechaIngreso | null): void {
+    const hoy = new Date();
+    this.ventanaEdicion = ventana;
+    const extremos = extremosFechaIngreso(hoy, ventana);
+    this.editFechaMin = extremos.min;
+    this.editFechaMax = extremos.max;
+    this.editHint = hintFechaIngreso(hoy, ventana);
   }
 
   openDeleteIngreso(i: InventarioGestionIngresoListDto): void {
@@ -328,8 +362,14 @@ export class InventarioHistorialPageComponent implements OnInit {
   saveEdit(): void {
     if (!this.editFecha || this.editSaving) return;
     // Misma ventana que el alta: si no, la regla se esquiva cargando hoy y reeditando la fecha.
+    // El ingreso lleva además la excepción D4; el traslado conserva la regla dura.
     const hoy = new Date();
-    if (!esFechaMovimientoPermitida(this.editFecha, hoy)) {
+    if (this.editType === 'ingresos') {
+      if (!esFechaIngresoOfrecible(this.editFecha, hoy, this.ventanaEdicion)) {
+        this.editError = mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaEdicion);
+        return;
+      }
+    } else if (!esFechaMovimientoPermitida(this.editFecha, hoy)) {
       this.editError = mensajeFechaFueraDeVentana(hoy);
       return;
     }

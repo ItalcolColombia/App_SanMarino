@@ -314,6 +314,11 @@ public class AuthService : IAuthService
         new Claim("firstName", user.firstName ?? string.Empty),
         new Claim("surName",  user.surName   ?? string.Empty),
         new Claim("user_id", userIdHash.ToString()), // Identificador numérico para compatibilidad
+        // Sale del DATO (`users.is_super_admin`), no del correo. Lo lee `GET /auth/profile`, que
+        // sólo hace eco de la sesión. Las 12 compuertas REALES de autorización no usan el claim:
+        // consultan la columna en cada request (ver SuperAdminLookup), así que revocar la marca
+        // tiene efecto inmediato aunque el token siga vivo.
+        new Claim("is_super_admin", SuperAdminCalculos.EsSuperAdmin(user.IsSuperAdmin) ? "true" : "false"),
     };
 
     foreach (var roleName in userRoles.Select(r => r.Role?.Name)
@@ -423,8 +428,10 @@ public class AuthService : IAuthService
         CompanyPaises = companyPaisesList,
         Permisos = permissions,
 
-        // Super Admin (Admin General): gatea funciones exclusivas en el front (ej. flag Admin de Empresa en Roles).
-        IsSuperAdmin = login.email?.ToLowerInvariant() == "moiesbbuga@gmail.com"
+        // Super Admin (Admin General): gatea funciones exclusivas en el front (ej. flag Admin de
+        // Empresa en Roles). Sale del DATO del usuario (`users.is_super_admin`), no de su correo:
+        // ver SuperAdminCalculos. El nombre y la semántica del campo no cambian.
+        IsSuperAdmin = SuperAdminCalculos.EsSuperAdmin(user.IsSuperAdmin)
 
         // NOTA: MenusByRole y Menu ya NO se incluyen en el login
         // Se cargarán en una segunda petición separada desde el frontend

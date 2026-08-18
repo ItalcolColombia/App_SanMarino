@@ -21,13 +21,20 @@ public partial class MovimientoAvesService : IMovimientoAvesService
     private readonly ILocationScopeResolver _scopeResolver;
     private readonly ILogger<MovimientoAvesService> _logger;
 
+    /// <summary>
+    /// Opcional a propósito: sin doble validación no hay reservas que consultar y el servicio se
+    /// comporta exactamente igual que antes. Mismo patrón que <c>TrasladoAvesDesdeSegService</c>.
+    /// </summary>
+    private readonly IValidacionSeguimientoService? _validacion;
+
     public MovimientoAvesService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
         IInventarioAvesService inventarioService,
         IHistorialInventarioService historialService,
         ILocationScopeResolver scopeResolver,
-        ILogger<MovimientoAvesService> logger)
+        ILogger<MovimientoAvesService> logger,
+        IValidacionSeguimientoService? validacion = null)
     {
         _context = context;
         _currentUser = currentUser;
@@ -35,6 +42,7 @@ public partial class MovimientoAvesService : IMovimientoAvesService
         _historialService = historialService;
         _scopeResolver = scopeResolver;
         _logger = logger;
+        _validacion = validacion;
     }
 
     /// <summary>

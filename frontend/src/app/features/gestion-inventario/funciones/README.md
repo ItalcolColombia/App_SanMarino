@@ -22,6 +22,7 @@ un botón— para que sea **fácil de encontrar, testear y reutilizar**.
 |---|---|
 | `exportar-stock-excel.funcion.ts` | `construirFilasStockExcel` / `cabecerasStockExcel` / `exportarStockExcel`: arma y descarga el `.xlsx` del stock de **todas las granjas asignadas** (alimento con su galpón, otros conceptos a nivel granja). |
 | `ventana-fecha-movimiento.funcion.ts` | `ventanaFechaMovimiento` / `esFechaMovimientoPermitida` / `mensajeFechaFueraDeVentana`: ventana de fechas de los movimientos cargados **a mano** (día 1 del mes en curso → hoy). Espejo de `VentanaFechaMovimientoInventarioCalculos` del backend, que es el que manda; acá acota el datepicker y avisa antes del request. |
+| `ventana-fecha-movimiento.funcion.ts` (D4) | `extremosFechaIngreso` / `esFechaIngresoOfrecible` / `mensajeFechaIngresoFueraDeVentana` / `hintFechaIngreso`: la ventana de las dos puertas de **ingreso**, que además admiten el alimento llegado antes de un encasetamiento del galpón. **No replican la regla**: el encaset que manda depende de la fecha elegida, así que un espejo en TS rechazaría fechas que el backend acepta. Sólo aplican los extremos que informa `GET /inventario-gestion/ventana-fecha-ingreso` y dejan el rechazo fino al controller. |
 
 ## Referencia
 

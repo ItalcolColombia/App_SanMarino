@@ -257,6 +257,9 @@
                            el Excel), y el arrastre de huevos al cerrar el levante hacia producción
                            no se toca: solo se dejan de mostrar acá. -->
                       <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                      @if (requiereValidacion) {
+                        <th scope="col" class="th-diario">Estado</th>
+                      }
                       <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                     </tr>
                   </thead>
@@ -273,7 +276,7 @@
                       </tr>
                     }
                     @for (f of diarioFilas; track trackByDiarioFila($index, f)) {
-                      <tr class="ux-row">
+                      <tr class="ux-row" [ngClass]="claseFilaValidacion(f.seg.id)">
                         <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
                         <td [title]="f.semana == null ? 'Registro anterior al encasetamiento' : ''">{{ f.semana ?? '—' }}</td>
                         <td [title]="f.edadDia == null ? 'Registro anterior al encasetamiento' : ''">{{ f.edadDia ?? '—' }}</td>
@@ -335,11 +338,28 @@
                           {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
                         </td>
                         <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
+                        @if (requiereValidacion) {
+                          <td>
+                            <span [ngClass]="claseBadgeValidacion(f.seg.id)" [title]="tooltipValidacionFila(f.seg.id)">
+                              @if (estadoValidacionFila(f.seg.id) === 'EN_RETRASO') { <span aria-hidden="true">⚠️</span> }
+                              {{ etiquetaValidacionFila(f.seg.id) }}
+                            </span>
+                          </td>
+                        }
                         <td class="text-right">
                           <div class="btn-group">
                             <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
-                            <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
-                            <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
+                            @if (puedeValidarFila(f.seg.id)) {
+                              <button type="button" (click)="onValidar(f.seg.id)" class="icon-btn icon-btn--validar"
+                                [disabled]="disableCreateEditDelete"
+                                title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura.">✓</button>
+                            }
+                            <button type="button" (click)="onEdit(f.seg)" class="icon-btn"
+                              [disabled]="disableCreateEditDelete || esSoloLecturaPorValidacion(f.seg.id)"
+                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para corregirlo' : (disableCreateEditDelete ? 'No se puede editar' : 'Editar')">✎</button>
+                            <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger"
+                              [disabled]="disableCreateEditDelete || esSoloLecturaPorValidacion(f.seg.id)"
+                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para poder eliminarlo' : (disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar')">🗑️</button>
                           </div>
                         </td>
                       </tr>

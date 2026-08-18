@@ -111,6 +111,14 @@ public partial class VacunacionCronogramaService
         entity.Orden = req.Orden;
         entity.Activo = req.Activo;
         entity.Notas = req.Notas;
+
+        // Si la fila la había puesto el plan de la empresa, esta corrección la emancipa. Conserva
+        // OrigenPlantillaItemId —el índice único sigue impidiendo que el materializador cree una
+        // gemela— pero pasa a ser del lote y el plan no la vuelve a pisar: corregir a mano es una
+        // decisión explícita sobre ESTE lote, y la próxima materialización no la puede deshacer en
+        // silencio.
+        entity.GeneradoAutomatico = false;
+
         entity.UpdatedByUserId = _currentUser.UserId;
         entity.UpdatedAt = DateTime.UtcNow;
 

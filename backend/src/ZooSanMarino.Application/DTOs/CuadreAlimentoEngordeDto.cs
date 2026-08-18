@@ -30,7 +30,15 @@ public sealed record CuadreAlimentoEngordeFilaDto(
     /// <summary>Días del ciclo que cierran en negativo.</summary>
     int      FilasNegativas,
     EstadoCuadreAlimento Estado,
-    string   Detalle
+    string   Detalle,
+    /// <summary>
+    /// Kilos que se corrigieron a mano en el stock (<c>AjusteStock</c> / <c>EliminacionStock</c>)
+    /// DENTRO del ciclo activo. La tabla diaria no los ve —se espejan como <c>INV_OTRO</c>, que la fn
+    /// no lee—, así que cuando el galpón no cuadra suelen ser la causa. Informativo: no se restan del
+    /// descuadre.
+    /// </summary>
+    decimal  AjustesManualesKg = 0m,
+    int      AjustesManualesCount = 0
 );
 
 /// <summary>Resultado del cuadre: el resumen que se mira primero y el detalle por galpón.</summary>

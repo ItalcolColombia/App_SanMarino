@@ -157,6 +157,18 @@
     font-style: italic;
     color: var(--ital-text);
   }
+
+  // Trazo manuscrito: alto fijo para que no descoloque la fila; el ancho lo da la proporción.
+  .firma-detalle__trazo {
+    display: block;
+    height: 48px;
+    width: auto;
+    max-width: 100%;
+    margin-bottom: 0.2rem;
+    background: #fff;
+    border: 1px solid var(--ital-green-100);
+    border-radius: 0.4rem;
+  }
 }
 
 // Acciones compactas por fila

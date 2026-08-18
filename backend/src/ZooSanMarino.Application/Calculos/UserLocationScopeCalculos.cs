@@ -111,6 +111,96 @@ public static class UserLocationScopeCalculos
         return new LocationScope(false, nucleosVisibles, galponesVisibles, lotesPermitidos);
     }
 
+    // ─── Regla única de visibilidad de un registro ubicado ───
+
+    /// <summary>
+    /// ¿El usuario alcanza un registro que vive en una ubicación? Regla ÚNICA del módulo, antes
+    /// copiada a mano en cada servicio:
+    /// <list type="bullet">
+    ///   <item>granja no restringida (scope global) ⇒ visible;</item>
+    ///   <item>con lote de la tabla <c>lotes</c> manda el nivel LOTE (y sólo ese: galpón y núcleo ya
+    ///         no deciden, porque el grant de lote es más fino que el de su galpón);</item>
+    ///   <item>sin lote, decide el galpón; sin galpón, el núcleo;</item>
+    ///   <item>sin ninguno de los tres ⇒ NO visible (fail-closed).</item>
+    /// </list>
+    /// Las líneas con tabla de lote propia y sin FK a <c>lotes</c> (engorde) se gobiernan por
+    /// galpón/núcleo — limitación conocida del alcance granular, no un olvido.
+    /// </summary>
+    public static bool PermiteUbicacion(LocationScope scope, string? nucleoId, string? galponId, int? loteTablaId)
+    {
+        if (scope.IsGlobal) return true;
+        if (loteTablaId.HasValue) return scope.PermiteLote(loteTablaId.Value);
+        if (!string.IsNullOrEmpty(galponId)) return scope.PermiteGalpon(galponId);
+        if (!string.IsNullOrEmpty(nucleoId)) return scope.PermiteNucleo(nucleoId);
+        return false;
+    }
+
+    /// <summary>
+    /// <see cref="PermiteUbicacion(LocationScope, string?, string?, int?)"/> sobre el diccionario de
+    /// granjas RESTRINGIDAS: una granja ausente del diccionario no está restringida ⇒ visible.
+    /// </summary>
+    public static bool PermiteUbicacion(
+        IReadOnlyDictionary<int, LocationScope> restringidos,
+        int granjaId, string? nucleoId, string? galponId, int? loteTablaId)
+        => !restringidos.TryGetValue(granjaId, out var scope)
+           || PermiteUbicacion(scope, nucleoId, galponId, loteTablaId);
+
+    // ─── Aplanado del cierre para filtrar en la BD ───
+
+    /// <summary>
+    /// El cierre expresado como 4 conjuntos planos, tal como lo consumen las funciones SQL del
+    /// módulo (<c>fn_vacunacion_filter_data</c>, <c>fn_vacunacion_pendientes</c>). La BD sólo hace
+    /// pertenencia a conjuntos; la lógica del cierre sigue viviendo acá, en un solo lugar.
+    /// </summary>
+    /// <param name="FarmIds">Granjas RESTRINGIDAS. Una granja acá y ausente del resto ⇒ no ve nada (fail-closed).</param>
+    /// <param name="Nucleos">Claves COMPUESTAS <c>granjaId|nucleoId</c>: <c>nucleo_id</c> se repite entre granjas.</param>
+    /// <param name="Galpones">Ids de galpón (PK global).</param>
+    /// <param name="Lotes">Ids de <c>lotes.lote_id</c> permitidos.</param>
+    public readonly record struct ScopeSqlParams(
+        int[] FarmIds, string[] Nucleos, string[] Galpones, int[] Lotes)
+    {
+        /// <summary>Cierre vacío: ninguna granja restringida ⇒ la fn no filtra nada (comportamiento clásico).</summary>
+        public static ScopeSqlParams Vacio => new(
+            Array.Empty<int>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<int>());
+    }
+
+    /// <summary>Clave compuesta de un núcleo (el <c>nucleo_id</c> solo no es único entre granjas).</summary>
+    public static string ClaveNucleo(int granjaId, string nucleoId) => $"{granjaId}|{nucleoId}";
+
+    /// <summary>
+    /// Aplana el diccionario de granjas restringidas a los 4 arrays que viajan a SQL. Ordenado para
+    /// que la salida sea determinística (mismo cierre ⇒ mismos arrays ⇒ mismo plan de consulta).
+    /// </summary>
+    public static ScopeSqlParams AplanarParaSql(IReadOnlyDictionary<int, LocationScope> restringidos)
+    {
+        if (restringidos.Count == 0) return ScopeSqlParams.Vacio;
+
+        var farmIds = new List<int>();
+        var nucleos = new List<string>();
+        var galpones = new HashSet<string>(StringComparer.Ordinal);
+        var lotes = new HashSet<int>();
+
+        foreach (var (granjaId, scope) in restringidos)
+        {
+            // Una granja global no debería estar en el diccionario de restringidas; si llega, no se
+            // la filtra (respeta el contrato de LocationScope.Global).
+            if (scope.IsGlobal) continue;
+
+            farmIds.Add(granjaId);
+            foreach (var n in scope.NucleosVisibles) nucleos.Add(ClaveNucleo(granjaId, n));
+            foreach (var g in scope.GalponesVisibles) galpones.Add(g);
+            foreach (var l in scope.LotesPermitidos) lotes.Add(l);
+        }
+
+        farmIds.Sort();
+        nucleos.Sort(StringComparer.Ordinal);
+        var galponesOrdenados = galpones.ToList(); galponesOrdenados.Sort(StringComparer.Ordinal);
+        var lotesOrdenados = lotes.ToList(); lotesOrdenados.Sort();
+
+        return new ScopeSqlParams(
+            farmIds.ToArray(), nucleos.ToArray(), galponesOrdenados.ToArray(), lotesOrdenados.ToArray());
+    }
+
     // ─── Helpers de filtrado en memoria para catálogos multi-granja ───
     // (los servicios pasan solo las granjas RESTRINGIDAS; una granja ausente del diccionario = global)
 

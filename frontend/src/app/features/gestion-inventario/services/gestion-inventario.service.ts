@@ -103,6 +103,29 @@ export interface InventarioGestionStockDto {
   /** Silo/bodega donde vive el saldo (empresas con inventario por silo). Núcleo y galpón van null. */
   siloId?: number | null;
   siloNombre?: string | null;
+  /**
+   * Kilos SEPARADOS por seguimientos diarios que todavía no se validaron (doble validación).
+   * No salieron del stock: están comprometidos. Siempre 0 en empresas sin el flag.
+   */
+  reservadoKg?: number | null;
+  /**
+   * Lo que realmente se puede comprometer: `quantity - reservadoKg`. **Este es el número que hay que
+   * mostrar y validar en los formularios**, no `quantity` — que es la existencia física del galpón.
+   *
+   * Puede venir NEGATIVO si se separó de más; no se recorta, porque ese número es la señal de que dos
+   * lotes se pisaron sobre el mismo galpón.
+   */
+  disponibleKg?: number | null;
+}
+
+/**
+ * Saldo que un formulario puede comprometer sobre una fila de stock.
+ *
+ * Fail-safe hacia el comportamiento previo: si el backend no manda `disponibleKg` (respuesta vieja,
+ * o uno de los DTO que arman ingreso/traslado/consumo), cae en `quantity`. Nunca inventa saldo.
+ */
+export function saldoComprometible(row: Pick<InventarioGestionStockDto, 'quantity' | 'disponibleKg'>): number {
+  return row.disponibleKg == null ? Number(row.quantity ?? 0) : Number(row.disponibleKg);
 }
 
 export interface InventarioGestionIngresoRequest {
@@ -329,6 +352,24 @@ export interface InventarioGestionIngresoListDto {
   /** Silo/bodega donde entró (inventario por silo). Null en filas huérfanas del espejo. */
   siloId?: number | null;
   siloNombre?: string | null;
+}
+
+/**
+ * Ventana de fechas que la pantalla puede ofrecer para un ingreso (D4). Es INFORMATIVA: el conjunto
+ * admitido no es contiguo —`[1 del mes, hoy]` ∪ `[encaset − dias, encaset]`— y esto es su rango
+ * envolvente. La que rechaza sigue siendo la guarda del controller.
+ */
+export interface InventarioGestionVentanaFechaIngresoDto {
+  /** yyyy-MM-dd */
+  min: string;
+  /** yyyy-MM-dd, siempre hoy: el futuro no lo abre ninguna vía. */
+  max: string;
+  /** Encasetamiento que justifica la apertura, o null si no hay ninguno. */
+  proximoEncaset: string | null;
+  /** `companies.dias_alimento_previo_encaset` de la empresa de la granja. */
+  diasVentanaEmpresa: number;
+  /** Texto del hint ya armado por el backend, para que las dos puntas digan lo mismo. */
+  ayuda: string;
 }
 
 /** Edita solo la fecha de movimiento de un ingreso. */
@@ -563,6 +604,40 @@ export class GestionInventarioService {
     if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
     if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
     return this.http.get<InventarioGestionIngresoListDto[]>(`${this.api}/inventario-gestion/ingresos`, { params: httpParams });
+  }
+
+  /**
+   * D4 — ventana de fechas ofrecible para un ingreso NUEVO en esa ubicación. Sin galpón devuelve los
+   * extremos clásicos (`proximoEncaset: null`), así que se puede llamar igual.
+   */
+  getVentanaFechaIngreso(params: {
+    farmId: number;
+    nucleoId?: string | null;
+    galponId?: string | null;
+    /** yyyy-MM-dd; el encaset que manda es el más cercano a partir de ESTA fecha. */
+    fecha?: string | null;
+  }): Observable<InventarioGestionVentanaFechaIngresoDto> {
+    let httpParams = new HttpParams().set('farmId', String(params.farmId));
+    if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
+    if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
+    if (params.fecha) httpParams = httpParams.set('fecha', params.fecha);
+    return this.http.get<InventarioGestionVentanaFechaIngresoDto>(
+      `${this.api}/inventario-gestion/ventana-fecha-ingreso`,
+      { params: httpParams }
+    );
+  }
+
+  /** D4 — la misma ventana, para EDITAR la fecha de un ingreso ya registrado (la ubicación sale de él). */
+  getVentanaFechaIngresoExistente(
+    movimientoId: number,
+    fecha?: string | null
+  ): Observable<InventarioGestionVentanaFechaIngresoDto> {
+    let httpParams = new HttpParams();
+    if (fecha) httpParams = httpParams.set('fecha', fecha);
+    return this.http.get<InventarioGestionVentanaFechaIngresoDto>(
+      `${this.api}/inventario-gestion/ingresos/${movimientoId}/ventana-fecha`,
+      { params: httpParams }
+    );
   }
 
   /** Actualiza la fecha de movimiento de un ingreso (Ingreso directo o entrada de traslado). */

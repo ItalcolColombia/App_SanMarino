@@ -1,5 +1,8 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
+import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -180,7 +183,13 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   private galponNameById = new Map<string, string>();
 
-  constructor(private toast: ToastService, 
+  constructor(private toast: ToastService,
+    /** Rechazos que el usuario TIENE que leer van en modal, no en toast (ver AvisoValidacionService). */
+    private aviso: AvisoValidacionService,
+    /** Doble validación: alerta de registros vencidos al entrar al lote. */
+    private validacionSvc: ValidacionSeguimientoService,
+    private permSvc: UserPermissionService,
+
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
@@ -376,6 +385,10 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.resumenSelected = null;
 
     if (!this.selectedLoteId) return;
+
+    // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
+    // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.
+    this.avisarPendientesDeValidacion(this.selectedLoteId);
 
     this.loading = true;
     this.segSvc.getByLoteId(this.selectedLoteId)
@@ -690,6 +703,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
         this.loading = false;
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
+        void this.aviso.mensaje('No se pudo eliminar el registro', errorMessage);
         this.toast.error(errorMessage);
         this.onLoteChange(this.selectedLoteId);
       }
@@ -730,9 +744,31 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
       // El backend valida reglas que el usuario necesita ver (p. ej. el gate de huevos antes de la
       // semana 14, o el lote cerrado). Sin toast el 400 quedaba invisible y el modal se cerraba
       // como si hubiera guardado.
+      // El motivo del rechazo va en MODAL: fecha repetida, alimento faltante o registros vencidos
+      // sin validar son cosas que hay que corregir, y un toast que se va solo las escondía.
       error: (err: unknown) => {
-        this.toast.error(this.mensajeDeError(err, 'No se pudo guardar el seguimiento.'));
+        void this.aviso.error(err, 'No se pudo guardar el seguimiento.', 'No se pudo guardar el seguimiento');
       }
+    });
+  }
+
+  /**
+   * Modal rojo con los registros pendientes de validar del lote. Solo aparece si la empresa opera
+   * con doble validación y hay al menos uno VENCIDO: avisar por los que todavía están en plazo
+   * convertiría la alarma en ruido diario y dejaría de mirarse.
+   */
+  private avisarPendientesDeValidacion(loteId: number): void {
+    this.validacionSvc.pendientes('LEVANTE', loteId).subscribe(p => {
+      this.requiereValidacion = p.requiereValidacion;
+
+      // Se reemplaza el mapa entero en vez de mutarlo: una fila recién validada tiene que
+      // DESAPARECER, y limpiar+rellenar deja una ventana con el estado a medias.
+      const mapa = new Map<number, string>();
+      for (const r of p.registros ?? []) mapa.set(r.seguimientoId, r.estado);
+      this.estadoValidacionPorId = mapa;
+
+      if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
+      void this.aviso.alertaPendientes(p.mensaje);
     });
   }
 
@@ -1151,5 +1187,48 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     }
     // Fase 3: el lote sigue siendo el mismo, así que las cohortes se refrescan por trigger.
     this.cohortesRefreshTrigger++;
+  }
+
+  // ─── Doble validación ───────────────────────────────────────────────────────
+
+  readonly PERM_VALIDAR = 'seguimiento_levante.validar';
+
+  /** Flag de la empresa. En false la columna Estado no se muestra y nada cambia. */
+  requiereValidacion = false;
+
+  /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
+  estadoValidacionPorId = new Map<number, string>();
+
+  /**
+   * Permiso de validar Y empresa en doble validación.
+   *
+   * El flag hacía falta: sin él, un usuario con el permiso veía el ✓ en una empresa que NO opera con
+   * doble validación, donde el registro ya descontó al guardar. Apretarlo no rompe nada en el backend
+   * —no hay reservas que aplicar— pero marca el registro como validado y lo deja de solo lectura sin
+   * que nadie lo haya pedido. `requiereValidacion` viene de `/pendientes` y es fail-closed: ante error
+   * queda en false y el botón no se muestra.
+   */
+  get puedeValidar(): boolean {
+    return this.requiereValidacion && this.permSvc.has(this.PERM_VALIDAR);
+  }
+
+  /**
+   * Valida un registro: aplica el consumo de alimento y el descuento de aves que estaban separados.
+   * Se recarga el lote entero porque el descuento mueve saldos que la tabla ya está mostrando.
+   */
+  onValidarSeguimiento(seguimientoId: number): void {
+    this.loading = true;
+    this.validacionSvc.validar('LEVANTE', seguimientoId).subscribe({
+      next: r => {
+        this.toast.success(
+          `Registro validado. Se aplicaron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
+          'Validado', 5000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudo validar el registro.', 'No se pudo validar');
+      }
+    });
   }
 }

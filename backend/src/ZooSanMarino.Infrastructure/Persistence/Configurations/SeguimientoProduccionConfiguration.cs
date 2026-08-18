@@ -255,6 +255,12 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
+        // Doble validación — mientras no esté validado, el consumo y las bajas están SEPARADOS
+        // (seguimiento_reserva_*), no descontados.
+        builder.Property(x => x.Validado).HasColumnName("validado").HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.ValidadoAt).HasColumnName("validado_at");
+        builder.Property(x => x.ValidadoPor).HasColumnName("validado_por").HasMaxLength(64);
+
         // Índice único por lote y fecha
         builder.HasIndex(x => new { x.LoteId, x.Fecha }).IsUnique();
     }

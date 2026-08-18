@@ -1,0 +1,119 @@
+// Paleta: tokens centralizados del tema (theme-italfoods.scss). Naranja = acento/acción,
+// rojo = peligro (descuadre real), ámbar = atención. Nada hardcodeado fuera de los fallbacks.
+.cuadre {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cuadre__panel {
+  background: #fff;
+  border: 1px solid var(--ital-green-100, #ececea);
+  border-radius: 12px;
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.cuadre__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ital-green-50, #f2f2f0);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.cuadre__title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ital-text, #1c1917);
+}
+
+.cuadre__subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ital-muted, #6b7280);
+  max-width: 68ch;
+}
+
+.cuadre__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cuadre__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ital-text, #1c1917);
+  cursor: pointer;
+
+  input { accent-color: var(--ital-orange, #f5821f); }
+}
+
+.cuadre__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: var(--ital-cream, #fafaf9);
+  border: 1px solid var(--ital-green-100, #ececea);
+  color: var(--ital-text, #1c1917);
+}
+
+.chip--ok     { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.chip--warn   { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.chip--danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge--ok     { background: #f0fdf4; color: #166534; }
+.badge--warn   { background: #fffbeb; color: #92400e; }
+.badge--danger { background: #fef2f2; color: #991b1b; }
+
+.cuadre__table-wrap {
+  overflow-x: auto;
+}
+
+.cuadre__detalle {
+  font-size: 0.82rem;
+  color: var(--ital-muted, #6b7280);
+  min-width: 22rem;
+}
+
+.cuadre__hint {
+  margin: 0.35rem 0;
+  font-size: 0.85rem;
+  color: var(--ital-muted, #6b7280);
+}
+
+.cuadre__error {
+  margin: 0.35rem 0;
+  font-size: 0.85rem;
+  color: var(--danger, #dc2626);
+}
+
+.muted { color: var(--ital-muted, #6b7280); }
+
+.text-right { text-align: right; }

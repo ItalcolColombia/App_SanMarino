@@ -113,6 +113,10 @@ pwa-build:
 	@echo "📲 Build de produccion + gate de integridad del Service Worker..."
 	cd frontend && yarn build && node scripts/verificar-ngsw.js
 
+gates-front:
+	@echo "🚦 Gates del front (los mismos que corre el CI)..."
+	cd frontend && node scripts/verificar-change-detection.js && node scripts/verificar-lista-cacheable.js
+
 pwa-serve: pwa-build
 	@echo "📲 Sirviendo dist/browser en http://localhost:4400"
 	@echo "   El dev server NO registra el Service Worker (enabled: !isDevMode())."

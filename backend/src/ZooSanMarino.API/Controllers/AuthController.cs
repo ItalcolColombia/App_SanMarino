@@ -269,7 +269,10 @@ public class AuthController : ControllerBase
         var companies= User.FindAll("company").Select(c => c.Value).Distinct().ToArray();
         var companyIds = User.FindAll("company_id").Select(c => c.Value).Distinct().ToArray();
         var permissions = User.FindAll("permission").Select(c => c.Value).Distinct().ToArray();
-        var isSuperAdmin = string.Equals(email, "moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase);
+        // Del claim, que a su vez sale del dato `users.is_super_admin` (ver SuperAdminCalculos).
+        // Este endpoint sólo hace eco de la sesión; las compuertas de autorización leen la columna.
+        var isSuperAdmin = string.Equals(User.FindFirst("is_super_admin")?.Value, "true",
+                                         StringComparison.OrdinalIgnoreCase);
 
         return Ok(new
         {

@@ -24,17 +24,20 @@ namespace ZooSanMarino.Infrastructure.Services
         private readonly AppInterfaces.ICurrentUser _current;
         private readonly AppInterfaces.ICompanyResolver _companyResolver;
         private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
+        private readonly AppInterfaces.IVacunacionMaterializadorService _vacunacionMaterializador;
 
         public LoteService(
             ZooSanMarinoContext ctx,
             AppInterfaces.ICurrentUser current,
             AppInterfaces.ICompanyResolver companyResolver,
-            AppInterfaces.ILocationScopeResolver scopeResolver)
+            AppInterfaces.ILocationScopeResolver scopeResolver,
+            AppInterfaces.IVacunacionMaterializadorService vacunacionMaterializador)
         {
             _ctx = ctx;
             _current = current;
             _companyResolver = companyResolver;
             _scopeResolver = scopeResolver;
+            _vacunacionMaterializador = vacunacionMaterializador;
         }
 
         /// <summary>
@@ -500,6 +503,18 @@ namespace ZooSanMarino.Infrastructure.Services
                     _ctx.LotePosturaLevante.Add(lpl);
                 }
                 await _ctx.SaveChangesAsync();
+
+                // Plan sanitario de la empresa → cronograma del lote recién encasetado. Se relee el id
+                // en vez de usar el de `lpl` porque el registro de levante puede haberlo creado un
+                // trigger de la BD (ver la guarda `existeLpl` de arriba).
+                // Fail-soft por dentro: MaterializarAlCrearLoteAsync NUNCA lanza. Sin plantilla para el
+                // lote no escribe nada, así que una empresa sin plan se comporta igual que siempre.
+                var lplId = await _ctx.LotePosturaLevante.AsNoTracking()
+                    .Where(l => l.LoteId == loteIdValue && l.DeletedAt == null)
+                    .Select(l => l.LotePosturaLevanteId)
+                    .FirstOrDefaultAsync();
+                if (lplId.HasValue)
+                    await _vacunacionMaterializador.MaterializarAlCrearLoteAsync("Levante", lplId.Value);
             }
 
             var result = await GetByIdAsync(loteIdValue);

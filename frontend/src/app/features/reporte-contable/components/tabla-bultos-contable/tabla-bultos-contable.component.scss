@@ -222,3 +222,16 @@
     font-size: 1rem;
   }
 }
+
+/* Aviso de alcance: el kardex de bultos es de la GRANJA. Ámbar = atención, no peligro:
+   el dato está bien, lo que está mal es sumarlo entre reportes (§2.4). */
+.alcance-aviso {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-left: 3px solid #fbbf24;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  border-radius: 4px;
+}

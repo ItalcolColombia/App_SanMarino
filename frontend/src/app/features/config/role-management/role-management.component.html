@@ -32,32 +32,39 @@
   TOOLBAR: Tabs + Botón de acción
   ═══════════════════════════════════════ -->
   <div class="rm-toolbar">
+    <!-- Permisos y Menús administran CATÁLOGOS GLOBALES (compartidos por todas las empresas):
+         solo los ve el administrador de la aplicación. Ver funciones/catalogos-globales.funcion.ts.
+         El backend también los cierra con la policy AdminAplicacion — ocultar el tab no alcanza. -->
     <nav class="rm-tabs" aria-label="Secciones del módulo">
       <button type="button"
         class="rm-tab"
         [class.rm-tab--active]="activeTab==='roles'"
-        (click)="activeTab='roles'">
+        (click)="irATab('roles')">
         <fa-icon [icon]="faUsers" aria-hidden="true"></fa-icon>
         <span>Roles</span>
         <span class="rm-badge" [class.rm-badge--active]="activeTab==='roles'">{{ roles.length || 0 }}</span>
       </button>
 
-      <button type="button"
-        class="rm-tab"
-        [class.rm-tab--active]="activeTab==='perms'"
-        (click)="activeTab='perms'">
-        <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
-        <span>Permisos</span>
-        <span class="rm-badge" [class.rm-badge--active]="activeTab==='perms'">{{ permissions.length || 0 }}</span>
-      </button>
+      @if (verTab('perms')) {
+        <button type="button"
+          class="rm-tab"
+          [class.rm-tab--active]="activeTab==='perms'"
+          (click)="irATab('perms')">
+          <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
+          <span>Permisos</span>
+          <span class="rm-badge" [class.rm-badge--active]="activeTab==='perms'">{{ permissions.length || 0 }}</span>
+        </button>
+      }
 
-      <button type="button"
-        class="rm-tab"
-        [class.rm-tab--active]="activeTab==='menus'"
-        (click)="activeTab='menus'; loadMenusForTab()">
-        <fa-icon [icon]="faFolder" aria-hidden="true"></fa-icon>
-        <span>Menús</span>
-      </button>
+      @if (verTab('menus')) {
+        <button type="button"
+          class="rm-tab"
+          [class.rm-tab--active]="activeTab==='menus'"
+          (click)="irATab('menus')">
+          <fa-icon [icon]="faFolder" aria-hidden="true"></fa-icon>
+          <span>Menús</span>
+        </button>
+      }
     </nav>
 
     <!-- Botón de acción contextual -->
@@ -71,7 +78,7 @@
       </button>
     }
 
-    @if (activeTab==='perms') {
+    @if (activeTab==='perms' && verTab('perms')) {
       <button
         type="button"
         class="rm-new-btn"
@@ -81,7 +88,7 @@
       </button>
     }
 
-    @if (activeTab==='menus' && isAdminUser) {
+    @if (activeTab==='menus' && verTab('menus')) {
       <button
         type="button"
         class="rm-new-btn"
@@ -966,7 +973,7 @@ MODAL: ROL (crear / editar)
         <!-- ══════════════════════════════════════════════════════
         MODAL: PERMISOS (CRUD)
         ══════════════════════════════════════════════════════ -->
-        @if (permModalOpen) {
+        @if (permModalOpen && verTab('perms')) {
           <div
             class="rm-modal-overlay"
             role="dialog"
@@ -1071,7 +1078,7 @@ MODAL: ROL (crear / editar)
             <!-- ══════════════════════════════════════════════════════
             MODAL: MENÚ (CRUD)
             ══════════════════════════════════════════════════════ -->
-            @if (menuModalOpen) {
+            @if (menuModalOpen && verTab('menus')) {
               <div
                 class="rm-modal-overlay"
                 role="dialog"

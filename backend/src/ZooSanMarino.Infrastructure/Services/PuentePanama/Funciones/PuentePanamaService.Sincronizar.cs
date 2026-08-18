@@ -75,6 +75,13 @@ public partial class PuentePanamaService
         var sw = Stopwatch.StartNew();
         _api.UsarConexion(request.Origen);
 
+        // Lo que trae el puente son días que YA ocurrieron en el origen, no capturas pendientes de
+        // validar: dentro de este alcance la empresa se comporta como si no usara doble validación.
+        // Sin esto la sincronización moría en el segundo día —el primero queda vencido en el acto— y
+        // además el guard de alimento la rechazaba, porque el puente manda los kg en
+        // ConsumoKgHembras/Machos y no como ítems del metadata.
+        using var _cargaHistorica = _validacion?.ModoCargaHistorica();
+
         var opt = PuentePanamaOptions.FromConfig(_config);
         var companyId = await GetEffectiveCompanyIdAsync();
 

@@ -81,7 +81,10 @@ public partial class CompanyService
             ProgramacionLotesEngorde = dto.ProgramacionLotesEngorde,
             NombreLoteIncluyeCorrida = dto.NombreLoteIncluyeCorrida,
             ManejaInventarioPorSilo = dto.ManejaInventarioPorSilo,
-            ReportesAlimentoDesdeInventarioUnificado = dto.ReportesAlimentoDesdeInventarioUnificado
+            ReportesAlimentoDesdeInventarioUnificado = dto.ReportesAlimentoDesdeInventarioUnificado,
+            RequiereValidacionSeguimientoDiario = dto.RequiereValidacionSeguimientoDiario,
+            SeguimientoEngordeMixto = dto.SeguimientoEngordeMixto,
+            ReporteCostosAlimentoDesdeFuentesReales = dto.ReporteCostosAlimentoDesdeFuentesReales
         };
 
         _ctx.Companies.Add(c);
@@ -137,6 +140,11 @@ public partial class CompanyService
         c.ManejaInventarioPorSilo = dto.ManejaInventarioPorSilo ?? c.ManejaInventarioPorSilo;
         c.ReportesAlimentoDesdeInventarioUnificado =
             dto.ReportesAlimentoDesdeInventarioUnificado ?? c.ReportesAlimentoDesdeInventarioUnificado;
+        c.RequiereValidacionSeguimientoDiario =
+            dto.RequiereValidacionSeguimientoDiario ?? c.RequiereValidacionSeguimientoDiario;
+        c.SeguimientoEngordeMixto = dto.SeguimientoEngordeMixto ?? c.SeguimientoEngordeMixto;
+        c.ReporteCostosAlimentoDesdeFuentesReales =
+            dto.ReporteCostosAlimentoDesdeFuentesReales ?? c.ReporteCostosAlimentoDesdeFuentesReales;
 
         await _ctx.SaveChangesAsync();
 

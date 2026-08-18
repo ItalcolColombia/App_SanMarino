@@ -40,5 +40,9 @@ public record CreateCompanyDto(
     /// <summary>El inventario se ubica en silos/bodegas de la granja, no en el galpón.</summary>
     bool     ManejaInventarioPorSilo = false,
     /// <summary>Los reportes leen el alimento del inventario unificado, no de la tabla vieja.</summary>
-    bool     ReportesAlimentoDesdeInventarioUnificado = false
+    bool     ReportesAlimentoDesdeInventarioUnificado = false,
+    /// <summary>Los seguimientos diarios exigen doble validación (separan al guardar, descuentan al validar).</summary>
+    bool     RequiereValidacionSeguimientoDiario = false,
+    bool     SeguimientoEngordeMixto = false,
+    bool     ReporteCostosAlimentoDesdeFuentesReales = false
 );

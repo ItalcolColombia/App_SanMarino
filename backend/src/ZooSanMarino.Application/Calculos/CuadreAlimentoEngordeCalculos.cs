@@ -38,6 +38,33 @@ public static class CuadreAlimentoEngordeCalculos
     public const decimal ToleranciaKg = 1m;
 
     /// <summary>
+    /// Descuadre corregido por lo que la doble validación tiene <b>separado y todavía sin aplicar</b>.
+    ///
+    /// <para>
+    /// <b>Por qué hace falta.</b> El invariante es
+    /// <c>saldo_tabla − (stock − movimientos_posteriores)</c>, y ninguna función del esquema mira
+    /// <c>validado</c>: <c>fn_seguimiento_diario_engorde</c> ya descontó el consumo de un registro
+    /// pendiente, pero el inventario todavía no lo movió —justamente porque está separado—. Con el
+    /// flag encendido, cada registro sin validar aparecía como un descuadre por sus propios kilos.
+    /// </para>
+    ///
+    /// <para>
+    /// La reserva ACTIVA <b>es</b> ese movimiento pendiente, así que el stock comparable es
+    /// <c>stock − reservado</c> — el mismo «disponible» que ya muestra el inventario—. Sustituyéndolo
+    /// en el invariante, el descuadre queda <c>descuadre + reservado</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// No se toca <c>fn_cuadre_alimento_engorde</c> ni <c>fn_seguimiento_diario_engorde</c>: cambiar
+    /// esas funciones mueve el número de TODAS las empresas y exige el gate de paridad multipaís. Con
+    /// el flag apagado no hay reservas activas ⇒ <paramref name="reservadoActivoKg"/> es 0 y el
+    /// descuadre es exactamente el de antes.
+    /// </para>
+    /// </summary>
+    public static decimal DescuadreAjustadoPorReservas(decimal descuadreKg, decimal reservadoActivoKg)
+        => descuadreKg + reservadoActivoKg;
+
+    /// <summary>
     /// Clasifica un galpón. <paramref name="descuadreKg"/> es
     /// <c>saldo_tabla − (stock − movimientos_posteriores)</c>, tal como lo devuelve
     /// <c>fn_cuadre_alimento_engorde</c>.
@@ -70,6 +97,40 @@ public static class CuadreAlimentoEngordeCalculos
                 "se consumió alimento cuya llegada no está registrada.",
             _ => "Cuadra con el inventario.",
         };
+
+    /// <summary>
+    /// El mismo <see cref="Describir"/>, más la pista que faltaba cuando el galpón NO cuadra: si dentro
+    /// del ciclo se corrigió el inventario a mano, ahí está la causa.
+    ///
+    /// <para>
+    /// <b>Por qué.</b> <c>fn_seguimiento_diario_engorde</c> solo lee <c>INV_INGRESO</c> y los dos
+    /// <c>INV_TRASLADO_*</c>; <c>AjusteStock</c> y <c>EliminacionStock</c> se espejan como
+    /// <c>INV_OTRO</c> y ninguna de sus 5 CTE los mira. Entonces el stock baja, la tabla diaria no se
+    /// entera, y el galpón queda descuadrado para siempre. Medido en ItalcolPanama (17ago26): 3 de los
+    /// 5 galpones descuadrados —42.494,4 de 54.795,4 kg— son exactamente eso.
+    /// </para>
+    ///
+    /// <para>
+    /// El texto solo aparece cuando la fila está <b>descuadrada</b>. Un ajuste NO descuadra por sí solo
+    /// —ItalcolEcuador tiene 5 galpones con ajustes dentro del ciclo y cuadra en los 36—, así que en una
+    /// fila que cuadra nombrarlo sería ruido. Con 0 ajustes el resultado es <b>idéntico</b> al de
+    /// <see cref="Describir"/>.
+    /// </para>
+    /// </summary>
+    /// <param name="ajustesManualesKg">Kilos movidos a mano (magnitud del ajuste, sin signo).</param>
+    public static string DescribirConAjustes(
+        decimal descuadreKg, int filasNegativas, decimal ajustesManualesKg, int ajustesManualesCount)
+    {
+        var baseTexto = Describir(descuadreKg, filasNegativas);
+
+        if (ajustesManualesCount <= 0 || Clasificar(descuadreKg, filasNegativas) != EstadoCuadreAlimento.Descuadrado)
+            return baseTexto;
+
+        var unaSola = ajustesManualesCount == 1;
+        return baseTexto +
+               $" En este ciclo se corrigió el stock a mano {ajustesManualesCount} {(unaSola ? "vez" : "veces")} " +
+               $"({Kg(ajustesManualesKg)} kg movido{(unaSola ? "" : "s")}): la tabla diaria no ve esas correcciones.";
+    }
 
     private static string Kg(decimal v) => v.ToString("N1", System.Globalization.CultureInfo.InvariantCulture);
 }

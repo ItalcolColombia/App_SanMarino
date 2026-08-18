@@ -66,6 +66,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<FarmInventoryMovement> FarmInventoryMovements => Set<FarmInventoryMovement>();
         public DbSet<InventarioGestionStock> InventarioGestionStock => Set<InventarioGestionStock>();
         public DbSet<InventarioGestionMovimiento> InventarioGestionMovimientos => Set<InventarioGestionMovimiento>();
+        // Separación (reserva) de un seguimiento diario pendiente de validar: compromete disponible
+        // sin tocar stock ni movimientos. Ver SeguimientoReservaAlimento.
+        public DbSet<SeguimientoReservaAlimento> SeguimientoReservaAlimento => Set<SeguimientoReservaAlimento>();
+        public DbSet<SeguimientoReservaAves> SeguimientoReservaAves => Set<SeguimientoReservaAves>();
         public DbSet<ItemInventario> ItemInventario => Set<ItemInventario>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
@@ -112,6 +116,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<VacunacionCronogramaItem> VacunacionCronogramaItem => Set<VacunacionCronogramaItem>();
         public DbSet<VacunacionRegistroAplicacion> VacunacionRegistroAplicacion => Set<VacunacionRegistroAplicacion>();
         public DbSet<VacunacionConfiguracion> VacunacionConfiguracion => Set<VacunacionConfiguracion>();
+
+        /// <summary>Plan de vacunación estándar por empresa/línea/raza, del que se materializa el de cada lote.</summary>
+        public DbSet<VacunacionPlanPlantilla> VacunacionPlanPlantilla => Set<VacunacionPlanPlantilla>();
+        public DbSet<VacunacionPlanPlantillaItem> VacunacionPlanPlantillaItem => Set<VacunacionPlanPlantillaItem>();
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
         /// <summary>Cohortes de aves recibidas por traslado (cada grupo conserva la edad de su lote origen).</summary>
         public DbSet<LoteAvesCohorte> LoteAvesCohortes => Set<LoteAvesCohorte>();

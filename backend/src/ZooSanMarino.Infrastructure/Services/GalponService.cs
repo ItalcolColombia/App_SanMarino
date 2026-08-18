@@ -108,20 +108,10 @@ public partial class GalponService : AppInterfaces.IGalponService
     /// </summary>
     private async Task<bool> IsSuperAdminAsync(int userId)
     {
-        var userIdGuid = _current.UserGuid;
-        if (!userIdGuid.HasValue)
-        {
-            userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
-        }
-        
-        var userEmail = await _ctx.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userIdGuid.Value)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
+        var userIdGuid = _current.UserGuid
+            ?? new Guid(userId.ToString("D32").PadLeft(32, '0'));
 
-        return userEmail?.ToLower() == "moiesbbuga@gmail.com";
+        return await SuperAdminLookup.EsSuperAdminAsync(_ctx, userIdGuid);
     }
 
     /// <summary>

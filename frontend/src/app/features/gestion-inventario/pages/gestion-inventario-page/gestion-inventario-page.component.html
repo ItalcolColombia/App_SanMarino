@@ -35,6 +35,9 @@
       <button type="button" class="tab" [class.active]="activeTab === 'items'" (click)="setTab('items')" role="tab">
         <fa-icon [icon]="faBook"></fa-icon> Catálogo ítems
       </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'cuadre'" (click)="setTab('cuadre')" role="tab">
+        <fa-icon [icon]="faCuadre"></fa-icon> Cuadre alimento
+      </button>
     </nav>
 
     <!-- TAB STOCK -->
@@ -168,6 +171,10 @@
                       <th>Tipo</th>
                       <th>Fecha de ingreso</th>
                       <th>Cantidad</th>
+                      @if (stockConReservas) {
+                        <th title="Kilos que un seguimiento diario ya comprometió y todavía no se validaron. NO salieron del stock.">Separado</th>
+                        <th title="Lo que realmente se puede comprometer: cantidad menos separado.">Disponible</th>
+                      }
                       <th>Unidad</th>
                       <th>Acciones</th>
                     </tr>
@@ -190,6 +197,12 @@
                         <td>{{ s.itemType }}</td>
                         <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
                         <td>{{ s.quantity }}</td>
+                        @if (stockConReservas) {
+                          <td>{{ s.reservadoKg ?? 0 }}</td>
+                          <!-- Un disponible negativo se muestra en rojo y NO se recorta: significa que
+                               dos lotes se separaron alimento de más sobre el mismo galpón. -->
+                          <td [class.text-danger]="(s.disponibleKg ?? s.quantity) < 0">{{ s.disponibleKg ?? s.quantity }}</td>
+                        }
                         <td>{{ s.unit }}</td>
                         <td class="actions-cell">
                           <ng-container *appHasPermission="'editar_registro'">
@@ -1288,6 +1301,15 @@
           </section>
         }
 
+        <!-- TAB CUADRE ALIMENTO — el invariante del alimento de engorde y los lotes que se
+             liquidaron dejando alimento en el galpón. El componente es el que sabe: la página solo
+             lo monta cuando el tab está activo. -->
+        @if (activeTab === 'cuadre') {
+          <section class="tab-content">
+            <app-cuadre-alimento-engorde />
+          </section>
+        }
+
         <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
         @if (activeTab === 'items') {
           <section class="tab-content">
@@ -1470,11 +1492,11 @@
                 id="ingreso-fecha-input"
                 class="form-input"
                 type="date"
-                [min]="fechaMovimientoMin"
-                [max]="fechaMovimientoMax"
+                [min]="fechaIngresoMin"
+                [max]="fechaIngresoMax"
                 [(ngModel)]="ingresoFechaDraft" />
               <small class="hint" style="display: block; margin-top: 0.35rem">
-                Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+                {{ hintFechaIngresoTexto }}
               </small>
             </div>
             <div class="modal-italfoods__footer">

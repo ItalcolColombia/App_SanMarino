@@ -32,6 +32,8 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia)
     private readonly ILogger<SeguimientoAvesEngordeService>? _logger;
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa. Opcional: sin registrar, el módulo se comporta como siempre.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     public SeguimientoAvesEngordeService(
         ZooSanMarinoContext ctx,
@@ -42,7 +44,8 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
         ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
-        ILogger<SeguimientoAvesEngordeService>? logger = null)
+        ILogger<SeguimientoAvesEngordeService>? logger = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _alimentos = alimentos;
@@ -53,6 +56,7 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
         _inventarioGestionService = inventarioGestionService;
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
+        _validacion = validacion;
     }
 
     /// <summary>
@@ -264,7 +268,14 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
             HistoricoConsumoAlimento: e.HistoricoConsumoAlimento,
             QqMixtas: e.QqMixtas,
             QqHembras: e.QqHembras,
-            QqMachos: e.QqMachos
+            QqMachos: e.QqMachos,
+            // Doble validación: el front necesita el estado para pintar la fila y ofrecer el ✓.
+            // `EstadoValidacion` va nulo a propósito: el literal lo deriva el front con la función
+            // compartida, que es la única que conoce el día del usuario (acá el server podría estar
+            // en otra zona y un registro de ayer se vería vencido o al revés).
+            Validado: e.Validado,
+            ValidadoAt: e.ValidadoAt,
+            ValidadoPor: e.ValidadoPor
         );
     }
 

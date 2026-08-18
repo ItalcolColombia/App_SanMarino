@@ -9,49 +9,23 @@ import { offlineCacheInterceptor } from './shared/offline/offline-cache.intercep
 import { OutboxService } from './shared/offline/outbox.service';
 import { ReactiveFormsModule } from '@angular/forms';
 
-// 👇 Mantén solo los componentes que realmente se usan por referencia directa en rutas.
-// Login se usa de forma no-lazy (ok), Dashboard se cargará en lazy (NO lo importes aquí).
+// 👇 Acá SOLO va lo que tiene que estar en el bundle inicial.
+//
+// Todo lo que un `component:` alcanza viaja en el arranque, para todos, siempre. Medido el
+// 17-ago-2026 sobre `main.js` (1.671,9 kB): **840 kB eran pantallas de administración y CRUD**
+// —config 310,6 kB · lote 157,4 · farm 84,6 · galpon 72,1 · nucleo 55,7 · clientes 50,3, más
+// lote-levante/silos/implementacion/tickets/vacunacion arrastrados por ellas—. Todas pasaron a
+// `loadComponent` más abajo; el aviso que ya estaba escrito para Empresas y Roles vale para todas:
+// importarlas acá las devuelve al bundle inicial, que es justo lo que hacía fallar el build por
+// presupuesto.
+//
+// Se quedan eager, a propósito: **login** (es la primera pantalla: hacerla lazy agrega un viaje
+// antes de poder escribir la contraseña, y en una tablet con mala red se nota) y **home** (el
+// aterrizaje inmediato del login).
 import { LoginComponent } from './features/auth/login/login.component';
 import { PasswordRecoveryComponent } from './features/auth/password-recovery/password-recovery.component';
-import { ProfileComponent } from './features/profile/profile.component';
 import { HomeComponent } from './features/home/home.component';
-
-// Rutas “config” que usas con component (no-lazy)
-import { ConfigComponent }            from './features/config/config.component';
-import { MasterListsComponent }       from './features/config/master-lists/master-lists.component';
-import { ListDetailComponent }        from './features/config/master-lists/list-detail/list-detail.component';
-import { CompanyManagementComponent } from './features/config/company-management/company-management.component';
-import { RoleManagementComponent }    from './features/config/role-management/role-management.component';
-import { UserManagementComponent }    from './features/config/user-management/user-management.component';
 import { authGuard } from './core/auth/auth.guard';
-
-// Geografía
-import { CountryListComponent }     from './features/config/geography/country-list/country-list.component';
-import { CountryDetailComponent }   from './features/config/geography/country-detail/country-detail.component';
-import { StateListComponent }       from './features/config/geography/state-list/state-list.component';
-import { StateDetailComponent }     from './features/config/geography/state-detail/state-detail.component';
-import { DepartmentListComponent }  from './features/config/geography/department-list/department-list.component';
-import { DepartmentDetailComponent }from './features/config/geography/department-detail/department-detail.component';
-import { CityListComponent }        from './features/config/geography/city-list/city-list.component';
-import { CityDetailComponent }      from './features/config/geography/city-detail/city-detail.component';
-
-// Granjas / Núcleos / Galpones / Lotes
-import { FarmListComponent }   from './features/farm/components/farm-list/farm-list.component';
-import { FarmFormComponent }   from './features/farm/components/farm-form/farm-form.component';
-import { NucleoListComponent } from './features/nucleo/components/nucleo-list/nucleo-list.component';
-import { NucleoFormComponent } from './features/nucleo/components/nucleo-form/nucleo-form.component';
-import { GalponListComponent } from './features/galpon/components/galpon-list/galpon-list.component';
-import { GalponFormComponent } from './features/galpon/components/galpon-form/galpon-form.component';
-import { LoteListComponent }   from './features/lote/components/lote-list/lote-list.component';
-
-// Config: Guía genética (CRUD sobre ProduccionAvicolaRaw)
-import { GuiaGeneticaListComponent } from './features/config/guia-genetica-admin/guia-genetica-list/guia-genetica-list.component';
-import { GuiaGeneticaFormComponent } from './features/config/guia-genetica-admin/guia-genetica-form/guia-genetica-form.component';
-import { GuiaGeneticaDetailComponent } from './features/config/guia-genetica-admin/guia-genetica-detail/guia-genetica-detail.component';
-import { GuiaGeneticaEcuadorPageComponent } from './features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component';
-
-// Gestión de Clientes
-import { ClienteListComponent } from './features/clientes/components/cliente-list/cliente-list.component';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -135,7 +109,13 @@ export const appConfig: ApplicationConfig = {
 
       // Protegido
       { path: 'home', component: HomeComponent, canActivate: [authGuard] },
-      { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
+      {
+        path: 'profile',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/profile/profile.component')
+            .then(m => m.ProfileComponent)
+      },
       {
         path: 'dashboard',
         canActivate: [authGuard],
@@ -250,12 +230,29 @@ export const appConfig: ApplicationConfig = {
 
       {
         path: 'config',
-        component: ConfigComponent,
+        loadComponent: () =>
+          import('./features/config/config.component')
+            .then(m => m.ConfigComponent),
         canActivate: [authGuard],
         children: [
-          { path: 'master-lists',     component: MasterListsComponent },
-          { path: 'master-lists/new', component: ListDetailComponent },
-          { path: 'master-lists/:id', component: ListDetailComponent },
+          {
+            path: 'master-lists',
+            loadComponent: () =>
+              import('./features/config/master-lists/master-lists.component')
+                .then(m => m.MasterListsComponent)
+          },
+          {
+            path: 'master-lists/new',
+            loadComponent: () =>
+              import('./features/config/master-lists/list-detail/list-detail.component')
+                .then(m => m.ListDetailComponent)
+          },
+          {
+            path: 'master-lists/:id',
+            loadComponent: () =>
+              import('./features/config/master-lists/list-detail/list-detail.component')
+                .then(m => m.ListDetailComponent)
+          },
 
           // Lista maestra de silos (empresas con inventario por silo). Lazy: no la carga quien no la usa.
           {
@@ -265,23 +262,103 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.SiloCatalogoComponent)
           },
 
-          { path: 'companies',       component: CompanyManagementComponent },
-          { path: 'role-management', component: RoleManagementComponent },
-          { path: 'users',           component: UserManagementComponent },
+          // Empresas y Roles son pantallas de administración: las abre poca gente y muy de vez en
+          // cuando, pero al estar importadas de forma estática viajaban en el bundle INICIAL de
+          // todos. Entre las dos empujaban el inicial por encima del presupuesto de error (2.05 MB)
+          // y `ng build` fallaba. Lazy, como el resto de la app.
+          // (17ago26: el mismo tratamiento se extendió a TODAS las pantallas de esta sección.)
+          {
+            path: 'companies',
+            loadComponent: () =>
+              import('./features/config/company-management/company-management.component')
+                .then(m => m.CompanyManagementComponent)
+          },
+          {
+            path: 'role-management',
+            loadComponent: () =>
+              import('./features/config/role-management/role-management.component')
+                .then(m => m.RoleManagementComponent)
+          },
+          {
+            path: 'users',
+            loadComponent: () =>
+              import('./features/config/user-management/user-management.component')
+                .then(m => m.UserManagementComponent)
+          },
 
           // geografía
-          { path: 'countries',        component: CountryListComponent },
-          { path: 'countries/new',    component: CountryDetailComponent },
-          { path: 'countries/:id',    component: CountryDetailComponent },
-          { path: 'states',           component: StateListComponent },
-          { path: 'states/new',       component: StateDetailComponent },
-          { path: 'states/:id',       component: StateDetailComponent },
-          { path: 'departments',      component: DepartmentListComponent },
-          { path: 'departments/new',  component: DepartmentDetailComponent },
-          { path: 'departments/:id',  component: DepartmentDetailComponent },
-          { path: 'cities',           component: CityListComponent },
-          { path: 'cities/new',       component: CityDetailComponent },
-          { path: 'cities/:id',       component: CityDetailComponent },
+          {
+            path: 'countries',
+            loadComponent: () =>
+              import('./features/config/geography/country-list/country-list.component')
+                .then(m => m.CountryListComponent)
+          },
+          {
+            path: 'countries/new',
+            loadComponent: () =>
+              import('./features/config/geography/country-detail/country-detail.component')
+                .then(m => m.CountryDetailComponent)
+          },
+          {
+            path: 'countries/:id',
+            loadComponent: () =>
+              import('./features/config/geography/country-detail/country-detail.component')
+                .then(m => m.CountryDetailComponent)
+          },
+          {
+            path: 'states',
+            loadComponent: () =>
+              import('./features/config/geography/state-list/state-list.component')
+                .then(m => m.StateListComponent)
+          },
+          {
+            path: 'states/new',
+            loadComponent: () =>
+              import('./features/config/geography/state-detail/state-detail.component')
+                .then(m => m.StateDetailComponent)
+          },
+          {
+            path: 'states/:id',
+            loadComponent: () =>
+              import('./features/config/geography/state-detail/state-detail.component')
+                .then(m => m.StateDetailComponent)
+          },
+          {
+            path: 'departments',
+            loadComponent: () =>
+              import('./features/config/geography/department-list/department-list.component')
+                .then(m => m.DepartmentListComponent)
+          },
+          {
+            path: 'departments/new',
+            loadComponent: () =>
+              import('./features/config/geography/department-detail/department-detail.component')
+                .then(m => m.DepartmentDetailComponent)
+          },
+          {
+            path: 'departments/:id',
+            loadComponent: () =>
+              import('./features/config/geography/department-detail/department-detail.component')
+                .then(m => m.DepartmentDetailComponent)
+          },
+          {
+            path: 'cities',
+            loadComponent: () =>
+              import('./features/config/geography/city-list/city-list.component')
+                .then(m => m.CityListComponent)
+          },
+          {
+            path: 'cities/new',
+            loadComponent: () =>
+              import('./features/config/geography/city-detail/city-detail.component')
+                .then(m => m.CityDetailComponent)
+          },
+          {
+            path: 'cities/:id',
+            loadComponent: () =>
+              import('./features/config/geography/city-detail/city-detail.component')
+                .then(m => m.CityDetailComponent)
+          },
 
           // CRUD Granjas
           {
@@ -290,19 +367,64 @@ export const appConfig: ApplicationConfig = {
               import('./features/farm/pages/farm-management/farm-management.component')
                 .then(m => m.FarmManagementComponent)
           },
-          { path: 'farms-list',          component: FarmListComponent },
-          { path: 'farms-list/new',      component: FarmFormComponent },
-          { path: 'farms-list/:id/edit', component: FarmFormComponent },
+          {
+            path: 'farms-list',
+            loadComponent: () =>
+              import('./features/farm/components/farm-list/farm-list.component')
+                .then(m => m.FarmListComponent)
+          },
+          {
+            path: 'farms-list/new',
+            loadComponent: () =>
+              import('./features/farm/components/farm-form/farm-form.component')
+                .then(m => m.FarmFormComponent)
+          },
+          {
+            path: 'farms-list/:id/edit',
+            loadComponent: () =>
+              import('./features/farm/components/farm-form/farm-form.component')
+                .then(m => m.FarmFormComponent)
+          },
 
           // Núcleos
-          { path: 'nucleos',           component: NucleoListComponent },
-          { path: 'nucleos/new',       component: NucleoFormComponent },
-          { path: 'nucleos/:nucleoId', component: NucleoFormComponent },
+          {
+            path: 'nucleos',
+            loadComponent: () =>
+              import('./features/nucleo/components/nucleo-list/nucleo-list.component')
+                .then(m => m.NucleoListComponent)
+          },
+          {
+            path: 'nucleos/new',
+            loadComponent: () =>
+              import('./features/nucleo/components/nucleo-form/nucleo-form.component')
+                .then(m => m.NucleoFormComponent)
+          },
+          {
+            path: 'nucleos/:nucleoId',
+            loadComponent: () =>
+              import('./features/nucleo/components/nucleo-form/nucleo-form.component')
+                .then(m => m.NucleoFormComponent)
+          },
 
           // Galpones
-          { path: 'galpones',           component: GalponListComponent },
-          { path: 'galpones/new',       component: GalponFormComponent },
-          { path: 'galpones/:galponId', component: GalponFormComponent },
+          {
+            path: 'galpones',
+            loadComponent: () =>
+              import('./features/galpon/components/galpon-list/galpon-list.component')
+                .then(m => m.GalponListComponent)
+          },
+          {
+            path: 'galpones/new',
+            loadComponent: () =>
+              import('./features/galpon/components/galpon-form/galpon-form.component')
+                .then(m => m.GalponFormComponent)
+          },
+          {
+            path: 'galpones/:galponId',
+            loadComponent: () =>
+              import('./features/galpon/components/galpon-form/galpon-form.component')
+                .then(m => m.GalponFormComponent)
+          },
 
           {
             path: 'lote-management',
@@ -323,15 +445,45 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.LoteReproductoraAveEngordeModule)
           },
           // Lotes
-          { path: 'lotes', component: LoteListComponent },
+          {
+            path: 'lotes',
+            loadComponent: () =>
+              import('./features/lote/components/lote-list/lote-list.component')
+                .then(m => m.LoteListComponent)
+          },
 
           // Guía genética (produccion_avicola_raw)
-          { path: 'guia-genetica', component: GuiaGeneticaListComponent },
-          { path: 'guia-genetica/new', component: GuiaGeneticaFormComponent },
-          { path: 'guia-genetica/:id', component: GuiaGeneticaDetailComponent },
-          { path: 'guia-genetica/:id/edit', component: GuiaGeneticaFormComponent },
+          {
+            path: 'guia-genetica',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-admin/guia-genetica-list/guia-genetica-list.component')
+                .then(m => m.GuiaGeneticaListComponent)
+          },
+          {
+            path: 'guia-genetica/new',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-admin/guia-genetica-form/guia-genetica-form.component')
+                .then(m => m.GuiaGeneticaFormComponent)
+          },
+          {
+            path: 'guia-genetica/:id',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-admin/guia-genetica-detail/guia-genetica-detail.component')
+                .then(m => m.GuiaGeneticaDetailComponent)
+          },
+          {
+            path: 'guia-genetica/:id/edit',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-admin/guia-genetica-form/guia-genetica-form.component')
+                .then(m => m.GuiaGeneticaFormComponent)
+          },
 
-          { path: 'guia-genetica-ecuador', component: GuiaGeneticaEcuadorPageComponent },
+          {
+            path: 'guia-genetica-ecuador',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component')
+                .then(m => m.GuiaGeneticaEcuadorPageComponent)
+          },
 
           // Catálogo de Alimentos (lazy)
           {
@@ -350,7 +502,12 @@ export const appConfig: ApplicationConfig = {
           },
 
           // Gestión de Clientes
-          { path: 'clientes', component: ClienteListComponent },
+          {
+            path: 'clientes',
+            loadComponent: () =>
+              import('./features/clientes/components/cliente-list/cliente-list.component')
+                .then(m => m.ClienteListComponent)
+          },
 
           // DB Studio (ruta: /config/db-studio — coincide con la ruta del menú)
           {

@@ -21,19 +21,22 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
     private readonly AppInterfaces.IFarmService _farmService;
     private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
+    private readonly AppInterfaces.IVacunacionMaterializadorService _vacunacionMaterializador;
 
     public LoteAveEngordeService(
         ZooSanMarinoContext ctx,
         AppInterfaces.ICurrentUser current,
         AppInterfaces.ICompanyResolver companyResolver,
         AppInterfaces.IFarmService farmService,
-        AppInterfaces.ILocationScopeResolver scopeResolver)
+        AppInterfaces.ILocationScopeResolver scopeResolver,
+        AppInterfaces.IVacunacionMaterializadorService vacunacionMaterializador)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _farmService = farmService;
         _scopeResolver = scopeResolver;
+        _vacunacionMaterializador = vacunacionMaterializador;
     }
 
     /// <summary>
@@ -363,6 +366,10 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         await _ctx.SaveChangesAsync();
 
         await ReatribuirGastosProgramadosAsync(companyId, id, loteBaseId, dto.GranjaId, galponId, ent.FechaEncaset);
+
+        // Plan sanitario de la empresa → cronograma del lote recién encasetado. Fail-soft por dentro:
+        // MaterializarAlCrearLoteAsync NUNCA lanza, y sin plantilla para el lote no escribe nada.
+        if (id > 0) await _vacunacionMaterializador.MaterializarAlCrearLoteAsync("Engorde", id);
 
         var result = await GetByIdAsync(id);
         return result ?? throw new InvalidOperationException("No fue posible leer el lote de engorde recién creado.");

@@ -38,6 +38,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   faUser        = faUser;
   faCircle      = faCircle;
   faBuilding    = faBuilding;
+  faScrewdriverWrench = faScrewdriverWrench;
 
   // Stream del árbol de menú listo para pintar
   menu$: Observable<UiMenuItem[]> = this.menuSvc.menu$;

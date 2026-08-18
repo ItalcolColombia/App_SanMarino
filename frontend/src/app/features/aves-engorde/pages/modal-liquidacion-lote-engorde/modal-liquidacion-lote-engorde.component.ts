@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ymdToIsoUtcNoon } from '../../../../shared/utils/format';
+import { separarStockPorUbicacion } from '../../funciones/separar-stock-por-ubicacion.funcion';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { IndicadorEcuadorService } from '../../../indicador-ecuador/services/indicador-ecuador.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
@@ -65,12 +66,17 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   loadingVentasConPeso = false;
   ventasConPesoError: string | null = null;
 
-  /** Stock de alimento (inventario-gestion) en la ubicación del lote (EC/PA). */
+  /** Stock de alimento (inventario-gestion) que es DE ESTE LOTE: su galpón, o nivel núcleo/granja. */
   stockAlimento: InventarioGestionStockDto[] = [];
   loadingStock = false;
   stockError: string | null = null;
   /** Si hubo que consultar inventario sin filtrar por galpón para encontrar filas. */
   stockUsandoFallbackUbicacion = false;
+  /**
+   * Filas de alimento de OTROS galpones del núcleo. Se muestran rotuladas pero NO cuentan: contarlas
+   * hacía que un galpón vacío avisara «hay alimento en inventario» con kilos ajenos.
+   */
+  stockOtrosGalpones: InventarioGestionStockDto[] = [];
 
   abrirModal = false;
   motivoReapertura = '';
@@ -352,12 +358,14 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   private cargarStockAlimento(): void {
     if (this.granjaId == null) {
       this.stockAlimento = [];
+      this.stockOtrosGalpones = [];
       this.stockUsandoFallbackUbicacion = false;
       return;
     }
     this.loadingStock = true;
     this.stockError = null;
     this.stockUsandoFallbackUbicacion = false;
+    this.stockOtrosGalpones = [];
 
     const pFull = {
       farmId: this.granjaId,
@@ -371,30 +379,52 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
         concatMap(rows => {
           const food = this.filtrarFilasAlimento(rows ?? []).filter(r => (r.quantity ?? 0) > 0);
           if (food.length > 0 || !this.galponId) {
-            return of({ rows: food, fallback: false });
+            return of({ rows: food, ajenas: [] as InventarioGestionStockDto[], fallback: false });
           }
+          // El galpón no tiene alimento: se vuelve a preguntar sin galpón para no perder el stock de
+          // nivel núcleo/granja. Lo que aparece de OTROS galpones se separa — no es de este lote.
           return this.invGestion
             .getStock({ farmId: this.granjaId!, nucleoId: this.nucleoId ?? undefined })
             .pipe(
               map(rows2 => {
                 const f2 = this.filtrarFilasAlimento(rows2 ?? []).filter(r => (r.quantity ?? 0) > 0);
-                return { rows: f2, fallback: f2.length > 0 };
+                const sep = separarStockPorUbicacion(f2, this.galponId);
+                return { rows: sep.propias, ajenas: sep.ajenas, fallback: sep.propias.length > 0 };
               })
             );
         }),
         finalize(() => (this.loadingStock = false))
       )
       .subscribe({
-        next: ({ rows, fallback }) => {
+        next: ({ rows, ajenas, fallback }) => {
           this.stockAlimento = rows;
+          this.stockOtrosGalpones = ajenas;
           this.stockUsandoFallbackUbicacion = fallback;
         },
         error: err => {
           this.stockError = err?.error?.message ?? err?.message ?? 'No se pudo cargar el stock de alimento.';
           this.stockAlimento = [];
+          this.stockOtrosGalpones = [];
           this.stockUsandoFallbackUbicacion = false;
         }
       });
+  }
+
+  /** Kilos de alimento que hay en OTROS galpones del núcleo. Informativo: no son de este lote. */
+  get kgOtrosGalpones(): number {
+    return this.stockOtrosGalpones.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+  }
+
+  /** Cuántos galpones vecinos tienen esos kilos (para nombrarlos en el aviso). */
+  get galponesVecinosConAlimento(): string {
+    const nombres = Array.from(
+      new Set(
+        this.stockOtrosGalpones
+          .map(r => (r.galponNombre ?? r.galponId ?? '').trim())
+          .filter(n => n.length > 0)
+      )
+    );
+    return nombres.join(', ');
   }
 
   /** Ítems alimento (concepto/tipo puede ser "alimento" o texto que comience por "alimento"). */

@@ -2,6 +2,10 @@
 <div class="tabla-container">
   <h3 class="section-title">BULTO</h3>
 
+  @if (advertenciaBultos) {
+    <p class="alcance-aviso" role="note">{{ advertenciaBultos }}</p>
+  }
+
   <div class="table-wrapper">
     <table class="reporte-table">
       <thead>
