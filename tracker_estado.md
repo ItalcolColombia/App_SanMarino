@@ -3367,3 +3367,92 @@ no lo habría visto: es exactamente el error de julio, en espejo.
 - [i] V26.12 **Falta desplegar**: la migración se aplica sola al arrancar
       (`Database__RunMigrations=true`), pero exige la verificación post-deploy de CLAUDE.md §🚀. En
       prod hay **0 marcas**, así que el `Up()` no mueve ni una fila de dato
+
+---
+
+# V27 · Engorde FASE B — el hecho persistido entra INERTE, y el gate tumba el modelo de ENTREGA (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE B**.
+**Continúa** el bloque V26 (Fase A). **Bloque propio.**
+
+## 🔴 EL HALLAZGO: el modelo de ENTREGA no puede dispararse nunca
+
+La Fase B se implementó completa —tabla del hecho, cálculo dueño, fn `v16b` que la lee— y el gate G1
+la tumbó **antes de commitear la fn**. No es un bug de código: es el modelo.
+
+**El mecanismo.** La entrega necesita (a) escribir una salida sintética en el **último día visible** del
+cedente y (b) que el cedente **tenga saldo ese día** para poder entregarlo (el tope). Pero
+`rango_final.fecha_max` se cierra apenas `saldo_close` encuentra la **primera** fecha ≥ último
+seguimiento con saldo ≈ 0. Y **todo ciclo bien operado termina en 0**: es la propia regla R2 —«al
+liquidar el lote trasladan el alimento sobrante fuera del galpón».
+
+**Medido** sobre los 53 pares secuenciales con hueco de la BD local (7 granjas, Ecuador):
+
+| | |
+|---|---|
+| pares con hueco entre ciclos | **53** |
+| cedentes cuya grilla **llega** al día de la entrega | **0** |
+| cedentes que terminan con **saldo > 0** | **2** |
+
+⇒ Cuando el alimento llega al hueco, **el cedente ya vació su bodega**. No hay kilos que entregar ni
+día donde escribir la entrega. El feature sólo podría dispararse cuando la operación dejó saldo
+colgado — que es justamente **la anomalía que R2 manda señalar**, no el caso sano que motivó el pedido.
+
+**Qué significa.** El alimento del hueco **no es del ciclo anterior** en ningún sentido contable: llega
+después de que ese ciclo cerró. **No hay handoff que modelar.** Lo que necesita es que la apertura del
+**DESTINO** alcance más atrás — o sea `dias_alimento_previo_encaset`, la ventana **D4**, que el propio
+plan excluye como «otro feature» (§6.2).
+
+- [!] V27.1 🔴 **Decisión de producto**: el rediseño correcto ya no es la entrega entre ciclos sino
+      ampliar/parametrizar la ventana D4 del destino. Antes de escribir más código hace falta el OK:
+      ¿se abandona el modelo de entrega y se encara D4? La Fase B queda **frenada acá**, no fallida
+- [i] V27.2 Esto **contradice el §9.3 del plan original**, que daba por sentado que «el saldo del
+      cedente lo cubre entero» en el caso feliz. Era una suposición nunca medida: hoy está medida
+
+## Lo que SÍ entró (todo INERTE: nada lee la tabla todavía)
+
+- [x] V27.3 **Tabla del hecho** `alimento_entrega_ciclo_engorde` + 4 índices + el índice parcial
+      `ix_lote_hist_para_proximo_ciclo` que el intento anterior dijo crear y nunca existió. Migración
+      `20260818130139`, espejo en `backend/sql/create_alimento_entrega_ciclo_engorde.sql`. Tipos
+      `varchar(N)` alineados con la config EF (el plan esbozaba `TEXT`: habría generado un
+      `AlterColumn` fantasma en el próximo `migrations add`)
+- [x] V27.4 **Los 2 triggers de anulación en cascada**, probados en transacción: `DELETE` del
+      movimiento ⇒ entrega `ANULADA` con motivo; `UPDATE` a `TrasladoInterGranjaRechazado` ⇒ idem;
+      **ninguna fila se borra**. La condición es la **misma, literal**, que la de
+      `trg_inventario_gestion_movimiento_lote_hist_cancel` — se verificó en `pg_get_triggerdef` en vez
+      de inventar un `ILIKE '%anulad%'`, que no habría disparado nunca
+- [x] V27.5 **`EntregaAlimentoCicloEngordeCalculos`** — dueño único de la atribución, puro, sin EF.
+      Cubre los 11 casos del plan + los 3 estados extra. **Fail-closed**: nada termina en `VIGENTE`
+      por accidente
+- [x] V27.6 **34 tests** que **construyen** las topologías (galpón completo con encaset, primer y
+      último seguimiento, congelación). `dotnet test` **2.858 + 1 verdes**
+- [x] V27.7 **Prueba de mutación 17/17** (el piso del plan era 12): se desactivó cada guarda una por
+      una y todas se pusieron en rojo. **0 guardas sin test.** ⚠️ Honestidad: 1 de las 17 (`cedente sin
+      seguimiento`) murió por no compilar, no por un assert — es una señal más débil
+- [x] V27.8 **Migración de recálculo** `20260818130200`, el hueco que dejó la Fase A: realinea
+      `saldo_alimento_kg` con la fn. En local mueve **0 filas**; va igual porque desde esta máquina no
+      se puede afirmar que prod tenga 0 marcas, y una foto congelada con la columna vieja queda mal
+      para siempre
+- [x] V27.9 **El gate `backend/sql/verificar_entrega_ciclo_engorde.sql`** (I1..I11, con fase de
+      inyección sobre pares reales). Es el instrumento que produjo el hallazgo; se conserva para
+      cualquier rediseño futuro
+
+## Lo que NO entró, a propósito
+
+- [i] V27.10 ⛔ **La fn `v16b` NO se commiteó.** Se escribió, se instaló en local, pasó el gate
+      multipaís (**6.429 filas, 0 en las 7 columnas de diff, las dos empresas** — con 0 entregas es
+      byte a byte igual a v16a) y **se revirtió** con `git checkout` al ver el hallazgo. La BD local
+      quedó de vuelta en v16a, verificado con el gate. **Riesgo de despliegue: cero.**
+- [i] V27.11 Tampoco entraron el service, el controller ni la bandeja: son la maquinaria para escribir
+      un hecho que hoy nadie puede leer. Esperan V27.1
+- [i] V27.12 ⚠️ **El gate tiene un hueco conocido**: la fase de inyección **no bombea**
+      `inventario_gestion_stock`, así que I5 (cuadre) sube por construcción — son movimientos de
+      histórico sin contraparte de stock. Está anotado en la cabecera del script. Antes de usar I5
+      como veredicto hay que agregar ese `INSERT`
+
+## Validación
+
+- [x] V27.13 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.858 + 1 verdes** ·
+      gate multipaís **0 en todo, las dos empresas** · cuadre **67 / 8**, igual que antes ·
+      migraciones aplicadas y revertidas · **0 rastro** del gate (0 entregas, 0 marcas, 0 inyectado) ·
+      sin procesos huérfanos (`:5002` libre; nunca se levantó backend)
