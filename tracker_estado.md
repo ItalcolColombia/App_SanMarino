@@ -751,7 +751,10 @@ Inventario solo se pueda cargar movimientos manualmente con fecha del mes actual
 ### Aviso a la operación (fuera de alcance del código)
 - [ ] Los lotes 2601 de Galpon-1 (id 2) y Galpon-2 (id 12) siguen en estado `Abierto`: cerrarlos POR
       PANTALLA (liquidar es una transacción de 5 pasos, no va por migración)
-- [ ] El lote 12 arrastra apertura negativa (−9.020 kg): auditoría de datos aparte
+- [x] El lote 12 arrastra apertura negativa (−9.020 kg) — **AUDITADO en V20** (17ago26): no es una
+      apertura sino el saldo FINAL de su serie, y son **9.020 kg de consumo sin ingreso** que dejó la
+      reconstrucción «Cuadre saldos Excel». No contagia al ciclo siguiente. **Completar la carga exige
+      las remisiones físicas** ⇒ decisión pendiente en V20.4
 
 ---
 
@@ -2727,3 +2730,60 @@ porque el rediseño de la marca los tira). Bloque propio — no tocar desde otra
       conducirla desde el harness; el DTO sí llega con el campo al componente (verificado en runtime:
       `lotesPadreEnGranja: 4`). Queda como verificación visual pendiente de la próxima sesión que abra
       esa pantalla
+
+---
+
+# V20 · Auditoría del saldo negativo del lote 12 (KM 86 / G0040) — SOLO LECTURA (17ago26)
+
+**Plan:** [`fase_de_desarrollo/auditoria_lote12_saldo_negativo_plan.md`](fase_de_desarrollo/auditoria_lote12_saldo_negativo_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ *«El lote 12 arrastra apertura negativa
+(−9.020 kg): auditoría de datos aparte»*, del bloque «Lote cerrado que absorbe el ciclo siguiente
+(KM 86)». Bloque propio — no tocar desde otras sesiones. **Ni un dato corregido.**
+
+## V20.0 — Qué es realmente el −9.020 ✔
+- [x] V20.0.1 **No es una apertura**: su apertura es **0,0**. Es el saldo con el que **TERMINA** la
+      serie del lote 12, y **21 de sus 63 días** cierran en rojo
+- [x] V20.0.2 **La aritmética cierra exacta**: entradas netas **126.940,0 kg** (123.940 ingresos
+      + 4.000 traslado entrada − 1.000 traslado salida) contra **135.960,0 kg** de consumo declarado por
+      los seguimientos ⇒ **−9.020,0**
+- [x] V20.0.3 🔑 **Causa: los ingresos son una RECONSTRUCCIÓN.** Los 19 `INV_INGRESO` del período
+      llevan la referencia *«Cuadre saldos Excel — Insertar ingreso d…»*: el historial se rearmó desde
+      una planilla y quedó **9.020 kg corto** frente al consumo cargado. Es **dato, no fórmula**
+- [x] V20.0.4 **Corregirlo exige las remisiones físicas** de feb-abr 2026: sin el papel, cualquier
+      ingreso inventado cuadra igual de bien (misma conclusión que V17 con los lotes 161 y 142)
+
+## V20.1 — La buena noticia: no se contagia ✔
+- [x] V20.1.1 El lote **73** (ciclo siguiente en G0040, encaset 24-abr) abre con **apertura vacía y
+      saldo +5.280,0**. Las guardas de v11/v12 y el corte de v14 contienen el rojo dentro del lote 12.
+      Por eso esto es auditoría y no urgencia
+
+## V20.2 — El caso no es único ✔
+- [x] V20.2.1 Censo de las dos empresas: **8 lotes cierran su serie en negativo** — Ecuador 1 abierto
+      (el 12) y **4 cerrados** (16 −3.920 · 7 −3.220 · 15 −600 · 14 −1,0), Panamá 3 abiertos
+      (−7.392,8; ya diagnosticados en V17 como patrón B)
+
+## V20.3 — Lo que parecía una contradicción y NO lo es ✔
+- [x] V20.3.1 De los 4 congelados de Ecuador, **tres tienen cabecera que no coincide con su detalle**:
+      lote 15 cabecera **+14.000** (13-may) contra **−600** en la última fila (16-may); lote 7 **+3.180**
+      contra **−3.220**. El lote 14 coincide porque no tuvo movimientos posteriores
+- [x] V20.3.2 **Es la convención, no un defecto**: la cabecera guarda el saldo del último día **con
+      SEGUIMIENTO** y la serie sigue con filas **solo-movimiento**. Es exactamente lo que hace
+      `fn_cuadre_alimento_engorde`, que toma el saldo en `seg_max` y **no** el de la última fila —su
+      comentario avisa que contarlo de las dos formas duplicaría los movimientos posteriores—. El
+      reporte de V16 ya resta esas salidas por separado, así que **lee bien** los 14.000 del lote 15
+- [x] V20.3.3 ⛔ **Queda escrito para que nadie lo «arregle»**: alinear la cabecera con la última fila
+      rompería el reporte de V16 y el cuadre a la vez
+
+## V20.4 — Qué hacer (necesita decisión, por eso no se hizo)
+- [ ] V20.4.1 **Decisión pendiente sobre el lote 12**: (a) dejarlo —no contagia a nadie y Ecuador sigue
+      con 0 descuadrados—; (b) **completar la reconstrucción** cargando los 9.020 kg faltantes con su
+      fecha real desde las remisiones físicas (la única corrección legítima); (c) liquidarlo como está,
+      que **congelaría −9.020 para siempre** (V18: la foto no se reescribe)
+- [ ] V20.4.2 ⚠️ **Si se decide cerrar los lotes 2 y 12** —el otro pendiente del mismo bloque—, para el
+      **12 conviene resolver esto primero**: liquidar antes de completar la carga congela el negativo
+
+## Fuera de alcance, dicho
+- [x] V20.5.1 **Cero correcciones de datos**: ni los 9.020 del lote 12, ni los 4 congelados de Ecuador,
+      ni los 3 de Panamá (ésos ya los cubre V17)
+- [x] V20.5.2 **No se toca ninguna fn ni `LiquidacionCongeladaAplicador`** (V20.3 explica por qué la
+      convención actual es la correcta)
