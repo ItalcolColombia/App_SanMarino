@@ -1114,7 +1114,7 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
       atribución persistida, la marca no puede quitarle el movimiento a nadie. Medido: con la marca
       prendida, la v15 le sacaba **21 filas a Panamá** (la topología que CONVIVE) y 3 a Ecuador; la
       v16a, **0**
-- [ ] Fase 2 (visibilidad/corrección R3) · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16** ·
+- [~] Fase 2 (visibilidad/corrección R3) · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16** ·
       **F2a.1 HECHA el 18-ago (bloque V28): la columna «Próx. ciclo» en el tab Histórico.** Queda
       F2a.2 (smoke en pantalla: no tengo sesión para entrar a la app) y F2b (bandeja de
       reservados), que depende de la Fase B frenada en V27.1
@@ -3484,6 +3484,7 @@ plan excluye como «otro feature» (§6.2).
       desborda dentro de su propio contenedor y no puede romper la página
 - [x] V28.4 `cd frontend && yarn build` (Node portable 22.23.1) — **0 errores**, sin warnings (ni
       siquiera el de bundle budget). Backend sin tocar
-- [ ] V28.5 **Falta el smoke en pantalla** (F2a.2 del plan): no tengo sesión para entrar a la app.
-      Hoy la columna mostraría «—» en todas las filas (0 marcas en la BD), así que lo que hay que
-      mirar es que el encabezado se vea y la tabla siga scrolleando bien
+- [~] V28.5 **Falta el smoke en pantalla** (F2a.2 del plan): es un paso manual en pantalla y hace
+      falta una sesión de la app, así que ningún agente lo puede cerrar solo. Hoy la columna
+      mostraría «—» en todas las filas (0 marcas en la BD): lo que hay que mirar es que el encabezado
+      se vea y que la tabla siga scrolleando bien
