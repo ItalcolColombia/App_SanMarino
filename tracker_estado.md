@@ -4081,3 +4081,44 @@ Con dev server, sesión y padrón sembrados a mano (sin backend), y **todo borra
       no es el número fino. Engancharlo al heartbeat de `SessionTimeoutService` queda pendiente
 - [i] V37.17 **La PWA sigue sin desplegarse.** Todo esto se suma a lo que espera el merge a
       `main-produccion`; nada de los pasos 1 a 8 está en manos de un operario todavía
+
+---
+
+# V38 · PWA multi-slot — la jornada de 16 h por slot se cuenta desde el último contacto real (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **R-M8**.
+**Cierra el pendiente V35.18 / V37.16.** **Bloque propio.**
+
+Hasta acá `marcarContactoOk` no tenía llamador: la jornada de cada slot se contaba **desde el login**.
+Era un piso correcto —nunca alargaba la ventana— pero mostraba «necesita conectarse» a operarios que
+habían estado hablando con el servidor toda la mañana.
+
+- [x] V38.1 **El 200 del heartbeat refresca la jornada del slot activo**, además del contador interno
+      del timer. `SessionTimeoutService` inyecta el llavero y llama `marcarContactoOk` en un único
+      lugar: `registrarContactoReal()`
+
+## 🔑 Los dos lugares donde NO se enganchó, a propósito
+
+- [i] V38.2 **`start()`** corre en **cada arranque de la app** con una sesión guardada. Engancharlo ahí
+      haría que un **F5 renovara la jornada de 16 h**, o sea que no habría tope: exactamente lo que D4
+      puso para que una tablet perdida no sea una ventana abierta indefinidamente
+- [i] V38.3 **El evento `online` del navegador** solo dice que la interfaz de red se levantó — el wifi
+      del galpón sin salida a internet lo dispara igual. No es hablar con el servidor
+- [i] V38.4 **No se desalinea con el guard**, que mide la jornada desde el token (`iat`/`exp`) y no
+      desde el padrón. Los dos números no pueden separarse más que la vida del token: un heartbeat con
+      200 **implica** un token válido —uno vencido devuelve 401 y cierra la sesión—, así que el último
+      contacto nunca queda a más de una hora del `iat`
+
+## Validación
+
+- [x] V38.5 `yarn build` **0 errores, 0 warnings** · `ng test`: **549 SUCCESS, 0 fallan** (542 + 7)
+- [x] V38.6 **Mutación 3/3 por assert**: quitar la marca del heartbeat **2 rojos** · marcarla al
+      arrancar la app **5** · marcarla al volver la red **1**
+- [x] V38.7 🔑 **La tercera prueba nació verde y no servía.** `marcarEnLinea(true)` **corta antes** si
+      el estado ya era `true`, así que el cuerpo no se ejecutaba nunca en el test y la mutación pasaba
+      inadvertida. Hay que **pasar de verdad por «sin conexión»** (dos heartbeats con `status 0`) antes
+      de disparar el evento `online`. Es la misma lección de siempre: un test que no se pone rojo
+      cuando se rompe lo que dice proteger no prueba nada
+- [x] V38.8 `SessionTimeoutService` no tenía **ningún** test hasta hoy, pese a ser quien decide cuándo
+      se expulsa a alguien. Ahora tiene 7
+- [x] V38.9 Backend sin tocar · sin procesos huérfanos (`:5002` y `:4200` libres)
