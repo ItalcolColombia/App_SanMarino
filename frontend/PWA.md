@@ -32,6 +32,25 @@ tuviera guardado de antes.
 
 El operario de una sola empresa —que es el destinatario de todo esto— funciona igual que siempre.
 
+### 🔴 Alistamiento: el PIN se explica ANTES de entregar la tablet
+
+Una tablet puede guardar hasta **4 sesiones** para que varios operarios se turnen sin señal. Cada
+sesión guardada se cifra con un **PIN de 6 dígitos** que elige su dueño, y hay dos cosas que **tienen
+que decirse en el alistamiento**, no descubrirse en el galpón:
+
+1. **Si se olvida el PIN no hay forma de recuperarlo sin conexión.** No es una omisión: el PIN no se
+   guarda en ninguna parte —es la entrada del cifrado—, así que nadie, ni soporte, puede abrir esa
+   sesión sin él. Se vuelve a entrar con usuario y contraseña **cuando haya red**.
+2. **A los 5 PIN equivocados esa sesión guardada se borra del equipo.** La pantalla avisa cuántos
+   intentos quedan en cada error, así que el operario lo ve venir. Se vuelve a entrar con red.
+
+Lo que **nunca** se pierde en ninguno de los dos casos es lo capturado sin enviar: la cola vive aparte
+y no la borra ni el PIN fallido, ni cerrar sesión, ni borrar el dispositivo. Conviene decirlo con esas
+palabras, porque es la primera pregunta que aparece.
+
+Al entregar el equipo: instalar la app, **entrar una vez con red por cada operario** que la vaya a usar
+(el primer ingreso siempre necesita conexión) y que cada uno defina su PIN ahí, en la oficina.
+
 ### Almacenamiento persistente
 
 La app pide `navigator.storage.persist()` **cuando hay sesión**, para que el navegador no pueda

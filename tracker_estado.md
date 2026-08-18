@@ -3908,3 +3908,76 @@ outbox— delegando las dos decisiones en las funciones puras de V34, y el login
       calcula desde el login, que es un piso correcto pero no el fino
 - [~] V35.19 Sigue faltando la **decisión de UX del PIN** (cuántos dígitos, qué se muestra al fallar,
       cómo se explica que si se olvida **no hay recuperación offline**). Bloquea el paso 7
+
+---
+
+# V36 · PWA multi-slot paso 7 — el selector de perfil, con las tres decisiones de UX tomadas (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 7 del §7**.
+**Continúa** V34 y V35. **Bloque propio.**
+
+**Decisiones del usuario (18ago26)**, que eran el bloqueo de este paso: PIN de **6 dígitos** · se
+**muestran los intentos restantes** en cada error · el aviso de que no hay recuperación offline va **en
+el alistamiento**.
+
+- [x] V36.1 **Ruta `selector-usuario`**, lazy y **sin `authGuard`**: por definición la abre alguien que
+      todavía no tiene sesión activa, así que un guard la haría inalcanzable justo cuando se necesita
+      (mismo criterio que `/diagnostico`)
+- [x] V36.2 **`filas-selector.funcion.ts`** (pura): estado de cada slot y orden. De la más reciente a la
+      más vieja —el que vuelve es el último que usó el equipo— y **`requiereReingreso` gana sobre el
+      vencimiento**: los dos llevan al login con red, pero «se agotaron los intentos» y «llevás mucho
+      sin conectarte» mandan a buscar el problema a lugares distintos
+- [x] V36.3 🔑 **Ninguna fila se esconde.** Un slot que no se puede abrir se sigue mostrando, apagado y
+      con el motivo: desaparecer de la lista se lee como «se perdió mi sesión», y con capturas adentro
+      eso es exactamente lo que no hay que hacer sentir. Elegirlo lleva al login, no a un PIN inútil
+- [x] V36.4 **Se muestran las capturas pendientes por slot** (badge naranja «N sin enviar»), derivadas
+      del outbox en el momento: es la respuesta a «¿dónde quedó lo que cargué?»
+- [x] V36.5 **El PIN pide 6 dígitos**, descarta lo que no sea número, corta en 6 y **el botón solo se
+      habilita con el PIN completo**: sin eso se gasta un intento por un dedo lento, y un intento
+      gastado no se recupera
+- [x] V36.6 **Al fallar dice cuántos intentos quedan** (singular incluido) y limpia el campo —reintentar
+      sobre los dígitos viejos gasta otro intento sin querer—. Al agotarlos vuelve a la lista y **avisa
+      que lo capturado sin enviar NO se perdió**, que es la primera pregunta que aparece
+- [x] V36.7 **Activar recarga la página.** No es pereza: hay `BehaviorSubject` con datos de empresa en
+      ~33 módulos y caché de flags en `ActiveCompanyConfigService`; recargar es la única garantía
+      **estructural** de que nada de la empresa anterior sobreviva. Y `activando` **no** se apaga en ese
+      camino: hacerlo haría parpadear el botón habilitado mientras la página se va
+- [x] V36.8 **El aviso del PIN quedó en `frontend/PWA.md`**, en una sección propia de alistamiento: si
+      se olvida no hay recuperación offline, a los 5 fallos la sesión guardada se borra, y **la cola
+      nunca se pierde** en ninguno de los dos casos. Se repite en la pantalla del PIN, porque
+      descubrirlo en el galpón se lee como «se perdió»
+
+## Validación
+
+- [x] V36.9 `yarn build` **0 errores, 0 warnings** · `ng test`: **508 SUCCESS, 0 fallan** (478 + 30)
+- [x] V36.10 **Mutación 11/11, todas por assert**: orden invertido · `requiereReingreso` perdiendo ante
+      el vencimiento · esconder los no activables · redondear el tiempo al más cercano en vez de truncar
+      · reloj adelantado dando negativos · permitir el intento con el PIN incompleto · no limpiar el PIN
+      tras fallar · no decir cuántos intentos quedan · no recargar al activar · abrir el PIN de un slot
+      no activable · aceptar cualquier carácter en el PIN
+- [x] V36.11 🖥️ **Verificado en el navegador** (dev server, padrón sembrado a mano y borrado después):
+      lista ordenada correctamente (20 min · 3 h · 20 h), el vencido y el de PIN agotado con su leyenda,
+      la pantalla de PIN abre y **repinta** —nada queda en «Cargando…»—, y el saneado del campo probado
+      en vivo: `12ab` ⇒ `12`, 5 dígitos ⇒ botón deshabilitado, 9 dígitos ⇒ se corta en 6 y habilita
+- [x] V36.12 El servidor de dev quedó **detenido** y el padrón de prueba borrado del navegador
+
+## 🔑 Lo que apareció al verificar
+
+- [i] V36.13 **El color condicional del borde NO puede ir en `[class.border-[#e5e0d9]]`**: una clase de
+      Tailwind con corchetes dentro de un binding `[class.x]` hay que escaparla y es una fuente de
+      errores silenciosos (el binding simplemente no aplica). Va por `ngClass`, donde el nombre viaja
+      como texto
+- [i] V36.14 **`fixture.whenStable()` no espera un `ngOnInit` async.** La primera versión de los tests
+      encontraba la pantalla todavía en «Cargando…» porque la promesa de `ngOnInit` no la espera nadie.
+      Los specs llaman `recargar()` explícitamente en vez de confiar en la estabilidad
+- [i] V36.15 ⚠️ El click sintético de la herramienta de navegador **no disparó** el handler del botón
+      (el punto exacto cae sobre un `div` interno); un `.click()` real del DOM sí. Es una limitación de
+      la verificación, **no del componente** — y quedó comprobado que el flujo funciona
+
+## Lo que NO hace
+
+- [i] V36.16 **Nadie llega al selector todavía**: falta el paso 8 (el sidebar con «Cambiar de usuario»,
+      que es donde se **aparca** y donde se define el PIN). Hoy `/selector-usuario` se alcanza escribiendo
+      la ruta, y sin slots aparcados muestra su estado vacío
+- [~] V36.17 Falta el smoke **S1 en un Android real**: dos operarios turnándose sin red, que es el caso
+      que motiva el plan entero. Ningún agente lo cierra solo

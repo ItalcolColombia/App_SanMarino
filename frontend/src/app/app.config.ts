@@ -95,6 +95,17 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ResetPasswordComponent)
       },
 
+      // Selector de perfil — SIN authGuard a propósito: por definición la abre alguien
+      // que TODAVÍA no tiene sesión activa. Anda sin red: todo lo que pinta sale del
+      // padrón de slots, que va sin cifrar justamente para poder mostrarse sin PIN.
+      {
+        path: 'selector-usuario',
+        title: 'Elegir sesión',
+        loadComponent: () =>
+          import('./features/auth/selector-usuario/selector-usuario.component')
+            .then(m => m.SelectorUsuarioComponent)
+      },
+
       // Diagnóstico del dispositivo — SIN authGuard a propósito: es la pantalla a la
       // que se recurre cuando nada más funciona (sesión vencida sin red para renovarla,
       // Service Worker en safe mode). Un guard la haría inalcanzable justo en el

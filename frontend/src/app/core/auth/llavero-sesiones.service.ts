@@ -123,7 +123,7 @@ export class LlaveroSesionesService {
       return { estado: 'registrado', padron, expulsado: null };
     }
 
-    const resultado = registrarSlot(padron, datos, await this.pendientesPorSlot(padron), ahora);
+    const resultado = registrarSlot(padron, datos, await this.pendientesPorSlot(padron.slots), ahora);
     if (resultado.estado === 'rechazado') {
       return resultado;
     }
@@ -242,10 +242,14 @@ export class LlaveroSesionesService {
   /**
    * Cuántas capturas espera cada slot. Se **deriva** del outbox en el momento, por partición: tenerlo
    * guardado en el padrón sería un segundo número para la misma verdad.
+   *
+   * Pública porque la usan dos consumidores con el mismo criterio: la expulsión —que no puede
+   * llevarse puesto trabajo sin subir— y el selector, que muestra el número para que «¿dónde quedó lo
+   * que cargué?» tenga respuesta.
    */
-  private async pendientesPorSlot(padron: PadronSlots): Promise<PendientesPorSlot> {
+  async pendientesPorSlot(slots: readonly SlotSesion[]): Promise<PendientesPorSlot> {
     const cola = await this.outbox.listarTodas();
-    if (cola.length === 0) {
+    if (cola.length === 0 || slots.length === 0) {
       return {};
     }
 
@@ -255,7 +259,7 @@ export class LlaveroSesionesService {
     }
 
     const pendientes: Record<string, number> = {};
-    for (const slot of padron.slots) {
+    for (const slot of slots) {
       const particion = claveParticion(slot);
       pendientes[slot.slotId] = particion === null ? 0 : porParticion.get(particion) ?? 0;
     }
