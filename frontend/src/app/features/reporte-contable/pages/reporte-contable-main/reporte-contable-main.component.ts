@@ -320,16 +320,52 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     };
   }
 
-  // Semanas filtradas y proyectadas para el sub-lote activo
+  /**
+   * Memoria del getter de abajo. La proyeccion depende SOLO del reporte y del sub-lote activo, asi
+   * que se guarda el resultado junto con esas dos entradas y se reusa mientras no cambien.
+   */
+  private semanasMemo: {
+    reporte: ReporteContableCompletoDto | null;
+    sublote: string | null;
+    valor: ReporteContableSemanalDto[];
+  } | null = null;
+
+  /**
+   * Semanas filtradas y proyectadas para el sub-lote activo.
+   *
+   * El calculo es el mismo de siempre (esta intacto en `calcularSemanasParaSublote`), pero el
+   * resultado se **memoriza**: sin eso el getter devolvia un array NUEVO de objetos NUEVOS en cada
+   * ciclo de change detection, y como la plantilla lo recorre con `track` por identidad, Angular
+   * destruia y volvia a crear los tabs de semana y todo el panel de la semana activa —incluida la
+   * seccion BULTO— en cada ciclo. Sintomas medidos: `NG0956` («track by identity caused re-creation
+   * of the entire collection»), `NG0100` y un tab de semana que quedaba **sin rotulo** porque el
+   * nodo se reemplazaba antes de pintarse. Es la regla de CLAUDE.md: un getter usado en la
+   * plantilla no puede devolver un array/objeto nuevo por ciclo.
+   */
   get semanasParaSubloteActual(): ReporteContableSemanalDto[] {
     const r = this.reporte();
+    const sublote = this.selectedSublote;
+
+    const memo = this.semanasMemo;
+    if (memo && memo.reporte === r && memo.sublote === sublote) return memo.valor;
+
+    const valor = this.calcularSemanasParaSublote(r, sublote);
+    this.semanasMemo = { reporte: r, sublote, valor };
+    return valor;
+  }
+
+  /** Calculo de las semanas del sub-lote — trasladado tal cual desde el getter, sin un solo cambio. */
+  private calcularSemanasParaSublote(
+    r: ReporteContableCompletoDto | null,
+    sublote: string | null
+  ): ReporteContableSemanalDto[] {
     if (!r) return [];
-    if (!this.selectedSublote) return r.reportesSemanales;
+    if (!sublote) return r.reportesSemanales;
 
     let prevSaldoH = 0, prevSaldoM = 0;
     return r.reportesSemanales.map(semana => {
-      const projected = this.proyectarSemanaParaSublote(semana, this.selectedSublote!, prevSaldoH, prevSaldoM);
-      const last = semana.datosDiarios.filter(d => d.loteNombre === this.selectedSublote).at(-1);
+      const projected = this.proyectarSemanaParaSublote(semana, sublote, prevSaldoH, prevSaldoM);
+      const last = semana.datosDiarios.filter(d => d.loteNombre === sublote).at(-1);
       prevSaldoH = last?.saldoHembras ?? prevSaldoH;
       prevSaldoM = last?.saldoMachos ?? prevSaldoM;
       return projected;

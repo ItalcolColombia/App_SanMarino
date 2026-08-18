@@ -2725,7 +2725,10 @@ porque el rediseño de la marca los tira). Bloque propio — no tocar desde otra
       *«Estos movimientos de alimento son de la GRANJA «LA ESMERALDA», que hoy tiene 4 lotes padres: el
       reporte de los otros 3 muestra los mismos kilos. NO sumar los reportes entre sí.»*
       · lote **13 (K345A, NIZA III)** ⇒ `lotesPadreEnGranja: 1` y **aviso `null`**
-- [ ] V19.3.4 ⚠️ **Lo que NO pude smokear**: el aviso PINTADO en pantalla. El panel de bultos vive
+- [x] V19.3.4 ✔ **CERRADO en V21** (17ago26): el aviso se verificó pintado en pantalla en los dos
+      casos (LA ESMERALDA con aviso, NIZA III sin él). Y no era el harness: el tab de la semana se
+      destruía y recreaba en cada ciclo (NG0956/NG0100) y salía **sin rótulo**; V21 lo arregló.
+      Texto original: ⚠️ **Lo que NO pude smokear**: el aviso PINTADO en pantalla. El panel de bultos vive
       dentro de la cascada de filtros del reporte (granja → lote → sublote → semana) y no logré
       conducirla desde el harness; el DTO sí llega con el campo al componente (verificado en runtime:
       `lotesPadreEnGranja: 4`). Queda como verificación visual pendiente de la próxima sesión que abra
@@ -2787,3 +2790,78 @@ Pedido: «seguí con el siguiente pendiente del tracker» ⇒ *«El lote 12 arra
       ni los 3 de Panamá (ésos ya los cubre V17)
 - [x] V20.5.2 **No se toca ninguna fn ni `LiquidacionCongeladaAplicador`** (V20.3 explica por qué la
       convención actual es la correcta)
+
+---
+
+# V21 · V19.3.4 — el aviso del kardex de bultos, verificado EN PANTALLA (17ago26)
+
+**Plan:** [`fase_de_desarrollo/verificacion_visual_aviso_bultos_plan.md`](fase_de_desarrollo/verificacion_visual_aviso_bultos_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ **V19.3.4**, la única verificación que la
+sesión anterior dejó explícitamente «pendiente de la próxima sesión que abra esa pantalla», y el
+único abierto que no espera decisión de nadie. Bloque propio — no tocar desde otras sesiones.
+
+## V21.0 — Re-triage de lo que quedaba abierto ✔
+- [x] V21.0.1 Repasados los bloques abiertos: siguen esperando **decisión del usuario** (lotes 132 /
+      3,4,6,8; grupo A; K345; tile Venta Engorde; Santa Reyes; lote 12 de V20; Fase 2 de V19), un
+      **admin externo** (correo Office 365) o un **deploy/push** (P.1-P.3, PWA). §2.3b y §2.3c siguen
+      descartados por V15.0.2
+- [x] V21.0.2 Elegido **V19.3.4**: es el último tramo sin verificar de una entrega ya commiteada
+      (`2f94a01`) y no depende de nadie
+
+## V21.1 — Lo que la verificación encontró: el aviso estaba bien, la PANTALLA no ✔
+
+- [x] V21.1.1 Padres vivos por granja re-medidos hoy: **LA ESMERALDA 4** (114 · 115 · 116 · 117),
+      MANGOS 4, MIRALINDO 2, NIZA III 1, Demo 1 c/u ⇒ la foto de V19.0.2 sigue vigente
+- [x] V21.1.2 🔑 **V19.3.4 no era una limitación del harness.** Al conducir la cascada real, el tab de
+      la semana —el que abre el panel BULTO— resultó **inusable**: cada `ref` moría entre leer y
+      hacer clic. La causa la dice la propia consola de Angular: **`NG0956`** *(«track by identity
+      caused re-creation of the entire collection»)* + **`NG0100`**, repetidos en cada ciclo
+- [x] V21.1.3 **Causa raíz**: `get semanasParaSubloteActual()` proyectaba las semanas en CADA lectura
+      ⇒ array nuevo de objetos nuevos por ciclo de change detection, y la plantilla lo recorría con
+      `track reporteSemanal` (identidad). Angular destruía y recreaba los tabs y el panel de la semana
+      activa —donde vive la sección BULTO y el aviso de V19— sin parar. Es exactamente lo que CLAUDE.md
+      prohíbe: *«no conviertas getters usados en el template en getters que devuelven arrays/objetos
+      nuevos por ciclo»*
+- [x] V21.1.4 **Medido, no deducido**: el nodo del tab cambiaba de identidad cada 300 ms
+      (`mismoNodo === false`) y quedaba **sin rótulo** (40 px de ancho, `textContent` vacío) aunque
+      `getTabLabel(44)` devolvía *«Sem 44 (13/8-19/8)»*. Es decir: **el usuario veía un tab en blanco**
+- [x] V21.1.5 El getter se leía ~15 veces por ciclo (3 `@for` + `@if` + `getTabLabel` + los 8
+      totalizadores), y cada lectura re-proyectaba el reporte entero
+
+## V21.2 — Arreglo: memorizar el getter (sin tocar el cálculo)
+- [x] V21.2.1 El cuerpo del getter se movió **tal cual** a `calcularSemanasParaSublote(r, sublote)`
+      —misma aritmética, mismo orden, mismo arrastre de saldos— y el getter ahora memoriza el
+      resultado contra sus DOS únicas entradas (`reporte()` y `selectedSublote`)
+- [x] V21.2.2 `track reporteSemanal` → `track reporteSemanal.semanaContable` en los 3 `@for` (la
+      semana es única en la lista). Es el arreglo que nombra el propio NG0956
+- [x] V21.2.3 **Sin cambio de comportamiento**: sin sub-lote elegido se sigue devolviendo el array del
+      reporte tal cual (la misma referencia de antes); con sub-lote, la proyección es la misma función
+
+## V21.3 — Verificación
+- [x] V21.3.1 `yarn build` **0 errores** (único warning: el de bundle budget, preexistente)
+- [x] V21.3.2 `yarn test` **325 SUCCESS** — incluye los **6 casos nuevos** de
+      `frontend/src/tests/reporte-contable-semanas-memo.spec.ts`, que fijan el invariante roto
+      (mismas entradas ⇒ misma referencia) y que memorizar no movió los números (arrastre de saldos)
+- [x] V21.3.3 **T-VIS-1 (positivo)** — lote **114 A374A / LA ESMERALDA / Levante**, semana 44: el aviso
+      **pintado en pantalla**, bajo el título BULTO y encima de la tabla (1116×32 px, borde ámbar
+      `#fbbf24`, fondo `#fffbeb`, `role="note"`), con el texto completo de V19. **Con captura**
+- [x] V21.3.4 **T-VIS-2 (control)** — lote **13 K345A / NIZA III / Levante**, semana 81: el panel BULTO
+      se pinta y **no hay un solo `.alcance-aviso`** en toda la página (`lotesPadreEnGranja: 1`).
+      **Con captura**
+- [x] V21.3.5 Recorrido completo (carga → cascada → generar → abrir la semana) con **0 mensajes
+      `NG0xxx`** en consola: NG0956 y NG0100 desaparecieron. El tab ahora es estable y **muestra
+      «Sem 44 (13/8-19/8)»**
+- [x] V21.3.6 **Cero escrituras en la BD compartida**: `farm_inventory_movements` 326 = 326, `lotes`
+      17 = 17 antes y después. Backend y front apagados · puertos **5002 / 4200 / 9333 libres**
+
+## Lo que NO se tocó, dicho
+- [x] V21.4.1 **Ni un número del reporte**: el arreglo es de render. `proyectarSemanaParaSublote`,
+      `AcumularSaldos` y todo el backend quedaron intactos (`git diff backend` vacío)
+- [x] V21.4.2 **V19.2.1 sigue abierto** (el saldo coherente: entradas de la granja − consumos de este
+      padre). Es decisión de producto, no entra acá
+- [x] V21.4.3 Los 4 lotes padres de LA ESMERALDA se muestran en el combo como **«A374» los cuatro**,
+      sin nada que los distinga (el `codigoErp` viene vacío). No se tocó: es otra pantalla y otro
+      pedido, pero conviene saberlo — hoy hay que adivinar cuál se está eligiendo
+- [x] V21.4.4 `GET /movimientos-huevos?lotePadreId=114&semanaContable=44` responde **400** para ese
+      lote en Levante. **Preexistente** y ajeno a esta entrega (el cambio es 100 % del front); queda
+      anotado porque salió a la vista durante el smoke
