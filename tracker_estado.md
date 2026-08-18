@@ -3688,3 +3688,63 @@ La jornada de 16 h de la decisión **D4** estaba prolijamente implementada… so
 - [i] V32.14 Queda **F-5**, el paso 4 del §7: `clear()` sigue llamando `purgarTodo()`, así que el
       logout de un usuario borra la caché de **todas** las particiones. Este bloque reduce cuándo se
       llega a ese logout; no cambia lo que hace
+
+---
+
+# V33 · PWA F-5 — cerrar sesión dejaba de borrar el alistamiento de los demás (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 4 del §7** (F-5 / R-M6).
+**Continúa** V29, V31 y V32. **Bloque propio.** Cierra los cuatro fixes de bugs vivos del plan; lo
+que queda de ahí es el multi-slot propiamente dicho (pasos 5 a 9).
+
+## El defecto
+
+`clear()` y `clearAllTemporal()` llamaban `purgarTodo()`, que vacía el store `consultas` **entero**.
+O sea que el logout de un operario borraba lo cacheado por **todos** los que hubieran entrado alguna
+vez en esa tablet. Y lo que se destruye no es un archivo temporal: es el **alistamiento** del otro
+—instalar la app y entrar una vez con señal—, que en campo cuesta un viaje a la oficina con wifi.
+
+- [x] V33.1 **`clear()` y `clearAllTemporal()` purgan solo la partición propia**
+      (`purgarParticionDe(identidadActual())`). `identidadActual()` es la misma que expuso V29.3 y
+      que ya usaba el cambio de empresa: una sola derivación de identidad para los tres caminos
+- [x] V33.2 **`borrarDispositivo()`** nuevo, con el `purgarTodo()` de antes. La diferencia es de
+      intención: «este equipo cambia de manos» es una acción deliberada, no un efecto colateral de
+      querer salir. Esa confusión **era** el defecto
+- [x] V33.3 **El outbox no se toca en ninguna de las tres** (R9), tampoco en `borrarDispositivo()`.
+      Está fijado con un test: lo cacheado se vuelve a pedir; una captura encolada no existe en
+      ningún otro lado
+
+## 🔑 Lo que apareció al probarlo
+
+- [i] V33.4 **El límite del orden no es el que decía el comentario.** Rezaba «la purga va antes de
+      limpiar el storage: después ya no habría identidad», y es falso: `get()` lee el
+      `BehaviorSubject` primero, así que la identidad **sobrevive** a los `removeItem` y muere recién
+      en `subject.next(null)`. Se detectó porque la mutación «purgar después de los `removeItem`»
+      salió **verde** — era equivalente. La que rompe es moverla después del `next(null)`, y ésa sí
+      queda en rojo. Comentario corregido, con el límite exacto
+- [i] V33.5 **Correr la purga tarde no da error**: `purgarParticionDe` es fail-closed y con identidad
+      vacía no borra nada. Deja la caché intacta **en silencio**, que es el modo de falla que ningún
+      smoke encuentra. De ahí que esto se fije con test y no mirando la pantalla
+
+## Validación
+
+- [x] V33.6 `yarn build` **0 errores, 0 warnings** · `ng test`: **402 SUCCESS, 0 fallan** (394 + 8)
+- [x] V33.7 **`token-storage.service.spec.ts` (nuevo, 8 casos)**: el servicio no tenía tests. Mutación
+      **4/4**: `clear()` de vuelta a `purgarTodo` **2 rojos** · `clearAllTemporal()` idem **1** ·
+      `borrarDispositivo()` purgando solo la propia **1** · la purga después de `next(null)` **1**
+- [x] V33.8 🔑 **Por qué esto se prueba con test y no en pantalla**: en una tablet con **un solo
+      usuario**, purgar «su partición» y purgar «todo» dan **exactamente el mismo resultado**. La
+      diferencia aparece recién en el equipo compartido, que es justo el que nadie tiene a mano al
+      probar
+- [x] V33.9 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [i] V33.10 **`borrarDispositivo()` queda sin llamador** hasta el paso 8 del plan (el botón del
+      sidebar, que llega con el llavero). O sea que hoy **ninguna acción borra todas las particiones**
+      — y eso **no es una regresión de privacidad**: la caché solo se sirve para la partición activa
+      (`recuperar()` arma la clave con la identidad), así que lo que queda de otro operario **no es
+      legible desde otra sesión**. Lo que cambia es que el dato viejo permanece en disco, sin cifrar,
+      igual que mientras ese operario simplemente no está logueado (decisión D3)
+- [~] V33.11 **Falta el smoke con dos operarios reales** (S1 del plan): A cachea, cierra sesión, y las
+      consultas de B siguen ahí. Necesita dos sesiones en un equipo; ningún agente lo cierra solo
