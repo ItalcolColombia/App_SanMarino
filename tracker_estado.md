@@ -3017,18 +3017,21 @@ Bloque propio — no tocar desde otras sesiones.
 
 ## 🔴 V23.3 — Hallazgo aparte que apareció en el smoke (NO es de esta entrega)
 
-- [i] V23.3.1 🔴 **Hay un camino que se salta el middleware.** El primer intento del smoke dio un
+- [x] V23.3.1 ✔ **CERRADO en V24** (18ago26): la causa era UNA línea —`HttpCurrentUser` exponía el
+      header crudo—, no 42 archivos. La fuga se reprodujo con datos (152 ítems ajenos) y quedó cerrada
+      (61). Texto original: 🔴 **Hay un camino que se salta el middleware.** El primer intento del smoke dio un
       resultado raro (el usuario normal veía 0 lotes en vez de los 2 suyos) y la causa **no era este
       cambio**: `LoteService.GetEffectiveCompanyIdAsync()` resuelve la empresa **desde el nombre crudo
       del header `X-Active-Company`** (`_current.ActiveCompanyName` sale directo de la cabecera en
       `HttpCurrentUser`, **sin validar pertenencia**) y sólo cae a `_current.CompanyId` si viene vacío.
       O sea: mandando un nombre de empresa ajena, un usuario **lee** con el alcance de esa empresa.
       En la prueba no se filtró nada porque Ecuador no tiene lotes de postura, pero el camino existe
-- [i] V23.3.2 **Alcance del patrón**: `GetCompanyIdByNameAsync` se usa en **42 archivos**
+- [x] V23.3.2 ✔ **CERRADO en V24**: los 44 archivos **no se tocaron**; pasan a ser correctos porque su
+      entrada ya es confiable. Texto original: **Alcance del patrón**: `GetCompanyIdByNameAsync` se usa en **42 archivos**
       (`ClienteService`, `CuadreAlimentoEngordeService`, `CorreccionAvesDisponiblesEngordeService`,
       `InventarioGestionService`, `FarmService`, `GalponService`, … ). No todos serán explotables —hay
       que revisarlos uno por uno—, pero es el mismo patrón
-- [i] V23.3.3 **Por qué no se arregla acá**: son 42 archivos, toca el alcance multiempresa de módulos
+- [x] V23.3.3 ✔ El usuario pidió resolverlo completo ⇒ lo hizo **V24**. Texto original: **Por qué no se arregla acá**: son 42 archivos, toca el alcance multiempresa de módulos
       de 4 países y necesita su propio plan, su gate y su smoke por empresa. Meterlo dentro de B10
       sería cambiar el alcance a mitad de camino. **Queda escrito y medido para que se decida**
 
@@ -3039,3 +3042,66 @@ Bloque propio — no tocar desde otras sesiones.
       quiere UI, es otro pedido
 - [x] V23.4.3 **No se tocó B1** (revocación de sesión): arrastra una decisión de producto —la vigencia
       de la sesión offline (D4) se definió *«jornada 12-16 h, con B1 implementado»*— y es otro pendiente
+
+---
+
+# V24 · La empresa activa se valida (cierra el hallazgo V23.3) (18ago26)
+
+**Plan:** [`fase_de_desarrollo/empresa_activa_validada_plan.md`](fase_de_desarrollo/empresa_activa_validada_plan.md)
+Pedido del usuario: «solucioná esto completo» ⇒ el 🔴 **V23.3**, el camino que se salta el middleware
+de empresa activa. Bloque propio — no tocar desde otras sesiones.
+
+## V24.0 — La causa es UNA línea, no 42 archivos ✔
+- [x] V24.0.1 `HttpCurrentUser.cs:22` exponía `ActiveCompanyName` **leyendo el header crudo**, mientras
+      que `CompanyId` sí usa lo que validó `ActiveCompanyMiddleware` (`HttpContext.Items`). Los **44**
+      archivos que leen `ActiveCompanyName` heredaban el defecto; ninguno lo causaba
+- [x] V24.0.2 Con el nombre presente, el `return _current.CompanyId` de esos 44 servicios **casi nunca
+      se alcanzaba**: la empresa validada quedaba de adorno
+- [x] V24.0.3 Sólo **2** lugares leen el header crudo: el middleware (correcto) y `HttpCurrentUser`
+      (el hueco). Orden verificado en `Program.cs`: `UseAuthentication` → middleware → `UseAuthorization`
+      → `MapControllers`, así que cuando se construye `ICurrentUser` el resultado validado ya está
+
+## V24.1 — La fuga, EXPLOTADA antes de tocar nada ✔
+- [x] V24.1.1 `item_inventario_ecuador` tiene datos en 5 empresas (Sanmarino 61 · Ecuador 152 · Demo 62
+      · Panamá 148 · Santa Reyes 45) y `ItemInventarioService` filtra **sólo** por empresa resuelta
+- [x] V24.1.2 🔴 **T6 — reproducida con el código de HEAD**: `prueba@sanmarino.com.co`, que pertenece
+      **sólo** a Sanmarino, mandando `X-Active-Company: ItalcolEcuador` recibió los **152 ítems de
+      Ecuador** en vez de sus 61. Lectura cross-tenant real, no teórica
+- [x] V24.1.3 Por qué V23 no vio fuga: probó contra `LoteService`, que **además** corta por granjas
+      asignadas (fail-closed) ⇒ intersección vacía. Esa segunda guarda está en algunos servicios y en
+      otros no; la que faltaba es la primera
+
+## V24.2 — Implementación ✔
+- [x] V24.2.1 `Application/Calculos/EmpresaActivaCalculos.cs` — 3 reglas puras: `PuedeUsarEmpresa`
+      (super admin **o** miembro), `NombreConfiable` (fail-closed) e `IdDeLaEmpresaActivaSiCoincide`
+- [x] V24.2.2 `ActiveCompanyName` devuelve el nombre **validado por el middleware**, nunca el header.
+      La firma de `NombreConfiable` **no admite** el header: hace imposible volver a confundirlos
+- [x] V24.2.3 El middleware usa la misma regla pura en sus **dos** ramas (por id y por nombre), que
+      antes estaban escritas por separado
+- [x] V24.2.4 `CompanyResolver` devuelve el id ya aprobado cuando el nombre pedido es el de la empresa
+      activa. Motivo medido: `companies.name` **no tiene índice único** (2 índices, ninguno sobre
+      `name`) y el resolver hacía `FirstOrDefault` **sin orden** ⇒ con homónimas el id era no
+      determinista. Hoy hay 0 duplicados, pero nada lo impedía. De paso ahorra una consulta por llamada
+- [x] V24.2.5 Los 44 `GetEffectiveCompanyIdAsync` **no se tocaron**: pasan a ser correctos porque su
+      entrada ya es confiable
+
+## V24.3 — Verificación ✔
+- [x] V24.3.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test`
+      **2.826 Application + 1 Domain en verde** (+17: los T1-T12 del cálculo puro)
+- [x] V24.3.2 🎯 **La misma petición, antes y después**: usuario de Sanmarino pidiendo ItalcolEcuador
+      **152 ⇒ 61**. El hueco quedó cerrado
+- [x] V24.3.3 **T8 sin regresión**: el mismo usuario pidiendo **su** empresa ve 61 antes y después
+- [x] V24.3.4 **T9 el super admin no pierde nada**: pidiendo ItalcolEcuador sigue viendo los 152
+- [x] V24.3.5 Pantallas del caso normal sin cambios (`config/lotes` 2 · `config/farms-list` 1, el
+      alcance propio de ese usuario) · pestaña limpia con **0 errores de consola**
+- [x] V24.3.6 BD compartida **sin una sola escritura** (61/152/62/148/45 igual antes y después) ·
+      backend y front apagados · puertos **5002 / 4200 libres**
+
+## Lo que NO se tocó, dicho
+- [x] V24.4.1 **No se agrega el índice único sobre `companies.name`**: no se puede verificar desde acá
+      si producción tiene homónimas, y un `CREATE UNIQUE INDEX` que falla deja el deploy a medias. La
+      no-determinación ya la cubre V24.2.4; el índice queda señalado para cuando se pueda mirar prod
+- [x] V24.4.2 **No se unifican los 44 `GetEffectiveCompanyIdAsync` duplicados**: ahora son correctos,
+      y unificarlos es limpieza, no seguridad. Merece su propio paso
+- [x] V24.4.3 **No se toca `X-Active-Pais`**, que se sigue leyendo crudo: acota país, no empresa, y no
+      decide el aislamiento multiempresa. Queda dicho para no darlo por revisado

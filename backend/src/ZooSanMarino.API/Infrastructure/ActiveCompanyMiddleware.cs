@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Infrastructure.Persistence;
 using ZooSanMarino.Infrastructure.Services;
 
@@ -50,7 +51,9 @@ public sealed class ActiveCompanyMiddleware
             if (claim != null && Guid.TryParse(claim.Value, out var uid))
             {
                 var isSuperAdmin = await SuperAdminLookup.EsSuperAdminAsync(db, uid);
-                var canUse = isSuperAdmin || await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid);
+                var canUse = EmpresaActivaCalculos.PuedeUsarEmpresa(
+                    isSuperAdmin,
+                    await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid));
                 if (canUse)
                 {
                     context.Items[EffectiveCompanyIdItemKey] = cid;
@@ -104,20 +107,13 @@ public sealed class ActiveCompanyMiddleware
             return;
         }
 
-        // Super admin: permitido para cualquier empresa (misma regla, y ahora el MISMO lector, que
-        // el resto del backend — ver SuperAdminLookup / SuperAdminCalculos).
-        if (await SuperAdminLookup.EsSuperAdminAsync(db, userGuid))
-        {
-            context.Items[EffectiveCompanyIdItemKey] = companyId.Value;
-            context.Items[EffectiveCompanyNameItemKey] = companyName;
-            await _next(context);
-            return;
-        }
-
-        // Validar pertenencia del usuario a la empresa activa
-        var allowed = await db.UserCompanies
-            .AsNoTracking()
-            .AnyAsync(uc => uc.UserId == userGuid && uc.CompanyId == companyId.Value);
+        // ¿Puede usar esta empresa? Super admin (atraviesa el aislamiento a propósito) o miembro.
+        // La regla vive en EmpresaActivaCalculos y es la misma de la rama de arriba.
+        var allowed = EmpresaActivaCalculos.PuedeUsarEmpresa(
+            await SuperAdminLookup.EsSuperAdminAsync(db, userGuid),
+            await db.UserCompanies
+                .AsNoTracking()
+                .AnyAsync(uc => uc.UserId == userGuid && uc.CompanyId == companyId.Value));
 
         if (allowed)
         {

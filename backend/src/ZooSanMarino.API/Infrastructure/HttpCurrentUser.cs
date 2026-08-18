@@ -1,6 +1,7 @@
 // src/ZooSanMarino.API/Infrastructure/HttpCurrentUser.cs
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.Interfaces;
 
 namespace ZooSanMarino.API.Infrastructure;
@@ -18,8 +19,19 @@ public sealed class HttpCurrentUser : ICurrentUser
     {
         var http = accessor.HttpContext;
 
-        // SIEMPRE leer el header X-Active-Company, independientemente de la autenticación
-        ActiveCompanyName = http?.Request.Headers["X-Active-Company"].FirstOrDefault();
+        // Empresa activa: SOLO la que validó ActiveCompanyMiddleware, NUNCA el header crudo.
+        //
+        // Hasta el 18-ago-2026 acá se leía `Request.Headers["X-Active-Company"]` directamente. Como
+        // 44 servicios resuelven su alcance con ese nombre (`GetCompanyIdByNameAsync(...)`) antes de
+        // mirar `CompanyId`, cambiar la cabecera alcanzaba para leer con el alcance de otra empresa:
+        // medido, un usuario de Sanmarino (61 ítems de inventario) recibía los 152 de ItalcolEcuador.
+        // El middleware ya publica el nombre sólo cuando el usuario pertenece a la empresa (o es
+        // super admin); si no lo publicó, acá queda null y cada servicio cae a `CompanyId`, que es la
+        // empresa del token. Fail-closed. Ver EmpresaActivaCalculos.
+        ActiveCompanyName = EmpresaActivaCalculos.NombreConfiable(
+            http?.Items.TryGetValue(ActiveCompanyMiddleware.EffectiveCompanyNameItemKey, out var nombreValidado) == true
+                ? nombreValidado as string
+                : null);
 
         // Leer PaisId del header X-Active-Pais
         var paisIdHeader = http?.Request.Headers["X-Active-Pais"].FirstOrDefault();
