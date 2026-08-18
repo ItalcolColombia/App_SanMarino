@@ -9,6 +9,21 @@
 > Regla de sesiones en paralelo: cada sesión toca **sólo su bloque**; los bloques nuevos van **al
 > final**. ⚠️ **V8 (descuadres de alimento de Panamá) está reservada para otra sesión — no tocar.**
 
+> **Convención de marcas (triaje 18-ago-2026).** Hasta hoy `- [ ]` quería decir «sin cerrar» por
+> razones muy distintas —una tarea, un hallazgo medido, una decisión tuya, un paso de un admin
+> externo— y eso hacía imposible automatizar el barrido. Ahora cada marca dice una sola cosa:
+>
+> | Marca | Significa | ¿Un agente lo puede ejecutar? |
+> |---|---|---|
+> | `- [ ]` | **Tarea ejecutable**: hay código que escribir y una verificación que correr | ✅ sí |
+> | `- [x]` | Hecho y verificado | — |
+> | `- [!]` | **Requiere una decisión tuya** o un OK explícito (varias son irreversibles en prod) | ❌ no, hasta que decidas |
+> | `- [~]` | **Fuera del repo**: admin de Microsoft 365, paso manual en pantalla, generar secretos, deploy | ❌ no |
+> | `- [i]` | **Hallazgo o nota**: el registro de un hecho medido. No hay nada que ejecutar | ❌ no hay acción |
+>
+> Consecuencia práctica: `grep -c '^- \[ \]' tracker_estado.md` cuenta **sólo trabajo real**.
+> Al cerrar una tarea usá `- [x]`; al abrir una nueva, `- [ ]`. Un hallazgo nace `- [i]`, no `- [ ]`.
+
 | Pend. | Bloque abierto | Quién lo destraba |
 |---|---|---|
 | 4 | Envío de correo: SMTP rechazado por política del tenant | **admin de Microsoft 365** |
@@ -29,11 +44,20 @@
 | 6 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** (6) — V7.27 lo cerró V12 |
 | 5 | V12 · V7.27 — referencia de la doble validación | verificación en **prod** (¿hay filas viejas?) |
 
-> **55 pendientes al 17-ago-2026** (eran 67 → 51 tras V11, y V12 cierra V7.27 pero deja 5 puntos
-> declarados de lo que NO hizo). De esos, **~26 esperan una decisión del usuario, un admin externo o
-> un deploy**, y el resto es código. **Ya no queda ningún smoke pendiente**: los dos que seguían vivos
-> se corrieron en V11 y V12 corrió el suyo contra un clon. **V7.27 quedó cerrado en V12**, con el gate
-> de paridad multipaís corrido antes y después (0 diferencias en las dos empresas).
+> **66 pendientes al 18-ago-2026, triados** (eran 67 con el grep sin ancla: uno era falso positivo).
+> El desglose por marca — y por qué el backlog no se vacía solo:
+>
+> - **23 `- [ ]` tareas ejecutables**, pero **12 son del bloque V24**, que corre otra sesión ahora
+>   mismo ⇒ **11 disponibles**. Y de esas 11, la mayoría son *features* (sesiones multi-slot,
+>   revocación de sesión, editar/borrar offline, persistir la atribución del handoff): piden su
+>   propio plan según el workflow de CLAUDE.md, no entran en «una tarea = un commit».
+> - **13 `- [!]` esperan una decisión tuya.** Cuatro tocan producción de forma irreversible
+>   (cerrar 39 lotes de Ecuador · limpiar los 15 días traslapados de K345 · el lote 12 de KM 86 ·
+>   los lotes 2601). Ningún agente las debe correr solo.
+> - **10 `- [~]` están fuera del repo**: 4 las destraba el admin de Microsoft 365, 2 exigen que
+>   generes secretos de prod, 2 son pasos manuales en pantalla, 1 es el merge a `main-produccion`.
+> - **20 `- [i]` son hallazgos**, no tareas: mediciones, líneas base y defectos documentados.
+>   Estaban inflando la cuenta de «pendientes» sin que hubiera nada que hacer.
 
 ## Entregado y archivado
 
@@ -143,12 +167,12 @@ según el origen de la conexión** (el propio Exchange dice *"Contact your admin
 - [x] `dotnet build` 0/0 · `dotnet test` 1.626 + 1 verdes
 
 ### Pendiente del usuario — Camino A (rápido, si el admin puede)
-- [ ] Conditional Access / Security Defaults: ¿bloquea legacy auth por ubicación o IP? Excluir el origen
-- [ ] `Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
-- [ ] `Get-TransportConfig | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+- [~] Conditional Access / Security Defaults: ¿bloquea legacy auth por ubicación o IP? Excluir el origen
+- [~] `Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+- [~] `Get-TransportConfig | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
 
 ### Pendiente del usuario — Camino B (sólo si el A no se puede)
-- [ ] Migrar a OAuth 2.0 / Microsoft Graph. La implementación completa está en el commit `c7b6834`
+- [~] Migrar a OAuth 2.0 / Microsoft Graph. La implementación completa está en el commit `c7b6834`
       (`git show c7b6834`): emisor Graph, proveedor de token con caché e instructivo del app
       registration. Se revirtió a pedido del usuario para dejar un solo transporte.
 
@@ -206,16 +230,16 @@ Y el mismo síntoma ya había ocurrido en nov-2025/ene-2026, resolviéndose **de
 - [x] V2 Re-ejecución del SQL ⇒ `UPDATE 0` / `UPDATE 0` (idempotente)
 - [x] V3 `fn_cuadre_aves_engorde`: **0 descuadrados** confiables · sin referencia confiable **de 4 a 1**
 - [x] V4 Lote 30: 11.300 − 2.484 − 8.816 = **0 exacto**
-- [ ] ⚠️ **Pendiente (decisión de negocio):** id 132 (19.387 vs 19.187, 200 aves) — activo y sin ventas, la conservación no discrimina; necesita el documento físico de encasetamiento
-- [ ] ⚠️ **Pendiente (decisión de negocio):** ids 3, 4, 6, 8 — encaset 50.000 **y** `Inicio` de plantilla: los dos números son ficticios, cero movimientos. El detector no los ve porque compara `ih + im` sin mixtas
+- [!] ⚠️ **Pendiente (decisión de negocio):** id 132 (19.387 vs 19.187, 200 aves) — activo y sin ventas, la conservación no discrimina; necesita el documento físico de encasetamiento
+- [!] ⚠️ **Pendiente (decisión de negocio):** ids 3, 4, 6, 8 — encaset 50.000 **y** `Inicio` de plantilla: los dos números son ficticios, cero movimientos. El detector no los ve porque compara `ih + im` sin mixtas
 
 ## Parte B — Liquidación de corridas anteriores: BLOQUEADA, no puede ir por migración
 - [x] B1 🔴 Liquidar es una transacción de 5 pasos (estado + avance del ERP de granja + **copia congelada** + saldo + resumen). El código: *«sin copia no hay liquidación»*. Una migración SQL saltearía 4 de los 5
 - [x] B2 🔴 El criterio «galpón con corrida posterior» alcanza 75 lotes e **incluye 22 de Panamá con 801.882 aves VIVAS** y seguimiento del 2026-08-03 (allá conviven varias corridas por galpón)
 - [x] B3 Candidatos reales medidos — Ecuador: **39 con saldo 0** (grupo A) · 12 residuales < 1 % (602 aves) · 2 con saldo significativo (1.119 aves)
 - [x] B4 Orden obligatorio verificado: el *Gate B1* impide editar `aves_encasetadas` de un lote liquidado ⇒ **corregir ANTES de cerrar** (por eso el lote 30 se corrigió primero)
-- [ ] ⏸️ **Esperando confirmación:** cerrar el grupo A (39 lotes de Ecuador) recorriendo el endpoint real de cierre. Irreversible sobre producción ⇒ requiere OK explícito sobre la lista
-- [ ] ⏸️ Grupos B y C (14 lotes con aves pendientes) — revisión aparte · Panamá **no se toca**
+- [!] ⏸️ **Esperando confirmación:** cerrar el grupo A (39 lotes de Ecuador) recorriendo el endpoint real de cierre. Irreversible sobre producción ⇒ requiere OK explícito sobre la lista
+- [!] ⏸️ Grupos B y C (14 lotes con aves pendientes) — revisión aparte · Panamá **no se toca**
 
 ---
 
@@ -517,7 +541,7 @@ escrituras históricas quedarían rechazadas y en qué empresas?
 - [x] B5 Margen de operación: levante 6 lotes holgados / 4 en cero / 1 negativo; producción 3
       holgados / 1 con margen 1-50 / 1 en cero. Ningún lote «casi» sobregira ⇒ el bloqueo no
       generaría falsos rechazos por operación normal
-- [ ] **Pendiente de decisión**: re-correr el detector contra el dump de PROD antes de implementar
+- [!] **Pendiente de decisión**: re-correr el detector contra el dump de PROD antes de implementar
       (la BD local es un dump de fecha incierta y solo tiene 2 empresas con postura). Si prod
       confirma un número parecido, el bloqueo es de riesgo bajo
 
@@ -572,7 +596,7 @@ Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/va
 - [x] **Descartado (era un dato mío equivocado)**: el modal de levante SÍ captura el C.V. — los controles
       se llaman `cvH`/`cvM` y el servicio los mapea a `CvHembras`/`CvMachos`
       (`SeguimientoLoteLevanteService.Mapeos.cs:173`). El hueco estaba solo en la carga masiva, ya cerrado
-- [ ] **Pendiente de decisión (técnica + costos)**: el corte levante/producción quedó en 24 semanas
+- [!] **Pendiente de decisión (técnica + costos)**: el corte levante/producción quedó en 24 semanas
       en S-369 y el informe de Verenice usa 25 ⇒ ~17.332 kg cambian de etapa en una conciliación
 
 ## Corte de etapa: bloqueo del doble conteo levante/producción
@@ -583,7 +607,7 @@ Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/va
       levante crea filas de producción de solo huevos y esas NO deben chocar
 - [x] Barrido de la BD: el traslape existe solo en K345 (15 días) ⇒ el guard no rompe nada existente
 - [x] `dotnet build` + `dotnet test` (1.939 en verde)
-- [ ] **Pendiente, requiere OK explícito**: limpiar los 15 días traslapados de K345 (el guard impide
+- [!] **Pendiente, requiere OK explícito**: limpiar los 15 días traslapados de K345 (el guard impide
       nuevos, los existentes siguen ahí). Hay que decidir cuál de las dos filas queda antes de tocar datos
 
 ## Entrega
@@ -632,7 +656,7 @@ tres cajitas «Próximamente» de la Fase 3 sobran. Además el tile queda ilegib
 - [x] Plantillas intactas por código: `MigracionService.Historicos.cs:137-144` sigue agregando las hojas
       `Movimientos Aves` (levante+producción) y `Movimientos Huevos` (producción); la aplicación en :851
 - [x] Sin procesos huérfanos (no se levantó back ni front) · commit acotado (sin footer de atribución)
-- [ ] **Pendiente de decisión del usuario**: ¿el tile «Venta Engorde» (`VentaPolloEngorde`) también sale?
+- [!] **Pendiente de decisión del usuario**: ¿el tile «Venta Engorde» (`VentaPolloEngorde`) también sale?
       Hoy queda: está implementado y en uso (fn `fn_migracion_venta_engorde` v2 con despachos), y la venta
       de engorde NO se registra desde el seguimiento diario
 
@@ -681,7 +705,7 @@ permiso deben OCULTARSE, no salir en gris; (c) el módulo debe quedar solo para 
       otra empresa, el rol SIN usuarios y el rol COMPARTIDO Sanmarino+Ecuador; se conservan solo los
       exclusivos de Sanmarino
 - [x] BD local sin cambios (todo bajo ROLLBACK) · sin procesos huérfanos
-- [ ] ⚠️ **Efecto colateral a confirmar con el usuario**: «solo Sanmarino» le quita el módulo a
+- [!] ⚠️ **Efecto colateral a confirmar con el usuario**: «solo Sanmarino» le quita el módulo a
       **Santa Reyes** (2 roles que HOY tienen ambos permisos) y a **ItalcolPanama / Demo / Ecuador**.
       Si Santa Reyes debe conservarlo, hay que agregar su nombre a la lista de empresas habilitadas
 
@@ -749,7 +773,7 @@ Inventario solo se pueda cargar movimientos manualmente con fecha del mes actual
       sesión en curso) ni `.devpilot/events.jsonl`
 
 ### Aviso a la operación (fuera de alcance del código)
-- [ ] Los lotes 2601 de Galpon-1 (id 2) y Galpon-2 (id 12) siguen en estado `Abierto`: cerrarlos POR
+- [~] Los lotes 2601 de Galpon-1 (id 2) y Galpon-2 (id 12) siguen en estado `Abierto`: cerrarlos POR
       PANTALLA (liquidar es una transacción de 5 pasos, no va por migración)
 - [x] El lote 12 arrastra apertura negativa (−9.020 kg) — **AUDITADO en V20** (17ago26): no es una
       apertura sino el saldo FINAL de su serie, y son **9.020 kg de consumo sin ingreso** que dejó la
@@ -784,7 +808,7 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
       El hint dice «Solo se admite el mes en curso» ⇒ instrucción activa a falsear la fecha.
       Afecta 39/110 encasets 2026 de Ecuador (35%) y 10/60 de Panamá. Ningún número sale mal: se
       pierde la fecha contable real, que es justo lo que contabilidad pidió
-- [ ] 🟡 **§2.3b La marca rompe `fn_cuadre_alimento_engorde`** — ⚠️ **MITIGADO, NO RESUELTO**
+- [i] 🟡 **§2.3b La marca rompe `fn_cuadre_alimento_engorde`** — ⚠️ **MITIGADO, NO RESUELTO**
       (revalidado 16ago26): la ronda 4 de la v16 ocultó el checkbox del alta y el historial sólo deja
       **quitar** una marca, nunca poner una nueva ⇒ la puerta de entrada está cerrada y hay 0 marcas
       vivas. El defecto de la fn sigue ahí para las marcas que ya existan. Texto original:
@@ -792,11 +816,11 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
       cambia el booleano ⇒ descuadre −5.000). CLAUDE.md declara que mover el cuadre de 0 es regresión.
       Matiz: no hay tablero (0 archivos en el front), es endpoint + LogWarning; transitorio salvo que
       el ciclo siguiente nunca arranque. **Impacto hoy: cero** (`para_proximo_ciclo` = 0 filas en BD)
-- [ ] 🟡 **§2.3c Hueco de trazabilidad**: `fechas_universo` dejó el corte `>= fecha_corte_alimento`
+- [i] 🟡 **§2.3c Hueco de trazabilidad**: `fechas_universo` dejó el corte `>= fecha_corte_alimento`
       FUERA del disyunto de la marca ⇒ un ingreso marcado y fechado antes de `encaset−N` no genera
       fila en ningún lote hasta el primer seguimiento. Recrea el síntoma «el sistema se comió
       alimento» que motivó el feature. **Arreglo de UNA línea**, simétrico con `apert_mov`
-- [ ] 🟡 **§2.4 Cada lote padre muestra el kardex de la GRANJA entera** (granja 20 tiene 4 padres ⇒ los
+- [i] 🟡 **§2.4 Cada lote padre muestra el kardex de la GRANJA entera** (granja 20 tiene 4 padres ⇒ los
       4 reportes muestran los mismos 2.907 bultos; sumarlos da 11.628 vs 2.907 reales). Preexistente,
       no arreglable en la query (la tabla no tiene columna de lote). Peor: `AcumularSaldos` resta
       consumos POR LOTE de entradas POR GRANJA ⇒ el saldo no es ni de la granja ni del lote
@@ -823,7 +847,7 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
       migración `Recalcular…`. Hoy son 109 filas / 36 lotes (Ecuador 0), y **6 lotes tienen el último
       día divergente**, que es el que la liquidación congela para siempre. Texto original: (69 filas, hasta 23.355 kg): detectado, NO se determinó si
       necesita la migración `Recalcular…` que sí acompañó a v11 y v12 (este lote tocó la fn 2 veces sin ella)
-- [ ] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
+- [i] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
       sospechas, no hechos
 
 ---
@@ -1142,7 +1166,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] Limpieza por la API: saldo del lote 116 volvió exacto (7.402→7.405 hembras, 737→738 machos)
 
 ### 🔴 Lo que NO se pudo probar (y por qué importa)
-- [ ] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
+- [i] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
       siempre salió 1 fila **incluso con el índice único borrado**: el `SELECT` previo ya ve la fila
       commiteada del ganador, así que la ventana no se abrió. Lo que sí quedó probado es que el
       índice **rechaza** el duplicado (23505, en transacción revertida). O sea: el `SELECT` es el
@@ -1170,7 +1194,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
       único `SeguimientoDiarioLoteReproductora` es el de **pollo engorde**, exclusivo de Panamá
 - [x] **Para la PWA no hay nada que apagar**: no existe captura de reproductora de postura que
       pudiera encolarse. Mientras la ruta cargue levante, encola como levante, que es lo correcto
-- [ ] **Decisión del usuario:** quitar el menú a esos 3 roles hasta que el módulo exista, o corregir
+- [!] **Decisión del usuario:** quitar el menú a esos 3 roles hasta que el módulo exista, o corregir
       la etiqueta. Hoy un técnico entra por «Lote Reproductora» y carga levante sin darse cuenta
 
 ## 2. Primer ingreso y menú sin internet
@@ -1180,7 +1204,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] ✅ Perder la red **no cierra la sesión** (B2), con tope duro de 16 h (D4)
 - [x] 🔴 **El primer ingreso exige red** (`POST /auth/login` + reCAPTCHA en prod) ⇒ alistamiento:
       instalar y entrar una vez con señal, **por cada usuario**
-- [ ] 🔴 **El dispositivo guarda UNA sola sesión** (`auth_session`, clave única). No hay «los usuarios
+- [i] 🔴 **El dispositivo guarda UNA sola sesión** (`auth_session`, clave única). No hay «los usuarios
       registrados» en plural: entra el último que hizo login. Dos operarios turnándose en la misma
       tablet ⇒ el segundo no puede entrar sin red. **Soportar varios exige sesiones multi-slot**
       (la partición de la caché ya está preparada; el storage de sesión no)
@@ -1194,7 +1218,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] No es un olvido: es la decisión **D1** («ventas y movimientos a v2»). Los movimientos tocan
       stock y saldos, son de dos lados (origen/destino) y varios crean entidades que otras
       referencian ⇒ necesitan la clase `requiere_cuadre` **con emisor** y el grafo `client_entity_id`
-- [ ] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8, B10
+- [i] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8, B10
 
 ## Corrección de una sospecha propia
 - [x] `movimientos-huevos` **no** es un hueco de la lista blanca: es sub-ruta de `ReporteContable`,
@@ -1234,7 +1258,7 @@ Requiere push, que el usuario no autorizó todavía.
 
 ## Decisiones que esperan al usuario (bloquean trabajo)
 
-- [ ] **Merge `main` → `main-produccion`** para desplegar la PWA (arrastra migraciones; el contenedor
+- [~] **Merge `main` → `main-produccion`** para desplegar la PWA (arrastra migraciones; el contenedor
       tiene `RunMigrations=true`).
       ⚠️ **Revalidado 16ago26 — SIGUE SIN DESPLEGARSE, y la brecha creció**: `main-produccion` está en
       `cdd5561` y le faltan **25 commits** de `main`. Ya no arrastra sólo la PWA: también las
@@ -1245,7 +1269,7 @@ Requiere push, que el usuario no autorizó todavía.
       Reproductora Postura» y **desasignado de todos los roles**; la fila del menú se conserva
 - [ ] **Sesiones multi-slot por dispositivo**: es lo ÚNICO que bloquea «varios usuarios sin
       internet». Hoy `auth_session` es clave única ⇒ un usuario por tablet
-- [ ] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
+- [~] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
       inventan secretos de prod
 
 ## Próximos trabajos, en orden sugerido
@@ -1351,10 +1375,10 @@ entera. Esto es más urgente que desplegar.
 
 ## 5. Lo que falta para que funcione BIEN en campo (no bloquea el deploy)
 
-- [ ] 🔴 **Un solo usuario por dispositivo.** `auth_session` es clave única en `localStorage`: dos
+- [i] 🔴 **Un solo usuario por dispositivo.** `auth_session` es clave única en `localStorage`: dos
       operarios turnándose en la misma tablet ⇒ el segundo no entra sin red. Exige sesiones
       multi-slot
-- [ ] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
+- [~] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
       reCAPTCHA exigen red) y **visitar las pantallas** que se van a usar, o la caché está vacía
 - [x] 🟠 ~~La bandeja de rechazos no muestra el payload~~ — **cerrado 17ago26**: cada fila trae
       «Ver lo capturado» con el método, la URL y el JSON, más «Copiar captura» para pegarlo en
@@ -1385,10 +1409,10 @@ entera. Esto es más urgente que desplegar.
 
 - [ ] **B1** revocación de sesión (`jti` + `sesiones_activas` + refresh) — el más urgente: una tablet
       perdida no se puede revocar y la jornada offline dura 16 h
-- [ ] **B8** rotar las 4 llaves de `environment.prod.ts` · ~~**B10** super admin por email → a datos~~
+- [~] **B8** rotar las 4 llaves de `environment.prod.ts` · ~~**B10** super admin por email → a datos~~
       **CERRADO en V23** (17ago26: eran 14 sitios, no 2; hoy es `users.is_super_admin`, revocable sin
       deploy) · **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
-- [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
+- [i] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
       (inventario, movimientos, traslados, huevos, ventas). Mapeado en
       [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
 
@@ -1462,7 +1486,7 @@ directa. C = sin cambios.
 ## Cierre
 
 - [x] Commit sin footer de atribución (autor único moisesmurillo)
-- [ ] **Post-deploy manual** (no lo hace la migración, a propósito): en Roles y Permisos crear/elegir
+- [~] **Post-deploy manual** (no lo hace la migración, a propósito): en Roles y Permisos crear/elegir
       el rol de gerencia → asignarle **solo** `tickets.indicadores` → asignarle el menú
       **Gerencia › Panel de control**. Hasta entonces el módulo no lo ve nadie.
 
@@ -2016,7 +2040,7 @@ audita la mitad del **saldo**.
       `(granja, núcleo, galpón)` con un lote de engorde. En la base: **15 galpones de postura y 76 de
       engorde, cero solapados** en las 5 empresas. Queda documentado como condición a vigilar, no como
       deuda: si algún día un galpón se reusa entre fases, revisar este filtro
-- [ ] V12.4.4 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
+- [i] V12.4.4 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
       cambio de modelo que pide su propio plan y su propio gate
 
 ## Dos observaciones que NO son de esta entrega
@@ -2025,7 +2049,7 @@ audita la mitad del **saldo**.
       `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente`, pero **no están en el repo**:
       `backend/sql/fn_seguimiento_diario_engorde.sql` sigue en **v15** y la BD local también. Ese
       trabajo nunca se commiteó. Esta entrega **no toca la fn**, así que no lo bloquea ni lo pisa
-- [ ] V12.5.2 **Para V8**: el lote 168 («patrón C», el descuadre de 250 kg) ya **no reproduce** —
+- [i] V12.5.2 **Para V8**: el lote 168 («patrón C», el descuadre de 250 kg) ya **no reproduce** —
       medido en la BD compartida **antes** de tocar nada: `saldo_tabla 10.609,560 · mov_post 0 ·
       stock 10.609,560 · descuadre 0,000`. El cuadre de ItalcolPanama está hoy en **5 descuadrados /
       54.795,359 kg**, no en los 6 / 55.045,359 del baseline de V8. Revalidar esa tabla antes de
@@ -2039,18 +2063,18 @@ Va al final a propósito: **nada de acá bloquea desarrollo**. La verificación 
 innecesaria (V12.4.1: sin el código desplegado no hay fila que buscar), así que estos puntos se miran
 recién cuando haya un deploy de por medio.
 
-- [ ] P.1 ⚠️ **¿El esquema de prod quedó por delante del binario?** El usuario dijo «la base de datos
+- [i] P.1 ⚠️ **¿El esquema de prod quedó por delante del binario?** El usuario dijo «la base de datos
       está actualizada en AWS» mientras el servicio corría la imagen del 14-ago (TaskDef 158). Si las
       migraciones se aplicaron por fuera del deploy, es el modo de falla que documenta CLAUDE.md
       («migración aplicada = binario viejo inválido» → exit 139 / SIGSEGV al arrancar). **Se resuelve
       solo con el próximo deploy**, que lleva el código que corresponde a esas migraciones.
       Comprobación de un renglón cuando haya acceso:
       `SELECT migration_id FROM "__EFMigrationsHistory" WHERE migration_id LIKE '202608%' ORDER BY 1 DESC LIMIT 10;`
-- [ ] P.2 **Verificación post-deploy obligatoria** cuando salga la doble validación (CLAUDE.md §🚀):
+- [i] P.2 **Verificación post-deploy obligatoria** cuando salga la doble validación (CLAUDE.md §🚀):
       `describe-services` → TaskDef y `rolloutState`, `describe-task-definition` → imagen, y comparar
       contra la que se pretendía desplegar. ECS hace rollback silencioso y el CLI igual dice
       «completado»
-- [ ] P.3 **Desde esta máquina no se puede consultar prod** y no vale la pena forzarlo: RDS en VPC
+- [i] P.3 **Desde esta máquina no se puede consultar prod** y no vale la pena forzarlo: RDS en VPC
       privada (`10.4.6.6`, psql timeout), **ECS Exec deshabilitado** en el servicio, y el usuario IAM
       sin `rds:DescribeDBInstances` ni `ssm:DescribeInstanceInformation`. Habilitar ECS Exec exige
       redeploy de producción ⇒ sólo con pedido explícito. Para consultas puntuales, DB Studio
@@ -2239,7 +2263,7 @@ tiene stock del alimento seleccionado». Bloque propio — no tocar desde otras 
 - [x] V14.2.3 Colombia **sin cambios** (su camino ya bloqueaba)
 
 ## Fuera de alcance, dicho
-- [ ] V14.3.1 `MigracionService.AlimentoEngorde/AlimentoPostura` (carga histórica, entra por
+- [i] V14.3.1 `MigracionService.AlimentoEngorde/AlimentoPostura` (carga histórica, entra por
       `ModoCargaHistorica`) e `InventarioGastoService` (ya llama sin tragar el error)
 
 ## V14.4 — Resultado del smoke (17ago26)
@@ -2396,7 +2420,7 @@ verificado por `pg_stat_activity`: 1 conexión al clon, **0 a la compartida**). 
 - [x] V15.6.4 **Clon dropeado · BD compartida sin una sola fila del smoke · puertos 5002/5501/4200 libres**
 
 ## Observación honesta, fuera de alcance
-- [ ] V15.7.1 El alta con fecha del mes anterior devuelve **200 + `avisoFechaFueraDeCiclo`**: la
+- [i] V15.7.1 El alta con fecha del mes anterior devuelve **200 + `avisoFechaFueraDeCiclo`**: la
       ventana D4 (`encaset − dias`) puede arrancar **un día antes** que el corte efectivo de la fn,
       que además respeta el fin del ciclo anterior (`corte_apertura` de v12). En el smoke el 31-jul se
       admite pero el aviso dice que el ciclo 2604 cuenta el alimento desde el 01-ago. **No es un
@@ -2506,7 +2530,7 @@ falta clonar la BD, y no se escribió una sola fila). Sesión de ItalcolEcuador.
 
 ## V16.6 — Un dato de la verificación que hay que decir
 
-- [ ] V16.6.1 ⚠️ **La línea base del cuadre en la BD local ya no es «61 filas / 1 descuadrado»**: hoy
+- [i] V16.6.1 ⚠️ **La línea base del cuadre en la BD local ya no es «61 filas / 1 descuadrado»**: hoy
       `fn_cuadre_alimento_engorde(NULL)` devuelve **66 filas y 5 descuadrados, todos de Panamá**
       (granja 106 DOÑA MARIA: G0483 +23.300 kg, G0475 +18.650, G0481 −9.805, G0476 +2.496 y el
       preexistente G0477/lote 182 +544). Ecuador sigue en 0. **Nada de esto lo produjo esta entrega**
@@ -2715,7 +2739,7 @@ porque el rediseño de la marca los tira). Bloque propio — no tocar desde otra
       una coma. `AcumularSaldos` y todo el cálculo quedan intactos
 
 ## V19.2 — Fase 2, que NO entra: el saldo coherente (decisión del usuario)
-- [ ] V19.2.1 Hoy el saldo es `entradas de la GRANJA − consumos de ESTE padre` ⇒ **sobreestima** tanto
+- [!] V19.2.1 Hoy el saldo es `entradas de la GRANJA − consumos de ESTE padre` ⇒ **sobreestima** tanto
       como consuman los otros padres. Las salidas son **(a)** restar el consumo de todos los lotes de la
       granja —el número pasa a ser verificable contra el inventario, pero **cambia una columna que
       Costos ya lee**— o **(b)** dejarlo con el aviso al lado. **Se recomienda (a)**; mover una columna
@@ -2782,11 +2806,11 @@ Pedido: «seguí con el siguiente pendiente del tracker» ⇒ *«El lote 12 arra
       rompería el reporte de V16 y el cuadre a la vez
 
 ## V20.4 — Qué hacer (necesita decisión, por eso no se hizo)
-- [ ] V20.4.1 **Decisión pendiente sobre el lote 12**: (a) dejarlo —no contagia a nadie y Ecuador sigue
+- [!] V20.4.1 **Decisión pendiente sobre el lote 12**: (a) dejarlo —no contagia a nadie y Ecuador sigue
       con 0 descuadrados—; (b) **completar la reconstrucción** cargando los 9.020 kg faltantes con su
       fecha real desde las remisiones físicas (la única corrección legítima); (c) liquidarlo como está,
       que **congelaría −9.020 para siempre** (V18: la foto no se reescribe)
-- [ ] V20.4.2 ⚠️ **Si se decide cerrar los lotes 2 y 12** —el otro pendiente del mismo bloque—, para el
+- [!] V20.4.2 ⚠️ **Si se decide cerrar los lotes 2 y 12** —el otro pendiente del mismo bloque—, para el
       **12 conviene resolver esto primero**: liquidar antes de completar la carga congela el negativo
 
 ## Fuera de alcance, dicho
@@ -2993,18 +3017,18 @@ Bloque propio — no tocar desde otras sesiones.
 
 ## 🔴 V23.3 — Hallazgo aparte que apareció en el smoke (NO es de esta entrega)
 
-- [ ] V23.3.1 🔴 **Hay un camino que se salta el middleware.** El primer intento del smoke dio un
+- [i] V23.3.1 🔴 **Hay un camino que se salta el middleware.** El primer intento del smoke dio un
       resultado raro (el usuario normal veía 0 lotes en vez de los 2 suyos) y la causa **no era este
       cambio**: `LoteService.GetEffectiveCompanyIdAsync()` resuelve la empresa **desde el nombre crudo
       del header `X-Active-Company`** (`_current.ActiveCompanyName` sale directo de la cabecera en
       `HttpCurrentUser`, **sin validar pertenencia**) y sólo cae a `_current.CompanyId` si viene vacío.
       O sea: mandando un nombre de empresa ajena, un usuario **lee** con el alcance de esa empresa.
       En la prueba no se filtró nada porque Ecuador no tiene lotes de postura, pero el camino existe
-- [ ] V23.3.2 **Alcance del patrón**: `GetCompanyIdByNameAsync` se usa en **42 archivos**
+- [i] V23.3.2 **Alcance del patrón**: `GetCompanyIdByNameAsync` se usa en **42 archivos**
       (`ClienteService`, `CuadreAlimentoEngordeService`, `CorreccionAvesDisponiblesEngordeService`,
       `InventarioGestionService`, `FarmService`, `GalponService`, … ). No todos serán explotables —hay
       que revisarlos uno por uno—, pero es el mismo patrón
-- [ ] V23.3.3 **Por qué no se arregla acá**: son 42 archivos, toca el alcance multiempresa de módulos
+- [i] V23.3.3 **Por qué no se arregla acá**: son 42 archivos, toca el alcance multiempresa de módulos
       de 4 países y necesita su propio plan, su gate y su smoke por empresa. Meterlo dentro de B10
       sería cambiar el alcance a mitad de camino. **Queda escrito y medido para que se decida**
 
