@@ -816,7 +816,9 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
 - [x] Sin datos de prueba de agentes anteriores en la BD (0 lotes/movimientos SIM/QA/TEST)
 
 ## No verificado (declarado)
-- [ ] Descuadre persistido vs fn en Panamá (69 filas, hasta 23.355 kg): detectado, NO se determinó si
+- [x] Descuadre persistido vs fn en Panamá — **RESUELTO en V18** (17ago26): **sí necesita** la
+      migración `Recalcular…`. Hoy son 109 filas / 36 lotes (Ecuador 0), y **6 lotes tienen el último
+      día divergente**, que es el que la liquidación congela para siempre. Texto original: (69 filas, hasta 23.355 kg): detectado, NO se determinó si
       necesita la migración `Recalcular…` que sí acompañó a v11 y v12 (este lote tocó la fn 2 veces sin ella)
 - [ ] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
       sospechas, no hechos
@@ -2605,3 +2607,70 @@ vista). Bloque propio — no tocar desde otras sesiones.
 - [x] V17.5.1 V8.1 · V8.2 · V8.3 · V8.4 · V8.5 quedan **cerrados por este bloque** (evidencia en V17.1).
       **V8.6 sigue abierto por definición**: es el protocolo para el día que se corrija algo, y hoy no
       se corrigió nada
+
+---
+
+# V18 · El saldo guardado se separó de la fn en Panamá — y la liquidación lo congela (17ago26)
+
+**Plan:** [`fase_de_desarrollo/saldo_alimento_persistido_vs_fn_panama_plan.md`](fase_de_desarrollo/saldo_alimento_persistido_vs_fn_panama_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ el «No verificado (declarado)» del bloque
+*«Auditoría de cierre — alimento previo al encaset»*: *«Descuadre persistido vs fn en Panamá (69 filas,
+hasta 23.355 kg): NO se determinó si necesita la migración `Recalcular…`»*.
+**Respuesta: sí la necesita.** Bloque propio — no tocar desde otras sesiones.
+
+## V18.0 — Medición ✔
+- [x] V18.0.1 Comparación fila a fila por `seg_id` de la columna guardada contra la fn:
+      **ItalcolPanama 109 filas / 36 lotes** (peor **23.355,0 kg**, Σ absoluta 682.885 kg) ·
+      **ItalcolEcuador 0 de 5.189** (abiertos y cerrados). El dato de la auditoría (69) creció a 109
+- [x] V18.0.2 🔴 **Por qué importa, y no estaba escrito**: `LiquidacionCongeladaAplicador` toma el saldo
+      del **último día directo de la columna guardada** y lo escribe en la copia congelada. Una foto
+      congelada no se reescribe ⇒ si la columna está desalineada ese día, el número queda mal **para
+      siempre**, y de ahí lo leen Costos, el modal de liquidación y el reporte de «liquidados con
+      alimento sin trasladar» de V16
+- [x] V18.0.3 **6 lotes de Panamá tienen HOY el último día divergente** (peor **9.844 kg**): si se
+      liquidan antes de recalcular, congelan un saldo que después nadie puede corregir
+- [x] V18.0.4 **La forma de la divergencia**: la diferencia de un día es **exactamente** el ingreso que
+      la fn atribuye al día siguiente, y al día siguiente las dos fuentes vuelven a coincidir ⇒ columna
+      escrita con otra atribución de fecha. Más una **cola acumulativa** en los últimos días (la columna
+      dejó de actualizarse)
+- [x] V18.0.5 **Descartadas con datos** dos explicaciones plausibles: no es la doble validación (las 109
+      filas están `validado = true` sin `validado_at`, igual que las 912 que coinciden) ni «movimiento
+      registrado después» por sí solo (lo tienen el 90,8 % de las que difieren **y** el 94,5 % de las
+      que no)
+
+## V18.1 — Simulación antes de escribir nada ✔
+- [x] V18.1.1 `BEGIN` → recálculo desde la fn → verificación → `ROLLBACK`: cambia **109 filas, todas de
+      ItalcolPanama** (682.885 kg de movimiento absoluto), **0 de ItalcolEcuador**, y deja **0
+      divergencias**. Medido dentro de la misma transacción, revertido
+
+## V18.2 — La migración
+- [x] V18.2.1 `20260818010000_RecalcularSaldoAlimentoEngordePersistido`, calcada de
+      `20260730141000_RecalcularSaldoAlimentoEngordeV12`: backup con `WHERE NOT EXISTS`, `UPDATE` con
+      `IS DISTINCT FROM` (idempotente) y `Down` que restaura. El valor sale de la **propia fn** — una
+      sola fórmula por número
+- [x] V18.2.2 Designer clonado del último real · **ModelSnapshot intacto** (verificado: `git status` no lo toca)
+
+## V18.3 — Verificación
+- [x] V18.3.1 `dotnet build` **0 errores** · `dotnet test` **2.794 + 1 en verde**
+- [x] V18.3.2 `dotnet ef database update` (tools EF 10, desde Infrastructure) aplicó sin error:
+      **109 filas cambiadas, TODAS de ItalcolPanama** (7 venían en NULL; peor delta **23.355,0 kg**),
+      **0 de ItalcolEcuador**. Divergencias después: **0**. Backup de 6.258 filas para el `Down`
+- [x] V18.3.3 **Idempotencia probada, no declarada**: se volvió a correr el mismo `Up()` ⇒
+      `INSERT 0 0` en el backup y `UPDATE 0` en el recálculo
+- [x] V18.3.4 `fn_cuadre_alimento_engorde` congelado antes y comparado después: **`diff` vacío en las
+      66 filas** (mismo descuadre, mismos días negativos). El número que mira operación no se movió
+- [x] V18.3.5 `git diff backend/sql` **vacío** ⇒ ninguna función SQL tocada
+
+## V18.5 — El efecto que se buscaba
+- [x] V18.5.1 **Los 6 lotes de Panamá que iban a congelar un saldo equivocado quedaron en 0**: hoy
+      ningún lote de ninguna de las dos empresas tiene el último día divergente (Ecuador 0 de 118,
+      Panamá 0 de 37). Lo que se liquide desde ahora congela el mismo número que muestra la grilla
+
+## Fuera de alcance, dicho
+- [x] V18.4.1 **No se toca `fn_seguimiento_diario_engorde`**: la columna se alinea a la fn, nunca al
+      revés
+- [x] V18.4.2 **No se corrige la causa de fondo** de la cola acumulativa (que el recálculo no corra en
+      todos los caminos que mueven un día ya cargado). Esta migración deja la foto alineada hoy; que no
+      se vuelva a desalinear es otro trabajo, con su propio plan
+- [x] V18.4.3 **No se tocan las copias congeladas** ya existentes: las 90 de Ecuador quedan como están
+      (y allí la columna ya coincidía)
