@@ -3231,3 +3231,23 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
       bloqueo de acceso**: RDS en VPC privada, ECS Exec deshabilitado, IAM sin permisos
 - [i] V25.6.8 Pendientes de preguntar: el tile «Venta Engorde» de Migraciones Masivas y V19.2.1 (el
       kardex de bultos de la GRANJA). Grupos B y C quedan a re-medir: los 31 abiertos tienen aves
+
+## V25.7 — Las 2 últimas decisiones + la medición del kardex (V19.2.1)
+- [x] V25.7.1 **El tile «Venta Engorde» se queda.** Verificado: tile en el front, `MigracionEsquemas`
+      en el back y la fn v2 con despachos. La venta de engorde no se registra desde el seguimiento
+      diario ⇒ la carga masiva es su **único** camino de entrada
+- [i] V25.7.2 **Medición del kardex** (pedida antes de decidir): **10 de 11** lotes padres de Sanmarino
+      afectados (LA ESMERALDA 4 · MANGOS 4 · MIRALINDO 2), Demo **0 de 5**, ninguna otra empresa tiene
+      lotes padres de postura. Los «4 padres» de cada granja son **2 nombres × 2 galpones**
+      (A374A/B, S369A/B): no son lotes ajenos, es el mismo nombre en distinto galpón
+- [i] V25.7.3 🔑 **La imposibilidad de atribuir es del ESQUEMA, no de la query**:
+      `inventario_gestion_movimiento` tiene `farm_id` y `from_farm_id` y **ninguna columna de lote**
+- [i] V25.7.4 **Esto reencuadra la decisión: (a) y (b) no son excluyentes.** La opción (a) NO vuelve el
+      número por lote —eso es imposible sin dato de lote en las entradas—: lo vuelve un número **de
+      granja correctamente calculado**, mostrado en un reporte por lote. Sigue necesitando el rótulo
+      de (b). (a) arregla la aritmética, (b) arregla lo que el reporte dice ser
+- [i] V25.7.5 A favor de hacerlo: el cálculo **ya está extraído** a
+      `Application/Calculos/ReporteContableBultosCalculos.cs` (static puro) ⇒ la corrección es local y
+      testeable con xUnit, sin tocar el service
+- [ ] V25.7.6 **Falta el número fino**: el delta exacto en bultos por padre exige reproducir la query
+      completa del reporte por lote-padre y fecha. Es el siguiente paso si se quiere decidir con la cifra
