@@ -1385,8 +1385,9 @@ entera. Esto es más urgente que desplegar.
 
 - [ ] **B1** revocación de sesión (`jti` + `sesiones_activas` + refresh) — el más urgente: una tablet
       perdida no se puede revocar y la jornada offline dura 16 h
-- [ ] **B8** rotar las 4 llaves de `environment.prod.ts` · **B10** super admin por email → a datos ·
-      **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
+- [ ] **B8** rotar las 4 llaves de `environment.prod.ts` · ~~**B10** super admin por email → a datos~~
+      **CERRADO en V23** (17ago26: eran 14 sitios, no 2; hoy es `users.is_super_admin`, revocable sin
+      deploy) · **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
 - [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
       (inventario, movimientos, traslados, huevos, ventas). Mapeado en
       [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
@@ -2934,3 +2935,83 @@ Pedido: «seguí con el siguiente pendiente del tracker» ⇒ el 🟠 **«Aire e
       aparece si se cuenta por `sourcesContent` es un espejismo del método, no un problema real
 - [x] V22.4.3 Los otros dos 🔴 de §5 (una sola sesión por dispositivo · alistamiento con red) **siguen
       abiertos**: son diseño y operación, no bundle
+
+---
+
+# V23 · B10 — el Super Admin deja de ser un correo en el código (17ago26)
+
+**Plan:** [`fase_de_desarrollo/super_admin_a_datos_plan.md`](fase_de_desarrollo/super_admin_a_datos_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ **B10** del bloque *«PWA — brecha real para
+salir a producción»* §6. Tras V22 es el siguiente sin bloqueo: es código, el patrón destino ya está
+definido en el plan (`roles.is_company_admin`) y **no depende de decisión, admin externo ni deploy**.
+Bloque propio — no tocar desde otras sesiones.
+
+## V23.0 — Alcance real: no son 2 sitios, son 14 ✔
+- [x] V23.0.1 El tracker decía «`ActiveCompanyMiddleware.cs:52` y `:116`». El grep da **14 sitios de
+      autorización en 13 archivos**: middleware (×2), `AuthController`, `AuthService`, `CompanyService`,
+      `DbStudioAuthorization`, `FarmService`, `GalponService`, `NucleoService`,
+      `LotePosturaLevanteService`, `LotePosturaProduccionService`, `RoleCompositeService`,
+      `UserFarmScopeService`, `UserPermissionService`
+- [x] V23.0.2 Y con **4 formas distintas de comparar** el correo (`ToLower()`, `ToLowerInvariant()`,
+      `Trim().Equals(OrdinalIgnoreCase)`, `string.Equals(OrdinalIgnoreCase)`). Es «una sola fórmula por
+      número» de CLAUDE.md, pero sobre la autorización más poderosa del sistema
+- [x] V23.0.3 ⚠️ **La marca NO puede ir en `roles`**: el usuario de hoy tiene el rol `Admin` (id 1) y
+      **ese rol lo tienen 2 usuarios** ⇒ ponerla ahí le daría super admin al segundo. Un refactor de
+      autorización no puede regalar permisos ⇒ va en `users`
+- [x] V23.0.4 `TicketService.EsSuperAdmin()` y `TicketTareaService` **no** entran: ésos ya deciden por
+      **permiso** (`tickets.admin`), no por correo
+
+## V23.1 — Implementación ✔
+- [x] V23.1.1 `users.is_super_admin boolean NOT NULL DEFAULT false` (entidad + configuración EF) y
+      migración `20260818042406_SuperAdminPorDato`, idempotente (`ADD COLUMN IF NOT EXISTS` +
+      `IS DISTINCT FROM`), que la siembra en `true` **para exactamente quien hoy lo es por código**,
+      buscándolo por correo de login (nunca por guid fijo) y con `NOTICE` si ese correo no existe
+- [x] V23.1.2 `Application/Calculos/SuperAdminCalculos.cs` — puro, **fail-closed** (`null` ⇒ `false`)
+- [x] V23.1.3 `Infrastructure/Services/SuperAdminLookup.cs` — el único lector. Los 12 sitios que
+      consultaban el correo lo llaman; el costo en consultas es el mismo (cada uno ya hacía su propio
+      `SELECT` del email), pero ahora hay **una sola regla**
+- [x] V23.1.4 Los 2 del login leen la marca del usuario. Se agrega el claim `is_super_admin` para que
+      `GET /auth/profile` —que sólo hace eco de la sesión— siga siendo síncrono. **Las 12 compuertas
+      reales NO usan el claim**: consultan la columna en cada request ⇒ revocar tiene efecto inmediato
+      aunque el token siga vivo
+- [x] V23.1.5 El campo `isSuperAdmin` que viaja al front **conserva nombre y semántica**
+- [x] V23.1.6 **0 correos hardcodeados** quedan en autorización (`grep` sobre `backend/src` sin `bin/`
+      ni migraciones = 0)
+
+## V23.2 — Verificación ✔
+- [x] V23.2.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test`
+      **2.809 Application + 1 Domain en verde** (+7: los T1-T5 del cálculo puro)
+- [x] V23.2.2 Migración aplicada en local: **exactamente 1 usuario marcado de 56**, y es
+      `moiesbbuga@gmail.com` — el mismo que decidía el código. Segunda corrida: **0 filas** ⇒ idempotente
+- [x] V23.2.3 🎯 **Smoke aislando el middleware** (cabecera `X-Active-Company-Id: 3` con el NOMBRE
+      vacío, para que sólo decida el middleware): el **super admin** pidiendo ItalcolEcuador ⇒ empresa
+      efectiva **3** (0 lotes; Ecuador no tiene lotes de postura). El **usuario normal**
+      (`prueba@sanmarino.com.co`, marca `false`) con la misma cabecera ⇒ cae a la empresa del token,
+      **1** (2 lotes). El gate se comporta igual que antes, ahora por dato
+- [x] V23.2.4 BD compartida sin más escritura que la migración (56 usuarios · 17 lotes, igual antes y
+      después) · backend y front apagados · puertos **5002 / 4200 libres**
+
+## 🔴 V23.3 — Hallazgo aparte que apareció en el smoke (NO es de esta entrega)
+
+- [ ] V23.3.1 🔴 **Hay un camino que se salta el middleware.** El primer intento del smoke dio un
+      resultado raro (el usuario normal veía 0 lotes en vez de los 2 suyos) y la causa **no era este
+      cambio**: `LoteService.GetEffectiveCompanyIdAsync()` resuelve la empresa **desde el nombre crudo
+      del header `X-Active-Company`** (`_current.ActiveCompanyName` sale directo de la cabecera en
+      `HttpCurrentUser`, **sin validar pertenencia**) y sólo cae a `_current.CompanyId` si viene vacío.
+      O sea: mandando un nombre de empresa ajena, un usuario **lee** con el alcance de esa empresa.
+      En la prueba no se filtró nada porque Ecuador no tiene lotes de postura, pero el camino existe
+- [ ] V23.3.2 **Alcance del patrón**: `GetCompanyIdByNameAsync` se usa en **42 archivos**
+      (`ClienteService`, `CuadreAlimentoEngordeService`, `CorreccionAvesDisponiblesEngordeService`,
+      `InventarioGestionService`, `FarmService`, `GalponService`, … ). No todos serán explotables —hay
+      que revisarlos uno por uno—, pero es el mismo patrón
+- [ ] V23.3.3 **Por qué no se arregla acá**: son 42 archivos, toca el alcance multiempresa de módulos
+      de 4 países y necesita su propio plan, su gate y su smoke por empresa. Meterlo dentro de B10
+      sería cambiar el alcance a mitad de camino. **Queda escrito y medido para que se decida**
+
+## Lo que NO se tocó, dicho
+- [x] V23.4.1 **Ningún permiso, rol, menú ni alcance cambia**: el único que hoy es super admin lo sigue
+      siendo, y nadie más lo gana (T5 exige *exactamente uno*)
+- [x] V23.4.2 **No se creó pantalla** para administrar la marca: se concede y revoca por dato. Si se
+      quiere UI, es otro pedido
+- [x] V23.4.3 **No se tocó B1** (revocación de sesión): arrastra una decisión de producto —la vigencia
+      de la sesión offline (D4) se definió *«jornada 12-16 h, con B1 implementado»*— y es otro pendiente

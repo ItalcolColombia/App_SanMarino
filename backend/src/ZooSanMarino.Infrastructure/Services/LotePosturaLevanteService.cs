@@ -98,17 +98,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
 
     private async Task<bool> IsSuperAdminAsync(CancellationToken ct = default)
     {
-        var userIdGuid = _current.UserGuid;
-        if (!userIdGuid.HasValue) return false;
-
-        var userEmail = await _ctx.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userIdGuid.Value)
-            .Select(ul => ul.Login!.email)
-            .FirstOrDefaultAsync(ct);
-
-        return userEmail?.ToLower() == "moiesbbuga@gmail.com";
+        return await SuperAdminLookup.EsSuperAdminAsync(_ctx, _current.UserGuid, ct);
     }
 
     private async Task<List<int>?> GetAllowedFarmIdsForCurrentUserAsync(CancellationToken ct = default)

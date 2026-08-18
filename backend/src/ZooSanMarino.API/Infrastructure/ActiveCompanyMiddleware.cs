@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Infrastructure.Persistence;
+using ZooSanMarino.Infrastructure.Services;
 
 namespace ZooSanMarino.API.Infrastructure;
 
@@ -48,8 +49,7 @@ public sealed class ActiveCompanyMiddleware
             var claim = context.User.FindFirst(ClaimTypes.NameIdentifier) ?? context.User.FindFirst("sub");
             if (claim != null && Guid.TryParse(claim.Value, out var uid))
             {
-                var userEmail = await db.UserLogins.AsNoTracking().Include(ul => ul.Login).Where(ul => ul.UserId == uid).Select(ul => ul.Login.email).FirstOrDefaultAsync();
-                var isSuperAdmin = !string.IsNullOrWhiteSpace(userEmail) && userEmail.Trim().Equals("moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase);
+                var isSuperAdmin = await SuperAdminLookup.EsSuperAdminAsync(db, uid);
                 var canUse = isSuperAdmin || await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid);
                 if (canUse)
                 {
@@ -104,16 +104,9 @@ public sealed class ActiveCompanyMiddleware
             return;
         }
 
-        // Super admin: permitido para cualquier empresa (misma regla que UserPermissionService)
-        var email = await db.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userGuid)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-
-        if (!string.IsNullOrWhiteSpace(email) &&
-            email.Trim().Equals("moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase))
+        // Super admin: permitido para cualquier empresa (misma regla, y ahora el MISMO lector, que
+        // el resto del backend — ver SuperAdminLookup / SuperAdminCalculos).
+        if (await SuperAdminLookup.EsSuperAdminAsync(db, userGuid))
         {
             context.Items[EffectiveCompanyIdItemKey] = companyId.Value;
             context.Items[EffectiveCompanyNameItemKey] = companyName;

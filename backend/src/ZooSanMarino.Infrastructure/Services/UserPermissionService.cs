@@ -254,7 +254,7 @@ public class UserPermissionService : IUserPermissionService
     }
 
     /// <summary>
-    /// Verifica si el usuario es el super admin (moiesbbuga@gmail.com)
+    /// Verifica si el usuario es el super admin (dato `users.is_super_admin`, ver SuperAdminCalculos)
     /// </summary>
     /// <summary>
     /// Verifica si el usuario tiene rol "admin" o "administrador" (case-insensitive)
@@ -291,14 +291,6 @@ public class UserPermissionService : IUserPermissionService
             throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
         }
 
-        // Buscar el email del usuario
-        var userEmail = await _context.UserLogins
-            .AsNoTracking()
-            .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userIdGuid.Value)
-            .Select(ul => ul.Login.email)
-            .FirstOrDefaultAsync();
-
-        return userEmail?.ToLower() == "moiesbbuga@gmail.com";
+        return await SuperAdminLookup.EsSuperAdminAsync(_context, userIdGuid);
     }
 }
