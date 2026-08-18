@@ -63,6 +63,23 @@ export function nuevoSaltB64(cripto: FuenteCripto = globalThis.crypto): string |
 }
 
 /**
+ * Id de un slot nuevo. Nombra la clave de su blob en `localStorage`.
+ *
+ * Sale de **la misma fuente de cripto** que el salt y no de `crypto.randomUUID()` global: si la fuente
+ * es la única autoridad de azar, apagarla apaga el llavero completo y no queda una llamada suelta que
+ * en un dispositivo sin cripto tire una excepción en vez de devolver `null`.
+ */
+export function nuevoIdSlot(cripto: FuenteCripto = globalThis.crypto): string | null {
+  if (!hayCripto(cripto)) {
+    return null;
+  }
+
+  const bytes = cripto!.getRandomValues(new Uint8Array(16));
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * Deriva la llave del slot a partir del PIN y su salt.
  *
  * Devuelve `null` **solo** cuando el entorno no da para cifrar (o el salt es ilegible). Un PIN

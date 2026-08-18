@@ -4,6 +4,7 @@ import { CommonModule }      from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
+import { LlaveroSesionesService } from '../../../core/auth/llavero-sesiones.service';
 import { FormsModule } from '@angular/forms';
 import { RecaptchaModule, RecaptchaFormsModule } from 'ng-recaptcha-2';
 import { environment } from '../../../../environments/environment';
@@ -35,7 +36,8 @@ export class LoginComponent implements OnInit {
     private fb: FormBuilder,
     private router: Router,
     private auth: AuthService,
-    private sanitizer: InputSanitizerService
+    private sanitizer: InputSanitizerService,
+    private llavero: LlaveroSesionesService
   ) {
     // Configurar reCAPTCHA solo en producción
     this.recaptchaEnabled = environment.production && (environment.recaptcha?.enabled ?? false);
@@ -115,6 +117,12 @@ export class LoginComponent implements OnInit {
         }
 
         this.loading = false;
+
+        // Se anota el slot en el llavero, al margen de la navegación y sin esperarla: el llavero no
+        // puede demorar ni impedir entrar a trabajar. Si el padrón está lleno de gente con capturas
+        // sin subir, `registrarLogin` devuelve `rechazado` y no toca nada — esta sesión arranca igual,
+        // solo se queda sin slot aparcable. Quien decide qué mostrar ante ese rechazo es el selector.
+        void this.llavero.registrarLogin(session).catch(() => undefined);
 
         setTimeout(() => {
           this.router.navigate(['/home'], { replaceUrl: true }).then(

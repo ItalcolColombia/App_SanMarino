@@ -3823,3 +3823,88 @@ tracker ya tuvo un bloque que declaraba entregado código que nunca llegó a un 
 - [~] V34.15 **Falta decidir el flujo del PIN en pantalla** (cuántos dígitos se piden, qué se muestra
       al fallar, cómo se explica que **no hay recuperación offline** si se olvida). Es diseño de UX
       del paso 7, no algo que un agente deba resolver solo
+
+---
+
+# V35 · PWA multi-slot paso 6 — el llavero deja de ser inerte: se anota el slot al hacer login (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 6 del §7**.
+**Continúa** V34. **Bloque propio.**
+
+Primer I/O real del llavero. `LlaveroSesionesService` como orquestador delgado —`localStorage`, caché y
+outbox— delegando las dos decisiones en las funciones puras de V34, y el login anotando su slot.
+
+- [x] V35.1 **`LlaveroSesionesService`**: `registrarLogin` · `aparcar` · `activar` · `slotsAparcados` ·
+      `marcarContactoOk` · `eliminar` · `borrarTodos`. Tres capas de storage como manda el plan:
+      `auth_session` **intacta** (la sesión activa sigue byte a byte la de hoy ⇒ cero cambios en el
+      interceptor, los guards, los 33 módulos y los ~190 componentes), el padrón sin cifrar y el blob
+      de cada slot con AES-GCM
+- [x] V35.2 **El login anota su slot**, al margen de la navegación y sin esperarla (`void … .catch()`):
+      el llavero no puede demorar ni impedir entrar a trabajar
+- [x] V35.3 🔑 **`registrarLogin` NUNCA bloquea el login.** Si el padrón está lleno y los 4 tienen
+      capturas sin subir devuelve `rechazado` y **no toca nada**: ese usuario se queda sin slot
+      aparcable y su sesión arranca igual. Negarle la entrada a alguien que el servidor ya autenticó,
+      por una cola que todavía no puede ver ni resolver (el selector es el paso 7), sería peor que el
+      problema que R-M2 evita
+- [x] V35.4 **Aparcar no borra la sesión activa** y devuelve `false` sin escribir si algo falla. Al
+      revés —limpiar primero, sellar después— un fallo de sellado perdería la sesión entera
+- [x] V35.5 **Activar no pisa la sesión activa con basura**: si el blob descifra bien pero no trae
+      `accessToken`, corta con `no_disponible`. Tiene test propio, construido sellando a mano una
+      sesión sin token
+- [x] V35.6 **Los pendientes por slot se derivan del outbox en el momento**, agrupando por partición.
+      Guardarlos en el padrón sería un segundo número para la misma verdad
+
+## 🔑 Dos hallazgos de la prueba de mutación
+
+- [i] V35.7 🔴 **El `slotId` salía de `crypto.randomUUID()` global**, no de la fuente de cripto del
+      servicio. En un dispositivo sin cripto eso **tira una excepción** en vez de apagar el llavero, y
+      el único motivo por el que no pasaba era el orden en que se evaluaban los campos del objeto — o
+      sea, por accidente. Ahora hay `nuevoIdSlot(cripto)`: **una sola autoridad de azar**, y apagarla
+      apaga todo el llavero
+- [i] V35.8 **Los tres `disponible()` del servicio son redundantes.** Quitarlos uno por uno dejó los
+      tests **verdes**: sin cripto, `nuevoSaltB64` y `derivarLlave` ya devuelven `null` y el flujo corta
+      igual. No son código muerto —son un segundo candado en la misma puerta y el enunciado legible del
+      contrato— pero **el fail-closed real vive en las funciones puras**, no acá. Queda escrito para
+      que el próximo no crea que los está sosteniendo
+- [i] V35.9 Por lo mismo, el `if (!blob) return false` de `aparcar` tampoco se puede poner en rojo: sin
+      cripto nunca se llega ahí
+
+## El seam que hizo falta para probar la ausencia
+
+- [x] V35.10 **`FUENTE_CRIPTO_LLAVERO`** (InjectionToken, opcional, default `globalThis.crypto`). «Sin
+      `crypto.subtle` el llavero se apaga entero» es la propiedad más importante del módulo y en Chrome
+      —donde corren los tests— `crypto.subtle` está **siempre**: sin el seam esa rama quedaría escrita y
+      no verificada, que a los efectos es igual que no estar. Mismo criterio que
+      `TRABAJO_PENDIENTE_OFFLINE`. Mutación: ignorar el token deja **2 rojos**
+- [x] V35.11 Con la fuente apagada: `disponible()` en `false`, `registrarLogin` no escribe ni el padrón,
+      `aparcar` devuelve `false` **sin dejar ningún blob** (nunca en claro), `activar` responde
+      `no_disponible` y la sesión activa queda intacta — la app se comporta como hoy, con una sola sesión
+
+## Validación
+
+- [x] V35.12 `yarn build` **0 errores, 0 warnings** · `ng test`: **478 SUCCESS, 0 fallan** (444 + 34)
+- [x] V35.13 **Mutación 8/13 por assert** en el servicio: activar sin borrar el blob usado **1 rojo** ·
+      aceptar una sesión sin token **1** · no marcar el uso del slot **2** · no guardar la sesión activa
+      **1** · ignorar la cola al elegir víctima **2** · `slotsAparcados` incluyendo al activo **1** · no
+      anotar el PIN fallido **2** · ignorar el token de cripto **2**. Dos mueren en compilación (el
+      tipado impide saltear el `datos === null` y el `rechazado`) y **tres quedan verdes por redundancia**
+      (V35.8/V35.9), no por falta de test
+- [x] V35.14 🔑 **Ahora el build SÍ compila el llavero**: el login lo importa, así que dejó de ser
+      inalcanzable desde el entry (V34.14 avisaba de esto). `main` pasa de 829,50 a **838,58 kB**
+      (+9 kB) y **sigue sin warning de presupuesto**
+- [x] V35.15 Los tests del servicio corren con `localStorage` y **cripto reales**: el round-trip
+      aparcar→pisar la sesión→activar devuelve la sesión **idéntica**, y hay test de que el blob
+      guardado **no contiene el token en claro** mientras el padrón sí es legible, que es exactamente
+      el reparto que el plan pide
+- [x] V35.16 Backend sin tocar · sin procesos huérfanos (`:5002` libre)
+
+## Lo que NO hace
+
+- [i] V35.17 **Nada de esto se ve todavía.** `aparcar` y `activar` no tienen llamador: hacen falta el
+      selector de perfil (paso 7) y los botones del sidebar (paso 8). Hoy el efecto observable es uno
+      solo: al entrar, la tablet **anota quién entró** en `italgranja.slots.indice`
+- [i] V35.18 `marcarContactoOk` tampoco tiene llamador: quien debería llamarlo es el heartbeat de
+      `SessionTimeoutService`, y engancharlo ahí es parte del paso 7 —hoy la jornada por slot se
+      calcula desde el login, que es un piso correcto pero no el fino
+- [~] V35.19 Sigue faltando la **decisión de UX del PIN** (cuántos dígitos, qué se muestra al fallar,
+      cómo se explica que si se olvida **no hay recuperación offline**). Bloquea el paso 7

@@ -4,6 +4,7 @@ import {
   abrir,
   derivarLlave,
   hayCripto,
+  nuevoIdSlot,
   nuevoSaltB64,
   sellar
 } from './cripto-llavero.funcion';
@@ -73,6 +74,11 @@ describe('cripto del llavero', () => {
     await expectAsync(abrir(btoa(bytes.join('')), llave)).toBeRejected();
   });
 
+  it('nuevoIdSlot da ids distintos cada vez', () => {
+    expect(nuevoIdSlot()).not.toBe(nuevoIdSlot());
+    expect(nuevoIdSlot()!.length).toBe(36);
+  });
+
   it('🔑 el mismo PIN en dos slots da blobs distintos: el salt es por slot', async () => {
     const otroSalt = nuevoSaltB64()!;
     const otraLlave = (await derivarLlave(PIN, otroSalt))!;
@@ -110,6 +116,13 @@ describe('cripto del llavero', () => {
 
     it('nuevoSaltB64 ⇒ null', () => {
       expect(nuevoSaltB64(sinSubtle)).toBeNull();
+    });
+
+    it('🔑 nuevoIdSlot ⇒ null, y no una excepción: es la única autoridad de azar del llavero', () => {
+      // Si el id saliera de `crypto.randomUUID()` global, un dispositivo sin cripto tiraría acá en vez
+      // de apagar el llavero. Con una sola fuente, apagarla apaga todo.
+      expect(nuevoIdSlot(sinSubtle)).toBeNull();
+      expect(nuevoIdSlot(null)).toBeNull();
     });
 
     it('sellar ⇒ null: no hay respaldo débil, no se guarda en claro', async () => {
