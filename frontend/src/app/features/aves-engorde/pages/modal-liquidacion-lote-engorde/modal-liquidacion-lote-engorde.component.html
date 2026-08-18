@@ -323,6 +323,16 @@
                   No hay filas en el galpón indicado; se muestra stock a nivel núcleo/granja.
                 </p>
               }
+              <!-- Los kilos de los galpones vecinos se muestran, pero NO cuentan: contarlos hacía que
+                   un galpón vacío avisara «hay alimento en inventario» con alimento ajeno. -->
+              @if (stockOtrosGalpones.length > 0 && !loadingStock) {
+                <p class="liq-lote__hint liq-lote__hint--info">
+                  Este galpón no tiene alimento. En otros galpones del núcleo
+                  {{ galponesVecinosConAlimento ? '(' + galponesVecinosConAlimento + ')' : '' }}
+                  hay {{ kgOtrosGalpones | number:'1.0-2' }} kg, que <strong>no son de este lote</strong>
+                  y no cuentan para esta liquidación.
+                </p>
+              }
               @if (inventarioDifiereDelSeguimiento && !loadingStock) {
                 <p class="liq-lote__hint liq-lote__hint--info">
                   El inventario físico y el saldo del seguimiento difieren. Use Gestión de inventario para alinear traslados.

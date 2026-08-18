@@ -13,7 +13,7 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeService
+public partial class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeService
 {
     private readonly ZooSanMarinoContext _db;
     private readonly ICurrentUser? _current;
@@ -48,13 +48,16 @@ public class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeService
         public int      filas_negativas       { get; set; }
     }
 
-    public async Task<CuadreAlimentoEngordeDto> ObtenerAsync(
-        bool soloConProblemas = false, CancellationToken ct = default)
+    /// <summary>
+    /// Empresa efectiva: la activa del contexto manda sobre el claim, igual que
+    /// <c>InventarioGestionService.GetEffectiveCompanyIdAsync</c>.
+    /// <para>
+    /// Fail-closed: devuelve 0 si no se puede resolver. Un cuadre que mezclara empresas sería peor que
+    /// no tenerlo (mismo criterio que <c>InventarioCatalogoScopeCalculos</c>).
+    /// </para>
+    /// </summary>
+    private async Task<int> ResolverCompanyIdAsync()
     {
-        // Empresa efectiva: la activa del contexto manda sobre el claim, igual que
-        // InventarioGestionService.GetEffectiveCompanyIdAsync.
-        // Fail-closed: sin empresa resuelta no se devuelve nada. Un cuadre que mezclara empresas sería
-        // peor que no tenerlo (mismo criterio que InventarioCatalogoScopeCalculos).
         int companyId = 0;
         if (_current is not null)
         {
@@ -66,6 +69,13 @@ public class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeService
             if (companyId <= 0 && _current.CompanyId > 0)
                 companyId = _current.CompanyId;
         }
+        return companyId;
+    }
+
+    public async Task<CuadreAlimentoEngordeDto> ObtenerAsync(
+        bool soloConProblemas = false, CancellationToken ct = default)
+    {
+        var companyId = await ResolverCompanyIdAsync();
         if (companyId <= 0)
             return new CuadreAlimentoEngordeDto(0, 0, 0, 0, 0m, []);
 

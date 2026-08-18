@@ -35,6 +35,9 @@
       <button type="button" class="tab" [class.active]="activeTab === 'items'" (click)="setTab('items')" role="tab">
         <fa-icon [icon]="faBook"></fa-icon> Catálogo ítems
       </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'cuadre'" (click)="setTab('cuadre')" role="tab">
+        <fa-icon [icon]="faCuadre"></fa-icon> Cuadre alimento
+      </button>
     </nav>
 
     <!-- TAB STOCK -->
@@ -1295,6 +1298,15 @@
                 }
               </div>
             </div>
+          </section>
+        }
+
+        <!-- TAB CUADRE ALIMENTO — el invariante del alimento de engorde y los lotes que se
+             liquidaron dejando alimento en el galpón. El componente es el que sabe: la página solo
+             lo monta cuando el tab está activo. -->
+        @if (activeTab === 'cuadre') {
+          <section class="tab-content">
+            <app-cuadre-alimento-engorde />
           </section>
         }
 

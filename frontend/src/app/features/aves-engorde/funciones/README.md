@@ -9,6 +9,7 @@ datos, llama la función y maneja HTTP/UI. Tipos compartidos → `../models/`.
 | `construir-bloques-reproductora.funcion.ts` | Arma los bloques «primera semana» (un bloque Hembras y uno Machos por lote reproductora) desde los seguimientos diarios: edad 1–7, saldos, qq reales (45.36 kg/qq), grs/ave, ganancia, conversión, %Norm/%Sel y fila Total. |
 | `calcular-resumen-vpi.funcion.ts` | Resumen superior del tab: Cantidad, Peso llegada, Cantidad×Peso, Peso 7 días, Cantidad×7 días y VPI (peso 7 días ÷ peso llegada; total = Σ cant×7d ÷ Σ cant×peso). Fórmulas confirmadas con negocio 2026-06-10. |
 | `modo-consumo-alimento-fila.funcion.ts` | Decide si el consumo de alimento de una fila del seguimiento diario va desglosado por sexo (`'genero'`: filas del cruce reproductora, días 1–7) o en la columna «Consumo mixto» (`'mixto'`: registros propios del módulo, día 8 en adelante). Señal: `createdByUserId === 'SYSTEM_CRUCE'`, con `consumoKgMachos > 0` como red de seguridad. |
+| `separar-stock-por-ubicacion.funcion.ts` | Separa las filas de stock de alimento en las que son **del lote** (su galpón, o stock de nivel núcleo/granja) y las de **otro galpón**. La usa el modal de liquidación: cuando el galpón no tiene alimento vuelve a consultar sin filtrar por galpón —para no perder el stock de nivel núcleo/granja— y esa consulta trae también a los vecinos. Contarlos hacía que 15 lotes avisaran «hay alimento en inventario» con kilos ajenos (medido 17ago26). |
 
 Notas de reutilización:
 - Las usa `components/tab-reproductora-engorde/`, compartido por los módulos

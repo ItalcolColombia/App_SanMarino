@@ -18,10 +18,12 @@ import {
   faTrash,
   faEye,
   faChevronDown,
-  faChevronUp
+  faChevronUp,
+  faScaleBalanced
 } from '@fortawesome/free-solid-svg-icons';
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { CuadreAlimentoEngordeComponent } from '../../components/cuadre-alimento-engorde/cuadre-alimento-engorde.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
 import {
@@ -45,7 +47,7 @@ import {
   InventarioGestionSiloDto
 } from '../../services/gestion-inventario.service';
 
-type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items';
+type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items' | 'cuadre';
 type TrasladoModo = 'mismaGranja' | 'interGranja';
 
 /** Fila del reparto de una recepción de tránsito entre galpones (o silos) de la granja destino. */
@@ -60,13 +62,14 @@ interface RecepcionDestinoRow {
 @Component({
   selector: 'app-gestion-inventario-page',
   standalone: true,
-  imports: [FormsModule, FontAwesomeModule, HasPermissionDirective],
+  imports: [FormsModule, FontAwesomeModule, HasPermissionDirective, CuadreAlimentoEngordeComponent],
   templateUrl: './gestion-inventario-page.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./gestion-inventario-page.component.scss']
 })
 export class GestionInventarioPageComponent implements OnInit {
   faStock = faBoxesStacked;
+  faCuadre = faScaleBalanced;
   faIngreso = faArrowDown;
   faTraslado = faArrowRight;
   faList = faList;
@@ -798,7 +801,7 @@ export class GestionInventarioPageComponent implements OnInit {
       if (this.fromGalponId == null) this.fromGalponId = galpon;
     }
     const tab = q.get('tab');
-    const tabKeys: TabKey[] = ['stock', 'ingresos', 'traslados', 'transito', 'historico', 'items'];
+    const tabKeys: TabKey[] = ['stock', 'ingresos', 'traslados', 'transito', 'historico', 'items', 'cuadre'];
     if (tab && (tabKeys as string[]).includes(tab)) {
       this.setTab(tab as TabKey);
     } else if (this.activeTab === 'stock') {

@@ -2393,3 +2393,115 @@ verificado por `pg_stat_activity`: 1 conexión al clon, **0 a la compartida**). 
       admite pero el aviso dice que el ciclo 2604 cuenta el alimento desde el 01-ago. **No es un
       defecto de esta entrega** —el aviso es preexistente y hace justo lo que debe: avisar sin
       bloquear—, pero queda escrito por si se decide alinear las dos fechas
+
+---
+
+# V16 · Fase 3 de R2 — señalar el alimento que queda al liquidar (17ago26)
+
+**Plan:** [`fase_de_desarrollo/senalamiento_anomalia_r2_fase3_plan.md`](fase_de_desarrollo/senalamiento_anomalia_r2_fase3_plan.md)
+Pedido: «seguí con la Fase 3 de R2» — el pendiente que dejó abierto el bloque de la v16 de engorde
+(«Fase 3 — señalamiento de la anomalía R2. Sigue vivo y es independiente de la v16»).
+Bloque propio — no tocar desde otras sesiones. **V8 sigue reservada.**
+
+## V16.0 — Diagnóstico revalidado contra la BD ✔
+- [x] V16.0.1 **La anomalía creció**: 90 liquidaciones congeladas vigentes (todas ItalcolEcuador),
+      **28 con `saldo_alimento_kg > 0` = 137.521 kg** (el plan de julio decía 24 de 84 y 111.821 kg).
+      Otras **20** son copias de backfill con el saldo en NULL: no se les puede inventar un número
+- [x] V16.0.2 **El falso positivo del aviso de liquidación también creció**: 15 lotes verían kilos de
+      OTROS galpones (EC abiertos 4 · EC cerrados 10 · PA abierto 1), con 124.810 + 318.605 + 77.737 kg
+      ajenos según el caso
+- [x] V16.0.3 🔑 **Ninguna granja guarda hoy el alimento de engorde a nivel núcleo**: Ecuador y Panamá
+      lo tienen por galpón (136 y 85 filas), Sanmarino y Demo a nivel granja (núcleo y galpón vacíos).
+      Por eso el fallback a núcleo solo puede traer kilos ajenos — pero el stock **sin galpón** sí es
+      del lote y no se puede borrar sin romper a las empresas de nivel granja
+- [x] V16.0.4 `GET /api/CuadreAlimentoEngorde` **sigue sin un solo consumidor en el front** (revalidado)
+
+## V16.1 — Alcance: qué de la Fase 3 entra y qué no
+- [x] V16.1.1 ❌ **`marcado_no_diferible_kg` NO entra — sin objeto**: dependía de
+      `fn_alimento_marcado_atribucion`, borrada en la reversión de la ronda 4 (verificado: no existe),
+      y hay 0 movimientos marcados
+- [x] V16.1.2 ❌ **`liquidado_con_saldo_kg` NO entra como columna de `fn_cuadre_alimento_engorde`**:
+      cambiar su `RETURNS TABLE` obliga a `DROP FUNCTION` sobre una fn que leen 5 consumidores y
+      dispara el gate multipaís, para mover un número que además es de otro grano (por lote liquidado,
+      no por galpón activo). Entra como endpoint propio que lee la foto congelada donde ya está
+- [x] V16.1.3 ✅ Entran **F3.2** (reporte de liquidados con alimento sin trasladar), **F3.3** (falso
+      positivo del aviso) y **F3.4** (exponer el cuadre en el front, en la misma pantalla)
+
+## V16.2 — Implementación
+- [x] V16.2.1 `Application/Calculos/AnomaliaAlimentoLiquidadoCalculos.cs` — puro: `KgSinTrasladar`,
+      `KgSinRespaldo`, `Clasificar`, `Describir`; tolerancia 1 kg, la misma del cuadre
+- [x] V16.2.2 DTO + `ObtenerLiquidadosConAlimentoAsync` en el service del cuadre (partial nuevo, LINQ
+      que traduce a SQL, empresa efectiva fail-closed) + `GET /liquidados-con-alimento`
+- [x] V16.2.3 Front: servicio + componente con los 2 paneles + tab `cuadre` en Gestión de Inventario
+- [x] V16.2.4 F3.3: el modal de liquidación parte el stock por ubicación — kilos de otros galpones no
+      alimentan el número, ni el aviso, ni el botón «Realizar traslado»
+- [x] V16.2.5 Tests T1-T8 (xUnit) + spec del cálculo puro del front
+
+## V16.3 — Verificación
+- [x] V16.3.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.788 +
+      1 en verde** (+14, los T1-T8 y sus variantes)
+- [x] V16.3.2 `yarn build` OK (único warning, el de bundle budget preexistente) · `tsc -p
+      tsconfig.spec.json` limpio · **Karma sobre el spec nuevo: 7 de 7 en verde** (ChromeHeadless)
+- [x] V16.3.3 Smoke **EJECUTANDO** los 2 endpoints (detalle en V16.5). Los endpoints son de solo
+      lectura ⇒ no hizo falta clonar la BD y no se escribió una sola fila
+- [x] V16.3.4 `fn_cuadre_alimento_engorde` **sin tocar** (`git diff backend/sql` vacío). Su línea
+      base local sí se movió respecto del 09-ago, por datos de otras sesiones — ver V16.6
+
+## Fuera de alcance, dicho
+- [x] V16.4.1 No se **bloquea** la liquidación con alimento pendiente: la regla del dueño del producto
+      es señalar, no impedir. `puedeLiquidarPorAves` queda como está
+- [x] V16.4.2 No se corrige ningún dato histórico: los 28 lotes congelados con saldo quedan como están
+
+## Señalamiento a otro bloque (NO toco su checkbox)
+- [x] V16.7.1 Esto **cierra** el pendiente «Fase 3 — señalamiento de la anomalía R2» que quedó abierto
+      en el bloque *«v16 de engorde — FASE 1 IMPLEMENTADA»* (sección «Lo que NO entra en esta fase»).
+      Su checkbox se deja como está —es de otra sesión—; lo que entregó esta Fase 3 y lo que
+      deliberadamente NO entró (las 2 columnas en `fn_cuadre_alimento_engorde`) está en V16.1
+
+## V16.5 — Resultado del smoke (17ago26)
+
+Backend propio en `:5501` con content root del API (los 2 endpoints son **solo lectura**: no hizo
+falta clonar la BD, y no se escribió una sola fila). Sesión de ItalcolEcuador.
+
+| Llamada | Respuesta |
+|---|---|
+| `GET /liquidados-con-alimento` (EC) | **200** · 90 liquidaciones vigentes · **28 con saldo** · 20 sin dato congelado — **idéntico al SQL** |
+| `GET /liquidados-con-alimento?soloAnomalias=true` | **200** · **2 filas** |
+| `GET /CuadreAlimentoEngorde?soloConProblemas=true` (EC) | **200** · 36 galpones · 36 cuadran · **0 descuadrados** |
+| `GET /CuadreAlimentoEngorde?soloConProblemas=true` (PA) | **200** · 30 galpones · **5 descuadrados** · 19 con días en negativo |
+| `GET /liquidados-con-alimento` (Agroavicola Sanmarino, sin engorde) | **200** · 0 filas · estado vacío explicado |
+
+- [x] V16.5.1 🔑 **El titular «28 de 90 liquidaciones dejaron alimento» es engañoso, y el reporte lo
+      desarma: 26 de esas 28 SÍ trasladaron el sobrante.** Sólo **2** son anomalía viva:
+      · lote **61** (45/G0057, CAROLINA): saldo congelado 2.880 kg, salidas 800 ⇒ **2.080 kg sin
+      trasladar y stock 0** ⇒ `Sin respaldo físico` — los consumió otro ciclo;
+      · lote **86** (43/G0055, Sacachún 2): saldo 15.540, salidas 14.440 ⇒ **1.100 kg pendientes** con
+      9.980 kg de stock que los respalda ⇒ `Pendiente en el galpón`. **Son exactamente los 1.100 kg
+      que el gate de la v16 documentó como «fantasma contable» de ese galpón** — el reporte los
+      encuentra solo, sin la fn de atribución que se revirtió
+- [x] V16.5.2 **La columna «Ciclo siguiente» es la que hace accionable la fila**: en los dos casos ya
+      hay otro lote encasetado en el galpón (2603 del 10-jun y 2604 del 03-ago), así que la decisión
+      es «trasladar» o «dejar constancia de que lo toma el ciclo siguiente», no «buscar 2.080 kg»
+- [x] V16.5.3 **Smoke de UI (front `:4200` + back `:5002`, sesión inyectada en `localStorage`)**: el
+      tab **Cuadre alimento** monta, los dos paneles cargan y **apagan el spinner en pantalla**
+      (`changeDetection: Eager`, el bug recurrente de v22 no aparece); 0 errores en consola
+- [x] V16.5.4 **F3.3 verificado sobre el caso real**: lote 211, SAN GUILLERMO 37/198400/Galpon-11.
+      El modal muestra **0 kg** de «Alimento disponible (inventario galpón)», **no** dispara «Hay
+      alimento en inventario», **no** ofrece «Realizar traslado», y pinta aparte los **49.080 kg** de
+      los 9 galpones vecinos diciendo que *no son de este lote*. Antes ese número era el que salía como
+      alimento del galpón
+- [x] V16.5.5 **Sin regresión en el camino bueno**: lote 108 (39/464969/G0038, con 15.390 kg propios)
+      sigue mostrando sus 15.390 kg, el aviso y el botón «Realizar traslado», con 0 filas ajenas
+- [x] V16.5.6 **Backend y front apagados · puertos 4200/5002/5501 libres · BD compartida sin una sola
+      escritura del smoke**
+
+## V16.6 — Un dato de la verificación que hay que decir
+
+- [ ] V16.6.1 ⚠️ **La línea base del cuadre en la BD local ya no es «61 filas / 1 descuadrado»**: hoy
+      `fn_cuadre_alimento_engorde(NULL)` devuelve **66 filas y 5 descuadrados, todos de Panamá**
+      (granja 106 DOÑA MARIA: G0483 +23.300 kg, G0475 +18.650, G0481 −9.805, G0476 +2.496 y el
+      preexistente G0477/lote 182 +544). Ecuador sigue en 0. **Nada de esto lo produjo esta entrega**
+      —no se tocó una línea de SQL (`git diff backend/sql` vacío) y los endpoints solo leen—: es la BD
+      local, que otras sesiones movieron desde el 09-ago. Queda anotado porque el número viejo estaba
+      escrito como referencia en varios bloques, y porque **son descuadres que ahora una pantalla
+      muestra**: alguien tiene que mirar si son de la carga local o si Panamá los tiene en prod
