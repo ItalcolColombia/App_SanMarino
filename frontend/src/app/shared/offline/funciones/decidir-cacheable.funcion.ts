@@ -142,6 +142,13 @@ const EXCLUIDOS: readonly string[] = [
   'informesemanalpolloengorde',
   'vacunacionreportes',
 
+  // Cuadre de alimento de engorde y su anomalía R2 (lotes liquidados con alimento sin trasladar).
+  // Es un DETECTOR, y cachear un detector lo vuelve mentiroso: servir de caché un «0 galpones
+  // descuadrados» taparía un descuadre vivo justo en el momento en que hay que verlo. Además es una
+  // pantalla de oficina (tab «Cuadre alimento» de Gestión de Inventario) y su consulta sin empresa
+  // devuelve todas a la vez. Cubre también `/liquidados-con-alimento`: comparten primer segmento.
+  'cuadrealimentoengorde',
+
   // Herramientas internas (gestión del área de desarrollo, cargas masivas, integraciones). No las
   // usa un galponero, y varias devuelven datos de todas las empresas a la vez.
   'tickets',
