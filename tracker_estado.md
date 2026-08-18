@@ -2558,22 +2558,25 @@ vista). Bloque propio — no tocar desde otras sesiones.
       físicas** — cualquier reparto inventado cuadra igual de bien, así que es decisión de operación
 
 ## V17.2 — Lo único que se implementa: que el cuadre DIGA lo que encontró
-- [ ] V17.2.1 `CuadreAlimentoEngordeCalculos` + DTO: `AjustesManualesKg` / `AjustesManualesCount` y un
+- [x] V17.2.1 `CuadreAlimentoEngordeCalculos` + DTO: `AjustesManualesKg` / `AjustesManualesCount` y un
       detalle que los nombre. **El `descuadre_kg` NO se mueve**: un ajuste manual no es ruido de
       medición como la reserva de V7.37, es una corrección real que hay que decidir — se informa, no se
       compensa
-- [ ] V17.2.2 El service agrega los `AjusteStock`/`EliminacionStock` por ubicación **dentro de la
-      ventana del ciclo activo** (fuera de ella los absorbe la apertura, que es la razón por la que
-      Ecuador cuadra con 5× más ajustes)
-- [ ] V17.2.3 Front: columna «Ajustes manuales» en el panel del cuadre
-- [ ] V17.2.4 Tests T1-T6 (sin ajustes ⇒ el detalle queda **byte a byte** como hoy)
+- [x] V17.2.2 El service agrega los `AjusteStock`/`EliminacionStock` por ubicación **dentro de la
+      ventana del ciclo activo** (los anteriores ya los tomó la apertura al arrancar el ciclo)
+- [x] V17.2.3 Front: columna «Ajustes manuales» en el panel del cuadre
+- [x] V17.2.4 Tests T1-T6 (sin ajustes ⇒ el detalle queda **byte a byte** como hoy). T5 cazó un
+      defecto de redacción antes de que lo viera nadie: el plural salía «5 vezces»
 
 ## V17.3 — Verificación
-- [ ] V17.3.1 `dotnet build` 0 errores · `dotnet test` verde
-- [ ] V17.3.2 `yarn build` sin errores nuevos
-- [ ] V17.3.3 Smoke de las 2 empresas: Panamá muestra los 3 galpones con sus ajustes; **Ecuador queda
-      idéntico** (0 descuadrados, sin texto nuevo)
-- [ ] V17.3.4 `git diff backend/sql` vacío ⇒ no aplica el gate multipaís
+- [x] V17.3.1 `dotnet build` **0 errores** (8 advertencias, una menos que antes; ninguna nueva) ·
+      `dotnet test` **2.794 + 1 en verde** (+6)
+- [x] V17.3.2 `yarn build` OK (único warning, el de bundle budget preexistente)
+- [x] V17.3.3 Smoke de las 2 empresas ejecutando el endpoint: **Panamá** marca los 3 galpones
+      (G0483 3 ajustes/35.302 kg · G0475 5/25.862,5 · G0477 1/544,0 exacto) y deja **sin texto** a los
+      2 que no son ajustes (G0481 y G0476); **Ecuador** queda idéntico — 36/36 cuadran y **0 filas** con
+      el texto nuevo
+- [x] V17.3.4 `git diff backend/sql` **vacío** ⇒ no aplica el gate multipaís · puertos libres
 
 ## Lo que NO se toca, dicho
 - [x] V17.4.1 **Cero correcciones de datos.** Ni los 42.494 kg de ajustes, ni las fechas de los lotes
@@ -2587,6 +2590,18 @@ vista). Bloque propio — no tocar desde otras sesiones.
       arregla sus errores. Lo que faltaba era que dejara rastro visible en el cuadre
 
 ## Señalamiento al bloque V8 (marco sus checkboxes porque estaba «para otra sesión» y la tomé)
+## V17.6 — Lo que el smoke corrigió de este mismo plan (17ago26)
+
+- [x] V17.6.1 🔴 **Escribí que Ecuador cuadra «porque sus ajustes son viejos y los absorbe la apertura».
+      Es falso y el smoke lo desmintió**: Ecuador tiene **5 galpones con ajustes DENTRO del ciclo activo
+      (41.210 kg)** y los **36 cuadran**. El sentido tampoco lo explica: las dos empresas ajustan
+      mayormente hacia abajo (Ecuador −1.330.717 kg en 229 ajustes; Panamá −334.567 en 56). Corregido en
+      el plan, en el service y en el doc del cálculo
+- [x] V17.6.2 **Lo que SÍ queda probado**: el hueco estructural (`INV_OTRO` invisible para las 5 CTE de
+      la fn) y que en 3 galpones de Panamá el descuadre se reconstruye al kilo desde las correcciones
+      manuales. El ajuste es la **primera pista**, no el veredicto — por eso se informa y **no** se resta
+      del descuadre
+
 - [x] V17.5.1 V8.1 · V8.2 · V8.3 · V8.4 · V8.5 quedan **cerrados por este bloque** (evidencia en V17.1).
       **V8.6 sigue abierto por definición**: es el protocolo para el día que se corrija algo, y hoy no
       se corrigió nada

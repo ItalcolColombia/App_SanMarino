@@ -98,5 +98,39 @@ public static class CuadreAlimentoEngordeCalculos
             _ => "Cuadra con el inventario.",
         };
 
+    /// <summary>
+    /// El mismo <see cref="Describir"/>, más la pista que faltaba cuando el galpón NO cuadra: si dentro
+    /// del ciclo se corrigió el inventario a mano, ahí está la causa.
+    ///
+    /// <para>
+    /// <b>Por qué.</b> <c>fn_seguimiento_diario_engorde</c> solo lee <c>INV_INGRESO</c> y los dos
+    /// <c>INV_TRASLADO_*</c>; <c>AjusteStock</c> y <c>EliminacionStock</c> se espejan como
+    /// <c>INV_OTRO</c> y ninguna de sus 5 CTE los mira. Entonces el stock baja, la tabla diaria no se
+    /// entera, y el galpón queda descuadrado para siempre. Medido en ItalcolPanama (17ago26): 3 de los
+    /// 5 galpones descuadrados —42.494,4 de 54.795,4 kg— son exactamente eso.
+    /// </para>
+    ///
+    /// <para>
+    /// El texto solo aparece cuando la fila está <b>descuadrada</b>. Un ajuste NO descuadra por sí solo
+    /// —ItalcolEcuador tiene 5 galpones con ajustes dentro del ciclo y cuadra en los 36—, así que en una
+    /// fila que cuadra nombrarlo sería ruido. Con 0 ajustes el resultado es <b>idéntico</b> al de
+    /// <see cref="Describir"/>.
+    /// </para>
+    /// </summary>
+    /// <param name="ajustesManualesKg">Kilos movidos a mano (magnitud del ajuste, sin signo).</param>
+    public static string DescribirConAjustes(
+        decimal descuadreKg, int filasNegativas, decimal ajustesManualesKg, int ajustesManualesCount)
+    {
+        var baseTexto = Describir(descuadreKg, filasNegativas);
+
+        if (ajustesManualesCount <= 0 || Clasificar(descuadreKg, filasNegativas) != EstadoCuadreAlimento.Descuadrado)
+            return baseTexto;
+
+        var unaSola = ajustesManualesCount == 1;
+        return baseTexto +
+               $" En este ciclo se corrigió el stock a mano {ajustesManualesCount} {(unaSola ? "vez" : "veces")} " +
+               $"({Kg(ajustesManualesKg)} kg movido{(unaSola ? "" : "s")}): la tabla diaria no ve esas correcciones.";
+    }
+
     private static string Kg(decimal v) => v.ToString("N1", System.Globalization.CultureInfo.InvariantCulture);
 }

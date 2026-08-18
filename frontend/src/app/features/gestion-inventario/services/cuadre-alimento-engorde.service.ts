@@ -42,6 +42,12 @@ export interface CuadreAlimentoEngordeFilaDto {
   filasNegativas: number;
   estado: EstadoCuadreAlimento;
   detalle: string;
+  /**
+   * Kilos corregidos a mano en el stock (`AjusteStock`/`EliminacionStock`) dentro del ciclo activo.
+   * La tabla diaria no los ve, así que cuando el galpón no cuadra suelen ser la causa.
+   */
+  ajustesManualesKg: number;
+  ajustesManualesCount: number;
 }
 
 export interface CuadreAlimentoEngordeDto {

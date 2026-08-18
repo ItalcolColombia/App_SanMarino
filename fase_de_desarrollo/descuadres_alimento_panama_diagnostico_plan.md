@@ -51,10 +51,17 @@ descuadrado para siempre.
 Se descarta la hipótesis (a) de V8 («alimento que entró y nunca se registró»): en los tres casos el
 inventario está internamente consistente y lo que falta es que la tabla diaria vea la corrección.
 
-**Por qué Ecuador no lo sufre:** sus ajustes son viejos respecto de los ciclos vigentes, así que quedan
-absorbidos por la **apertura** (que toma el stock físico al arrancar el ciclo). Los de Panamá caen
-**dentro** de la ventana del ciclo abierto. La regla, entonces: *un ajuste manual antes del ciclo se
-absorbe; dentro del ciclo, descuadra*.
+⚠️ **Corregido por el smoke (17ago26): el ajuste manual NO descuadra por sí solo.** La primera versión
+de este plan decía que Ecuador cuadra porque sus ajustes son viejos y los absorbe la apertura. Es
+falso: Ecuador tiene **5 galpones con ajustes dentro del ciclo activo (41.210 kg)** y **los 36 cuadran**.
+Y el sentido tampoco lo explica — las dos empresas ajustan mayormente **hacia abajo** (Ecuador −1.330.717
+kg en 229 ajustes, Panamá −334.567 en 56).
+
+Lo que sí está probado es el **hueco estructural**: `INV_OTRO` es invisible para las 5 CTE de la fn, así
+que una corrección de stock no llega nunca a la tabla diaria. El descuadre aparece cuando esa corrección
+**no tiene contraparte** que la tabla sí vea (un ingreso, un traslado, una devolución). En los 3 galpones
+de Panamá se puede reconstruir el número al kilo; en Ecuador la corrección quedó compensada por otra
+cosa. Por eso el cuadre **informa** los ajustes en vez de restarlos: son la primera pista, no el veredicto.
 
 ---
 

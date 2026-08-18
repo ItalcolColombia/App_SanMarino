@@ -96,19 +96,70 @@ public partial class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeServic
                 x => (x.FarmId, (x.NucleoId ?? "").Trim(), (x.GalponId ?? "").Trim()),
                 x => x.Kg);
 
+        // Correcciones manuales de stock DENTRO del ciclo activo. La fn diaria no las ve (se espejan
+        // como INV_OTRO y ninguna de sus 5 CTE lee ese tipo), así que son la causa más frecuente de un
+        // galpón descuadrado: en ItalcolPanama explican 42.494 de 54.795 kg (17ago26). Las ANTERIORES
+        // al ciclo no se cuentan: ya las tomó la apertura al arrancar. Ojo — un ajuste NO descuadra por
+        // sí solo (ItalcolEcuador tiene 5 galpones con ajustes dentro del ciclo y los 36 cuadran), así
+        // que esto es una PISTA, no un veredicto: por eso se informa y no se resta del descuadre.
+        var loteIds = crudas.Select(r => r.lote_ave_engorde_id).Distinct().ToList();
+
+        var inicioPorLote = (await _db.SeguimientoDiarioAvesEngorde.AsNoTracking()
+                .Where(s => loteIds.Contains(s.LoteAveEngordeId))
+                .GroupBy(s => s.LoteAveEngordeId)
+                .Select(g => new { LoteId = g.Key, Inicio = g.Min(s => s.Fecha) })
+                .ToListAsync(ct))
+            .ToDictionary(x => x.LoteId, x => x.Inicio.Date);
+
+        var granjaIds = crudas.Select(r => r.granja_id).Distinct().ToList();
+
+        var ajustes = await _db.InventarioGestionMovimientos.AsNoTracking()
+            .Where(m => m.CompanyId == companyId
+                     && granjaIds.Contains(m.FarmId)
+                     && (m.MovementType == "AjusteStock" || m.MovementType == "EliminacionStock"))
+            .Select(m => new
+            {
+                m.FarmId,
+                Nucleo = m.NucleoId == null ? "" : m.NucleoId.Trim(),
+                Galpon = m.GalponId == null ? "" : m.GalponId.Trim(),
+                m.Quantity,
+                Fecha = m.CreatedAt
+            })
+            .ToListAsync(ct);
+
         var filas = crudas.Select(r =>
         {
             reservado.TryGetValue((r.granja_id, (r.nucleo_id ?? "").Trim(), (r.galpon_id ?? "").Trim()),
                 out var reservadoKg);
             var descuadre = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(
                 (decimal)r.descuadre_kg, reservadoKg);
+
+            var nucleo = (r.nucleo_id ?? "").Trim();
+            var galpon = (r.galpon_id ?? "").Trim();
+            var desde  = inicioPorLote.TryGetValue(r.lote_ave_engorde_id, out var ini)
+                             ? ini
+                             : r.ultimo_seguimiento.Date;
+
+            var delGalpon = ajustes.Where(a => a.FarmId == r.granja_id
+                                            && a.Nucleo == nucleo
+                                            && a.Galpon == galpon
+                                            && a.Fecha.UtcDateTime.Date >= desde).ToList();
+
+            // Magnitud movida a mano, sin signo: el `quantity` del ajuste ya es el delta contra el
+            // saldo anterior. No se resta del descuadre — un ajuste es una corrección real que alguien
+            // tiene que decidir, no ruido de medición como sí lo era la reserva de la doble validación.
+            var ajustesKg = delGalpon.Sum(a => Math.Abs(a.Quantity));
+
             return new CuadreAlimentoEngordeFilaDto(
                 r.company_id, r.empresa, r.granja_id, r.granja, r.nucleo_id, r.galpon_id,
                 r.lote_ave_engorde_id, r.lote_nombre, r.estado_operativo_lote, r.ultimo_seguimiento,
                 (decimal)r.saldo_tabla_kg, (decimal)r.mov_post_kg, (decimal)r.stock_kg,
                 (decimal)r.esperado_kg, descuadre, r.filas_negativas,
                 CuadreAlimentoEngordeCalculos.Clasificar(descuadre, r.filas_negativas),
-                CuadreAlimentoEngordeCalculos.Describir(descuadre, r.filas_negativas));
+                CuadreAlimentoEngordeCalculos.DescribirConAjustes(
+                    descuadre, r.filas_negativas, ajustesKg, delGalpon.Count),
+                ajustesKg,
+                delGalpon.Count);
         }).ToList();
 
         // El resumen se calcula SIEMPRE sobre el total; el filtro solo recorta el detalle, para que

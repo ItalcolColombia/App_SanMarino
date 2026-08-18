@@ -66,6 +66,7 @@
                 <th class="text-right">Movs. posteriores</th>
                 <th class="text-right">Stock</th>
                 <th class="text-right">Descuadre</th>
+                <th class="text-right">Ajustes manuales</th>
                 <th>Estado</th>
                 <th>Detalle</th>
               </tr>
@@ -81,6 +82,14 @@
                   <td class="text-right">{{ f.movPostKg | number:'1.0-1' }}</td>
                   <td class="text-right">{{ f.stockKg | number:'1.0-1' }}</td>
                   <td class="text-right"><strong>{{ f.descuadreKg | number:'1.0-1' }}</strong></td>
+                  <td class="text-right">
+                    @if (f.ajustesManualesCount > 0) {
+                      {{ f.ajustesManualesKg | number:'1.0-1' }}
+                      <small class="muted">({{ f.ajustesManualesCount }})</small>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
                   <td><span [class]="claseEstadoCuadre(f)">{{ textoEstadoCuadre(f) }}</span></td>
                   <td class="cuadre__detalle">{{ f.detalle }}</td>
                 </tr>
