@@ -3209,3 +3209,25 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
       aviso a operación sigue vigente, y para el 12 la carga va **antes** del cierre (V20.4.2)
 - [i] V25.5.6 **El patrón se repite en los `- [!]`, no solo en los `- [x]`**: 2 de las 4 decisiones de
       esta ronda ya estaban ejecutadas. Antes de pedir una decisión, medir si sigue viva
+
+## V25.6 — Decisiones tomadas (18ago26). Trabajo derivado, todavía SIN implementar
+- [x] V25.6.1 **K345 · los 15 días traslapados: producción manda desde el primer huevo.** Los 14 de
+      julio 2025 quedan como producción (tienen los huevos y **la misma mortalidad**, que hoy está
+      duplicada) retirando la fila de levante pero **conservando el consumo de alimento**, reasignado
+      a producción. El día suelto 7-abr-2026 se borra de levante: está vacío (mort 0, kg 0,000) sobre
+      un día real de 4.277 huevos ⇒ no es traslape, es basura
+- [x] V25.6.2 **Corte levante/producción: alinear a 25 semanas**, como el informe de Verenice
+      (~17.332 kg cambian de etapa en S-369). ⚠️ Antes de tocar: auditar qué reportes, vistas y fns
+      dependen del límite, y si es constante o configurable — mueve números que ya se mostraron
+- [x] V25.6.3 **Lote 132: corregir el encaset a 19.187.** Migración data-only con regla dinámica, sin
+      nombrar el id, como el lote 30. Deja la base con **0 lotes sin referencia confiable**. Va ANTES
+      de cualquier cierre: el Gate B1 bloquea editar `aves_encasetadas` de un lote liquidado
+- [x] V25.6.4 **Migraciones Masivas: solo Sanmarino.** Sin cambios, la migración vigente ya lo hace
+- [x] V25.6.5 **Menú 9: quitarlo.** Ya estaba: 0 filas en `role_menus` y en `company_menus`
+- [ ] V25.6.6 **Lote 12: cargar los 9.020 kg** con la fecha real de cada remisión (opción b).
+      **Bloqueado esperando el dato de origen**: fecha y kg de cada remisión física. El ciclo corre
+      17-feb→22-abr-2026
+- [~] V25.6.7 Re-correr el detector de sobregiro contra el dump de PROD — **no es una decisión, es un
+      bloqueo de acceso**: RDS en VPC privada, ECS Exec deshabilitado, IAM sin permisos
+- [i] V25.6.8 Pendientes de preguntar: el tile «Venta Engorde» de Migraciones Masivas y V19.2.1 (el
+      kardex de bultos de la GRANJA). Grupos B y C quedan a re-medir: los 31 abiertos tienen aves
