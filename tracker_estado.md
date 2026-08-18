@@ -1102,16 +1102,22 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
       cuadre 61 filas / 1 descuadrado (el preexistente de Panamá)
 
 ### Lo que queda para el rediseño (con las 3 reglas ya definidas por el usuario)
-- [ ] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
-      vez de recalcularla en lectura: es la única forma de que la liquidación de un extremo no parta el
-      handoff. Es un cambio de modelo de datos, no una guarda más
+- [!] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
+      vez de recalcularla en lectura. **La infraestructura ya entró INERTE el 18-ago (bloque V27, al
+      final): tabla del hecho, triggers, cálculo dueño, 34 tests, mutación 17/17.** Pasa a `- [!]`
+      porque el gate demostró que el mecanismo de ENTREGA **no puede dispararse nunca** —0 de 53 pares
+      con hueco tienen un cedente que llegue vivo al día de la entrega— y el rediseño correcto
+      (ampliar la ventana D4 del destino) **es una decisión de producto**: V27.1
 - [x] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
       seguir viendo el movimiento). **Cerrado el 18-ago por la FASE A (bloque V26, al final).** No se
       arreglaron: se **BORRARON**, que es lo que manda el plan nuevo — mientras no exista la
       atribución persistida, la marca no puede quitarle el movimiento a nadie. Medido: con la marca
       prendida, la v15 le sacaba **21 filas a Panamá** (la topología que CONVIVE) y 3 a Ecuador; la
       v16a, **0**
-- [ ] Fase 2 (visibilidad/corrección R3) del plan · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16**
+- [ ] Fase 2 (visibilidad/corrección R3) · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16** ·
+      **F2a.1 HECHA el 18-ago (bloque V28): la columna «Próx. ciclo» en el tab Histórico.** Queda
+      F2a.2 (smoke en pantalla: no tengo sesión para entrar a la app) y F2b (bandeja de
+      reservados), que depende de la Fase B frenada en V27.1
 
 ---
 
@@ -3456,3 +3462,28 @@ plan excluye como «otro feature» (§6.2).
       gate multipaís **0 en todo, las dos empresas** · cuadre **67 / 8**, igual que antes ·
       migraciones aplicadas y revertidas · **0 rastro** del gate (0 entregas, 0 marcas, 0 inyectado) ·
       sin procesos huérfanos (`:5002` libre; nunca se levantó backend)
+
+---
+
+# V28 · Engorde F2a.1 — la columna «Próx. ciclo» en el tab Histórico (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE C / F2a.1**.
+**Bloque propio.** Es la única parte de la Fase 2 que no depende de la Fase B (frenada en V27.1).
+
+- [x] V28.1 **La columna entró donde faltaba.** El plan ya había medido que se confundieron dos
+      pantallas: `Historial → Ingresos` **sí** pintaba la marca desde siempre; el **tab Histórico** de
+      `gestion-inventario-page` (15 `<th>`) **no**. Ahora tiene 16, con el mismo badge naranja que la
+      otra pantalla — que sea la misma marca vista desde otro lado y cambie de color hace dudar de si
+      es lo mismo
+- [x] V28.2 🔑 **«El dato ya viaja» era cierto sólo del lado del servidor.** El DTO del backend manda
+      `ParaProximoCiclo` desde la migración `20260808120000`, pero la interfaz
+      `InventarioGestionMovimientoDto` del front **no lo declaraba**: el campo llegaba en el JSON y
+      TypeScript lo descartaba en silencio. El build lo cazó (`TS2339`). Sin esa línea la columna era
+      imposible, y el plan la daba por resuelta
+- [x] V28.3 Layout: `.historico-table-wrap` ya tiene `overflow-x: auto`, así que la 16.ª columna
+      desborda dentro de su propio contenedor y no puede romper la página
+- [x] V28.4 `cd frontend && yarn build` (Node portable 22.23.1) — **0 errores**, sin warnings (ni
+      siquiera el de bundle budget). Backend sin tocar
+- [ ] V28.5 **Falta el smoke en pantalla** (F2a.2 del plan): no tengo sesión para entrar a la app.
+      Hoy la columna mostraría «—» en todas las filas (0 marcas en la BD), así que lo que hay que
+      mirar es que el encabezado se vea y la tabla siga scrolleando bien

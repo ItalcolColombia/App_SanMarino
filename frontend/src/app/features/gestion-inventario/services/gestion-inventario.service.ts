@@ -215,6 +215,14 @@ export interface InventarioGestionMovimientoDto {
   itemConcepto?: string | null;
   /** Catálogo: tipo de ítem (alimento, etc.). */
   itemTipoItem?: string | null;
+  /**
+   * Movimiento atribuido explícitamente al PRÓXIMO encasetamiento del galpón.
+   *
+   * El backend lo manda desde la migración `20260808120000` (`InventarioGestionMovimientoDto`), pero
+   * esta interfaz no lo declaraba, así que el dato llegaba y se descartaba en silencio. Por eso el
+   * tab Histórico no podía pintarlo aunque «ya viajara»: viajaba del lado del servidor nada más.
+   */
+  paraProximoCiclo?: boolean;
   /** Silo/bodega donde ocurrió el movimiento (empresas con inventario por silo). */
   siloId?: number | null;
   siloNombre?: string | null;

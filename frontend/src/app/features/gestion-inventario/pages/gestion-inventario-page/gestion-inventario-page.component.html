@@ -1226,6 +1226,7 @@
                           <th>Otro extremo / origen</th>
                           <th>Referencia</th>
                           <th>Motivo / detalle</th>
+                          <th title="Ingreso atribuido al PRÓXIMO encasetamiento del galpón (marca del alta o del historial). El dato ya viajaba en el DTO; esta columna es la que faltaba pintarlo acá.">Próx. ciclo</th>
                           <th>Grupo traslado</th>
                           <th class="th-actions">Ver</th>
                           <th class="th-actions">Acciones</th>
@@ -1246,6 +1247,13 @@
                             <td class="cell-clip" [title]="otroExtremoMovimiento(m)">{{ otroExtremoMovimiento(m) }}</td>
                             <td class="cell-clip" [title]="m.reference ?? ''">{{ m.reference ?? '—' }}</td>
                             <td class="cell-clip" [title]="m.reason ?? ''">{{ m.reason ?? '—' }}</td>
+                            <td>
+                              @if (m.paraProximoCiclo) {
+                                <span class="ux-badge badge-proximo-ciclo" title="Este ingreso se toma como ingreso inicial del PRÓXIMO ciclo del galpón">Próx. ciclo</span>
+                              } @else {
+                                <span class="muted">—</span>
+                              }
+                            </td>
                             <td class="cell-mono cell-clip">
                               @if (m.transferGroupId) {
                                 <span [title]="m.transferGroupId">{{ m.transferGroupId }}</span>
