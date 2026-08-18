@@ -3251,3 +3251,32 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
       testeable con xUnit, sin tocar el service
 - [ ] V25.7.6 **Falta el número fino**: el delta exacto en bultos por padre exige reproducir la query
       completa del reporte por lote-padre y fecha. Es el siguiente paso si se quiere decidir con la cifra
+
+## V25.8 — Implementadas: lote 132 y K345 (18ago26)
+**Planes:** [`correccion_lote_132_encaset_plan.md`](fase_de_desarrollo/correccion_lote_132_encaset_plan.md) ·
+[`correccion_k345_traslape_levante_produccion_plan.md`](fase_de_desarrollo/correccion_k345_traslape_levante_produccion_plan.md)
+**Commits:** `c9d8280` (lote 132) · `6ce89cc` (K345)
+
+- [x] V25.8.1 **Lote 132 → 19.187.** Migración data-only `20260818050000...`, Designer clonado,
+      ModelSnapshot intacto. Regla dinámica que exige que el gap del encaset sea **exactamente** el
+      desfase del maestro ⇒ alcanza 1 lote de 186. Espejo puro en
+      `Application/Calculos/CuadreAvesEngordeCalculos.cs` + 7 tests xUnit
+- [x] V25.8.2 **`fn_cuadre_aves_engorde(NULL)` pasó de 1 sin referencia confiable y 1 que no cuadra a
+      0 y 0.** La base entera queda auditable por conservación
+- [x] V25.8.3 **K345 → 0 días traslapados** (eran 15). Migración `20260818050100...`, que **rescata
+      antes de borrar**
+- [x] V25.8.4 🔑 **Lo que la decisión no contemplaba y apareció al medir**: el alimento **ya estaba**
+      en producción (nada que reasignar), pero `sel_m` = 21 + 112 = **133 machos seleccionados**, el
+      C.V. y la uniformidad vivían SOLO en levante. Un `DELETE` pelado los perdía
+- [x] V25.8.5 Validación: simulación en transacción + `ROLLBACK` antes de cada aplicación ·
+      `SUM(sel_m)` se conserva en **133** · kg de producción sin cambio en **18.159,0** · `peso_h` no
+      pisado (3.341,40 y 3.307,20) · 15 filas respaldadas en
+      `_backup_traslape_levante_k345_20260818` · tombstones 3 → 18 · 2ª corrida `UPDATE 0` /
+      `DELETE 0` · `dotnet build` 0 errores (9 warnings preexistentes) · `dotnet test` **2.834 + 1
+      verdes** · sin procesos huérfanos (5002/5499/5501 sin listeners)
+- [i] V25.8.6 🟡 **Defecto nuevo, medido y NO arreglado**: `produccion_resultado_levante.ac_sel_m` no
+      refleja los totales de levante — llega a **8** cuando el `sel_m` acumulado del lote 13 es
+      **241**, y el lote 14 **ni figura** en esa tabla. Por eso no servía como respaldo de la
+      selección. Tiene su propio alcance
+- [ ] V25.8.7 **Falta desplegar**: las dos migraciones se aplican solas al arrancar
+      (`Database__RunMigrations=true`), pero exigen la verificación post-deploy de CLAUDE.md §🚀
