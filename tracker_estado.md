@@ -1372,11 +1372,14 @@ entera. Esto es más urgente que desplegar.
       `seguimientovalidacion` va a EXCLUIDOS (es un gate de negocio; cachearlo congelaría un flag que
       la empresa puede apagar, y el cliente ya cae a `SIN_PENDIENTES` sin red). 84 endpoints:
       **54 cacheables / 30 excluidos / 0 sin decisión**
-- [ ] 🟠 **Aire en el bundle** — ⚠️ **cifra corregida 16ago26**: el build de hoy da **initial 1,84 MB**
+- [x] 🟠 ~~**Aire en el bundle**~~ — **CERRADO en V22** (17ago26): 27 rutas de administración y CRUD
+      pasaron a `loadComponent`. **Initial 1,85 MB → 967,45 kB**, el margen contra el techo de 2,05 MB
+      pasa de ~210 kB a **~1,08 MB**, y el build sale **sin una sola advertencia** por primera vez.
+      La PWA no pierde offline: `ngsw.json` sigue precargando los 179 chunks. Texto original:
+      ⚠️ **cifra corregida 16ago26**: el build de hoy da **initial 1,84 MB**
       contra un techo de error de **2,05 MB** (`angular.json:62`) ⇒ quedan **~210 kB de aire**, no 50 kB.
       El riesgo sigue (un import eager grande rompe el build de prod) pero el margen es 4× el anotado.
-      El warning de 1,50 MB se supera desde hace rato y es el único que sale en verde. Texto original:
-      cualquier import eager nuevo rompe el build de prod
+      El warning de 1,50 MB se supera desde hace rato y es el único que sale en verde
 
 ## 6. Deuda conocida que viaja con esto (ya documentada, sigue abierta)
 
@@ -2865,3 +2868,69 @@ sesión anterior dejó explícitamente «pendiente de la próxima sesión que ab
 - [x] V21.4.4 `GET /movimientos-huevos?lotePadreId=114&semanaContable=44` responde **400** para ese
       lote en Levante. **Preexistente** y ajeno a esta entrega (el cambio es 100 % del front); queda
       anotado porque salió a la vista durante el smoke
+
+---
+
+# V22 · Aire en el bundle: las pantallas de administración salen del arranque (17ago26)
+
+**Plan:** [`fase_de_desarrollo/bundle_inicial_rutas_lazy_plan.md`](fase_de_desarrollo/bundle_inicial_rutas_lazy_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ el 🟠 **«Aire en el bundle»** del bloque
+*«PWA — validación de estado y brecha real para salir a producción»* (§5). Tras cerrar V19.3.4 es el
+único abierto que es **código y no espera decisión, admin externo ni deploy**. Bloque propio.
+
+## V22.0 — Re-triage ✔
+- [x] V22.0.1 Repasado lo abierto: correo (admin de M365), referencia `Inicio`/grupo A, K345, tiles de
+      Migraciones Masivas, KM 86, lote 12 y Fase 2 de V19 **esperan decisión u operación**; PWA y P.1-P.3
+      esperan **push/merge**; §2.3b y §2.3c siguen descartados por V15.0.2; la Fase 3 de R2 la cerró V16
+- [x] V22.0.2 De los ítems sin bloqueo quedaban dos: **B1** (revocación de sesión) y este. B1 arrastra
+      una decisión de producto —la vigencia de la sesión offline (D4) se definió *«jornada 12-16 h,
+      **con B1 implementado**»*— y toca la autenticación de todos. Este no: es front puro y medible
+
+## V22.1 — Diagnóstico medido ✔
+- [x] V22.1.1 Reparto de los bytes **de salida** de `main.js` (1.671,9 kB) por fuente, caminando las
+      `mappings` del sourcemap. Contar `sourcesContent` engaña: le da 998 kB a FontAwesome cuando su
+      barril ya queda podado a **45,5 kB** reales
+- [x] V22.1.2 🔑 **840 kB del arranque eran pantallas**: `config` 310,6 · `lote` 157,4 · `farm` 84,6 ·
+      `galpon` 72,1 · `nucleo` 55,7 · `clientes` 50,3, más `lote-levante`/`silos`/`implementacion`/
+      `tickets`/`vacunacion` arrastrados. Lo que sí corresponde al arranque —`@angular/*`, `crypto-js`
+      (lo usa el interceptor), FontAwesome del layout, `auth`— queda donde estaba
+- [x] V22.1.3 Causa: `app.config.ts` importaba 25 componentes de forma **estática** y los cableaba con
+      `component:`. El propio archivo ya lo advertía para Empresas y Roles («importarlas acá las
+      devolvería al bundle inicial, que es justo lo que hacía fallar el build por presupuesto»): la
+      solución ya estaba decidida y probada ahí, sólo se había aplicado a 2 rutas de 27
+
+## V22.2 — Implementación ✔
+- [x] V22.2.1 Las 27 rutas de administración y CRUD pasan a `loadComponent` y se borran sus imports
+      estáticos: `config` (padre), listas maestras, usuarios, los 8 de geografía, granjas, núcleos,
+      galpones, lotes, guía genética (+ Ecuador), clientes y `profile`
+- [x] V22.2.2 `login`, `password-recovery` y `home` **siguen eager a propósito**: login es la primera
+      pantalla —hacerla lazy agrega un viaje antes de poder escribir la contraseña, y en una tablet con
+      mala red se nota— y home es su aterrizaje inmediato
+- [x] V22.2.3 **Sin cambio de comportamiento**: `loadComponent` monta el MISMO componente; guards
+      (`authGuard`), `children`, paths y títulos quedan idénticos. No se tocó `angular.json`: subir el
+      techo o bajar el presupuesto habría sido tapar el problema
+
+## V22.3 — Verificación ✔
+- [x] V22.3.1 `yarn build`: **initial 1,85 MB → 967,45 kB** (transferencia 226,72 kB). `main.js` pasa de
+      **1.709.481 a 829.457 bytes**, menos de la mitad. Los chunks pasan de 118 a **183** archivos:
+      `lote-list-component` (132,03 kB) y `user-management-component` (124,92 kB) ahora son suyos
+- [x] V22.3.2 🎯 **El warning de presupuesto desapareció**: el build sale **sin una sola advertencia**
+      por primera vez (era el único que salía). El margen contra el techo de error de 2,05 MB pasa de
+      **~210 kB a ~1,08 MB** — 5× más aire para que un import eager nuevo no rompa el build de prod
+- [x] V22.3.3 `yarn test` **325 SUCCESS**, los mismos de antes
+- [x] V22.3.4 Smoke en pantalla: abren con datos reales `config/lotes` (12 lotes), `config/farms-list`
+      (29 granjas), `config/users` (56 usuarios), `config/guia-genetica` (889 registros),
+      `config/countries` (3 países), `profile` y `home`. En pestaña limpia: **0 errores de consola**
+- [x] V22.3.5 **La PWA no pierde nada offline**: `ngsw.json` sigue listando los **179 chunks** en el
+      grupo `app` con `installMode: prefetch` ⇒ el service worker los sigue bajando todos. Lo que
+      cambia es el orden de descarga (la app es interactiva antes), no la disponibilidad sin red
+- [x] V22.3.6 BD compartida sin una sola escritura (326 movimientos · 56 usuarios · 103 granjas, igual
+      antes y después) · backend y front apagados · puertos **5002 / 4200 libres**
+
+## Lo que NO se tocó, dicho
+- [x] V22.4.1 **Ningún componente se modificó**: el cambio es del cableado de rutas. `app.config.ts` es
+      el único archivo de código tocado
+- [x] V22.4.2 **FontAwesome no se tocó**: su barril ya queda podado a 45,5 kB. La cifra de 998 kB que
+      aparece si se cuenta por `sourcesContent` es un espejismo del método, no un problema real
+- [x] V22.4.3 Los otros dos 🔴 de §5 (una sola sesión por dispositivo · alistamiento con red) **siguen
+      abiertos**: son diseño y operación, no bundle
