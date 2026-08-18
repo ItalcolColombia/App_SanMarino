@@ -2674,3 +2674,46 @@ hasta 23.355 kg): NO se determinó si necesita la migración `Recalcular…`»*.
       se vuelva a desalinear es otro trabajo, con su propio plan
 - [x] V18.4.3 **No se tocan las copias congeladas** ya existentes: las 90 de Ecuador quedan como están
       (y allí la columna ya coincidía)
+
+---
+
+# V19 · §2.4 — el kardex de bultos es de la GRANJA y el reporte no lo decía (17ago26)
+
+**Plan:** [`fase_de_desarrollo/reporte_contable_bultos_alcance_granja_plan.md`](fase_de_desarrollo/reporte_contable_bultos_alcance_granja_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ **§2.4**, el último 🟡 confirmado de la
+auditoría de cierre que seguía abierto y sin depender de nadie (§2.3b y §2.3c los descartó V15.0.2
+porque el rediseño de la marca los tira). Bloque propio — no tocar desde otras sesiones.
+
+## V19.0 — Confirmado en el código y revalidado con datos ✔
+- [x] V19.0.1 El reporte se genera **por lote padre** (`GenerarReporteAsync` exige `LotePadreId`) pero
+      los movimientos de alimento se traen filtrando **solo por granja** (`m.FarmId == granjaId`).
+      No hay filtro de lote porque **no hay dato con qué filtrar**
+- [x] V19.0.2 **Cuántos casos hay**: Sanmarino tiene **3 granjas con más de un lote padre**
+      (MANGOS 4 · LA ESMERALDA 4 · MIRALINDO 2) ⇒ **10 de sus 11 lotes padres** muestran un kardex que
+      no es suyo. Demo: 5 granjas, 1 padre cada una, **0 afectados**
+- [x] V19.0.3 🔑 **Por qué no se puede atribuir**: en Sanmarino los movimientos de alimento son de
+      **nivel granja** (1.077 de 1.078 filas sin núcleo ni galpón) y los padres de cada granja
+      **comparten el mismo núcleo**. La auditoría tenía razón: no es arreglable en la query
+- [x] V19.0.4 Escala: LA ESMERALDA tiene **4.356 bultos de entradas y 3.830 de consumo** en toda su
+      historia, y **4 reportes** los muestran como propios
+
+## V19.1 — Fase 1: que el reporte DIGA de quién es el kardex
+- [ ] V19.1.1 `ReporteContableBultosCalculos.AdvertenciaAlcance(lotesPadreEnGranja, granjaNombre)` —
+      puro: `null` cuando el padre es el único de la granja (sin ruido), aviso cuando comparte
+- [ ] V19.1.2 DTO + service: `LotesPadreEnGranja` y `AdvertenciaBultos`
+- [ ] V19.1.3 Front: el aviso bajo el título **BULTO**
+- [ ] V19.1.4 Tests T1-T5
+- [ ] V19.1.5 **Ningún número del reporte se mueve** — verificado contra el mismo reporte antes
+
+## V19.2 — Fase 2, que NO entra: el saldo coherente (decisión del usuario)
+- [ ] V19.2.1 Hoy el saldo es `entradas de la GRANJA − consumos de ESTE padre` ⇒ **sobreestima** tanto
+      como consuman los otros padres. Las salidas son **(a)** restar el consumo de todos los lotes de la
+      granja —el número pasa a ser verificable contra el inventario, pero **cambia una columna que
+      Costos ya lee**— o **(b)** dejarlo con el aviso al lado. **Se recomienda (a)**; mover una columna
+      de un reporte contable en uso es decisión de producto, no un refactor
+
+## V19.3 — Verificación
+- [ ] V19.3.1 `dotnet build` 0 errores · `dotnet test` verde
+- [ ] V19.3.2 `yarn build` sin errores nuevos
+- [ ] V19.3.3 Smoke: un padre de **LA ESMERALDA** (4 padres) trae el aviso; **NIZA III** (único padre)
+      no lo trae
