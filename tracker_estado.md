@@ -1791,11 +1791,11 @@ solo dato. Aviso: el lote 168 es el que usaron los smokes de V7 — su baseline 
   concluir que el patrón es de una empresa.
 
 ### Checklist
-- [ ] V8.1 Decidir el **patrón C** (#6, lote 168): ¿el descuadre de 250 kg es un movimiento real mal fechado o un artefacto del corte por fecha del cuadre?
-- [ ] V8.2 Reconstruir el kardex de **#1 y #3** (núcleo 180197, lotes 187 y 199) y confirmar o descartar el cruce de imputación entre los dos «33 - 1»
-- [ ] V8.3 Patrón A en **#2, #4, #5**: cruzar `inventario_gestion_movimiento` del galpón contra los ingresos del ERP para ubicar el alimento que entró sin registrarse
-- [ ] V8.4 Patrón B: datar los ingresos de los lotes **161 (28 días negativos)** y **142 (17)**; el total cuadra, así que el arreglo es de FECHAS, no de cantidades
-- [ ] V8.5 Correr el mismo cuadre en **ItalcolEcuador (3)** para saber si el patrón es de Panamá o del cálculo
+- [x] V8.1 (cerrado en V17.1.2) Decidir el **patrón C** (#6, lote 168): ¿el descuadre de 250 kg es un movimiento real mal fechado o un artefacto del corte por fecha del cuadre?
+- [x] V8.2 (cerrado en V17.1.5) Reconstruir el kardex de **#1 y #3** (núcleo 180197, lotes 187 y 199) y confirmar o descartar el cruce de imputación entre los dos «33 - 1»
+- [x] V8.3 (cerrado en V17.1.4) Patrón A en **#2, #4, #5**: cruzar `inventario_gestion_movimiento` del galpón contra los ingresos del ERP para ubicar el alimento que entró sin registrarse
+- [x] V8.4 (cerrado en V17.1.7) Patrón B: datar los ingresos de los lotes **161 (28 días negativos)** y **142 (17)**; el total cuadra, así que el arreglo es de FECHAS, no de cantidades
+- [x] V8.5 (cerrado en V17.1.1) Correr el mismo cuadre en **ItalcolEcuador (3)** para saber si el patrón es de Panamá o del cálculo
 - [ ] V8.6 Simular toda corrección en transacción + revertir, y correr el gate de paridad antes y después
 
 ### Hallazgos confirmados que NO entran en esta entrega
@@ -2505,3 +2505,88 @@ falta clonar la BD, y no se escribió una sola fila). Sesión de ItalcolEcuador.
       local, que otras sesiones movieron desde el 09-ago. Queda anotado porque el número viejo estaba
       escrito como referencia en varios bloques, y porque **son descuadres que ahora una pantalla
       muestra**: alguien tiene que mirar si son de la carga local o si Panamá los tiene en prod
+
+---
+
+# V17 · V8 — los descuadres de alimento de Panamá tienen nombre (17ago26)
+
+**Plan:** [`fase_de_desarrollo/descuadres_alimento_panama_diagnostico_plan.md`](fase_de_desarrollo/descuadres_alimento_panama_diagnostico_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker» ⇒ el bloque **V8**, que quedó ABIERTO desde el
+16ago26 y que **V16.6.1** volvió a poner sobre la mesa (la pantalla nueva del cuadre los dejó a la
+vista). Bloque propio — no tocar desde otras sesiones.
+
+## V17.0 — Línea base re-medida ✔
+- [x] V17.0.1 **La tabla de 6 filas de V8 ya no es la de hoy**: son **5 descuadrados / 54.795,4 kg**.
+      Y una cambió de lote: G0483 pasó del 187 al **190** al arrancar el ciclo siguiente conservando el
+      mismo descuadre de 23.300 kg ⇒ **el descuadre viaja con el GALPÓN, no con el lote**
+- [x] V17.0.2 Panamá: 30 galpones, 5 descuadrados, **19 con días en negativo**. Ecuador: 36 galpones,
+      **0 y 0**
+
+## V17.1 — Los 5 patrones, resueltos
+- [x] V17.1.1 ✅ **V8.5 contestado**: la MISMA fn da 0/0 en Ecuador ⇒ **es dato de Panamá, no el
+      cálculo**. Contraejemplo más fuerte: Ecuador hace **400 ajustes manuales de stock (1.989.212 kg)**
+      contra 73 de Panamá y aun así cuadra — el ajuste por sí solo no descuadra
+- [x] V17.1.2 ✅ **V8.1 cerrado (patrón C)**: el lote 168 hoy da `saldo 10.609,560 · stock 10.609,560 ·
+      mov_post 0 · descuadre 0,000`. Al cargarse un seguimiento posterior al movimiento, éste dejó de
+      ser «posterior» y el descuadre **se disolvió sin tocar un dato** ⇒ era el corte por fecha, no un
+      error. 6 → 5
+- [x] V17.1.3 🔑 **CAUSA RAÍZ del patrón A — la hipótesis de V8 era la equivocada.** No es «alimento
+      que entró sin registrarse»: es que **la operación corrige el inventario editando o borrando el
+      STOCK** (`AjusteStock` / `EliminacionStock`), y esos movimientos se espejan como **`INV_OTRO`**,
+      que `fn_seguimiento_diario_engorde` **no lee en ninguno de sus 5 lugares**
+      (`apert_mov`, `hist_full`, `hist_alimento`, `docs_por_fecha`, `fechas_universo`)
+- [x] V17.1.4 ✅ **V8.3 cerrado con aritmética exacta, no con hipótesis**:
+      · **G0477** (+544,0) = un `AjusteStock` de **544,0** kg del 29-jul — exacto;
+      · **G0475** (+18.650,4) = un `EliminacionStock` de **18.650,356** kg del 07-ago — exacto;
+      · **G0483** (+23.300,0) = **12.500** (ingreso duplicado el 01-ago cuyo registro de stock borraron
+      ese mismo día, dejando vivo el `INV_INGRESO`) **+ 10.800** (ajuste del ítem 213 de 24.000 → 1.200,
+      de los que 12.000 nunca estuvieron en el histórico) — exacto.
+      **42.494,4 kg de 54.795,4 (78 %) son correcciones manuales de inventario**, no alimento perdido
+- [x] V17.1.5 ✅ **V8.2 cerrado — la sospecha del cruce «33 - 1» ↔ «33 - 1» NO se sostiene.** El
+      inventario de los dos galpones está internamente consistente (G0483 y G0481 cuadran movimiento a
+      movimiento contra su stock) y cada descuadre tiene su propia causa: G0483 es patrón A (ajustes) y
+      G0481 es patrón B (fechas). No hay alimento imputado al galpón equivocado
+- [x] V17.1.6 **Los 2 descuadres que NO son ajustes**: · **G0476** (+2.496) tiene el inventario
+      consistente pero **dos lotes conviviendo** (185 y 202) y 43.251 kg de consumo en inventario
+      contra 32.708 kg de seguimiento ⇒ consumo sin seguimiento detrás; · **G0481** (−9.805, 7 días
+      negativos) arranca su seguimiento el 05-ago con la tabla **ya en negativo** ⇒ es patrón B
+- [x] V17.1.7 ✅ **V8.4 cerrado — datado**: el lote **161** (G0472, 28 días negativos, descuadre 0)
+      tiene su primer ingreso fechado el **22-jun** (11.779,9 kg) y el siguiente el **08-jul**, contra
+      **32.977,3 kg** de consumo hasta el 07-jul. Y el dato que lo explica todo: **los 22 ingresos se
+      registraron el mismo día, el 28-jul**, con la fecha puesta hacia atrás ⇒ **carga histórica de un
+      mes entero**. El total cuadra: lo que está mal es CUÁNDO. **Re-fecharlos exige las remisiones
+      físicas** — cualquier reparto inventado cuadra igual de bien, así que es decisión de operación
+
+## V17.2 — Lo único que se implementa: que el cuadre DIGA lo que encontró
+- [ ] V17.2.1 `CuadreAlimentoEngordeCalculos` + DTO: `AjustesManualesKg` / `AjustesManualesCount` y un
+      detalle que los nombre. **El `descuadre_kg` NO se mueve**: un ajuste manual no es ruido de
+      medición como la reserva de V7.37, es una corrección real que hay que decidir — se informa, no se
+      compensa
+- [ ] V17.2.2 El service agrega los `AjusteStock`/`EliminacionStock` por ubicación **dentro de la
+      ventana del ciclo activo** (fuera de ella los absorbe la apertura, que es la razón por la que
+      Ecuador cuadra con 5× más ajustes)
+- [ ] V17.2.3 Front: columna «Ajustes manuales» en el panel del cuadre
+- [ ] V17.2.4 Tests T1-T6 (sin ajustes ⇒ el detalle queda **byte a byte** como hoy)
+
+## V17.3 — Verificación
+- [ ] V17.3.1 `dotnet build` 0 errores · `dotnet test` verde
+- [ ] V17.3.2 `yarn build` sin errores nuevos
+- [ ] V17.3.3 Smoke de las 2 empresas: Panamá muestra los 3 galpones con sus ajustes; **Ecuador queda
+      idéntico** (0 descuadrados, sin texto nuevo)
+- [ ] V17.3.4 `git diff backend/sql` vacío ⇒ no aplica el gate multipaís
+
+## Lo que NO se toca, dicho
+- [x] V17.4.1 **Cero correcciones de datos.** Ni los 42.494 kg de ajustes, ni las fechas de los lotes
+      161 y 142, ni el consumo sin seguimiento de G0476. Cada uno necesita el documento físico y el OK
+      del usuario, y V8.6 exige simular + revertir + gate antes de tocar nada
+- [x] V17.4.2 **No se hace que `fn_seguimiento_diario_engorde` lea `INV_OTRO`.** Es el arreglo de fondo
+      —que la corrección de stock llegue a la tabla diaria— pero mueve el saldo de TODAS las empresas y
+      exige el gate de paridad multipaís completo: va en su propio plan, con su propia compuerta.
+      **Queda como el pendiente técnico más importante que deja este diagnóstico**
+- [x] V17.4.3 **No se bloquea el ajuste manual de stock**: es la herramienta con la que la operación
+      arregla sus errores. Lo que faltaba era que dejara rastro visible en el cuadre
+
+## Señalamiento al bloque V8 (marco sus checkboxes porque estaba «para otra sesión» y la tomé)
+- [x] V17.5.1 V8.1 · V8.2 · V8.3 · V8.4 · V8.5 quedan **cerrados por este bloque** (evidencia en V17.1).
+      **V8.6 sigue abierto por definición**: es el protocolo para el día que se corrija algo, y hoy no
+      se corrigió nada
