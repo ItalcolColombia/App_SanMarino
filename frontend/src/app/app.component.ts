@@ -30,12 +30,21 @@ export class AppComponent implements OnInit, OnDestroy {
 
   faBars = faBars;
 
-  /** Menú visible solo en rutas protegidas (oculto en las pantallas públicas de acceso). */
+  /**
+   * Menú visible solo en rutas protegidas (oculto en las pantallas públicas de acceso).
+   *
+   * `/selector-usuario` entra en esa lista: se abre **sin sesión** por definición, así que mostrar ahí
+   * el menú —con «Cerrar sesión» y «Borrar este dispositivo»— pondría acciones destructivas al alcance
+   * de cualquiera que levante la tablet. `/diagnostico` NO entra, porque también se abre estando
+   * adentro y quedarse sin menú sería quedarse sin forma de volver; ahí el pie del sidebar se protege
+   * solo, mostrando esas acciones únicamente si hay sesión (ver `SidebarComponent.haySesion$`).
+   */
   get showSidebar(): boolean {
     const u = this.router.url;
     return !u.includes('/login')
         && !u.includes('/password-recovery')
-        && !u.includes('/reset-password');
+        && !u.includes('/reset-password')
+        && !u.includes('/selector-usuario');
   }
 
   /** Sidebar se muestra/oculta; por defecto cerrado para no consumir espacio. */

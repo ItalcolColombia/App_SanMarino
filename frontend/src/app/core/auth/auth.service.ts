@@ -6,12 +6,15 @@ import { environment } from '../../../environments/environment';
 import { LoginPayload, LoginResult, AuthSession, MenuItem, RoleMenusLite, EmailQueueStatus } from './auth.models';
 import { TokenStorageService } from './token-storage.service';
 import { EncryptionService } from './encryption.service';
+import { LlaveroSesionesService } from './llavero-sesiones.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private http = inject(HttpClient);
   private storage = inject(TokenStorageService);
   private encryption = inject(EncryptionService);
+  // Sin ciclo de DI: el llavero depende de `TokenStorageService`, no de este servicio.
+  private llavero = inject(LlaveroSesionesService);
   private baseUrl = `${environment.apiUrl}/Auth`;
 
   // Sesión reactiva
@@ -235,12 +238,59 @@ export class AuthService {
     );
   }
 
-  logout(opts?: { hard?: boolean }) {
+  /**
+   * Cierra la sesión. `alcance` decide **qué se lleva puesto**:
+   *
+   * | alcance | Sesión | Slot del llavero | Caché propia | Caché de los otros | Cola |
+   * |---|---|---|---|---|---|
+   * | `'slot'` (por defecto) | se va | se elimina | se purga | **se conserva** | intacta |
+   * | `'dispositivo'` | se va | se eliminan **todos** | se purga | **se purga** | intacta |
+   *
+   * Que la cola quede intacta en los dos casos no es un olvido: lo cacheado se vuelve a pedir, una
+   * captura de campo no existe en ningún otro lado (R9).
+   */
+  logout(opts?: { hard?: boolean; alcance?: 'slot' | 'dispositivo' }) {
+    if (opts?.alcance === 'dispositivo') {
+      // El equipo cambia de manos: se van los slots de todos y toda la caché.
+      this.llavero.borrarTodos();
+      this.storage.borrarDispositivo();
+      return;
+    }
+
+    // El slot de quien se va deja de existir; el de los demás no se toca.
+    const slot = this.slotPropio();
+    if (slot) {
+      void this.llavero.eliminar(slot.slotId);
+    }
+
     if (opts?.hard) {
       this.storage.clearAllTemporal(); // borra todo lo temporal (sessionStorage completo)
     } else {
       this.storage.clear(); // borra solo la sesión guardada
     }
+  }
+
+  /**
+   * Aparca la sesión actual cifrada con `pin` y la saca del storage, para que entre otro operario.
+   *
+   * **El orden importa y no es intercambiable**: primero se sella el blob y recién si eso salió bien
+   * se suelta la sesión activa. Al revés, un fallo de cifrado dejaría al operario sin sesión **y** sin
+   * copia —sin red, encerrado afuera—. Devuelve `false` sin tocar nada si no se pudo aparcar.
+   *
+   * No purga ninguna caché: quien aparca vuelve, y su caché es lo que le deja seguir sin red.
+   */
+  async cambiarDeUsuario(pin: string): Promise<boolean> {
+    if (!(await this.llavero.aparcar(pin))) {
+      return false;
+    }
+    this.storage.aparcarSesion();
+    return true;
+  }
+
+  /** El slot del usuario que está activo ahora, si el llavero lo tiene anotado. */
+  private slotPropio() {
+    const userId = this.storage.get()?.user?.id ?? null;
+    return userId ? this.llavero.leerPadron().slots.find(s => s.userId === userId) ?? null : null;
   }
 
   isAuthenticated() {

@@ -95,6 +95,16 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ResetPasswordComponent)
       },
 
+      // Aparcar la sesión propia. CON authGuard: hay que estar adentro para poder guardarse.
+      {
+        path: 'cambiar-usuario',
+        title: 'Cambiar de usuario',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/auth/cambiar-usuario/cambiar-usuario.component')
+            .then(m => m.CambiarUsuarioComponent)
+      },
+
       // Selector de perfil — SIN authGuard a propósito: por definición la abre alguien
       // que TODAVÍA no tiene sesión activa. Anda sin red: todo lo que pinta sale del
       // padrón de slots, que va sin cifrar justamente para poder mostrarse sin PIN.

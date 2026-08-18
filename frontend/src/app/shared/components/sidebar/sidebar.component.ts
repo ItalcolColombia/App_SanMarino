@@ -12,6 +12,9 @@ import {
 import { map, filter, take, takeUntil } from 'rxjs/operators';
 import { Observable, Subject } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
+import { LlaveroSesionesService } from '../../../core/auth/llavero-sesiones.service';
+import { OutboxService } from '../../offline/outbox.service';
+import { ConfirmDialogService } from '../../services/confirm-dialog.service';
 import { MenuService, UiMenuItem } from '../../services/menu.service';
 
 @Component({
@@ -24,6 +27,9 @@ import { MenuService, UiMenuItem } from '../../services/menu.service';
 })
 export class SidebarComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
+  private readonly llavero = inject(LlaveroSesionesService);
+  private readonly outbox = inject(OutboxService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly menuSvc = inject(MenuService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
@@ -95,11 +101,92 @@ export class SidebarComponent implements OnInit, OnDestroy {
     item.expanded = !item.expanded;
   }
 
-  logout() {
-    // Vacía el menú en memoria
+  /** ¿Este equipo puede guardar sesiones? Sin cripto no se ofrece «cambiar de usuario». */
+  get hayLlavero(): boolean {
+    return this.llavero.disponible();
+  }
+
+  /**
+   * ¿Hay alguien adentro?
+   *
+   * El sidebar se muestra por lista de rutas, no por sesión, así que en pantallas públicas como
+   * `/diagnostico` aparece **sin sesión**. Las tres salidas del pie son destructivas —una borra el
+   * equipo entero— y no pueden quedar al alcance de cualquiera que levante la tablet. Se gatea acá,
+   * por el dato, y no por la ruta: una ruta nueva que se olvide de la lista no rompe la regla.
+   */
+  haySesion$ = this.auth.session$.pipe(map(s => !!s?.accessToken));
+
+  /** Aparcar: la sesión se guarda cifrada y entra otro. No purga nada (R-M6). */
+  cambiarDeUsuario(): void {
+    this.router.navigate(['/cambiar-usuario']);
+  }
+
+  /**
+   * Cerrar sesión. Cambia respecto de antes: se purga **solo la partición propia** y se elimina el
+   * slot propio; lo de los otros operarios del equipo queda intacto (R-M6, fix F-5).
+   *
+   * Con capturas sin enviar se avisa antes (R-M5): quedan en la tablet hasta que esa persona vuelva a
+   * entrar, y eso hay que poder saberlo **antes** de salir, no después.
+   */
+  async logout(): Promise<void> {
+    if (!(await this.confirmarSiHayCapturas())) {
+      return;
+    }
+
     this.menuSvc.reset();
-    // Limpia todo lo temporal del storage y devuelve al login
     this.auth.logout({ hard: true });
     this.router.navigate(['/login'], { replaceUrl: true });
+  }
+
+  /**
+   * Borrar el dispositivo: se van **todos** los slots y **toda** la caché. Es la acción de «este
+   * equipo cambia de manos», y por eso pide confirmación aparte del logout normal.
+   *
+   * La cola de capturas **no se toca**, ni siquiera acá (R9), y el diálogo lo dice: es la primera
+   * pregunta que aparece y la respuesta tranquiliza.
+   */
+  async borrarDispositivo(): Promise<void> {
+    const pendientes = await this.capturasPendientes();
+    const otros = this.llavero.slotsAparcados().length;
+
+    const confirmado = await this.confirmDialog.ask({
+      title: 'Borrar los datos de este dispositivo',
+      message:
+        'Se van a borrar todas las sesiones guardadas' +
+        (otros > 0 ? ` (${otros} además de la tuya)` : '') +
+        ' y todo lo consultado sin conexión. Cada operario va a tener que volver a entrar con red.' +
+        (pendientes > 0
+          ? ` Las ${pendientes} captura(s) sin enviar NO se borran: siguen en la tablet.`
+          : ''),
+      type: 'error',
+      confirmText: 'Borrar el dispositivo'
+    });
+    if (!confirmado) return;
+
+    this.menuSvc.reset();
+    this.auth.logout({ alcance: 'dispositivo' });
+    this.router.navigate(['/login'], { replaceUrl: true });
+  }
+
+  /** `true` = seguir adelante. Sin capturas pendientes no se molesta a nadie. */
+  private async confirmarSiHayCapturas(): Promise<boolean> {
+    const pendientes = await this.capturasPendientes();
+    if (pendientes === 0) {
+      return true;
+    }
+
+    return this.confirmDialog.ask({
+      title: 'Hay capturas sin enviar',
+      message:
+        `Tenés ${pendientes} captura(s) que todavía no llegaron al servidor. No se pierden: quedan en ` +
+        'esta tablet hasta que vuelvas a entrar con tu usuario. ¿Cerrar sesión igual?',
+      type: 'warning',
+      confirmText: 'Cerrar sesión'
+    });
+  }
+
+  private async capturasPendientes(): Promise<number> {
+    const estado = await this.outbox.estado();
+    return estado.pendientes + estado.rechazadas;
   }
 }

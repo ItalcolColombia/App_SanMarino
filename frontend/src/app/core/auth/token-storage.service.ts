@@ -201,6 +201,19 @@ export class TokenStorageService {
   }
 
   /**
+   * Aparca: saca la sesión activa del storage y **no purga nada**.
+   *
+   * Es «cambiar de usuario», no «cerrar sesión». Quien aparca vuelve —a veces en media hora— y su
+   * caché es lo que le permite trabajar sin red al volver; purgarla le costaría otra vez el
+   * alistamiento. La sesión no se pierde: ya quedó cifrada en el llavero **antes** de llamar acá.
+   */
+  aparcarSesion() {
+    localStorage.removeItem(KEY);
+    sessionStorage.removeItem(KEY);
+    this.subject.next(null);
+  }
+
+  /**
    * Deja el equipo como recién instalado: **toda** la caché de consultas, de todas las particiones.
    *
    * Es la acción deliberada de «este dispositivo cambia de manos», y por eso es un método aparte y

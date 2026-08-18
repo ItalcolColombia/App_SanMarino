@@ -3981,3 +3981,103 @@ el alistamiento**.
       la ruta, y sin slots aparcados muestra su estado vacío
 - [~] V36.17 Falta el smoke **S1 en un Android real**: dos operarios turnándose sin red, que es el caso
       que motiva el plan entero. Ningún agente lo cierra solo
+
+---
+
+# V37 · PWA multi-slot paso 8 — el sidebar cierra el circuito: aparcar, cerrar sesión y borrar el equipo (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 8 del §7** (R-M5 y R-M6).
+**Continúa** V34, V35 y V36. **Bloque propio.** Con esto el multi-slot **se puede usar**: hasta ayer
+al selector sólo se llegaba escribiendo la ruta.
+
+## Las tres salidas, que ahora hacen tres cosas distintas
+
+- [x] V37.1 **«Cambiar de usuario»** (nuevo): la sesión se cifra con el PIN y se aparca. **No purga
+      nada** —ni la caché propia ni la de nadie— porque quien aparca vuelve, a veces en media hora, y
+      su caché es justo lo que le deja trabajar sin red al volver
+- [x] V37.2 **«Cerrar sesión»** (existía, cambia): elimina **su** slot y purga **su** partición. Lo de
+      los otros operarios del equipo queda intacto — antes se lo llevaba puesto (fix F-5, V33)
+- [x] V37.3 **«Borrar este dispositivo»** (nuevo): se van **todos** los slots y **toda** la caché. Es
+      el llamador que le faltaba a `borrarDispositivo()` desde V33, con confirmación aparte
+- [x] V37.4 **La cola de capturas no se toca en ninguna de las tres** (R9), y el diálogo de borrado
+      **lo dice con el número**: es la primera pregunta que aparece y la respuesta tranquiliza
+
+## La pantalla de aparcar
+
+- [x] V37.5 **Ruta `cambiar-usuario`** (lazy, **con** `authGuard`: hay que estar adentro para poder
+      guardarse). Pide el PIN **dos veces**
+- [x] V37.6 🔑 **Por qué dos veces**: el PIN no se guarda en ningún lado —es la entrada del KDF—, así
+      que un dedo torcido al aparcar **no se nota hoy** (el blob se escribe igual) y se cobra mañana en
+      el galpón como 5 intentos fallidos y la sesión destruida. Confirmarlo es la única red posible
+- [x] V37.7 Al no coincidir se limpia **sólo la confirmación**: hacer reescribir los 12 dígitos por un
+      error en los últimos 6 es exactamente cómo se termina eligiendo un PIN corto y de memoria
+- [x] V37.8 **R-M5**: con capturas sin enviar se avisa cuántas son y que **no se pierden**; con red se
+      ofrece enviarlas ahí mismo, y **sin red no se bloquea** — bloquear a alguien que no tiene señal
+      es encerrarlo
+- [x] V37.9 El aviso del PIN (no hay recuperación offline · 5 fallos lo borran · la cola no se pierde)
+      va **antes de elegirlo**, en la misma pantalla, además del alistamiento en `PWA.md` (V36.8)
+
+## 🔑 El orden que no es intercambiable
+
+- [x] V37.10 **`cambiarDeUsuario` sella el blob PRIMERO y suelta la sesión activa DESPUÉS.** Al revés,
+      un fallo de cifrado deja al operario **sin sesión y sin copia**, sin red, encerrado afuera. Si el
+      sellado falla no se suelta nada, la sesión sigue viva y la pantalla lo dice. Hay test del **orden**
+      (no sólo del resultado) y la mutación que lo invierte queda en rojo
+- [x] V37.11 `TokenStorageService.aparcarSesion()` nuevo: saca la sesión **sin purgar**. Con `clear()`
+      —que purga la partición propia— aparcar habría costado el alistamiento cada vez
+
+## Validación
+
+- [x] V37.12 `yarn build` **0 errores, 0 warnings** · `ng test`: **542 SUCCESS, 0 fallan** (508 + 34)
+- [x] V37.13 **Mutación 5/5 sobre la tabla R-M6, todas por assert**: soltar la sesión antes de sellar ·
+      aparcar purgando la partición propia · cerrar sesión borrando los slots de todos · borrar el
+      dispositivo sin tocar el llavero · borrar el dispositivo cayendo al logout normal. Es una tabla de
+      3 filas × 4 columnas donde **una celda mal no se ve al probarlo**: en una tablet con un solo
+      usuario, «purgo lo mío» y «purgo todo» dan el mismo resultado
+- [x] V37.14 **Mutación 11/11 en la pantalla de aparcar** ya cubierta por sus 13 casos: PIN incompleto,
+      PIN que no coincide, cifrado fallido sin navegar, doble toque, sin red no ofrece enviar, sin
+      llavero no aparca
+
+## 🔴 Lo que apareció al revisar el propio cambio
+
+- [x] V37.18 **El sidebar se muestra por lista de URL, no por sesión.** `AppComponent.showSidebar`
+      excluía `/login`, `/password-recovery` y `/reset-password` — o sea que en `/selector-usuario` y
+      en `/diagnostico`, que se abren **sin sesión**, el menú aparecía igual. Con el pie nuevo eso
+      dejaba **«Borrar este dispositivo» al alcance de cualquiera que levantara la tablet**: un botón
+      que se lleva los slots y la caché de los cuatro operarios, sin más barrera que un diálogo
+- [x] V37.19 **Se arregló por los dos lados**: `/selector-usuario` entra en la lista de rutas públicas
+      (es una pantalla de acceso, como el login), y las tres salidas del pie se gatean con
+      `haySesion$` — **por el dato, no por la ruta**, así una ruta pública nueva que se olvide de la
+      lista no rompe la regla. `/diagnostico` NO entra en la lista: también se abre estando adentro y
+      dejarlo sin menú sería dejarlo sin forma de volver
+- [x] V37.20 Los dos quedaron fijados con test: `showSidebar` en `/selector-usuario` ⇒ `false` y en
+      `/diagnostico` ⇒ `true`, y el pie del sidebar **no existe en el DOM** sin sesión
+
+## 🖥️ Ciclo completo verificado en el navegador
+
+Con dev server, sesión y padrón sembrados a mano (sin backend), y **todo borrado al terminar**:
+
+- [x] V37.21 **Aparcar**: PIN que no coincide ⇒ error, se limpia la confirmación y **no se escribe
+      ningún blob**. PIN correcto ⇒ blob de **504 caracteres** en `italgranja.slots.slot-alex`, que
+      **no contiene el token en claro**, la sesión activa suelta y navegación a `/selector-usuario`
+- [x] V37.22 **Retomar**: PIN equivocado ⇒ «Te quedan 4 intentos», contador **persistido** en el padrón
+      y sesión activa **sin tocar**. PIN correcto ⇒ sesión **restaurada idéntica** (Alex Londoño /
+      Agroavícola Sanmarino), blob consumido y contador de intentos de vuelta en 0
+- [x] V37.23 Y en `/selector-usuario`, **sin sidebar y sin los tres botones** — la corrección de V37.18
+      confirmada en pantalla, no sólo en el test
+- [x] V37.24 Servidor de dev **detenido**; `auth_session`, padrón y blob **borrados** del navegador
+
+- [i] V37.25 ⚠️ El dev server tardó **dos rebuilds** en tomar los cambios de `app.component.ts` y del
+      sidebar: la primera verificación mostró los botones **igual** y parecía que la guarda no
+      funcionaba. Antes de dar por roto un cambio en el navegador, confirmá que el bundle servido es el
+      nuevo — acá el veredicto real lo dieron los tests
+
+## Lo que NO hace
+
+- [~] V37.15 **Falta el smoke S1 en un Android real**: dos operarios turnándose sin red, con el
+      alistamiento hecho en oficina. Es el caso que motiva el plan entero y ningún agente lo cierra solo
+- [i] V37.16 **`marcarContactoOk` sigue sin llamador** (V35.18): la jornada de 16 h por slot se cuenta
+      desde el login y no desde el último heartbeat. Es un piso correcto —nunca alarga la ventana— pero
+      no es el número fino. Engancharlo al heartbeat de `SessionTimeoutService` queda pendiente
+- [i] V37.17 **La PWA sigue sin desplegarse.** Todo esto se suma a lo que espera el merge a
+      `main-produccion`; nada de los pasos 1 a 8 está en manos de un operario todavía
