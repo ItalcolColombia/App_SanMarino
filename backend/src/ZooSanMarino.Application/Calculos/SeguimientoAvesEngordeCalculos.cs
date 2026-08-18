@@ -66,11 +66,10 @@ public static class SeguimientoAvesEngordeCalculos
     /// ANTERIOR del galpón. La ventana previa al encaset caía dentro de ese ciclo justo cuando se
     /// vacía su bodega y, como las devoluciones se excluyen pero los traslados de salida no, la
     /// apertura salía negativa (lote 98 Kilometro 22/G0036: −7.960 kg corridos en las 43 filas).
-    /// ⚠️ FIX v15 (2026-08-08): <paramref name="ciclosDelGalpon"/> habilita el OVERRIDE por la marca
-    /// <c>para_proximo_ciclo</c>: un movimiento marcado entra a la apertura aunque quede fuera de la
-    /// ventana o esté etiquetado con un lote ajeno (ver
-    /// <see cref="SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo"/>). Omitir el parámetro
-    /// —el default— deja el comportamiento v14 byte a byte, marca o no marca.
+    /// ⛔ v16a (2026-08-18): se retiró el parámetro <c>ciclosDelGalpon</c> que habilitaba el OVERRIDE
+    /// por la marca <c>para_proximo_ciclo</c> (v15). Ningún llamador de producción lo pasaba —sólo los
+    /// xUnit—, así que la fn aplicaba la marca y este espejo no. La fn v16a tampoco la aplica ya. La
+    /// aritmética de este método es la de v14, sin cambios.
     /// </summary>
     public static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
@@ -78,8 +77,7 @@ public static class SeguimientoAvesEngordeCalculos
         DateTime? fechaEncaset = null,
         int? diasAlimentoPrevio = null,
         IReadOnlySet<int>? lotesAjenos = null,
-        DateTime? finCicloAnterior = null,
-        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)>? ciclosDelGalpon = null)
+        DateTime? finCicloAnterior = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
         // ⭐ v12: la ventana no puede retroceder más allá del fin del ciclo anterior del galpón.
@@ -92,19 +90,10 @@ public static class SeguimientoAvesEngordeCalculos
             var ymd = YmdHistoricoEfectivo(h);
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0)
                 continue;
-            // ⭐ v15: la marca explícita sustituye a los DOS cortes por fecha (v11 y v12). Solo se
-            // evalúa si el llamador pasó los ciclos del galpón: sin ese dato no se puede aplicar la
-            // guarda «que no se cuele dos ciclos después» y el default conserva el camino v14.
-            var porMarca = ciclosDelGalpon is not null
-                && SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-                       h.ParaProximoCiclo, ParseYmd(ymd), firstSegDate, ciclosDelGalpon);
-            if (!porMarca)
-            {
-                if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
-                    continue;
-                if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos))
-                    continue;
-            }
+            if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
+                continue;
+            if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos))
+                continue;
             if (!SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out var d, out _))
                 continue;
             rows.Add((ymd, TsHistorico(h), d));
@@ -140,8 +129,7 @@ public static class SeguimientoAvesEngordeCalculos
         DateTime? fechaEncaset = null,
         int? diasAlimentoPrevio = null,
         IReadOnlySet<int>? lotesAjenos = null,
-        DateTime? finCicloAnterior = null,
-        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)>? ciclosDelGalpon = null)
+        DateTime? finCicloAnterior = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
         var corte = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
@@ -159,16 +147,10 @@ public static class SeguimientoAvesEngordeCalculos
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0)
                 continue;
 
-            var porMarca = ciclosDelGalpon is not null
-                && SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-                       h.ParaProximoCiclo, ParseYmd(ymd), firstSegDate, ciclosDelGalpon);
-            if (!porMarca)
-            {
-                if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
-                    continue;
-                if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos))
-                    continue;
-            }
+            if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
+                continue;
+            if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos))
+                continue;
 
             var doc = (h.NumeroDocumento ?? h.Referencia ?? string.Empty).Trim();
             if (doc.Length > 0) docs.Add(doc);
@@ -187,9 +169,8 @@ public static class SeguimientoAvesEngordeCalculos
     /// inventario. Devuelve el saldo por Id de seguimiento y el saldo final acumulado
     /// (fallback para seguimientos sin evento propio). El llamador (EF) persiste el resultado.
     /// Requiere <paramref name="segs"/> no vacío.
-    /// ⚠️ FIX v15 (2026-08-08): con <paramref name="ciclosDelGalpon"/> se aplica la marca
-    /// <c>para_proximo_ciclo</c> — entra a la apertura del ciclo que corresponde y sale de los días
-    /// del ciclo que la contiene. Omitir el parámetro deja el comportamiento v14 byte a byte.
+    /// ⛔ v16a (2026-08-18): la marca <c>para_proximo_ciclo</c> ya no interviene acá (ver el comentario
+    /// de <see cref="ComputeSaldoAperturaGalponAntesPrimerSeguimiento"/>). Aritmética v14 intacta.
     /// </summary>
     public static (IReadOnlyDictionary<long, decimal> SaldoPorSegId, decimal SaldoFinal) CalcularSaldoAlimentoPorSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
@@ -197,8 +178,7 @@ public static class SeguimientoAvesEngordeCalculos
         DateTime? fechaEncaset,
         int? diasAlimentoPrevio = null,
         IReadOnlySet<int>? lotesAjenos = null,
-        DateTime? finCicloAnterior = null,
-        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)>? ciclosDelGalpon = null)
+        DateTime? finCicloAnterior = null)
     {
         var firstSegDate = segs.Min(s => s.Fecha.Date);
         var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
@@ -209,8 +189,7 @@ public static class SeguimientoAvesEngordeCalculos
         // este lote y todo lo que entra es suyo, aunque el movimiento haya quedado etiquetado con
         // el id del ciclo anterior (ver SaldoAlimentoEngordeCalculos.EsDeCicloAjeno).
         var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, firstSegDate, fechaEncaset, diasAlimentoPrevio, lotesAjenos, finCicloAnterior,
-            ciclosDelGalpon);
+            hist, firstSegDate, fechaEncaset, diasAlimentoPrevio, lotesAjenos, finCicloAnterior);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
 
@@ -220,12 +199,6 @@ public static class SeguimientoAvesEngordeCalculos
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) < 0)
                 continue;
             if (encYmd is not null && string.Compare(ymd, encYmd, StringComparison.Ordinal) < 0)
-                continue;
-            // ⭐ v15: el movimiento marcado «para el próximo ciclo» no suma kg a los días de ESTE
-            // ciclo aunque su fecha caiga adentro: su lugar es la apertura del siguiente. Espejo del
-            // filtro que la fn aplica en hist_alimento / hist_full / docs_por_fecha / fechas_universo.
-            if (ciclosDelGalpon is not null
-                && SaldoAlimentoEngordeCalculos.ExcluidoDeFilaDiariaPorMarca(h.ParaProximoCiclo, firstSegDate))
                 continue;
             if (!SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out var delta, out var ord))
                 continue;

@@ -121,6 +121,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<VacunacionPlanPlantilla> VacunacionPlanPlantilla => Set<VacunacionPlanPlantilla>();
         public DbSet<VacunacionPlanPlantillaItem> VacunacionPlanPlantillaItem => Set<VacunacionPlanPlantillaItem>();
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
+        /// <summary>La atribución del alimento marcado «para el próximo ciclo», persistida como hecho:
+        /// la fn diaria la LEE en vez de recalcularla en cada lectura.</summary>
+        public DbSet<AlimentoEntregaCicloEngorde> AlimentoEntregaCicloEngorde => Set<AlimentoEntregaCicloEngorde>();
         /// <summary>Cohortes de aves recibidas por traslado (cada grupo conserva la edad de su lote origen).</summary>
         public DbSet<LoteAvesCohorte> LoteAvesCohortes => Set<LoteAvesCohorte>();
         /// <summary>Ídem para la línea de engorde (lote receptor = lote_ave_engorde).</summary>

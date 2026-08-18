@@ -14,8 +14,9 @@ namespace ZooSanMarino.Application.Tests;
 /// <list type="number">
 ///   <item>APERTURA VISIBLE: los kg y los documentos que la fn ya absorbía en la apertura desde v9
 ///   dejan de ser un escalar interno (columnas <c>apertura_alimento_kg</c> / <c>apertura_documentos</c>).</item>
-///   <item>MARCA <c>para_proximo_ciclo</c>: atribución explícita para los galpones encadenados, donde
-///   la llegada real cae dentro del ciclo anterior y la fecha sola no puede decidir.</item>
+///   <item>MARCA <c>para_proximo_ciclo</c>: ⛔ RETIRADA en v16a (18-ago-2026). Los casos de la marca
+///   que quedan abajo son el contrato de su <b>inercia</b>: el booleano se guarda pero no lo interpreta
+///   nadie, ni la fn ni este cálculo. Por qué, en la cabecera de la sección (B).</item>
 /// </list>
 /// <para>
 /// Regla del repo «una sola fórmula por número»: estos casos son el contrato que la fn SQL debe
@@ -148,26 +149,49 @@ public class AperturaAlimentoEngordeV15CalculosTests
             hist, PrimerSeg, Encaset, diasAlimentoPrevio: 10));
     }
 
-    // ─── (B) Marca «para el próximo ciclo»: sin marca NADA cambia ────────────────────────────────
+    // --- (B) v16a: la marca «para el próximo ciclo» es INERTE -----------------------------------
+    //
+    // Hasta v15 la marca movía kg de una pantalla a otra: entraba a la apertura saltando los cortes
+    // de v11/v12 y salía de la fila diaria del ciclo que la contenía. Medido sobre el dump local, esa
+    // semántica rompe la conservación: marcar los 2.371 movimientos de alimento reales deja 24 filas
+    // de la tabla diaria sin ninguna pantalla, mueve 1.733 saldos (peor caso 193.701,7 kg), lleva las
+    // filas en negativo de 97 a 1.160 y el cuadre de 8 a 58 galpones descuadrados.
+    //
+    // La Fase A del plan `v16_engorde_atribucion_persistida_plan.md` la apaga: el booleano se guarda,
+    // pero NADIE lo interpreta. Estos casos son el contrato de esa inercia — cada uno compara el mismo
+    // historial con la marca y sin ella y exige el MISMO número. La atribución vuelve en la Fase B,
+    // como hecho persistido con dueño único, no como predicado recalculado en cada lectura.
 
     [Fact]
-    public void SinMarca_AperturaIdenticaAV14_AunqueSePasenLosCiclosDelGalpon()
+    public void Marca_Apertura_DaExactamenteLoMismoQueSinMarca()
     {
-        var ciclos = new[] { (LoteId: 7, SegMin: (DateTime?)new DateTime(2026, 6, 1), SegMax: (DateTime?)new DateTime(2026, 7, 20)) };
-
-        var sinCiclos = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+        var sinMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
             HistorialDelPlan(), PrimerSeg, Encaset, diasAlimentoPrevio: 10);
-        var conCiclos = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            HistorialDelPlan(), PrimerSeg, Encaset, diasAlimentoPrevio: 10, ciclosDelGalpon: ciclos);
+        var conMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+            HistorialDelPlan(marcarEl14: true), PrimerSeg, Encaset, diasAlimentoPrevio: 10);
 
-        Assert.Equal(sinCiclos, conCiclos);
-        Assert.Equal(7000m, conCiclos);
+        Assert.Equal(sinMarca, conMarca);
+        Assert.Equal(7000m, conMarca);
     }
 
     [Fact]
-    public void ConMarca_PeroSinCiclosDelGalpon_ElDefaultConservaElComportamientoV14()
+    public void Marca_Documentos_DanExactamenteLosMismosQueSinMarca()
     {
-        // El parámetro nuevo es opt-in: quien no lo pasa sigue viendo exactamente la v14.
+        var sinMarca = SeguimientoAvesEngordeCalculos.ComputeDocumentosAperturaGalponAntesPrimerSeguimiento(
+            HistorialDelPlan(), PrimerSeg, Encaset, diasAlimentoPrevio: 10);
+        var conMarca = SeguimientoAvesEngordeCalculos.ComputeDocumentosAperturaGalponAntesPrimerSeguimiento(
+            HistorialDelPlan(marcarEl14: true), PrimerSeg, Encaset, diasAlimentoPrevio: 10);
+
+        Assert.Equal(sinMarca, conMarca);
+        // FAC-0014 (14-ago) queda fuera de la ventana de 10 días con o sin marca: v16a no la rescata.
+        Assert.Equal("FAC-0015, FAC-0026", conMarca);
+    }
+
+    [Fact]
+    public void Marca_MovimientoFueraDeLaVentana_SigueFuera()
+    {
+        // v15 usaba la marca para rescatar los 3.000 del 14-ago (un día fuera de la ventana) y los
+        // subía a 10.000. v16a no: el corte por fecha vuelve a ser la única regla.
         var apertura = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
             HistorialDelPlan(marcarEl14: true), PrimerSeg, Encaset, diasAlimentoPrevio: 10);
 
@@ -175,144 +199,50 @@ public class AperturaAlimentoEngordeV15CalculosTests
     }
 
     [Fact]
-    public void ConMarca_MovimientoFueraDeLaVentana_EntraALaApertura()
-    {
-        // Los 3.000 del 14-ago están un día fuera de la ventana de 10: sin marca se pierden del
-        // reporte aunque sigan en el stock («el sistema se comió alimento»). La marca los rescata.
-        var apertura = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            HistorialDelPlan(marcarEl14: true), PrimerSeg, Encaset, diasAlimentoPrevio: 10,
-            ciclosDelGalpon: []);
-
-        Assert.Equal(10000m, apertura);
-    }
-
-    [Fact]
-    public void ConMarca_ElDocumentoDelMovimientoRescatadoTambienSeMuestra()
-    {
-        var docs = SeguimientoAvesEngordeCalculos.ComputeDocumentosAperturaGalponAntesPrimerSeguimiento(
-            HistorialDelPlan(marcarEl14: true), PrimerSeg, Encaset, diasAlimentoPrevio: 10,
-            ciclosDelGalpon: []);
-
-        Assert.Equal("FAC-0014, FAC-0015, FAC-0026", docs);
-    }
-
-    [Fact]
-    public void ConMarca_MovimientoDeCicloAjeno_EntraIgual_LaMarcaGanaAlCorteV11()
+    public void Marca_MovimientoDeCicloAjeno_SigueSiendoAjeno_ElCorteV11Manda()
     {
         // Galpón encadenado: el trigger etiquetó la llegada con el lote VIEJO (99), que v11 descarta.
-        // La marca la pone una persona, así que sustituye a la heurística.
-        List<LoteRegistroHistoricoUnificado> hist =
+        // En v15 la marca ganaba a la heurística; en v16a no la mira nadie.
+        var ajenos = new HashSet<int> { 99 };
+        List<LoteRegistroHistoricoUnificado> sin =
+            [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m, loteAveEngordeId: 99)];
+        List<LoteRegistroHistoricoUnificado> con =
             [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m, numeroDocumento: "FAC-X",
                   loteAveEngordeId: 99, paraProximoCiclo: true)];
-        var ajenos = new HashSet<int> { 99 };
 
         var sinMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m, loteAveEngordeId: 99)],
-            PrimerSeg, Encaset, diasAlimentoPrevio: 10, lotesAjenos: ajenos, ciclosDelGalpon: []);
+            sin, PrimerSeg, Encaset, diasAlimentoPrevio: 10, lotesAjenos: ajenos);
         var conMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, PrimerSeg, Encaset, diasAlimentoPrevio: 10, lotesAjenos: ajenos, ciclosDelGalpon: []);
+            con, PrimerSeg, Encaset, diasAlimentoPrevio: 10, lotesAjenos: ajenos);
 
-        Assert.Equal(0m, sinMarca);
-        Assert.Equal(4000m, conMarca);
+        Assert.Equal(sinMarca, conMarca);
+        Assert.Equal(0m, conMarca);
     }
 
     [Fact]
-    public void ConMarca_GalponEncadenado_ElCorteDelCicloAnteriorTampocoLaFrena()
+    public void Marca_GalponEncadenado_ElCorteDelCicloAnteriorTambienManda()
     {
-        // 28 de 75 ciclos encadenados de Ecuador tienen menos de 10 días de gap: la ventana se recorta
-        // a `fin_ciclo_anterior + 1` y la llegada real queda del lado del ciclo viejo.
         var finCicloAnterior = new DateTime(2026, 8, 22);
-        List<LoteRegistroHistoricoUnificado> hist =
+        List<LoteRegistroHistoricoUnificado> sin =
+            [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m)];
+        List<LoteRegistroHistoricoUnificado> con =
             [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m, numeroDocumento: "FAC-X", paraProximoCiclo: true)];
 
         var sinMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            [Hist("INV_INGRESO", new DateTime(2026, 8, 20), 4000m)],
-            PrimerSeg, Encaset, diasAlimentoPrevio: 10, finCicloAnterior: finCicloAnterior, ciclosDelGalpon: []);
+            sin, PrimerSeg, Encaset, diasAlimentoPrevio: 10, finCicloAnterior: finCicloAnterior);
         var conMarca = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, PrimerSeg, Encaset, diasAlimentoPrevio: 10, finCicloAnterior: finCicloAnterior,
-            ciclosDelGalpon: []);
+            con, PrimerSeg, Encaset, diasAlimentoPrevio: 10, finCicloAnterior: finCicloAnterior);
 
-        Assert.Equal(0m, sinMarca);
-        Assert.Equal(4000m, conMarca);
+        Assert.Equal(sinMarca, conMarca);
+        Assert.Equal(0m, conMarca);
     }
 
-    // ─── (B) La guarda: una marca vieja no se cuela dos ciclos después ───────────────────────────
-
-    [Fact]
-    public void EntraPorMarca_SinCicloIntermedio_LoAbsorbeEsteCiclo()
-    {
-        var ciclos = new[] { (LoteId: 7, SegMin: (DateTime?)new DateTime(2026, 6, 1), SegMax: (DateTime?)new DateTime(2026, 7, 20)) };
-
-        Assert.True(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: true, fechaMovimiento: new DateTime(2026, 8, 14), miPrimerSeguimiento: PrimerSeg, ciclos));
-    }
-
-    [Fact]
-    public void EntraPorMarca_OtroCicloArrancoEnElMedio_LaMarcaEraDeAquel()
-    {
-        // El lote 8 empezó su seguimiento el 18-ago, entre la llegada (14-ago) y mi día 1 (27-ago).
-        var ciclos = new[] { (LoteId: 8, SegMin: (DateTime?)new DateTime(2026, 8, 18), SegMax: (DateTime?)new DateTime(2026, 8, 25)) };
-
-        Assert.False(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: true, fechaMovimiento: new DateTime(2026, 8, 14), miPrimerSeguimiento: PrimerSeg, ciclos));
-    }
-
-    [Fact]
-    public void EntraPorMarca_LoteSinSeguimientoEnElGalpon_NoBloquea()
-    {
-        var ciclos = new[] { (LoteId: 8, SegMin: (DateTime?)null, SegMax: (DateTime?)null) };
-
-        Assert.True(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: true, fechaMovimiento: new DateTime(2026, 8, 14), miPrimerSeguimiento: PrimerSeg, ciclos));
-    }
-
-    [Fact]
-    public void EntraPorMarca_OtroCicloQueArrancoElMISMODiaDelMovimiento_NoBloquea()
-    {
-        // La comparación es estricta por los dos lados: el ciclo que ya estaba corriendo cuando llegó
-        // el alimento no es «el próximo».
-        var ciclos = new[] { (LoteId: 8, SegMin: (DateTime?)new DateTime(2026, 8, 14), SegMax: (DateTime?)new DateTime(2026, 8, 25)) };
-
-        Assert.True(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: true, fechaMovimiento: new DateTime(2026, 8, 14), miPrimerSeguimiento: PrimerSeg, ciclos));
-    }
-
-    [Fact]
-    public void EntraPorMarca_MovimientoPosteriorAMiDiaUno_NoEsApertura()
-    {
-        Assert.False(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: true, fechaMovimiento: new DateTime(2026, 9, 5), miPrimerSeguimiento: PrimerSeg, []));
-    }
-
-    [Fact]
-    public void EntraPorMarca_SinMarca_SiempreFalse()
-    {
-        Assert.False(SaldoAlimentoEngordeCalculos.EntraPorMarcaProximoCiclo(
-            marcado: false, fechaMovimiento: new DateTime(2026, 8, 14), miPrimerSeguimiento: PrimerSeg, []));
-    }
-
-    // ─── (B) El marcado sale de la fila diaria del ciclo que lo contiene ─────────────────────────
-
-    [Fact]
-    public void ExcluidoDeFilaDiaria_ConSeguimiento_ElMarcadoNoEsKgDeEsteCiclo()
-        => Assert.True(SaldoAlimentoEngordeCalculos.ExcluidoDeFilaDiariaPorMarca(true, PrimerSeg));
-
-    [Fact]
-    public void ExcluidoDeFilaDiaria_LoteSinSeguimientoTodavia_ElMarcadoSIGUEVISIBLE()
-        // Excepción deliberada: sin primer seguimiento no hay apertura donde absorberlo, y los kg no
-        // pueden desaparecer de la pantalla — ese parpadeo es lo que empuja a re-fechar al día 1.
-        => Assert.False(SaldoAlimentoEngordeCalculos.ExcluidoDeFilaDiariaPorMarca(true, null));
-
-    [Fact]
-    public void ExcluidoDeFilaDiaria_SinMarca_NuncaSeExcluye()
-        => Assert.False(SaldoAlimentoEngordeCalculos.ExcluidoDeFilaDiariaPorMarca(false, PrimerSeg));
-
-    // ─── (B) Efecto sobre el saldo por seguimiento (la fila diaria completa) ─────────────────────
+    // --- (B) Efecto sobre el saldo por seguimiento (la fila diaria completa) ---------------------
 
     [Fact]
     public void SaldoPorSeguimiento_CasoDelPlan_AperturaMasDiasDaElMismo6800()
     {
-        // Reproduce §8 [2] del plan y la simulación en BD: 5.000 + 2.000 − 200 = 6.800.
+        // Reproduce §8 [2] del plan de v15 y la simulación en BD: 5.000 + 2.000 - 200 = 6.800.
         var (porSeg, final) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
             HistorialDelPlan(), [Seg(1, PrimerSeg, 200m)], Encaset, diasAlimentoPrevio: 10);
 
@@ -321,36 +251,51 @@ public class AperturaAlimentoEngordeV15CalculosTests
     }
 
     [Fact]
-    public void SaldoPorSeguimiento_MarcadoDentroDelRango_SaleDelSaldoDeEsteCiclo()
+    public void SaldoPorSeguimiento_MarcadoDentroDelRango_NoSaleDelSaldoDeEsteCiclo()
     {
-        List<LoteRegistroHistoricoUnificado> hist =
+        // Éste es el caso que rompía la conservación: v15 restaba los 4.000 del saldo de este ciclo
+        // (8.700 -> 4.700) confiando en que la apertura del ciclo destino los tomaría. Cuando el
+        // destino convive con el cedente, o todavía no existe, nadie los toma y los kg desaparecen de
+        // toda pantalla. v16a los deja donde están: marcado o no, el número es el mismo.
+        List<LoteRegistroHistoricoUnificado> sin =
+        [
+            Hist("INV_INGRESO", new DateTime(2026, 8, 15), 5000m, numeroDocumento: "FAC-0015"),
+            Hist("INV_INGRESO", new DateTime(2026, 9, 5), 4000m, numeroDocumento: "FAC-0905"),
+        ];
+        List<LoteRegistroHistoricoUnificado> con =
         [
             Hist("INV_INGRESO", new DateTime(2026, 8, 15), 5000m, numeroDocumento: "FAC-0015"),
             Hist("INV_INGRESO", new DateTime(2026, 9, 5), 4000m, numeroDocumento: "FAC-0905", paraProximoCiclo: true),
         ];
         List<SeguimientoDiarioAvesEngorde> segs = [Seg(1, PrimerSeg, 200m), Seg(2, new DateTime(2026, 9, 10), 100m)];
 
+        var sinMarca = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            sin, segs, Encaset, diasAlimentoPrevio: 10);
         var conMarca = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segs, Encaset, diasAlimentoPrevio: 10, ciclosDelGalpon: []);
-        var ignorandoLaMarca = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segs, Encaset, diasAlimentoPrevio: 10);
+            con, segs, Encaset, diasAlimentoPrevio: 10);
 
-        // Sin leer la marca los 4.000 del 05-sep siguen sumando (camino v14).
-        Assert.Equal(8700m, ignorandoLaMarca.SaldoFinal);
-        // Leyéndola, esos kg son del ciclo siguiente: 5.000 − 200 − 100.
-        Assert.Equal(4700m, conMarca.SaldoFinal);
+        Assert.Equal(sinMarca.SaldoFinal, conMarca.SaldoFinal);
+        Assert.Equal(8700m, conMarca.SaldoFinal);   // 5.000 + 4.000 - 200 - 100
     }
 
     [Fact]
-    public void SaldoPorSeguimiento_SinNingunaMarca_ConYSinCiclosDelGalponEsElMismoNumero()
+    public void SaldoPorSeguimiento_MarcarTodoElHistorial_NoMueveNiUnKilo()
     {
-        List<SeguimientoDiarioAvesEngorde> segs = [Seg(1, PrimerSeg, 200m)];
+        // Generalización del caso anterior: es el equivalente en C# del A/B que el gate corre en BD
+        // (2.371 movimientos marcados => EXCEPT ALL 0 y 0 sobre 6.429 filas).
+        List<SeguimientoDiarioAvesEngorde> segs = [Seg(1, PrimerSeg, 200m), Seg(2, new DateTime(2026, 8, 28), 150m)];
+        var todoMarcado = HistorialDelPlan()
+            .Select(h => Hist(h.TipoEvento, h.FechaOperacion, h.CantidadKg,
+                              numeroDocumento: h.NumeroDocumento, paraProximoCiclo: true))
+            .ToList();
 
-        var a = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+        var sinMarca = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
             HistorialDelPlan(), segs, Encaset, diasAlimentoPrevio: 10);
-        var b = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            HistorialDelPlan(), segs, Encaset, diasAlimentoPrevio: 10, ciclosDelGalpon: []);
+        var conMarca = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            todoMarcado, segs, Encaset, diasAlimentoPrevio: 10);
 
-        Assert.Equal(a.SaldoFinal, b.SaldoFinal);
+        Assert.Equal(sinMarca.SaldoFinal, conMarca.SaldoFinal);
+        Assert.Equal(sinMarca.SaldoPorSegId[1], conMarca.SaldoPorSegId[1]);
+        Assert.Equal(sinMarca.SaldoPorSegId[2], conMarca.SaldoPorSegId[2]);
     }
 }

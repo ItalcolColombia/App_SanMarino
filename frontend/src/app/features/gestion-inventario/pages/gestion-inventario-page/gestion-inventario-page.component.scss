@@ -229,6 +229,14 @@
   }
 }
 
+// Mismos colores que el badge de Historial -> Ingresos: es la MISMA marca vista desde otra
+// pantalla, y que cambie de color entre las dos hace dudar de si es lo mismo.
+.badge-proximo-ciclo {
+  background: var(--ital-orange-50, #fff3e8);
+  color: var(--ital-orange-dark, #a64b18);
+  border: 1px solid var(--ital-orange, #e8a06a);
+}
+
 .badge-transito {
   display: inline-block;
   font-size: 0.68rem;

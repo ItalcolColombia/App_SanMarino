@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260818060000_FnSeguimientoEngordeV16aMarcaInerte")]
+    partial class FnSeguimientoEngordeV16aMarcaInerte
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,144 +25,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.AlimentoEntregaCicloEngorde", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset?>("AnuladaAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("anulada_at");
-
-                    b.Property<string>("AnuladaMotivo")
-                        .HasMaxLength(400)
-                        .HasColumnType("character varying(400)")
-                        .HasColumnName("anulada_motivo");
-
-                    b.Property<string>("AnuladaPorUserId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("anulada_por_user_id");
-
-                    b.Property<int>("CompanyId")
-                        .HasColumnType("integer")
-                        .HasColumnName("company_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("estado");
-
-                    b.Property<int>("FarmId")
-                        .HasColumnType("integer")
-                        .HasColumnName("farm_id");
-
-                    b.Property<DateTime?>("FechaEntrega")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha_entrega");
-
-                    b.Property<DateTime>("FechaMovimiento")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha_movimiento");
-
-                    b.Property<string>("GalponId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("galpon_id");
-
-                    b.Property<long?>("HistId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("hist_id");
-
-                    b.Property<decimal>("KgEntregados")
-                        .HasColumnType("numeric(18,3)")
-                        .HasColumnName("kg_entregados");
-
-                    b.Property<decimal>("KgMovimiento")
-                        .HasColumnType("numeric(18,3)")
-                        .HasColumnName("kg_movimiento");
-
-                    b.Property<decimal>("KgNoDiferible")
-                        .HasColumnType("numeric(18,3)")
-                        .HasColumnName("kg_no_diferible");
-
-                    b.Property<int?>("LoteCedenteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_cedente_id");
-
-                    b.Property<int?>("LoteDestinoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_destino_id");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(400)
-                        .HasColumnType("character varying(400)")
-                        .HasColumnName("motivo");
-
-                    b.Property<string>("NucleoId")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasDefaultValue("")
-                        .HasColumnName("nucleo_id");
-
-                    b.Property<string>("NumeroDocumento")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("numero_documento");
-
-                    b.Property<long>("OrigenId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("origen_id");
-
-                    b.Property<string>("OrigenTabla")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("origen_tabla");
-
-                    b.Property<bool>("Sellada")
-                        .HasColumnType("boolean")
-                        .HasColumnName("sellada");
-
-                    b.HasKey("Id")
-                        .HasName("pk_alimento_entrega_ciclo_engorde");
-
-                    b.HasIndex("LoteCedenteId")
-                        .HasDatabaseName("ix_entrega_ciclo_cedente")
-                        .HasFilter("estado = 'VIGENTE'");
-
-                    b.HasIndex("LoteDestinoId")
-                        .HasDatabaseName("ix_entrega_ciclo_destino")
-                        .HasFilter("estado = 'VIGENTE'");
-
-                    b.HasIndex("OrigenTabla", "OrigenId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_entrega_ciclo_origen")
-                        .HasFilter("estado <> 'ANULADA'");
-
-                    b.HasIndex("FarmId", "NucleoId", "GalponId", "FechaMovimiento")
-                        .HasDatabaseName("ix_entrega_ciclo_ubicacion");
-
-                    b.ToTable("alimento_entrega_ciclo_engorde", (string)null);
-                });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.CatalogItem", b =>
                 {

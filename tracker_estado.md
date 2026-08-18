@@ -1102,13 +1102,22 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
       cuadre 61 filas / 1 descuadrado (el preexistente de Panamá)
 
 ### Lo que queda para el rediseño (con las 3 reglas ya definidas por el usuario)
-- [ ] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
-      vez de recalcularla en lectura: es la única forma de que la liquidación de un extremo no parta el
-      handoff. Es un cambio de modelo de datos, no una guarda más
-- [ ] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
-      seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
-      aplicado al destino en vez de a mí
-- [ ] Fase 2 (visibilidad/corrección R3) del plan · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16**
+- [!] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
+      vez de recalcularla en lectura. **La infraestructura ya entró INERTE el 18-ago (bloque V27, al
+      final): tabla del hecho, triggers, cálculo dueño, 34 tests, mutación 17/17.** Pasa a `- [!]`
+      porque el gate demostró que el mecanismo de ENTREGA **no puede dispararse nunca** —0 de 53 pares
+      con hueco tienen un cedente que llegue vivo al día de la entrega— y el rediseño correcto
+      (ampliar la ventana D4 del destino) **es una decisión de producto**: V27.1
+- [x] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
+      seguir viendo el movimiento). **Cerrado el 18-ago por la FASE A (bloque V26, al final).** No se
+      arreglaron: se **BORRARON**, que es lo que manda el plan nuevo — mientras no exista la
+      atribución persistida, la marca no puede quitarle el movimiento a nadie. Medido: con la marca
+      prendida, la v15 le sacaba **21 filas a Panamá** (la topología que CONVIVE) y 3 a Ecuador; la
+      v16a, **0**
+- [~] Fase 2 (visibilidad/corrección R3) · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16** ·
+      **F2a.1 HECHA el 18-ago (bloque V28): la columna «Próx. ciclo» en el tab Histórico.** Queda
+      F2a.2 (smoke en pantalla: no tengo sesión para entrar a la app) y F2b (bandeja de
+      reservados), que depende de la Fase B frenada en V27.1
 
 ---
 
@@ -3280,3 +3289,202 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
       selección. Tiene su propio alcance
 - [ ] V25.8.7 **Falta desplegar**: las dos migraciones se aplican solas al arrancar
       (`Database__RunMigrations=true`), pero exigen la verificación post-deploy de CLAUDE.md §🚀
+
+---
+
+# V26 · Engorde FASE A — la marca `para_proximo_ciclo` vuelve a ser inerte (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE A** (de tres: A desarmar · B persistir · C ver).
+**Bloque propio.** Cierra el 2.º pendiente del bloque *«v16 de engorde — FASE 1 REVERTIDA»* (los 4
+guards). Los otros dos siguen abiertos allá: la Fase B es el hecho persistido y la Fase C, la
+visibilidad.
+
+## El defecto que estaba VIVO
+
+La marca se había apagado el 09-ago **sólo en el front** (`mostrarParaProximoCicloIngreso ⇒ false`,
+`puedeMarcarDestinoCiclo` exige que ya esté puesta). **La API no tenía ninguna guarda**: Swagger, la
+PWA, la carga masiva o un script podían volver a marcar hoy mismo, y la fn de producción sigue siendo
+la v15, que interpreta la marca. Medido en la BD local (dump tipo prod), marcando los **2.371**
+movimientos de alimento reales — todo en transacción con `ROLLBACK`:
+
+| | v15 (lo desplegado) | **v16a (este bloque)** |
+|---|---|---|
+| filas de la diaria que se caen de toda pantalla | **24** (3 Ecuador + 21 Panamá) | **0** |
+| filas con saldo distinto | **1.733** (peor caso **193.701,7 kg**) | **0** |
+| filas en negativo | 97 → **1.160** | 97 → **97** |
+| galpones descuadrados (`fn_cuadre_alimento_engorde`) | 8 → **58** | 8 → **8** |
+
+🔑 **Panamá sale PEOR que Ecuador** (21 filas perdidas contra 3), y es lo contrario de lo que sugiere
+la intuición: la marca se diseñó para los galpones encadenados de Ecuador. Pasa porque los 4 guards
+filtran por **ubicación** y le quitan el movimiento a **todo** lote con seguimiento — incluidos los
+que **CONVIVEN**, que es la topología que sólo existe en Panamá (R1). Un fix medido en un solo país
+no lo habría visto: es exactamente el error de julio, en espejo.
+
+## Qué entró
+
+- [x] V26.1 **fn `v16a`**: se van los **5** lugares donde la v15 interpretaba el booleano — el
+      disyunto marcado de `apert_mov` y los 4 guards de `hist_full`, `hist_alimento`,
+      `docs_por_fecha` y `fechas_universo`. Filtro de vuelta al de **v14 exacto**. **Se conservan**
+      `apertura_alimento_kg` y `apertura_documentos` (parte A de la v15: ortogonal, ya en prod)
+- [x] V26.2 **Migración** `20260818060000_FnSeguimientoEngordeV16aMarcaInerte` (`.cs` + `.Fn.cs` +
+      `.Designer.cs` clonado del último real, **ModelSnapshot intacto**), SQL **byte a byte** del
+      `.sql`. `Down()` repone la v15 **VERBATIM** desde la migración `20260808130000`
+- [x] V26.3 **Guarda de servidor** `GuardarMarcaProximoCicloApagada`: los 3 caminos que persisten la
+      marca (`RegistrarIngresoAsync`, el ingreso de Colombia y el `PUT /ingresos/{id}/destino-ciclo`)
+      rechazan `ParaProximoCiclo = true` con **400** y mensaje explicativo. **QUITAR** una marca
+      existente sigue permitido (R3: ningún kilo queda sin poder corregirse). El aviso de fecha fuera
+      de ciclo vuelve a evaluarse **siempre** (su excepción por marca ya es inalcanzable)
+- [x] V26.4 **Se borra el espejo C# muerto**: `EntraPorMarcaProximoCiclo` y
+      `ExcluidoDeFilaDiariaPorMarca`, más el parámetro `ciclosDelGalpon` de las 3 firmas de
+      `SeguimientoAvesEngordeCalculos`. `grep` en todo `backend/src`: **0 llamadores de producción**
+      lo pasaban — sólo los xUnit. O sea que **la fn aplicaba la marca y el espejo no**: la
+      divergencia SQL↔C# que CLAUDE.md prohíbe ya existía. Aritmética del camino v14 intacta
+- [x] V26.5 **Tests reescritos** (`AperturaAlimentoEngordeV15CalculosTests`): los casos de la marca
+      pasan a ser el contrato de su **inercia** — cada uno compara el mismo historial con la marca y
+      sin ella y exige el **mismo número**. Los de `apertura_alimento_kg` / `apertura_documentos` se
+      conservan tal cual
+
+## Validación
+
+- [x] V26.6 **Gate multipaís** (`backend/sql/verificar_paridad_saldo_engorde.sql`), antes y después,
+      mismo comando: **6.429 filas** (Ecuador 5.296 + Panamá 1.133) · **0** en las 7 columnas de diff
+      **en las dos empresas** · 6.342 filas de seguimiento esperadas == 6.342 presentes ·
+      `fn_cuadre_alimento_engorde(NULL)` **67 / 8 descuadrados** antes y después
+- [x] V26.7 **A/B con la marca PRENDIDA** (2.371 movimientos, tx + `ROLLBACK`): `EXCEPT ALL`
+      bidireccional **0 y 0** sobre las 6.429 filas, con `apertura_alimento_kg` y
+      `apertura_documentos` incluidas. Rastro al terminar: **0 marcas**
+- [x] V26.8 **La migración se probó en los dos sentidos**: se reinstaló la v15, `database update`
+      aplicó la v16a (0 menciones de la marca en `pg_proc`), `database update <anterior>` la revirtió
+      a v15 (6 menciones) y se volvió a aplicar. Los 5 consumidores responden:
+      `fn_cuadre_alimento_engorde` 67 · `fn_cuadre_aves_engorde` 186 ·
+      `fn_informe_semanal_pollo_engorde` 807 (EC) + 178 (PA)
+- [x] V26.9 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.824 + 1 verdes, 0 fallan** ·
+      sin procesos huérfanos (nunca se levantó backend; `:5002` libre) · tablas del gate borradas
+- [i] V26.10 **El front no cambia y no se rompe**: hoy sólo envía `paraProximoCiclo: false` (el alta
+      lo fuerza y el historial sólo ofrece *quitar*), así que la guarda nueva no se dispara desde
+      ninguna pantalla. Cierra el agujero de la API sin tocar la UI
+
+## Lo que NO hace este bloque
+
+- [i] V26.11 La **atribución** sigue sin existir: la marca se guarda y no la interpreta nadie. Vuelve
+      en la **Fase B** como **hecho persistido** que la fn LEE (tabla `alimento_entrega_ciclo_engorde`,
+      `EntregaAlimentoCicloEngordeCalculos` como dueño único, sellado al congelar un extremo). Ése es
+      el pendiente «Persistir la atribución como hecho» del bloque de v16, que queda abierto
+- [i] V26.12 **Falta desplegar**: la migración se aplica sola al arrancar
+      (`Database__RunMigrations=true`), pero exige la verificación post-deploy de CLAUDE.md §🚀. En
+      prod hay **0 marcas**, así que el `Up()` no mueve ni una fila de dato
+
+---
+
+# V27 · Engorde FASE B — el hecho persistido entra INERTE, y el gate tumba el modelo de ENTREGA (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE B**.
+**Continúa** el bloque V26 (Fase A). **Bloque propio.**
+
+## 🔴 EL HALLAZGO: el modelo de ENTREGA no puede dispararse nunca
+
+La Fase B se implementó completa —tabla del hecho, cálculo dueño, fn `v16b` que la lee— y el gate G1
+la tumbó **antes de commitear la fn**. No es un bug de código: es el modelo.
+
+**El mecanismo.** La entrega necesita (a) escribir una salida sintética en el **último día visible** del
+cedente y (b) que el cedente **tenga saldo ese día** para poder entregarlo (el tope). Pero
+`rango_final.fecha_max` se cierra apenas `saldo_close` encuentra la **primera** fecha ≥ último
+seguimiento con saldo ≈ 0. Y **todo ciclo bien operado termina en 0**: es la propia regla R2 —«al
+liquidar el lote trasladan el alimento sobrante fuera del galpón».
+
+**Medido** sobre los 53 pares secuenciales con hueco de la BD local (7 granjas, Ecuador):
+
+| | |
+|---|---|
+| pares con hueco entre ciclos | **53** |
+| cedentes cuya grilla **llega** al día de la entrega | **0** |
+| cedentes que terminan con **saldo > 0** | **2** |
+
+⇒ Cuando el alimento llega al hueco, **el cedente ya vació su bodega**. No hay kilos que entregar ni
+día donde escribir la entrega. El feature sólo podría dispararse cuando la operación dejó saldo
+colgado — que es justamente **la anomalía que R2 manda señalar**, no el caso sano que motivó el pedido.
+
+**Qué significa.** El alimento del hueco **no es del ciclo anterior** en ningún sentido contable: llega
+después de que ese ciclo cerró. **No hay handoff que modelar.** Lo que necesita es que la apertura del
+**DESTINO** alcance más atrás — o sea `dias_alimento_previo_encaset`, la ventana **D4**, que el propio
+plan excluye como «otro feature» (§6.2).
+
+- [!] V27.1 🔴 **Decisión de producto**: el rediseño correcto ya no es la entrega entre ciclos sino
+      ampliar/parametrizar la ventana D4 del destino. Antes de escribir más código hace falta el OK:
+      ¿se abandona el modelo de entrega y se encara D4? La Fase B queda **frenada acá**, no fallida
+- [i] V27.2 Esto **contradice el §9.3 del plan original**, que daba por sentado que «el saldo del
+      cedente lo cubre entero» en el caso feliz. Era una suposición nunca medida: hoy está medida
+
+## Lo que SÍ entró (todo INERTE: nada lee la tabla todavía)
+
+- [x] V27.3 **Tabla del hecho** `alimento_entrega_ciclo_engorde` + 4 índices + el índice parcial
+      `ix_lote_hist_para_proximo_ciclo` que el intento anterior dijo crear y nunca existió. Migración
+      `20260818130139`, espejo en `backend/sql/create_alimento_entrega_ciclo_engorde.sql`. Tipos
+      `varchar(N)` alineados con la config EF (el plan esbozaba `TEXT`: habría generado un
+      `AlterColumn` fantasma en el próximo `migrations add`)
+- [x] V27.4 **Los 2 triggers de anulación en cascada**, probados en transacción: `DELETE` del
+      movimiento ⇒ entrega `ANULADA` con motivo; `UPDATE` a `TrasladoInterGranjaRechazado` ⇒ idem;
+      **ninguna fila se borra**. La condición es la **misma, literal**, que la de
+      `trg_inventario_gestion_movimiento_lote_hist_cancel` — se verificó en `pg_get_triggerdef` en vez
+      de inventar un `ILIKE '%anulad%'`, que no habría disparado nunca
+- [x] V27.5 **`EntregaAlimentoCicloEngordeCalculos`** — dueño único de la atribución, puro, sin EF.
+      Cubre los 11 casos del plan + los 3 estados extra. **Fail-closed**: nada termina en `VIGENTE`
+      por accidente
+- [x] V27.6 **34 tests** que **construyen** las topologías (galpón completo con encaset, primer y
+      último seguimiento, congelación). `dotnet test` **2.858 + 1 verdes**
+- [x] V27.7 **Prueba de mutación 17/17** (el piso del plan era 12): se desactivó cada guarda una por
+      una y todas se pusieron en rojo. **0 guardas sin test.** ⚠️ Honestidad: 1 de las 17 (`cedente sin
+      seguimiento`) murió por no compilar, no por un assert — es una señal más débil
+- [x] V27.8 **Migración de recálculo** `20260818130200`, el hueco que dejó la Fase A: realinea
+      `saldo_alimento_kg` con la fn. En local mueve **0 filas**; va igual porque desde esta máquina no
+      se puede afirmar que prod tenga 0 marcas, y una foto congelada con la columna vieja queda mal
+      para siempre
+- [x] V27.9 **El gate `backend/sql/verificar_entrega_ciclo_engorde.sql`** (I1..I11, con fase de
+      inyección sobre pares reales). Es el instrumento que produjo el hallazgo; se conserva para
+      cualquier rediseño futuro
+
+## Lo que NO entró, a propósito
+
+- [i] V27.10 ⛔ **La fn `v16b` NO se commiteó.** Se escribió, se instaló en local, pasó el gate
+      multipaís (**6.429 filas, 0 en las 7 columnas de diff, las dos empresas** — con 0 entregas es
+      byte a byte igual a v16a) y **se revirtió** con `git checkout` al ver el hallazgo. La BD local
+      quedó de vuelta en v16a, verificado con el gate. **Riesgo de despliegue: cero.**
+- [i] V27.11 Tampoco entraron el service, el controller ni la bandeja: son la maquinaria para escribir
+      un hecho que hoy nadie puede leer. Esperan V27.1
+- [i] V27.12 ⚠️ **El gate tiene un hueco conocido**: la fase de inyección **no bombea**
+      `inventario_gestion_stock`, así que I5 (cuadre) sube por construcción — son movimientos de
+      histórico sin contraparte de stock. Está anotado en la cabecera del script. Antes de usar I5
+      como veredicto hay que agregar ese `INSERT`
+
+## Validación
+
+- [x] V27.13 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.858 + 1 verdes** ·
+      gate multipaís **0 en todo, las dos empresas** · cuadre **67 / 8**, igual que antes ·
+      migraciones aplicadas y revertidas · **0 rastro** del gate (0 entregas, 0 marcas, 0 inyectado) ·
+      sin procesos huérfanos (`:5002` libre; nunca se levantó backend)
+
+---
+
+# V28 · Engorde F2a.1 — la columna «Próx. ciclo» en el tab Histórico (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE C / F2a.1**.
+**Bloque propio.** Es la única parte de la Fase 2 que no depende de la Fase B (frenada en V27.1).
+
+- [x] V28.1 **La columna entró donde faltaba.** El plan ya había medido que se confundieron dos
+      pantallas: `Historial → Ingresos` **sí** pintaba la marca desde siempre; el **tab Histórico** de
+      `gestion-inventario-page` (15 `<th>`) **no**. Ahora tiene 16, con el mismo badge naranja que la
+      otra pantalla — que sea la misma marca vista desde otro lado y cambie de color hace dudar de si
+      es lo mismo
+- [x] V28.2 🔑 **«El dato ya viaja» era cierto sólo del lado del servidor.** El DTO del backend manda
+      `ParaProximoCiclo` desde la migración `20260808120000`, pero la interfaz
+      `InventarioGestionMovimientoDto` del front **no lo declaraba**: el campo llegaba en el JSON y
+      TypeScript lo descartaba en silencio. El build lo cazó (`TS2339`). Sin esa línea la columna era
+      imposible, y el plan la daba por resuelta
+- [x] V28.3 Layout: `.historico-table-wrap` ya tiene `overflow-x: auto`, así que la 16.ª columna
+      desborda dentro de su propio contenedor y no puede romper la página
+- [x] V28.4 `cd frontend && yarn build` (Node portable 22.23.1) — **0 errores**, sin warnings (ni
+      siquiera el de bundle budget). Backend sin tocar
+- [~] V28.5 **Falta el smoke en pantalla** (F2a.2 del plan): es un paso manual en pantalla y hace
+      falta una sesión de la app, así que ningún agente lo puede cerrar solo. Hoy la columna
+      mostraría «—» en todas las filas (0 marcas en la BD): lo que hay que mirar es que el encabezado
+      se vea y que la tabla siga scrolleando bien

@@ -33,6 +33,13 @@ describe('decidirCacheable', () => {
     expect(decidirCacheable('GET', '/api/DbStudio/query')).toBeFalse();
   });
 
+  it('🔴 excluye el cuadre de alimento: cachear un DETECTOR lo vuelve mentiroso', () => {
+    // Servir de caché un «0 galpones descuadrados» taparía un descuadre vivo justo en el momento en
+    // que hay que verlo. Las dos rutas comparten primer segmento, así que una sola decisión alcanza.
+    expect(decidirCacheable('GET', '/api/CuadreAlimentoEngorde')).toBeFalse();
+    expect(decidirCacheable('GET', '/api/CuadreAlimentoEngorde/liquidados-con-alimento')).toBeFalse();
+  });
+
   it('es LISTA BLANCA: un endpoint desconocido no se cachea', () => {
     // Lo peor que pasa al agregar un módulo nuevo es que no ande sin red hasta que se agregue
     // a la lista. Con lista negra, en cambio, se cachearía solo.
