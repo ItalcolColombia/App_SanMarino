@@ -190,64 +190,13 @@ public static class SaldoAlimentoEngordeCalculos
         return previo.Value <= porCicloSiguiente.Value ? previo : porCicloSiguiente;
     }
 
-    /// <summary>
-    /// ¿El movimiento entra a la APERTURA de este ciclo por la marca explícita
-    /// «este alimento es para el próximo encasetamiento del galpón»? (v15, 2026-08-08)
-    /// <para>
-    /// Espejo del primer disyunto del filtro de <c>apert_mov</c> en
-    /// <c>fn_seguimiento_diario_engorde</c>. La marca la pone la persona que registra el ingreso, así
-    /// que SUSTITUYE a los dos cortes por fecha (<see cref="ResolverCorteApertura"/> de v12 y
-    /// <see cref="EsDeCicloAjeno"/> de v11): es la única atribución posible en los galpones
-    /// ENCADENADOS de Ecuador, donde la llegada real cae DENTRO del ciclo anterior y la fecha sola no
-    /// alcanza para decidir de quién es el alimento.
-    /// </para>
-    /// <para>
-    /// Guarda: lo absorbe el PRIMER ciclo del galpón que arranca después del movimiento. Si otro lote
-    /// de la misma ubicación ya empezó su seguimiento ENTRE la fecha del movimiento y
-    /// <paramref name="miPrimerSeguimiento"/>, la marca era para aquél — una marca vieja no se cuela
-    /// dos ciclos después. Un lote sin seguimiento (<c>SegMin</c> nulo) nunca bloquea.
-    /// </para>
-    /// </summary>
-    /// <param name="marcado">Valor de <c>para_proximo_ciclo</c> del movimiento.</param>
-    /// <param name="fechaMovimiento">Fecha de operación del movimiento.</param>
-    /// <param name="miPrimerSeguimiento">Primer día de seguimiento del lote consultado.</param>
-    /// <param name="ciclosDelGalpon">Los otros lotes del mismo (granja, núcleo, galpón).</param>
-    public static bool EntraPorMarcaProximoCiclo(
-        bool marcado,
-        DateTime fechaMovimiento,
-        DateTime miPrimerSeguimiento,
-        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)> ciclosDelGalpon)
-    {
-        if (!marcado) return false;
-
-        var mov = fechaMovimiento.Date;
-        var mio = miPrimerSeguimiento.Date;
-        if (mov >= mio) return false;                       // la apertura solo mira lo anterior al día 1
-
-        foreach (var c in ciclosDelGalpon)
-        {
-            if (!c.SegMin.HasValue) continue;
-            var min = c.SegMin.Value.Date;
-            if (min > mov && min < mio) return false;        // otro ciclo se interpuso: la marca era suyo
-        }
-        return true;
-    }
-
-    /// <summary>
-    /// ¿El movimiento debe SALIR de la fila diaria del ciclo que lo contiene? (v15, 2026-08-08)
-    /// <para>
-    /// Espejo del filtro <c>rs.fecha_min IS NULL OR NOT para_proximo_ciclo</c> que la fn aplica en
-    /// <c>hist_alimento</c>, <c>hist_full</c>, <c>docs_por_fecha</c> y <c>fechas_universo</c>: un
-    /// movimiento marcado no es kg de este ciclo aunque su fecha caiga en el rango — su lugar es la
-    /// apertura del siguiente.
-    /// </para>
-    /// <para>
-    /// EXCEPCIÓN deliberada: mientras el lote no tiene seguimiento
-    /// (<paramref name="miPrimerSeguimiento"/> nulo) el movimiento se conserva visible. Todavía no
-    /// hay apertura donde absorberlo y los kg no pueden desaparecer de la pantalla — ese parpadeo es
-    /// justamente lo que empuja a la operación a re-fechar el ingreso al día 1.
-    /// </para>
-    /// </summary>
-    public static bool ExcluidoDeFilaDiariaPorMarca(bool marcado, DateTime? miPrimerSeguimiento)
-        => marcado && miPrimerSeguimiento.HasValue;
+    // ⛔ v16a (2026-08-18): acá vivían `EntraPorMarcaProximoCiclo` y `ExcluidoDeFilaDiariaPorMarca`,
+    // el espejo C# de la marca `para_proximo_ciclo` de v15. Se borraron con la Fase A del plan
+    // `fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md`. Dos motivos:
+    // (1) la fn ya no interpreta la marca (v16a la volvió inerte), así que el espejo mentía;
+    // (2) NINGÚN llamador de producción los alcanzaba: sólo se evaluaban si se pasaba
+    //     `ciclosDelGalpon`, y ese parámetro lo pasaban únicamente los xUnit — o sea que la fn
+    //     aplicaba la marca y el espejo no. Es la divergencia SQL↔C# que CLAUDE.md prohíbe.
+    // La atribución vuelve en la Fase B, pero como HECHO PERSISTIDO con dueño único
+    // (`EntregaAlimentoCicloEngordeCalculos`), no como predicado recalculado en cada lectura.
 }

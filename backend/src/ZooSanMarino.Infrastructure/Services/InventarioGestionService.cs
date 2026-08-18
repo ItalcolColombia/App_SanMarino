@@ -576,6 +576,8 @@ public partial class InventarioGestionService : IInventarioGestionService
             usaUbicacion ? req.GalponId!.Trim() : null,
             req.SiloId);
 
+        GuardarMarcaProximoCicloApagada(req.ParaProximoCiclo);
+
         var estadoIngreso = string.Equals(origenTipoNorm, "planta", StringComparison.OrdinalIgnoreCase)
             ? "Entrada planta"
             : string.Equals(origenTipoNorm, "bodega", StringComparison.OrdinalIgnoreCase)
@@ -634,11 +636,11 @@ public partial class InventarioGestionService : IInventarioGestionService
         await RefrescarSaldoAlimentoEngordeAsync(companyId, req.FarmId, nucleoId, galponId, mov.MovementType, ct);
 
         // Avisa —sin bloquear— si el ingreso quedó fechado fuera del ciclo vigente del galpón.
-        // Con la marca «para el próximo ciclo» NO se avisa: la atribución ya es explícita del
-        // usuario, así que el aviso sería ruido justo en el caso que la marca viene a resolver.
-        var aviso = req.ParaProximoCiclo
-            ? null
-            : await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
+        // v16a: antes se saltaba cuando venía la marca «para el próximo ciclo» (la atribución era
+        // explícita y el aviso, ruido). Con la marca apagada por `GuardarMarcaProximoCicloApagada`
+        // ese camino es inalcanzable, así que el aviso vuelve a evaluarse siempre.
+        var aviso = await EvaluarAvisoFechaFueraDeCicloAsync(
+            companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
 
         var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
             .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId
@@ -1669,6 +1671,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         stock.UpdatedAt = DateTimeOffset.UtcNow;
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
+
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
         {
             CompanyId = companyId,
@@ -1733,6 +1736,8 @@ public partial class InventarioGestionService : IInventarioGestionService
         stock.Quantity += req.Quantity;
         stock.UpdatedAt = DateTimeOffset.UtcNow;
 
+        GuardarMarcaProximoCicloApagada(req.ParaProximoCiclo);
+
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
         {
             CompanyId = companyId,
@@ -1758,6 +1763,32 @@ public partial class InventarioGestionService : IInventarioGestionService
             RegistradoAt = DateTimeOffset.UtcNow
         });
         // NO SaveChanges/tx aquí: el orquestador externo commitea.
+    }
+
+    /// <summary>
+    /// Guarda de servidor de la marca «para el próximo ciclo» (v16a, 18-ago-2026, FASE A del plan
+    /// <c>fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md</c>).
+    /// <para>
+    /// La feature está APAGADA hasta que entre la atribución persistida (Fase B). Hasta hoy el apagado
+    /// era sólo del front (<c>mostrarParaProximoCicloIngreso</c> devuelve <c>false</c> y
+    /// <c>puedeMarcarDestinoCiclo</c> exige que la marca ya esté puesta), así que Swagger, la PWA, la
+    /// carga masiva o un script podían volver a ponerla. Medido sobre el dump local con la v15 que
+    /// corre en producción: marcar los 2.371 movimientos de alimento reales deja 24 filas de la tabla
+    /// diaria SIN NINGUNA pantalla, 1.733 filas con saldo distinto (peor caso 193.701,7 kg), lleva las
+    /// filas en negativo de 97 a 1.160 y el cuadre de 8 a 58 galpones descuadrados.
+    /// </para>
+    /// <para>
+    /// QUITAR una marca existente sigue permitido a propósito: R3 dice que los kilos nunca pueden
+    /// quedar sin poder corregirse. Por eso la guarda mira sólo el valor que se quiere ESCRIBIR.
+    /// </para>
+    /// </summary>
+    private static void GuardarMarcaProximoCicloApagada(bool paraProximoCiclo)
+    {
+        if (!paraProximoCiclo) return;
+        throw new InvalidOperationException(
+            "La marca «para el próximo ciclo» está deshabilitada mientras se rediseña la atribución "
+            + "del alimento entre ciclos: hoy dejaría kilos reales fuera de toda tabla diaria. "
+            + "Registre el ingreso con su fecha real; quitar una marca ya existente sigue permitido.");
     }
 
     private static void ApplyUbicacionMovimientoFilter(
@@ -2738,6 +2769,11 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         if (string.IsNullOrWhiteSpace(mov.GalponId))
             throw new InvalidOperationException("La marca «para el próximo ciclo» solo aplica a movimientos con galpón: sin galpón no hay ciclo al que atribuir el alimento.");
+
+        // v16a: PONER la marca está deshabilitado; QUITARLA no, para que ninguna marca vieja quede
+        // sin poder corregirse (R3). Si el movimiento ya está en el valor pedido, no hay escritura.
+        if (req.ParaProximoCiclo != mov.ParaProximoCiclo)
+            GuardarMarcaProximoCicloApagada(req.ParaProximoCiclo);
 
         mov.ParaProximoCiclo = req.ParaProximoCiclo;
         await _db.SaveChangesAsync(ct);

@@ -5,6 +5,14 @@
 y el bloque del tracker *«v16 de engorde — FASE 1 IMPLEMENTADA»*, que terminó en **NO-GO / REVERTIDA**.
 **Cierra los 3 pendientes** que ese bloque dejó abiertos en «Lo que queda para el rediseño».
 
+> ✅ **FASE A ENTREGADA el 18-ago-2026** (bloque **V26** al final de `tracker_estado.md`): la fn
+> `v16a` deja de interpretar la marca, la guarda de servidor cierra el agujero de la API que el
+> apagado de front no cubría, y el espejo C# muerto se borró. Gate multipaís **0 en todo, en las
+> dos empresas**. **Fase B y Fase C siguen abiertas** — este plan es su especificación vigente.
+>
+> ⚠️ **Corrección medida al implementar:** §0.5 daba `fn_cuadre_alimento_engorde(NULL)` en 66/5.
+> Hoy es **67 filas / 8 descuadrados** (otras sesiones movieron datos). Re-medir siempre, no citar.
+
 > ⚠️ **STEP 2 pendiente:** quien implemente esto agrega su bloque **AL FINAL** de `tracker_estado.md`,
 > separado por `---`, sin tocar bloques ajenos (CLAUDE.md §⚙️). Esta sesión **no** escribió el tracker.
 

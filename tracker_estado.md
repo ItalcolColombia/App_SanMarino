@@ -1105,9 +1105,12 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
 - [ ] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
       vez de recalcularla en lectura: es la única forma de que la liquidación de un extremo no parta el
       handoff. Es un cambio de modelo de datos, no una guarda más
-- [ ] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
-      seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
-      aplicado al destino en vez de a mí
+- [x] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
+      seguir viendo el movimiento). **Cerrado el 18-ago por la FASE A (bloque V26, al final).** No se
+      arreglaron: se **BORRARON**, que es lo que manda el plan nuevo — mientras no exista la
+      atribución persistida, la marca no puede quitarle el movimiento a nadie. Medido: con la marca
+      prendida, la v15 le sacaba **21 filas a Panamá** (la topología que CONVIVE) y 3 a Ecuador; la
+      v16a, **0**
 - [ ] Fase 2 (visibilidad/corrección R3) del plan · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16**
 
 ---
@@ -3280,3 +3283,87 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
       selección. Tiene su propio alcance
 - [ ] V25.8.7 **Falta desplegar**: las dos migraciones se aplican solas al arrancar
       (`Database__RunMigrations=true`), pero exigen la verificación post-deploy de CLAUDE.md §🚀
+
+---
+
+# V26 · Engorde FASE A — la marca `para_proximo_ciclo` vuelve a ser inerte (18ago26)
+
+**Plan:** [fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md) — **FASE A** (de tres: A desarmar · B persistir · C ver).
+**Bloque propio.** Cierra el 2.º pendiente del bloque *«v16 de engorde — FASE 1 REVERTIDA»* (los 4
+guards). Los otros dos siguen abiertos allá: la Fase B es el hecho persistido y la Fase C, la
+visibilidad.
+
+## El defecto que estaba VIVO
+
+La marca se había apagado el 09-ago **sólo en el front** (`mostrarParaProximoCicloIngreso ⇒ false`,
+`puedeMarcarDestinoCiclo` exige que ya esté puesta). **La API no tenía ninguna guarda**: Swagger, la
+PWA, la carga masiva o un script podían volver a marcar hoy mismo, y la fn de producción sigue siendo
+la v15, que interpreta la marca. Medido en la BD local (dump tipo prod), marcando los **2.371**
+movimientos de alimento reales — todo en transacción con `ROLLBACK`:
+
+| | v15 (lo desplegado) | **v16a (este bloque)** |
+|---|---|---|
+| filas de la diaria que se caen de toda pantalla | **24** (3 Ecuador + 21 Panamá) | **0** |
+| filas con saldo distinto | **1.733** (peor caso **193.701,7 kg**) | **0** |
+| filas en negativo | 97 → **1.160** | 97 → **97** |
+| galpones descuadrados (`fn_cuadre_alimento_engorde`) | 8 → **58** | 8 → **8** |
+
+🔑 **Panamá sale PEOR que Ecuador** (21 filas perdidas contra 3), y es lo contrario de lo que sugiere
+la intuición: la marca se diseñó para los galpones encadenados de Ecuador. Pasa porque los 4 guards
+filtran por **ubicación** y le quitan el movimiento a **todo** lote con seguimiento — incluidos los
+que **CONVIVEN**, que es la topología que sólo existe en Panamá (R1). Un fix medido en un solo país
+no lo habría visto: es exactamente el error de julio, en espejo.
+
+## Qué entró
+
+- [x] V26.1 **fn `v16a`**: se van los **5** lugares donde la v15 interpretaba el booleano — el
+      disyunto marcado de `apert_mov` y los 4 guards de `hist_full`, `hist_alimento`,
+      `docs_por_fecha` y `fechas_universo`. Filtro de vuelta al de **v14 exacto**. **Se conservan**
+      `apertura_alimento_kg` y `apertura_documentos` (parte A de la v15: ortogonal, ya en prod)
+- [x] V26.2 **Migración** `20260818060000_FnSeguimientoEngordeV16aMarcaInerte` (`.cs` + `.Fn.cs` +
+      `.Designer.cs` clonado del último real, **ModelSnapshot intacto**), SQL **byte a byte** del
+      `.sql`. `Down()` repone la v15 **VERBATIM** desde la migración `20260808130000`
+- [x] V26.3 **Guarda de servidor** `GuardarMarcaProximoCicloApagada`: los 3 caminos que persisten la
+      marca (`RegistrarIngresoAsync`, el ingreso de Colombia y el `PUT /ingresos/{id}/destino-ciclo`)
+      rechazan `ParaProximoCiclo = true` con **400** y mensaje explicativo. **QUITAR** una marca
+      existente sigue permitido (R3: ningún kilo queda sin poder corregirse). El aviso de fecha fuera
+      de ciclo vuelve a evaluarse **siempre** (su excepción por marca ya es inalcanzable)
+- [x] V26.4 **Se borra el espejo C# muerto**: `EntraPorMarcaProximoCiclo` y
+      `ExcluidoDeFilaDiariaPorMarca`, más el parámetro `ciclosDelGalpon` de las 3 firmas de
+      `SeguimientoAvesEngordeCalculos`. `grep` en todo `backend/src`: **0 llamadores de producción**
+      lo pasaban — sólo los xUnit. O sea que **la fn aplicaba la marca y el espejo no**: la
+      divergencia SQL↔C# que CLAUDE.md prohíbe ya existía. Aritmética del camino v14 intacta
+- [x] V26.5 **Tests reescritos** (`AperturaAlimentoEngordeV15CalculosTests`): los casos de la marca
+      pasan a ser el contrato de su **inercia** — cada uno compara el mismo historial con la marca y
+      sin ella y exige el **mismo número**. Los de `apertura_alimento_kg` / `apertura_documentos` se
+      conservan tal cual
+
+## Validación
+
+- [x] V26.6 **Gate multipaís** (`backend/sql/verificar_paridad_saldo_engorde.sql`), antes y después,
+      mismo comando: **6.429 filas** (Ecuador 5.296 + Panamá 1.133) · **0** en las 7 columnas de diff
+      **en las dos empresas** · 6.342 filas de seguimiento esperadas == 6.342 presentes ·
+      `fn_cuadre_alimento_engorde(NULL)` **67 / 8 descuadrados** antes y después
+- [x] V26.7 **A/B con la marca PRENDIDA** (2.371 movimientos, tx + `ROLLBACK`): `EXCEPT ALL`
+      bidireccional **0 y 0** sobre las 6.429 filas, con `apertura_alimento_kg` y
+      `apertura_documentos` incluidas. Rastro al terminar: **0 marcas**
+- [x] V26.8 **La migración se probó en los dos sentidos**: se reinstaló la v15, `database update`
+      aplicó la v16a (0 menciones de la marca en `pg_proc`), `database update <anterior>` la revirtió
+      a v15 (6 menciones) y se volvió a aplicar. Los 5 consumidores responden:
+      `fn_cuadre_alimento_engorde` 67 · `fn_cuadre_aves_engorde` 186 ·
+      `fn_informe_semanal_pollo_engorde` 807 (EC) + 178 (PA)
+- [x] V26.9 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.824 + 1 verdes, 0 fallan** ·
+      sin procesos huérfanos (nunca se levantó backend; `:5002` libre) · tablas del gate borradas
+- [i] V26.10 **El front no cambia y no se rompe**: hoy sólo envía `paraProximoCiclo: false` (el alta
+      lo fuerza y el historial sólo ofrece *quitar*), así que la guarda nueva no se dispara desde
+      ninguna pantalla. Cierra el agujero de la API sin tocar la UI
+
+## Lo que NO hace este bloque
+
+- [i] V26.11 La **atribución** sigue sin existir: la marca se guarda y no la interpreta nadie. Vuelve
+      en la **Fase B** como **hecho persistido** que la fn LEE (tabla `alimento_entrega_ciclo_engorde`,
+      `EntregaAlimentoCicloEngordeCalculos` como dueño único, sellado al congelar un extremo). Ése es
+      el pendiente «Persistir la atribución como hecho» del bloque de v16, que queda abierto
+- [i] V26.12 **Falta desplegar**: la migración se aplica sola al arrancar
+      (`Database__RunMigrations=true`), pero exige la verificación post-deploy de CLAUDE.md §🚀. En
+      prod hay **0 marcas**, así que el `Up()` no mueve ni una fila de dato
