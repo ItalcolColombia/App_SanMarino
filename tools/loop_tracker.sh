@@ -30,7 +30,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Bloques que el loop NO toca: reservados para otra sesión o bloqueados esperando al usuario.
-BLOQUEADOS='V8\.6|reservada|Lote 12|remisi|Falta desplegar|prerrequisitos'
+BLOQUEADOS='V8[.]6|reservada|Lote 12|remisi|Falta desplegar|prerrequisitos'
 
 pendientes() { grep -c '^- \[ \]' "$TRACKER" 2>/dev/null || echo 0; }
 
