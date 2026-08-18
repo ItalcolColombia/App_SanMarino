@@ -58,6 +58,23 @@ describe('AppComponent', () => {
     expect(app.showSidebar).toBeFalse();
   });
 
+  it('🔑 también en el selector de perfil, que se abre SIN sesión', () => {
+    // Ahí el pie del sidebar ofrece «Cerrar sesión» y «Borrar este dispositivo»: dejarlo visible
+    // pondría una acción que borra el equipo entero al alcance de cualquiera que levante la tablet.
+    const app = TestBed.createComponent(AppComponent).componentInstance;
+    spyOnProperty(app.router, 'url', 'get').and.returnValue('/selector-usuario');
+
+    expect(app.showSidebar).toBeFalse();
+  });
+
+  it('pero NO en /diagnostico: ahí también se entra con sesión y sin menú no habría vuelta', () => {
+    // Esa pantalla se protege por dato, no por ruta: el pie sólo aparece si hay sesión.
+    const app = TestBed.createComponent(AppComponent).componentInstance;
+    spyOnProperty(app.router, 'url', 'get').and.returnValue('/diagnostico');
+
+    expect(app.showSidebar).toBeTrue();
+  });
+
   it('muestra el sidebar en las rutas protegidas', () => {
     const app = TestBed.createComponent(AppComponent).componentInstance;
     spyOnProperty(app.router, 'url', 'get').and.returnValue('/lotes');

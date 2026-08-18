@@ -85,6 +85,89 @@ export function evaluarFinDeSesion(
 }
 
 /**
+ * Qué hacer con una navegación cuando el token ya venció (fix **F-2**).
+ *
+ * `permitir` no significa que el servidor vaya a aceptar nada: significa que el operario puede
+ * seguir usando lo que ya tiene en el dispositivo. Es la diferencia entre una app que sigue
+ * mostrando la grilla del galpón y una que lo manda a un login que sin señal no se puede completar.
+ */
+export type AccesoOffline =
+  /** Dejar navegar. */
+  | 'permitir'
+  /** Cerrar sesión —con la purga que eso implica— y mandar al login. Es lo que se hacía SIEMPRE. */
+  | 'cerrar_sesion'
+  /** Al login, pero **sin** cerrar sesión: se acabó la jornada offline y no hay red para volver. */
+  | 'denegar_jornada_vencida'
+  /** Al login, pero sin purgar: hay capturas sin subir y el camino que cierra es el que purga. */
+  | 'denegar_trabajo_pendiente';
+
+export interface EstadoAccesoOffline {
+  /** Ya lo evaluó `estaVencido` contra el token guardado. */
+  tokenVencido: boolean;
+  /** Pesimista: `false` también cuando hay wifi pero el backend no contesta. */
+  enLinea: boolean;
+  ahora: number;
+  /** Último contacto seguro con el servidor, en ms epoch. Sale del token, no de un contador vivo. */
+  ultimoContactoOk: number;
+  /** Capturas de campo todavía sin subir. */
+  operacionesPendientes: number;
+}
+
+/**
+ * Decide si una navegación puede seguir con el token vencido.
+ *
+ * ## El defecto que corrige
+ *
+ * El `authGuard` rechazaba **todo** token vencido y llamaba `logout()`, que purga. El JWT dura 60
+ * min. O sea que un operario sin señal, al minuto 61, en la primera navegación quedaba deslogueado y
+ * con la caché borrada, **sin red para volver a entrar**. La jornada de 16 h de la decisión D4
+ * estaba implementada solo para el camino del timer (`evaluarFinDeSesion`); el guard la anulaba.
+ *
+ * ## Las cuatro salidas
+ *
+ * | | con red | sin red |
+ * |---|---|---|
+ * | token vivo | permitir | permitir |
+ * | token vencido, dentro de la jornada | cerrar sesión (como siempre) | **permitir** |
+ * | token vencido, jornada agotada | cerrar sesión (como siempre) | **denegar, sin purgar** |
+ *
+ * Con red se cierra igual que antes —el usuario puede volver a entrar ahí mismo—, salvo que haya
+ * trabajo sin subir: ésa es la misma regla que `evaluarFinDeSesion` ya protege, porque el camino que
+ * cierra es el que purga. Igual va al login; simplemente no se purga en el trayecto.
+ *
+ * Sin red **nunca** se devuelve `cerrar_sesion`: el logout es irreversible hasta recuperar señal.
+ */
+export function evaluarAccesoOffline(
+  estado: EstadoAccesoOffline,
+  limites: LimitesSesion = LIMITES_SESION_POR_DEFECTO
+): AccesoOffline {
+  if (!estado.tokenVencido) {
+    return 'permitir';
+  }
+
+  if (!estado.enLinea) {
+    return estado.ahora - estado.ultimoContactoOk >= limites.jornadaOfflineMs
+      ? 'denegar_jornada_vencida'
+      : 'permitir';
+  }
+
+  return estado.operacionesPendientes > 0 ? 'denegar_trabajo_pendiente' : 'cerrar_sesion';
+}
+
+/** Lo que se le dice al operario cuando se le niega el paso. `null` = no hay nada que avisar. */
+export function mensajeAccesoDenegado(acceso: AccesoOffline): string | null {
+  switch (acceso) {
+    case 'denegar_jornada_vencida':
+      return mensajeFinDeSesion('jornada_offline_vencida');
+    case 'denegar_trabajo_pendiente':
+      return 'Tu sesión expiró y quedaron capturas sin enviar. Volvé a entrar para que salgan.';
+    default:
+      // `cerrar_sesion` era silencioso y se deja silencioso: el aviso lo da el cierre por timer.
+      return null;
+  }
+}
+
+/**
  * ¿Corresponde hacer el heartbeat ahora?
  *
  * Solo si el usuario está activo, igual que antes: pingear a un usuario que dejó la pestaña

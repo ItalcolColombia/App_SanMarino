@@ -1,0 +1,147 @@
+<!--
+  Selector de perfil. Anda SIN RED y sin sesión: todo lo que se pinta sale del padrón, que por eso va
+  sin cifrar. Nada de acá necesita descifrar el blob de nadie.
+-->
+<div class="min-h-screen bg-[#faf8f5] p-4 sm:p-6">
+  <div class="mx-auto max-w-md">
+
+    <header class="mb-5">
+      <h1 class="text-xl font-semibold text-[#33302c]">¿Quién va a usar la tablet?</h1>
+      <p class="mt-1 text-sm text-[#6b6560]">
+        Estas sesiones ya están guardadas en este equipo, así que se abren sin conexión.
+      </p>
+    </header>
+
+    @if (cargando) {
+      <p class="text-sm text-[#6b6560]">Cargando sesiones guardadas…</p>
+    } @else if (sinLlavero) {
+
+      <!-- Sin crypto.subtle no hay llavero: la app se comporta como siempre, con una sola sesión. -->
+      <section class="rounded-xl border border-amber-300 bg-white p-4" data-testid="sin-llavero">
+        <p class="text-sm text-[#33302c]">
+          Este equipo no puede guardar varias sesiones. Entrá normalmente con tu usuario y contraseña.
+        </p>
+        <button type="button"
+                class="mt-3 w-full rounded-lg bg-[#2d7a3e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#24632f]"
+                (click)="irAlLogin()">
+          Ir a iniciar sesión
+        </button>
+      </section>
+
+    } @else if (elegida) {
+
+      <!-- ── PIN ──────────────────────────────────────────────────────────────────────── -->
+      <section class="rounded-xl border border-[#e5e0d9] bg-white p-4">
+        <p class="text-sm text-[#6b6560]">Retomar la sesión de</p>
+        <p class="text-lg font-semibold text-[#33302c]">{{ elegida.slot.nombre }}</p>
+        <p class="text-xs text-[#6b6560]">{{ elegida.slot.empresa }}</p>
+
+        <label class="mt-4 block text-sm font-medium text-[#33302c]" for="pin">
+          PIN de {{ digitosPin }} dígitos
+        </label>
+        <input id="pin"
+               type="password"
+               inputmode="numeric"
+               autocomplete="off"
+               [attr.maxlength]="digitosPin"
+               class="mt-1 w-full rounded-lg border border-[#e5e0d9] px-3 py-2 text-center text-2xl tracking-[0.4em] text-[#33302c] focus:border-[#e85c25] focus:outline-none"
+               [ngModel]="pin"
+               (ngModelChange)="alEscribirPin($event)"
+               [disabled]="activando"
+               data-testid="pin" />
+
+        @if (error) {
+          <p class="mt-2 text-sm text-red-700" data-testid="error-pin">{{ error }}</p>
+        }
+
+        <button type="button"
+                class="mt-3 w-full rounded-lg bg-[#2d7a3e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#24632f] disabled:opacity-60"
+                [disabled]="!pinCompleto || activando"
+                (click)="activar()"
+                data-testid="entrar">
+          {{ activando ? 'Abriendo…' : 'Entrar' }}
+        </button>
+
+        <!-- Se dice ACÁ además del alistamiento: descubrirlo en el galpón se lee como "se perdió". -->
+        <p class="mt-3 text-xs text-[#6b6560]">
+          Si olvidaste el PIN no hay forma de recuperarlo sin conexión: hay que entrar con red.
+          Lo que tengas capturado sin enviar no se pierde.
+        </p>
+
+        <button type="button"
+                class="mt-3 w-full rounded-lg border border-[#e5e0d9] px-3 py-2 text-sm font-semibold text-[#33302c] hover:bg-[#faf8f5]"
+                (click)="volverALaLista()">
+          Elegir otra sesión
+        </button>
+      </section>
+
+    } @else {
+
+      <!-- ── Lista de sesiones guardadas ──────────────────────────────────────────────── -->
+      @if (filas.length === 0) {
+        <section class="rounded-xl border border-[#e5e0d9] bg-white p-4" data-testid="sin-sesiones">
+          <p class="text-sm text-[#33302c]">No hay sesiones guardadas en este equipo.</p>
+          <p class="mt-1 text-xs text-[#6b6560]">
+            La primera vez hace falta entrar con conexión; después la sesión queda disponible sin red.
+          </p>
+        </section>
+      } @else {
+        @if (error) {
+          <p class="mb-3 rounded-lg border border-red-300 bg-white p-3 text-sm text-red-700"
+             data-testid="error-lista">{{ error }}</p>
+        }
+
+        <ul class="space-y-2" data-testid="lista-slots">
+          @for (fila of filas; track fila.slot.slotId) {
+            <li>
+              <!-- El color del borde va por `ngClass` y no por `[class.border-[#...]]`: un nombre de
+                   clase de Tailwind con corchetes dentro de un binding `[class.x]` hay que escaparlo y
+                   es una fuente de errores silenciosos. Con `ngClass` el nombre viaja como texto. -->
+              <button type="button"
+                      class="w-full rounded-xl border bg-white p-3 text-left hover:bg-[#faf8f5]"
+                      [ngClass]="fila.estado === 'activable' ? 'border-[#e5e0d9]' : 'border-amber-300'"
+                      (click)="elegir(fila)">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-semibold"
+                       [ngClass]="fila.estado === 'activable' ? 'text-[#33302c]' : 'text-[#6b6560]'">
+                      {{ fila.slot.nombre }}
+                    </p>
+                    <p class="text-xs text-[#6b6560]">{{ fila.slot.empresa }} · {{ fila.hace }}</p>
+
+                    @if (fila.estado === 'jornada_vencida') {
+                      <p class="mt-1 text-xs font-medium text-amber-700" data-testid="vencido">
+                        Necesita conectarse: pasaron más de 16 horas sin hablar con el servidor.
+                      </p>
+                    }
+                    @if (fila.estado === 'requiere_reingreso') {
+                      <p class="mt-1 text-xs font-medium text-amber-700" data-testid="requiere-reingreso">
+                        Necesita entrar con red: se agotaron los intentos de PIN.
+                      </p>
+                    }
+                  </div>
+
+                  @if (fila.pendientes > 0) {
+                    <!-- Que el número se vea es la respuesta a "¿dónde quedó lo que cargué?". -->
+                    <span class="shrink-0 rounded-full bg-[#e85c25] px-2 py-0.5 text-[11px] font-semibold text-white"
+                          data-testid="pendientes">
+                      {{ fila.pendientes }} sin enviar
+                    </span>
+                  }
+                </div>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      <button type="button"
+              class="mt-4 w-full rounded-lg border border-[#e5e0d9] bg-white px-3 py-2 text-sm font-semibold text-[#33302c] hover:bg-[#faf8f5]"
+              (click)="irAlLogin()"
+              data-testid="otro-usuario">
+        Entrar con otro usuario
+      </button>
+    }
+
+  </div>
+</div>

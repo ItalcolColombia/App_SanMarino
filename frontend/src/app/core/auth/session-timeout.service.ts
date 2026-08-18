@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { TokenStorageService } from './token-storage.service';
 import { AuthService } from './auth.service';
+import { LlaveroSesionesService } from './llavero-sesiones.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
 import {
@@ -60,6 +61,7 @@ export class SessionTimeoutService {
   private readonly router = inject(Router);
   private readonly storage = inject(TokenStorageService);
   private readonly auth = inject(AuthService);
+  private readonly llavero = inject(LlaveroSesionesService);
   private readonly toast = inject(ToastService);
   private readonly trabajoPendiente = inject(TRABAJO_PENDIENTE_OFFLINE, { optional: true });
 
@@ -158,7 +160,7 @@ export class SessionTimeoutService {
     this.heartbeatSub = this.auth.heartbeat().subscribe({
       next: () => {
         this.heartbeatFails = 0;
-        this.ultimoContactoOk = Date.now();
+        this.registrarContactoReal();
         this.marcarEnLinea(true);
       },
       error: (err: HttpErrorResponse) => {
@@ -183,6 +185,32 @@ export class SessionTimeoutService {
         }
       }
     });
+  }
+
+  /**
+   * Hubo contacto REAL con el servidor: 200 del heartbeat.
+   *
+   * Además del contador propio, refresca la jornada de **este slot** en el padrón (R-M8): la ventana
+   * de 16 h es por operario, y sin esto la del selector se contaría desde el login para siempre.
+   *
+   * ## Por qué solo acá, y no en los otros dos lugares que tocan `ultimoContactoOk`
+   *
+   * `start()` corre en **cada arranque de la app** con una sesión guardada, y el evento `online` del
+   * navegador solo dice que la interfaz de red se levantó. Ninguno de los dos es hablar con el
+   * servidor. Propagarlos al padrón dejaría la jornada de 16 h renovándose sola con un F5 o con el
+   * wifi del galpón —o sea, sin tope—, que es justo lo que D4 vino a poner.
+   *
+   * ## Por qué no se desalinea con el guard
+   *
+   * El guard mide la jornada desde el token (`iat`/`exp`), no desde acá. Los dos números no pueden
+   * separarse más que la vida del token: un heartbeat con 200 **implica** un token todavía válido
+   * (uno vencido devuelve 401 y cierra la sesión), así que el último contacto nunca queda a más de
+   * una hora del `iat`.
+   */
+  private registrarContactoReal(): void {
+    const ahora = Date.now();
+    this.ultimoContactoOk = ahora;
+    this.llavero.marcarContactoOk(this.storage.get()?.user?.id ?? null, ahora);
   }
 
   private marcarEnLinea(valor: boolean): void {

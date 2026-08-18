@@ -121,61 +121,74 @@
           <strong>No se borra al cerrar sesión</strong>: es trabajo que no existe en ningún otro lado.
         </p>
 
-        @if (pendientes.length === 0) {
+        @if (capturas.length === 0) {
           <p class="mt-3 text-sm text-[#33302c]" data-testid="outbox-vacio">
             No hay capturas pendientes.
           </p>
         } @else {
           <ul class="mt-3 divide-y divide-[#f0ece6] text-sm">
-            @for (op of pendientes; track op.clientOpId) {
+            @for (captura of capturas; track captura.operacion.clientOpId) {
               <li class="flex flex-wrap items-start justify-between gap-2 py-2">
                 <div class="min-w-0">
-                  <p class="font-medium text-[#33302c]">{{ op.tipo }}</p>
+                  <p class="font-medium text-[#33302c]">{{ captura.operacion.tipo }}</p>
                   <p class="text-xs text-[#6b6560]">
-                    Capturada {{ op.capturadoAtDispositivo }} · empresa {{ op.companyId }} ·
-                    {{ op.intentos }} intento(s)
+                    Capturada {{ captura.operacion.capturadoAtDispositivo }} ·
+                    empresa {{ captura.operacion.companyId }} ·
+                    {{ captura.operacion.intentos }} intento(s)
                   </p>
-                  @if (op.estado === 'rechazada') {
+                  @if (captura.operacion.estado === 'rechazada') {
                     <p class="text-xs text-red-700" data-testid="outbox-rechazo">
-                      Rechazada ({{ op.errorCodigo }}): {{ op.detalle }}
+                      Rechazada ({{ captura.operacion.errorCodigo }}): {{ captura.operacion.detalle }}
                     </p>
                   }
 
-                  <!-- Lo capturado. Sin esto, descartar obliga al operario a acordarse de memoria
-                       de lo que cargó, que es justo lo que no se le puede pedir en el galpón. -->
-                  <details class="mt-1">
-                    <summary class="cursor-pointer text-xs font-medium text-[#e85c25]">
-                      Ver lo capturado
-                    </summary>
-                    <p class="mt-1 break-all text-[11px] text-[#6b6560]">
-                      {{ op.metodo }} {{ op.url }}
+                  @if (captura.propia) {
+                    <!-- Lo capturado. Sin esto, descartar obliga al operario a acordarse de memoria
+                         de lo que cargó, que es justo lo que no se le puede pedir en el galpón. -->
+                    <details class="mt-1">
+                      <summary class="cursor-pointer text-xs font-medium text-[#e85c25]">
+                        Ver lo capturado
+                      </summary>
+                      <p class="mt-1 break-all text-[11px] text-[#6b6560]">
+                        {{ captura.operacion.metodo }} {{ captura.operacion.url }}
+                      </p>
+                      <pre class="mt-1 max-h-56 overflow-auto rounded-lg bg-[#faf8f5] p-2 text-[11px] leading-snug text-[#33302c]"
+                           data-testid="outbox-payload">{{ payloadLegible(captura.operacion) }}</pre>
+                      <button type="button"
+                              class="mt-1 rounded-lg border border-[#e5e0d9] px-2 py-1 text-[11px] font-semibold text-[#33302c] hover:bg-[#faf8f5]"
+                              (click)="copiarCaptura(captura)">
+                        {{ capturaCopiada === captura.operacion.clientOpId ? 'Copiado' : 'Copiar captura' }}
+                      </button>
+                    </details>
+                  } @else {
+                    <!-- Ajena: se lista para que nadie la dé por perdida, pero el contenido y las
+                         dos acciones son de su dueño. Esta pantalla se abre sin sesión. -->
+                    <p class="mt-1 text-[11px] text-[#6b6560]" data-testid="outbox-ajena">
+                      🔒 De otra sesión. Para verla o enviarla, tiene que entrar quien la capturó.
                     </p>
-                    <pre class="mt-1 max-h-56 overflow-auto rounded-lg bg-[#faf8f5] p-2 text-[11px] leading-snug text-[#33302c]"
-                         data-testid="outbox-payload">{{ payloadLegible(op) }}</pre>
-                    <button type="button"
-                            class="mt-1 rounded-lg border border-[#e5e0d9] px-2 py-1 text-[11px] font-semibold text-[#33302c] hover:bg-[#faf8f5]"
-                            (click)="copiarCaptura(op)">
-                      {{ capturaCopiada === op.clientOpId ? 'Copiado' : 'Copiar captura' }}
-                    </button>
-                  </details>
+                  }
                 </div>
-                <button type="button"
-                        class="rounded-lg border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        (click)="descartar(op)">
-                  Descartar
-                </button>
+                @if (captura.propia) {
+                  <button type="button"
+                          class="rounded-lg border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          (click)="descartar(captura)">
+                    Descartar
+                  </button>
+                }
               </li>
             }
           </ul>
 
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button"
-                    class="rounded-lg bg-[#2d7a3e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#24632f] disabled:opacity-60"
-                    [disabled]="enviando"
-                    (click)="enviarPendientes()">
-              {{ enviando ? 'Enviando…' : 'Enviar ahora' }}
-            </button>
-          </div>
+          @if (hayPropias) {
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button"
+                      class="rounded-lg bg-[#2d7a3e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#24632f] disabled:opacity-60"
+                      [disabled]="enviando"
+                      (click)="enviarPendientes()">
+                {{ enviando ? 'Enviando…' : 'Enviar ahora' }}
+              </button>
+            </div>
+          }
         }
 
         @if (mensajeEnvio) {

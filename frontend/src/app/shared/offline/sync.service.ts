@@ -3,9 +3,11 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ConexionService } from '../../core/pwa/conexion.service';
+import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { ES_PUSH_DE_SYNC } from './sync-context';
 import { environment } from '../../../environments/environment';
 import { clasificarResultadoPush, debeFrenar } from './funciones/clasificar-resultado-push.funcion';
+import { filtrarOperacionesParticion } from './funciones/filtrar-operaciones-particion.funcion';
 import { proximoIntento } from './funciones/backoff.funcion';
 import { OutboxService } from './outbox.service';
 import type { OperacionPendiente, ResultadoPush } from './models/outbox.model';
@@ -22,12 +24,17 @@ export const MAX_POR_LOTE = 25;
  * reintentos. El servidor tiene un índice único sobre él: si una respuesta se pierde en la red y el
  * dispositivo reenvía, el efecto no se aplica dos veces — devuelve la respuesta original con
  * `replay: true`. Sin eso, un 504 seguido de un reintento contaría la mortalidad del día dos veces.
+ *
+ * Y solo sale **lo de la sesión activa**: el token lo pone el interceptor y el servidor estampa el
+ * autor desde ese token, así que empujar la cola entera firmaría con un operario lo que capturó
+ * otro. Ver `filtrarOperacionesParticion`.
  */
 @Injectable({ providedIn: 'root' })
 export class SyncService {
   private readonly http = inject(HttpClient);
   private readonly outbox = inject(OutboxService);
   private readonly conexion = inject(ConexionService);
+  private readonly storage = inject(TokenStorageService);
 
   /** Hay un envío en curso. Evita que dos disparos (reconexión + timer) se pisen. */
   readonly sincronizando = signal(false);
@@ -70,11 +77,10 @@ export class SyncService {
     const ahora = Date.now();
     const todas = await this.outbox.listarTodas();
 
-    // Solo lo que está esperando y ya cumplió su backoff. Lo rechazado no se reintenta solo: espera
-    // a que una persona lo edite o lo descarte desde la bandeja.
-    const listas = todas.filter(
-      op => op.estado === 'pendiente' && (op.proximoIntentoEn === null || op.proximoIntentoEn <= ahora)
-    );
+    // Solo lo de la sesión ACTIVA que ya cumplió su backoff. Lo ajeno se queda en la cola —intacto—
+    // hasta que su dueño vuelva a entrar (R9), y lo rechazado espera a que una persona lo edite o
+    // lo descarte desde la bandeja. Sin sesión no sale nada.
+    const listas = filtrarOperacionesParticion(todas, this.storage.identidadActual(), ahora);
 
     if (listas.length === 0) {
       return 0;

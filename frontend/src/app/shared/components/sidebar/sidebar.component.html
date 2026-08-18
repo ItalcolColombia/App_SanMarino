@@ -211,10 +211,30 @@
               <span class="sb-diagnostico__label">Diagnóstico del dispositivo</span>
             </a>
 
-            <button type="button" class="sb-logout" (click)="logout()">
+            @if (haySesion$ | async) {
+            @if (hayLlavero) {
+              <!-- Aparcar: la sesión queda cifrada en el equipo y entra otro operario. NO purga
+                   nada, porque quien aparca vuelve y su caché es lo que le deja seguir sin red. -->
+              <button type="button" class="sb-logout" (click)="cambiarDeUsuario()"
+                      data-testid="cambiar-usuario">
+                <fa-icon [icon]="faUser" class="sb-logout__icon"></fa-icon>
+                <span class="sb-logout__label">Cambiar de usuario</span>
+              </button>
+            }
+
+            <button type="button" class="sb-logout" (click)="logout()" data-testid="cerrar-sesion">
               <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
               <span class="sb-logout__label">Cerrar Sesión</span>
             </button>
+
+            <!-- «Este equipo cambia de manos»: se van los slots de todos y toda la caché. La cola
+                 de capturas no se toca ni acá (R9), y el diálogo lo dice. -->
+            <button type="button" class="sb-logout" (click)="borrarDispositivo()"
+                    data-testid="borrar-dispositivo">
+              <fa-icon [icon]="faTimes" class="sb-logout__icon"></fa-icon>
+              <span class="sb-logout__label">Borrar este dispositivo</span>
+            </button>
+            }
           </div>
           <!-- /FOOTER -->
 

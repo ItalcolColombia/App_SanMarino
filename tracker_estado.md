@@ -1201,9 +1201,9 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] 🟢 **Hueco de UX CERRADO** (ver bloque siguiente)
 
 ## Fuera de alcance (documentado, sigue abierto)
-- [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
-- [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
-- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), ~~B10 (super admin a datos)~~ **cerrado en V23**, A4
+- [i] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
+- [i] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
+- [i] B1 (revocación de sesión), B8 (rotar las 4 llaves), ~~B10 (super admin a datos)~~ **cerrado en V23**, A4
 
 ---
 
@@ -3166,19 +3166,19 @@ el tracker pasaba a mentir. Y entre los pendientes había 4 acciones irreversibl
 ## V25.3 — 🔴 Defectos VIVOS que encontraron los planes al medir
 Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomados del agente.
 
-- [ ] V25.3.1 🔴 **El outbox se sincroniza sin filtrar por partición.** `sync.service.ts:71` usa
+- [x] V25.3.1 🔴 **El outbox se sincroniza sin filtrar por partición.** — **cerrado en V29** (al final). `sync.service.ts:71` usa
       `OutboxService.listarTodas()`, cuyo propio doc-comment dice «toda la cola, sin filtrar».
       Alcanzable HOY con un solo slot: el JWT vence a los 60 min → `authGuard` hace `logout()` → el
       outbox **sobrevive** (`purgarTodo` limpia solo `STORE_CONSULTAS`) → entra otro operario y sus
       capturas se empujan con el token del nuevo. Misma empresa ⇒ quedan firmadas por otro; empresa
       distinta ⇒ `empresa_no_autorizada`, clasificado como *reintentar, no bandeja* ⇒ reintento
       infinito e invisible
-- [ ] V25.3.2 🔴 **`/diagnostico` muestra y borra el outbox de todos, sin login.** La ruta no lleva
+- [x] V25.3.2 🔴 **`/diagnostico` muestra y borra el outbox de todos, sin login.** — **cerrado en V31** (al final). La ruta no lleva
       `authGuard` **a propósito** (es la pantalla de rescate) y esa decisión es correcta; lo que
       caducó es su premisa. El doc-comment dice «no expone ningún dato de negocio»: cierto en F1,
       falso desde F3.1 (`c44e0a4`), que agregó `listarTodas()` + `JSON.stringify` del payload + poder
       descartarlo
-- [ ] V25.3.3 🔴 **La mitigación de la marca `para_proximo_ciclo` es solo de front.** El tracker decía
+- [x] V25.3.3 🔴 **La mitigación de la marca `para_proximo_ciclo` es solo de front.** — **cerrado en V26.3**: `GuardarMarcaProximoCicloApagada` rechaza con 400 en los 3 caminos que persistían la marca (verificado: 3 llamadores en `InventarioGestionService.cs`). El tracker decía
       «la puerta de entrada está cerrada»: lo está la del navegador. La API sigue aceptando
       `ParaProximoCiclo` (`InventarioGestionDtos.cs:147, 214, 405, 427`) ⇒ el defecto de v15 es
       reintroducible desde Swagger o la PWA
@@ -3488,3 +3488,637 @@ plan excluye como «otro feature» (§6.2).
       falta una sesión de la app, así que ningún agente lo puede cerrar solo. Hoy la columna
       mostraría «—» en todas las filas (0 marcas en la BD): lo que hay que mirar es que el encabezado
       se vea y que la tabla siga scrolleando bien
+
+---
+
+# V29 · PWA F-3 — el push deja de firmar el trabajo de un operario con la identidad de otro (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 1 del §7** (F-3).
+**Bloque propio.** Cierra **V25.3.1**. El plan lo aísla a propósito: es un bug que ya existe y vale
+por sí solo *«aunque el multi-slot se cancele después»*.
+
+## El defecto
+
+`sync.service.ts:71` empujaba `outbox.listarTodas()` — **toda la cola, sin filtrar**. El token lo pone
+`AuthInterceptor` (el de quien esté logueado **ahora**) y el servidor estampa el autor desde ese token
+ignorando el del cuerpo (B5). No hace falta multi-slot para llegar: el JWT vence a los 60 min ⇒
+`authGuard` hace `logout()` ⇒ el outbox **sobrevive** (R9: nada borra capturas sin confirmación) ⇒
+entra el operario del turno siguiente y el `effect` de reconexión dispara solo.
+
+- [x] V29.1 **Función pura** `shared/offline/funciones/filtrar-operaciones-particion.funcion.ts`: de
+      toda la cola, las de la partición activa que ya cumplieron su backoff. **Fail-closed** (sin
+      identidad completa devuelve `[]`, mismo criterio que `claveParticion`). El predicado de estado
+      y backoff es **el mismo, literal**, que tenía `enviarPendientes`: lo único que se agrega es el
+      filtro por partición
+- [x] V29.2 `sync.service.ts` delega en ella e inyecta `TokenStorageService`. **Sin ciclo de DI**:
+      `TokenStorageService` solo depende de `CacheConsultasService`, y el interceptor sigue sin
+      arrastrar el service de sync (para eso existe `sync-context.ts`)
+- [x] V29.3 `TokenStorageService.identidadActual()` pasa de privada a **pública** en vez de copiar el
+      `?? ` de la identidad a un tercer lugar (ya estaba duplicado en el interceptor). El plan la
+      reusa igual en su paso 4
+- [x] V29.4 **Lo ajeno no se toca**: no se borra, no se marca rechazado, no se reprograma. Queda en
+      la cola esperando a su dueño (R9). Filtrar nunca es borrar
+
+## 🔑 Lo que apareció al verificar contra el servidor
+
+- [i] V29.5 **La partición completa —usuario + empresa + país— es la correcta, y el backend lo
+      confirma.** Se dudó de si filtrar por los 3 no era pasarse (la falsificación de autoría la causa
+      el `userId`). Pero `SyncPushCalculos.EvaluarOperacion` ya rechaza
+      `empresaDeLaSesion != companyId` como `empresa_no_autorizada` — y el cliente clasifica ese
+      código como *reintentar*. O sea que **hoy** la captura de un usuario multiempresa hecha en la
+      empresa A y sincronizada estando en la B **reintenta para siempre y nunca aterriza**. Con el
+      filtro espera callada y sale sola cuando vuelve a su empresa: no hay caso que empeore
+- [i] V29.6 **El contador de la barra sigue siendo global** (`refrescarContadores` cuenta toda la
+      cola). Es del paso 5 del plan, no de éste. No es una regresión: una captura ajena antes también
+      quedaba pendiente para siempre — la diferencia es que ahora **no gasta red ni batería**
+      intentándolo
+
+## Validación
+
+- [x] V29.7 `yarn build` (Node portable 22.23.1) **0 errores, 0 warnings** — ni el de bundle budget
+- [x] V29.8 `ng test --watch=false --browsers=ChromeHeadless`: **343 SUCCESS, 0 fallan** (326 previos
+      + 17 nuevos). Los 17 corren de verdad: se comprobó ejecutándolos aislados con `--include`
+- [x] V29.9 **Prueba de mutación 4/4 guardas.** Se desactivó cada una y se corrió el spec:
+      sin filtro de partición **3 rojos** · sin filtro de estado **1 rojo** · sin backoff **1 rojo** ·
+      sin el corte temprano de partición nula **1 rojo**. ⚠️ Honestidad: la 5.ª mutación (quitar
+      `!operaciones?.length`) muere **en compilación** (`TS18049`), no por un assert — ahí la guarda
+      es el tipo, señal más débil. El archivo se restauró y se verificó idéntico al original
+- [x] V29.10 El corte temprano **sí es load-bearing** y por eso tiene test propio: una fila de
+      IndexedDB con `particion` nula (esquema viejo o escritura a medias) haría `null === null` y se
+      colaría **justo sin sesión**, que es el peor momento. Sin ese test, el próximo refactor lo borra
+      por «redundante» — la primera pasada de mutación lo dio verde
+- [x] V29.11 Backend sin tocar. Sin procesos huérfanos (`:5002` libre en todo el bloque; nunca se
+      levantó backend)
+
+## Lo que NO hace
+
+- [i] V29.12 **No desbloquea el multi-slot.** Siguen abiertos F-2 (el `authGuard` mata la jornada de
+      16 h a los 60 min), F-4 (**V25.3.2**: `/diagnostico` muestra el payload de todos sin login) y
+      F-5 (el logout purga la caché de todos). Son los pasos 2, 3 y 4 del §7 del plan
+- [~] V29.13 **Falta el smoke en un equipo real** (S1 del plan: dos operarios turnándose sin red).
+      Ningún agente lo puede cerrar solo: necesita una tablet y dos sesiones. La PWA además sigue sin
+      desplegarse
+
+---
+
+# V31 · PWA F-4 — la pantalla de rescate deja de mostrar (y de borrar) lo que capturó otro (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 3 del §7** (F-4).
+**Continúa** el bloque V29. **Bloque propio.** Cierra **V25.3.2**.
+
+## El defecto
+
+`/diagnostico` **no lleva `authGuard` a propósito** —es la pantalla de rescate; con guard sería
+inalcanzable justo cuando se la necesita— y esa decisión sigue siendo la correcta. Lo que caducó es
+su premisa: el doc-comment afirmaba *«no expone ningún dato de negocio»*, cierto en F1 y **falso
+desde F3.1**, que agregó `listarTodas()` + el `JSON.stringify` de cada payload + el botón de
+descartar. En una tablet compartida, cualquiera que la levante leía —y borraba— lo capturado por
+todos, **sin sesión**.
+
+- [x] V31.1 **Función pura** `features/diagnostico/funciones/clasificar-capturas-diagnostico.funcion.ts`:
+      marca cada fila como propia o ajena contra `claveParticion`. **Fail-closed**: sin identidad
+      completa **nada es propio** — y ése es el caso por defecto de esta pantalla, que se abre sin
+      sesión. Devuelve la **misma cola, en el mismo orden**: no filtra
+- [x] V31.2 **Las ajenas se siguen listando** (tipo, fecha, empresa, intentos, motivo del rechazo) con
+      un candado y «De otra sesión». Esconderlas sería la peor variante de «se perdió»; lo que se
+      protege es el **payload** y las **dos acciones**, no la existencia de la fila
+- [x] V31.3 **La guarda no es solo de plantilla**: `copiarCaptura` y `descartar` cortan con
+      `if (!captura.propia) return;`. Esconder un botón es una mitigación de front y este repo ya pagó
+      esa lección — es literalmente el defecto hermano **V25.3.3** (marca apagada en el front y viva
+      en la API durante meses)
+- [x] V31.4 **«Enviar ahora» aparece solo si hay alguna propia.** Desde V29 el push filtra por
+      partición: con la cola llena de capturas ajenas, el botón verde no podía hacer nada y decía
+      «no se pudo enviar nada todavía», que se lee como una falla de red
+- [x] V31.5 **Los dos comentarios que mentían, corregidos**: el del componente (líneas 29-31) y el de
+      la ruta en `app.config.ts`, que también afirmaba «no expone ningún dato de negocio»
+- [x] V31.6 `recargar()` deja de rearmar la identidad a mano y usa `TokenStorageService.identidadActual()`,
+      la misma que ahora consume el push (V29.3). Era la tercera copia del `?? ` de identidad
+
+## Validación
+
+- [x] V31.7 `yarn build` **0 errores, 0 warnings** · `ng test`: **351 SUCCESS, 0 fallan** (343 + 8)
+- [x] V31.8 **Prueba de mutación 2/3 guardas por assert**: sin comparar partición **5 rojos** · sin el
+      corte de partición nula **1 rojo**. ⚠️ Honestidad: la 3.ª (quitar `!operaciones?.length`) muere
+      en compilación (`TS18049`), no por un assert. Archivo restaurado y verificado idéntico
+- [x] V31.9 El arreglo de filas se arma **una vez por recarga**, no en un getter: un getter que
+      reconstruya el arreglo por ciclo rompe el `track` del `@for` (regla de CD de CLAUDE.md).
+      `changeDetection: Eager` ya estaba
+- [x] V31.10 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [~] V31.11 **Falta el smoke en pantalla** (paso 12 del §5.2 del plan): abrir `/diagnostico` con una
+      sesión ajena activa **y sin ninguna sesión**, y ver que la fila aparece sin payload, sin
+      «Copiar captura» y sin «Descartar». Necesita dos sesiones reales en un equipo: ningún agente lo
+      cierra solo
+- [i] V31.12 Quedan **F-2** (el `authGuard` mata la jornada de 16 h a los 60 min — hoy `- [i]`
+      V25.3.5, no es tarea abierta) y **F-5** (el logout purga la caché de todos). Son los pasos 2 y 4
+      del §7 del plan
+
+---
+
+# V32 · PWA F-2 — el `authGuard` deja de matar la jornada de 16 h a los 60 minutos (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 2 del §7** (F-2).
+**Continúa** los bloques V29 y V31. **Bloque propio.**
+
+## El defecto
+
+El JWT dura **60 minutos**. El guard rechazaba todo token vencido y llamaba `auth.logout()`, que
+purga. O sea: un operario sin señal, **al minuto 61, en la primera navegación**, quedaba deslogueado
+y con la caché borrada — y sin red no puede volver a entrar (el login necesita el backend y, en prod,
+alcanzar a Google por reCAPTCHA). Queda encerrado afuera con el galpón lleno de datos por cargar.
+
+La jornada de 16 h de la decisión **D4** estaba prolijamente implementada… solo para el camino del
+**timer** (`evaluarFinDeSesion`, que fue B2). El camino del **guard** nunca se tocó y la anulaba.
+
+- [x] V32.1 **`evaluarAccesoOffline`** en `funciones/politica-sesion.funcion.ts`, al lado de la
+      política del timer. Cuatro salidas: `permitir` · `cerrar_sesion` (el de siempre) ·
+      `denegar_jornada_vencida` · `denegar_trabajo_pendiente`. **Sin red nunca devuelve
+      `cerrar_sesion`** — hay un test que barre 5 combinaciones para fijarlo
+- [x] V32.2 **Con red no cambia nada**: token vencido ⇒ `logout()`, igual que siempre. La única
+      excepción es que haya capturas sin subir, y es la **misma regla que `evaluarFinDeSesion` ya
+      protegía**: el camino que cierra es el que purga. Igual va al login, sin purgar
+- [x] V32.3 **`marcas-del-token.funcion.ts`**: la lectura del JWT sale del guard, donde vivía inline
+      y **sin un solo test**, pese a que su rama de error costaba la sesión y la caché. Conserva la
+      regla vieja palabra por palabra: ilegible ⇒ vencido; **sin `exp` ⇒ NO vencido**
+- [x] V32.4 El guard queda como orquestador delgado: lee, arma el estado y delega. Muestra un aviso
+      al negar (antes redirigía mudo, que sin señal es indistinguible de que la app se rompió)
+
+## 🔑 Dos hallazgos al implementarlo
+
+- [i] V32.5 **El ancla de la jornada NO puede salir de `SessionTimeoutService`.** Su `ultimoContactoOk`
+      vive en memoria y `start()` lo reinicia a `Date.now()` en cada arranque ⇒ con un reload el tope
+      de 16 h no se cumpliría **nunca**. El ancla se toma del propio token (`iat`, o `exp` si no
+      viene), que es lo único persistido y emitido por el servidor. `exp` es **posterior** al contacto
+      real, así que la ventana sale a lo sumo una vida de token más larga: el error va hacia dejar
+      trabajar, que es el lado del que se vuelve
+- [i] V32.6 🔴 **`atob` sobre un payload base64url puede lanzar, y eso se leía como «token vencido»**
+      ⇒ cierre de sesión con purga, sin que nadie tocara nada. El JWT viaja en base64url (`-`/`_`) y
+      `atob` rechaza esos dos caracteres. **Medido** antes de afirmarlo, porque la intuición falla en
+      los dos sentidos: un payload de puro ASCII no lo dispara **nunca** (0/5.000) y 256 combinaciones
+      realistas de `firstName`/`surName` con tilde tampoco; pero con ~10 % de caracteres acentuados en
+      los claims salta al **22,9 %**, y con ~30 % al 60 %. Raro hoy, y atado a qué nombres y roles
+      existan en la base
+
+## Validación
+
+- [x] V32.7 `yarn build` **0 errores, 0 warnings** · `ng test`: **394 SUCCESS, 0 fallan** (351 + 43)
+- [x] V32.8 **Prueba de mutación 8/9 en la lógica pura**: sin la salida de token vivo **2 rojos** ·
+      sin la rama de «sin red» **7** · jornada con `>` en vez de `>=` **1** · sin la guarda de trabajo
+      pendiente **1** · **sin normalizar base64url 1** (el hallazgo V32.6 tiene test propio) · sin el
+      fail-closed de token ilegible **1** · sin el chequeo de `exp` ausente **1** · sin el respaldo de
+      `iat`→`exp` **1**
+- [x] V32.9 ⚠️ Honestidad: la 9.ª (quitar el relleno `=` antes de `atob`) queda **verde**. No es que
+      falte test: el `atob` de Chrome acepta base64 sin relleno, así que **ningún test puede ponerla
+      en rojo** en este runner. Se conserva igual —la PWA corre en webviews de Android que no se
+      auditaron— y queda anotada como la única línea sin cobertura posible
+- [x] V32.10 **`auth.guard.spec.ts` (nuevo, 8 casos con TestBed)**: es lo que prueba el fix de verdad,
+      porque el cableado es donde la función pura no llega. Mutación **4/4**: dar la red por buena
+      **4 rojos** · llamar `logout()` siempre **3** · tomar el ancla de `ahora` **2** · sacar el aviso
+      **2**. Fija que `logout()` **no** se llama sin red en ninguno de los tres caminos
+- [x] V32.11 El estado de red se lee de `ConexionService.hayConexionReal()`, el **pesimista** (wifi
+      del galpón levantado pero sin salida cuenta como sin red). Ante la duda, el camino que no purga
+- [x] V32.12 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [~] V32.13 **Falta el smoke en un equipo real** (paso 9 del §5.2 del plan: >60 min de reloj offline,
+      o bajar `DurationInMinutes` en un build de prueba). Ningún agente lo cierra solo
+- [i] V32.14 Queda **F-5**, el paso 4 del §7: `clear()` sigue llamando `purgarTodo()`, así que el
+      logout de un usuario borra la caché de **todas** las particiones. Este bloque reduce cuándo se
+      llega a ese logout; no cambia lo que hace
+
+---
+
+# V33 · PWA F-5 — cerrar sesión dejaba de borrar el alistamiento de los demás (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 4 del §7** (F-5 / R-M6).
+**Continúa** V29, V31 y V32. **Bloque propio.** Cierra los cuatro fixes de bugs vivos del plan; lo
+que queda de ahí es el multi-slot propiamente dicho (pasos 5 a 9).
+
+## El defecto
+
+`clear()` y `clearAllTemporal()` llamaban `purgarTodo()`, que vacía el store `consultas` **entero**.
+O sea que el logout de un operario borraba lo cacheado por **todos** los que hubieran entrado alguna
+vez en esa tablet. Y lo que se destruye no es un archivo temporal: es el **alistamiento** del otro
+—instalar la app y entrar una vez con señal—, que en campo cuesta un viaje a la oficina con wifi.
+
+- [x] V33.1 **`clear()` y `clearAllTemporal()` purgan solo la partición propia**
+      (`purgarParticionDe(identidadActual())`). `identidadActual()` es la misma que expuso V29.3 y
+      que ya usaba el cambio de empresa: una sola derivación de identidad para los tres caminos
+- [x] V33.2 **`borrarDispositivo()`** nuevo, con el `purgarTodo()` de antes. La diferencia es de
+      intención: «este equipo cambia de manos» es una acción deliberada, no un efecto colateral de
+      querer salir. Esa confusión **era** el defecto
+- [x] V33.3 **El outbox no se toca en ninguna de las tres** (R9), tampoco en `borrarDispositivo()`.
+      Está fijado con un test: lo cacheado se vuelve a pedir; una captura encolada no existe en
+      ningún otro lado
+
+## 🔑 Lo que apareció al probarlo
+
+- [i] V33.4 **El límite del orden no es el que decía el comentario.** Rezaba «la purga va antes de
+      limpiar el storage: después ya no habría identidad», y es falso: `get()` lee el
+      `BehaviorSubject` primero, así que la identidad **sobrevive** a los `removeItem` y muere recién
+      en `subject.next(null)`. Se detectó porque la mutación «purgar después de los `removeItem`»
+      salió **verde** — era equivalente. La que rompe es moverla después del `next(null)`, y ésa sí
+      queda en rojo. Comentario corregido, con el límite exacto
+- [i] V33.5 **Correr la purga tarde no da error**: `purgarParticionDe` es fail-closed y con identidad
+      vacía no borra nada. Deja la caché intacta **en silencio**, que es el modo de falla que ningún
+      smoke encuentra. De ahí que esto se fije con test y no mirando la pantalla
+
+## Validación
+
+- [x] V33.6 `yarn build` **0 errores, 0 warnings** · `ng test`: **402 SUCCESS, 0 fallan** (394 + 8)
+- [x] V33.7 **`token-storage.service.spec.ts` (nuevo, 8 casos)**: el servicio no tenía tests. Mutación
+      **4/4**: `clear()` de vuelta a `purgarTodo` **2 rojos** · `clearAllTemporal()` idem **1** ·
+      `borrarDispositivo()` purgando solo la propia **1** · la purga después de `next(null)` **1**
+- [x] V33.8 🔑 **Por qué esto se prueba con test y no en pantalla**: en una tablet con **un solo
+      usuario**, purgar «su partición» y purgar «todo» dan **exactamente el mismo resultado**. La
+      diferencia aparece recién en el equipo compartido, que es justo el que nadie tiene a mano al
+      probar
+- [x] V33.9 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [i] V33.10 **`borrarDispositivo()` queda sin llamador** hasta el paso 8 del plan (el botón del
+      sidebar, que llega con el llavero). O sea que hoy **ninguna acción borra todas las particiones**
+      — y eso **no es una regresión de privacidad**: la caché solo se sirve para la partición activa
+      (`recuperar()` arma la clave con la identidad), así que lo que queda de otro operario **no es
+      legible desde otra sesión**. Lo que cambia es que el dato viejo permanece en disco, sin cifrar,
+      igual que mientras ese operario simplemente no está logueado (decisión D3)
+- [~] V33.11 **Falta el smoke con dos operarios reales** (S1 del plan): A cachea, cierra sesión, y las
+      consultas de B siguen ahí. Necesita dos sesiones en un equipo; ningún agente lo cierra solo
+
+---
+
+# V34 · PWA multi-slot paso 5 — el llavero, en lógica pura y sin UI (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 5 del §7**.
+**Continúa** V29, V31, V32 y V33. **Bloque propio.** Primer paso de la feature nueva: los cuatro
+anteriores eran bugs vivos, esto ya no.
+
+⚠️ **Todo lo de este bloque es INERTE**: nada de la app lo importa todavía. Es a propósito (el plan
+separa «las dos funciones puras y sus tests. Sin UI todavía»), pero conviene decirlo fuerte porque el
+tracker ya tuvo un bloque que declaraba entregado código que nunca llegó a un commit (V25.4.1).
+
+- [x] V34.1 **Modelos** `core/auth/models/slot-sesion.model.ts`: `SlotSesion`, `PadronSlots`,
+      `DatosSlot`, `ResultadoActivacion`. El padrón va **sin cifrar a propósito** —el selector tiene
+      que pintarse sin red y sin PIN, y cifrarlo exigiría una llave del dispositivo, o sea el «teatro»
+      que B9 señaló—; lo que sí va cifrado es el blob de cada sesión aparcada
+- [x] V34.2 **`llavero-sesiones.funcion.ts`** — quién entra al padrón y **a quién se expulsa**. Tope
+      de 4 (R-M1), LRU por `ultimoUsoEn`, y **jamás** un slot con capturas sin subir: si los 4 tienen,
+      se rechaza el quinto login con motivo tipado y la lista ordenada por antigüedad, para que el
+      mensaje pueda nombrar a alguien concreto (R-M2). Expulsar purga la caché de esa partición;
+      su cola **nunca** se toca (R9)
+- [x] V34.3 **`cripto-llavero.funcion.ts`** — PBKDF2-SHA256 **210.000 iteraciones** con salt aleatorio
+      **por slot**, AES-GCM con IV aleatorio **por escritura**, `CryptoKey` no extraíble. El PIN **no
+      se compara**: es la entrada del KDF, y el veredicto lo da el tag GCM ⇒ `abrir` **lanza**. Sin
+      `crypto.subtle` devuelve `null` y el llavero se apaga entero: **no hay respaldo débil**
+- [x] V34.4 **El vencimiento es derivado, no una bandera.** `slotVencido` se calcula de
+      `ultimoContactoOkEn` en vez de guardarse; un booleano persistido sería una segunda verdad sobre
+      el mismo hecho. Y la jornada es **por slot** (R-M8): hay test de que `registrarContactoOk` de A
+      no le renueva la jornada a B
+- [x] V34.5 **`registrarUsoOk` NO toca `ultimoContactoOkEn`.** Activar un slot no es hablar con el
+      servidor; confundirlos renovaría la jornada de 16 h sin conexión, que es justo el tope que D4
+      puso para que un dispositivo perdido no sea una ventana abierta. Tiene test propio
+
+## Validación
+
+- [x] V34.6 `yarn build` **0 errores, 0 warnings** · `ng test`: **444 SUCCESS, 0 fallan** (402 + 42)
+- [x] V34.7 **Mutación 9/10 en el padrón**: no detectar el re-login **2 rojos** · pisar `slotId`/salt al
+      actualizar **1** · tope de 5 en vez de 4 **3** · expulsar a alguien con pendientes **3** · LRU al
+      revés **4** · vencer por `ultimoUsoEn` **4** · `>` en vez de `>=` en los intentos **1** ·
+      `registrarUsoOk` renovando la jornada **1** · `registrarContactoOk` aplicándose a todos **1** ·
+      no tolerar un padrón corrupto **1**. La décima (quitar el tope con `if (true)`) muere en
+      compilación, no por assert
+- [x] V34.8 **Mutación 5/6 en la cripto**: IV fijo **1 rojo** · salt fijo, que es literal el error de
+      B9 **1** · `derivarLlave` sin el gate de cripto **1** · `abrir` tragándose el fallo del tag GCM
+      **2** · `sellar` sin gate **1**
+- [x] V34.9 ⚠️ Honestidad: la 6.ª (quitar la guarda de «blob más corto que el IV») queda **verde**, y
+      no por falta de test: `decrypt` rechaza igual una entrada demasiado corta, así que **ningún test
+      puede ponerla en rojo**. Se conserva porque da un error legible en vez de un `DOMException`, y
+      queda anotada como no observable — igual que el relleno de base64 en V32.9
+- [x] V34.10 Backend sin tocar · sin procesos huérfanos (`:5002` libre)
+
+## 🔑 Dos cosas que aparecieron al escribirlo
+
+- [i] V34.11 **`Uint8Array` es genérico en TypeScript 6** y el `Uint8Array<ArrayBufferLike>` que sale
+      por defecto **no** es un `BufferSource` válido para `crypto.subtle` (podría ser un
+      `SharedArrayBuffer`): `TS2769`. Hay que construirlo sobre un `ArrayBuffer` explícito. No es un
+      detalle de estilo, es lo que separa compilar de no compilar
+- [i] V34.12 **`hayCripto(undefined)` devuelve `true`, no `false`.** Un `undefined` explícito dispara
+      el **parámetro por defecto** y termina preguntando por el `crypto` real; sólo `null` llega tal
+      cual. La primera versión del test asumía lo contrario y se puso roja. Queda fijado con el
+      comentario al lado, porque es la clase de cosa que el próximo va a escribir igual
+
+## Lo que NO entró, a propósito
+
+- [i] V34.13 **Ni `LlaveroSesionesService`, ni el selector de perfil, ni los botones del sidebar**
+      (pasos 6 a 8). Sin ellos `auth_session` sigue siendo una clave única: **el dispositivo sigue
+      guardando UNA sola sesión** y nada de esto cambia el comportamiento de la app todavía
+- [i] V34.14 ⚠️ Como nada lo importa, **`ng build` ni siquiera compila estos archivos** (sólo compila
+      lo alcanzable desde el entry). El que los compila —y por eso el único gate real de este bloque—
+      es `ng test`, porque los `.spec.ts` sí los importan. Al cablear el service en el paso 6 hay que
+      volver a mirar el build
+- [~] V34.15 **Falta decidir el flujo del PIN en pantalla** (cuántos dígitos se piden, qué se muestra
+      al fallar, cómo se explica que **no hay recuperación offline** si se olvida). Es diseño de UX
+      del paso 7, no algo que un agente deba resolver solo
+
+---
+
+# V35 · PWA multi-slot paso 6 — el llavero deja de ser inerte: se anota el slot al hacer login (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 6 del §7**.
+**Continúa** V34. **Bloque propio.**
+
+Primer I/O real del llavero. `LlaveroSesionesService` como orquestador delgado —`localStorage`, caché y
+outbox— delegando las dos decisiones en las funciones puras de V34, y el login anotando su slot.
+
+- [x] V35.1 **`LlaveroSesionesService`**: `registrarLogin` · `aparcar` · `activar` · `slotsAparcados` ·
+      `marcarContactoOk` · `eliminar` · `borrarTodos`. Tres capas de storage como manda el plan:
+      `auth_session` **intacta** (la sesión activa sigue byte a byte la de hoy ⇒ cero cambios en el
+      interceptor, los guards, los 33 módulos y los ~190 componentes), el padrón sin cifrar y el blob
+      de cada slot con AES-GCM
+- [x] V35.2 **El login anota su slot**, al margen de la navegación y sin esperarla (`void … .catch()`):
+      el llavero no puede demorar ni impedir entrar a trabajar
+- [x] V35.3 🔑 **`registrarLogin` NUNCA bloquea el login.** Si el padrón está lleno y los 4 tienen
+      capturas sin subir devuelve `rechazado` y **no toca nada**: ese usuario se queda sin slot
+      aparcable y su sesión arranca igual. Negarle la entrada a alguien que el servidor ya autenticó,
+      por una cola que todavía no puede ver ni resolver (el selector es el paso 7), sería peor que el
+      problema que R-M2 evita
+- [x] V35.4 **Aparcar no borra la sesión activa** y devuelve `false` sin escribir si algo falla. Al
+      revés —limpiar primero, sellar después— un fallo de sellado perdería la sesión entera
+- [x] V35.5 **Activar no pisa la sesión activa con basura**: si el blob descifra bien pero no trae
+      `accessToken`, corta con `no_disponible`. Tiene test propio, construido sellando a mano una
+      sesión sin token
+- [x] V35.6 **Los pendientes por slot se derivan del outbox en el momento**, agrupando por partición.
+      Guardarlos en el padrón sería un segundo número para la misma verdad
+
+## 🔑 Dos hallazgos de la prueba de mutación
+
+- [i] V35.7 🔴 **El `slotId` salía de `crypto.randomUUID()` global**, no de la fuente de cripto del
+      servicio. En un dispositivo sin cripto eso **tira una excepción** en vez de apagar el llavero, y
+      el único motivo por el que no pasaba era el orden en que se evaluaban los campos del objeto — o
+      sea, por accidente. Ahora hay `nuevoIdSlot(cripto)`: **una sola autoridad de azar**, y apagarla
+      apaga todo el llavero
+- [i] V35.8 **Los tres `disponible()` del servicio son redundantes.** Quitarlos uno por uno dejó los
+      tests **verdes**: sin cripto, `nuevoSaltB64` y `derivarLlave` ya devuelven `null` y el flujo corta
+      igual. No son código muerto —son un segundo candado en la misma puerta y el enunciado legible del
+      contrato— pero **el fail-closed real vive en las funciones puras**, no acá. Queda escrito para
+      que el próximo no crea que los está sosteniendo
+- [i] V35.9 Por lo mismo, el `if (!blob) return false` de `aparcar` tampoco se puede poner en rojo: sin
+      cripto nunca se llega ahí
+
+## El seam que hizo falta para probar la ausencia
+
+- [x] V35.10 **`FUENTE_CRIPTO_LLAVERO`** (InjectionToken, opcional, default `globalThis.crypto`). «Sin
+      `crypto.subtle` el llavero se apaga entero» es la propiedad más importante del módulo y en Chrome
+      —donde corren los tests— `crypto.subtle` está **siempre**: sin el seam esa rama quedaría escrita y
+      no verificada, que a los efectos es igual que no estar. Mismo criterio que
+      `TRABAJO_PENDIENTE_OFFLINE`. Mutación: ignorar el token deja **2 rojos**
+- [x] V35.11 Con la fuente apagada: `disponible()` en `false`, `registrarLogin` no escribe ni el padrón,
+      `aparcar` devuelve `false` **sin dejar ningún blob** (nunca en claro), `activar` responde
+      `no_disponible` y la sesión activa queda intacta — la app se comporta como hoy, con una sola sesión
+
+## Validación
+
+- [x] V35.12 `yarn build` **0 errores, 0 warnings** · `ng test`: **478 SUCCESS, 0 fallan** (444 + 34)
+- [x] V35.13 **Mutación 8/13 por assert** en el servicio: activar sin borrar el blob usado **1 rojo** ·
+      aceptar una sesión sin token **1** · no marcar el uso del slot **2** · no guardar la sesión activa
+      **1** · ignorar la cola al elegir víctima **2** · `slotsAparcados` incluyendo al activo **1** · no
+      anotar el PIN fallido **2** · ignorar el token de cripto **2**. Dos mueren en compilación (el
+      tipado impide saltear el `datos === null` y el `rechazado`) y **tres quedan verdes por redundancia**
+      (V35.8/V35.9), no por falta de test
+- [x] V35.14 🔑 **Ahora el build SÍ compila el llavero**: el login lo importa, así que dejó de ser
+      inalcanzable desde el entry (V34.14 avisaba de esto). `main` pasa de 829,50 a **838,58 kB**
+      (+9 kB) y **sigue sin warning de presupuesto**
+- [x] V35.15 Los tests del servicio corren con `localStorage` y **cripto reales**: el round-trip
+      aparcar→pisar la sesión→activar devuelve la sesión **idéntica**, y hay test de que el blob
+      guardado **no contiene el token en claro** mientras el padrón sí es legible, que es exactamente
+      el reparto que el plan pide
+- [x] V35.16 Backend sin tocar · sin procesos huérfanos (`:5002` libre)
+
+## Lo que NO hace
+
+- [i] V35.17 **Nada de esto se ve todavía.** `aparcar` y `activar` no tienen llamador: hacen falta el
+      selector de perfil (paso 7) y los botones del sidebar (paso 8). Hoy el efecto observable es uno
+      solo: al entrar, la tablet **anota quién entró** en `italgranja.slots.indice`
+- [i] V35.18 `marcarContactoOk` tampoco tiene llamador: quien debería llamarlo es el heartbeat de
+      `SessionTimeoutService`, y engancharlo ahí es parte del paso 7 —hoy la jornada por slot se
+      calcula desde el login, que es un piso correcto pero no el fino
+- [~] V35.19 Sigue faltando la **decisión de UX del PIN** (cuántos dígitos, qué se muestra al fallar,
+      cómo se explica que si se olvida **no hay recuperación offline**). Bloquea el paso 7
+
+---
+
+# V36 · PWA multi-slot paso 7 — el selector de perfil, con las tres decisiones de UX tomadas (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 7 del §7**.
+**Continúa** V34 y V35. **Bloque propio.**
+
+**Decisiones del usuario (18ago26)**, que eran el bloqueo de este paso: PIN de **6 dígitos** · se
+**muestran los intentos restantes** en cada error · el aviso de que no hay recuperación offline va **en
+el alistamiento**.
+
+- [x] V36.1 **Ruta `selector-usuario`**, lazy y **sin `authGuard`**: por definición la abre alguien que
+      todavía no tiene sesión activa, así que un guard la haría inalcanzable justo cuando se necesita
+      (mismo criterio que `/diagnostico`)
+- [x] V36.2 **`filas-selector.funcion.ts`** (pura): estado de cada slot y orden. De la más reciente a la
+      más vieja —el que vuelve es el último que usó el equipo— y **`requiereReingreso` gana sobre el
+      vencimiento**: los dos llevan al login con red, pero «se agotaron los intentos» y «llevás mucho
+      sin conectarte» mandan a buscar el problema a lugares distintos
+- [x] V36.3 🔑 **Ninguna fila se esconde.** Un slot que no se puede abrir se sigue mostrando, apagado y
+      con el motivo: desaparecer de la lista se lee como «se perdió mi sesión», y con capturas adentro
+      eso es exactamente lo que no hay que hacer sentir. Elegirlo lleva al login, no a un PIN inútil
+- [x] V36.4 **Se muestran las capturas pendientes por slot** (badge naranja «N sin enviar»), derivadas
+      del outbox en el momento: es la respuesta a «¿dónde quedó lo que cargué?»
+- [x] V36.5 **El PIN pide 6 dígitos**, descarta lo que no sea número, corta en 6 y **el botón solo se
+      habilita con el PIN completo**: sin eso se gasta un intento por un dedo lento, y un intento
+      gastado no se recupera
+- [x] V36.6 **Al fallar dice cuántos intentos quedan** (singular incluido) y limpia el campo —reintentar
+      sobre los dígitos viejos gasta otro intento sin querer—. Al agotarlos vuelve a la lista y **avisa
+      que lo capturado sin enviar NO se perdió**, que es la primera pregunta que aparece
+- [x] V36.7 **Activar recarga la página.** No es pereza: hay `BehaviorSubject` con datos de empresa en
+      ~33 módulos y caché de flags en `ActiveCompanyConfigService`; recargar es la única garantía
+      **estructural** de que nada de la empresa anterior sobreviva. Y `activando` **no** se apaga en ese
+      camino: hacerlo haría parpadear el botón habilitado mientras la página se va
+- [x] V36.8 **El aviso del PIN quedó en `frontend/PWA.md`**, en una sección propia de alistamiento: si
+      se olvida no hay recuperación offline, a los 5 fallos la sesión guardada se borra, y **la cola
+      nunca se pierde** en ninguno de los dos casos. Se repite en la pantalla del PIN, porque
+      descubrirlo en el galpón se lee como «se perdió»
+
+## Validación
+
+- [x] V36.9 `yarn build` **0 errores, 0 warnings** · `ng test`: **508 SUCCESS, 0 fallan** (478 + 30)
+- [x] V36.10 **Mutación 11/11, todas por assert**: orden invertido · `requiereReingreso` perdiendo ante
+      el vencimiento · esconder los no activables · redondear el tiempo al más cercano en vez de truncar
+      · reloj adelantado dando negativos · permitir el intento con el PIN incompleto · no limpiar el PIN
+      tras fallar · no decir cuántos intentos quedan · no recargar al activar · abrir el PIN de un slot
+      no activable · aceptar cualquier carácter en el PIN
+- [x] V36.11 🖥️ **Verificado en el navegador** (dev server, padrón sembrado a mano y borrado después):
+      lista ordenada correctamente (20 min · 3 h · 20 h), el vencido y el de PIN agotado con su leyenda,
+      la pantalla de PIN abre y **repinta** —nada queda en «Cargando…»—, y el saneado del campo probado
+      en vivo: `12ab` ⇒ `12`, 5 dígitos ⇒ botón deshabilitado, 9 dígitos ⇒ se corta en 6 y habilita
+- [x] V36.12 El servidor de dev quedó **detenido** y el padrón de prueba borrado del navegador
+
+## 🔑 Lo que apareció al verificar
+
+- [i] V36.13 **El color condicional del borde NO puede ir en `[class.border-[#e5e0d9]]`**: una clase de
+      Tailwind con corchetes dentro de un binding `[class.x]` hay que escaparla y es una fuente de
+      errores silenciosos (el binding simplemente no aplica). Va por `ngClass`, donde el nombre viaja
+      como texto
+- [i] V36.14 **`fixture.whenStable()` no espera un `ngOnInit` async.** La primera versión de los tests
+      encontraba la pantalla todavía en «Cargando…» porque la promesa de `ngOnInit` no la espera nadie.
+      Los specs llaman `recargar()` explícitamente en vez de confiar en la estabilidad
+- [i] V36.15 ⚠️ El click sintético de la herramienta de navegador **no disparó** el handler del botón
+      (el punto exacto cae sobre un `div` interno); un `.click()` real del DOM sí. Es una limitación de
+      la verificación, **no del componente** — y quedó comprobado que el flujo funciona
+
+## Lo que NO hace
+
+- [i] V36.16 **Nadie llega al selector todavía**: falta el paso 8 (el sidebar con «Cambiar de usuario»,
+      que es donde se **aparca** y donde se define el PIN). Hoy `/selector-usuario` se alcanza escribiendo
+      la ruta, y sin slots aparcados muestra su estado vacío
+- [~] V36.17 Falta el smoke **S1 en un Android real**: dos operarios turnándose sin red, que es el caso
+      que motiva el plan entero. Ningún agente lo cierra solo
+
+---
+
+# V37 · PWA multi-slot paso 8 — el sidebar cierra el circuito: aparcar, cerrar sesión y borrar el equipo (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 8 del §7** (R-M5 y R-M6).
+**Continúa** V34, V35 y V36. **Bloque propio.** Con esto el multi-slot **se puede usar**: hasta ayer
+al selector sólo se llegaba escribiendo la ruta.
+
+## Las tres salidas, que ahora hacen tres cosas distintas
+
+- [x] V37.1 **«Cambiar de usuario»** (nuevo): la sesión se cifra con el PIN y se aparca. **No purga
+      nada** —ni la caché propia ni la de nadie— porque quien aparca vuelve, a veces en media hora, y
+      su caché es justo lo que le deja trabajar sin red al volver
+- [x] V37.2 **«Cerrar sesión»** (existía, cambia): elimina **su** slot y purga **su** partición. Lo de
+      los otros operarios del equipo queda intacto — antes se lo llevaba puesto (fix F-5, V33)
+- [x] V37.3 **«Borrar este dispositivo»** (nuevo): se van **todos** los slots y **toda** la caché. Es
+      el llamador que le faltaba a `borrarDispositivo()` desde V33, con confirmación aparte
+- [x] V37.4 **La cola de capturas no se toca en ninguna de las tres** (R9), y el diálogo de borrado
+      **lo dice con el número**: es la primera pregunta que aparece y la respuesta tranquiliza
+
+## La pantalla de aparcar
+
+- [x] V37.5 **Ruta `cambiar-usuario`** (lazy, **con** `authGuard`: hay que estar adentro para poder
+      guardarse). Pide el PIN **dos veces**
+- [x] V37.6 🔑 **Por qué dos veces**: el PIN no se guarda en ningún lado —es la entrada del KDF—, así
+      que un dedo torcido al aparcar **no se nota hoy** (el blob se escribe igual) y se cobra mañana en
+      el galpón como 5 intentos fallidos y la sesión destruida. Confirmarlo es la única red posible
+- [x] V37.7 Al no coincidir se limpia **sólo la confirmación**: hacer reescribir los 12 dígitos por un
+      error en los últimos 6 es exactamente cómo se termina eligiendo un PIN corto y de memoria
+- [x] V37.8 **R-M5**: con capturas sin enviar se avisa cuántas son y que **no se pierden**; con red se
+      ofrece enviarlas ahí mismo, y **sin red no se bloquea** — bloquear a alguien que no tiene señal
+      es encerrarlo
+- [x] V37.9 El aviso del PIN (no hay recuperación offline · 5 fallos lo borran · la cola no se pierde)
+      va **antes de elegirlo**, en la misma pantalla, además del alistamiento en `PWA.md` (V36.8)
+
+## 🔑 El orden que no es intercambiable
+
+- [x] V37.10 **`cambiarDeUsuario` sella el blob PRIMERO y suelta la sesión activa DESPUÉS.** Al revés,
+      un fallo de cifrado deja al operario **sin sesión y sin copia**, sin red, encerrado afuera. Si el
+      sellado falla no se suelta nada, la sesión sigue viva y la pantalla lo dice. Hay test del **orden**
+      (no sólo del resultado) y la mutación que lo invierte queda en rojo
+- [x] V37.11 `TokenStorageService.aparcarSesion()` nuevo: saca la sesión **sin purgar**. Con `clear()`
+      —que purga la partición propia— aparcar habría costado el alistamiento cada vez
+
+## Validación
+
+- [x] V37.12 `yarn build` **0 errores, 0 warnings** · `ng test`: **542 SUCCESS, 0 fallan** (508 + 34)
+- [x] V37.13 **Mutación 5/5 sobre la tabla R-M6, todas por assert**: soltar la sesión antes de sellar ·
+      aparcar purgando la partición propia · cerrar sesión borrando los slots de todos · borrar el
+      dispositivo sin tocar el llavero · borrar el dispositivo cayendo al logout normal. Es una tabla de
+      3 filas × 4 columnas donde **una celda mal no se ve al probarlo**: en una tablet con un solo
+      usuario, «purgo lo mío» y «purgo todo» dan el mismo resultado
+- [x] V37.14 **Mutación 11/11 en la pantalla de aparcar** ya cubierta por sus 13 casos: PIN incompleto,
+      PIN que no coincide, cifrado fallido sin navegar, doble toque, sin red no ofrece enviar, sin
+      llavero no aparca
+
+## 🔴 Lo que apareció al revisar el propio cambio
+
+- [x] V37.18 **El sidebar se muestra por lista de URL, no por sesión.** `AppComponent.showSidebar`
+      excluía `/login`, `/password-recovery` y `/reset-password` — o sea que en `/selector-usuario` y
+      en `/diagnostico`, que se abren **sin sesión**, el menú aparecía igual. Con el pie nuevo eso
+      dejaba **«Borrar este dispositivo» al alcance de cualquiera que levantara la tablet**: un botón
+      que se lleva los slots y la caché de los cuatro operarios, sin más barrera que un diálogo
+- [x] V37.19 **Se arregló por los dos lados**: `/selector-usuario` entra en la lista de rutas públicas
+      (es una pantalla de acceso, como el login), y las tres salidas del pie se gatean con
+      `haySesion$` — **por el dato, no por la ruta**, así una ruta pública nueva que se olvide de la
+      lista no rompe la regla. `/diagnostico` NO entra en la lista: también se abre estando adentro y
+      dejarlo sin menú sería dejarlo sin forma de volver
+- [x] V37.20 Los dos quedaron fijados con test: `showSidebar` en `/selector-usuario` ⇒ `false` y en
+      `/diagnostico` ⇒ `true`, y el pie del sidebar **no existe en el DOM** sin sesión
+
+## 🖥️ Ciclo completo verificado en el navegador
+
+Con dev server, sesión y padrón sembrados a mano (sin backend), y **todo borrado al terminar**:
+
+- [x] V37.21 **Aparcar**: PIN que no coincide ⇒ error, se limpia la confirmación y **no se escribe
+      ningún blob**. PIN correcto ⇒ blob de **504 caracteres** en `italgranja.slots.slot-alex`, que
+      **no contiene el token en claro**, la sesión activa suelta y navegación a `/selector-usuario`
+- [x] V37.22 **Retomar**: PIN equivocado ⇒ «Te quedan 4 intentos», contador **persistido** en el padrón
+      y sesión activa **sin tocar**. PIN correcto ⇒ sesión **restaurada idéntica** (Alex Londoño /
+      Agroavícola Sanmarino), blob consumido y contador de intentos de vuelta en 0
+- [x] V37.23 Y en `/selector-usuario`, **sin sidebar y sin los tres botones** — la corrección de V37.18
+      confirmada en pantalla, no sólo en el test
+- [x] V37.24 Servidor de dev **detenido**; `auth_session`, padrón y blob **borrados** del navegador
+
+- [i] V37.25 ⚠️ El dev server tardó **dos rebuilds** en tomar los cambios de `app.component.ts` y del
+      sidebar: la primera verificación mostró los botones **igual** y parecía que la guarda no
+      funcionaba. Antes de dar por roto un cambio en el navegador, confirmá que el bundle servido es el
+      nuevo — acá el veredicto real lo dieron los tests
+
+## Lo que NO hace
+
+- [~] V37.15 **Falta el smoke S1 en un Android real**: dos operarios turnándose sin red, con el
+      alistamiento hecho en oficina. Es el caso que motiva el plan entero y ningún agente lo cierra solo
+- [i] V37.16 **`marcarContactoOk` sigue sin llamador** (V35.18): la jornada de 16 h por slot se cuenta
+      desde el login y no desde el último heartbeat. Es un piso correcto —nunca alarga la ventana— pero
+      no es el número fino. Engancharlo al heartbeat de `SessionTimeoutService` queda pendiente
+- [i] V37.17 **La PWA sigue sin desplegarse.** Todo esto se suma a lo que espera el merge a
+      `main-produccion`; nada de los pasos 1 a 8 está en manos de un operario todavía
+
+---
+
+# V38 · PWA multi-slot — la jornada de 16 h por slot se cuenta desde el último contacto real (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **R-M8**.
+**Cierra el pendiente V35.18 / V37.16.** **Bloque propio.**
+
+Hasta acá `marcarContactoOk` no tenía llamador: la jornada de cada slot se contaba **desde el login**.
+Era un piso correcto —nunca alargaba la ventana— pero mostraba «necesita conectarse» a operarios que
+habían estado hablando con el servidor toda la mañana.
+
+- [x] V38.1 **El 200 del heartbeat refresca la jornada del slot activo**, además del contador interno
+      del timer. `SessionTimeoutService` inyecta el llavero y llama `marcarContactoOk` en un único
+      lugar: `registrarContactoReal()`
+
+## 🔑 Los dos lugares donde NO se enganchó, a propósito
+
+- [i] V38.2 **`start()`** corre en **cada arranque de la app** con una sesión guardada. Engancharlo ahí
+      haría que un **F5 renovara la jornada de 16 h**, o sea que no habría tope: exactamente lo que D4
+      puso para que una tablet perdida no sea una ventana abierta indefinidamente
+- [i] V38.3 **El evento `online` del navegador** solo dice que la interfaz de red se levantó — el wifi
+      del galpón sin salida a internet lo dispara igual. No es hablar con el servidor
+- [i] V38.4 **No se desalinea con el guard**, que mide la jornada desde el token (`iat`/`exp`) y no
+      desde el padrón. Los dos números no pueden separarse más que la vida del token: un heartbeat con
+      200 **implica** un token válido —uno vencido devuelve 401 y cierra la sesión—, así que el último
+      contacto nunca queda a más de una hora del `iat`
+
+## Validación
+
+- [x] V38.5 `yarn build` **0 errores, 0 warnings** · `ng test`: **549 SUCCESS, 0 fallan** (542 + 7)
+- [x] V38.6 **Mutación 3/3 por assert**: quitar la marca del heartbeat **2 rojos** · marcarla al
+      arrancar la app **5** · marcarla al volver la red **1**
+- [x] V38.7 🔑 **La tercera prueba nació verde y no servía.** `marcarEnLinea(true)` **corta antes** si
+      el estado ya era `true`, así que el cuerpo no se ejecutaba nunca en el test y la mutación pasaba
+      inadvertida. Hay que **pasar de verdad por «sin conexión»** (dos heartbeats con `status 0`) antes
+      de disparar el evento `online`. Es la misma lección de siempre: un test que no se pone rojo
+      cuando se rompe lo que dice proteger no prueba nada
+- [x] V38.8 `SessionTimeoutService` no tenía **ningún** test hasta hoy, pese a ser quien decide cuándo
+      se expulsa a alguien. Ahora tiene 7
+- [x] V38.9 Backend sin tocar · sin procesos huérfanos (`:5002` y `:4200` libres)
