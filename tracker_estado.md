@@ -3123,3 +3123,68 @@ de empresa activa. Bloque propio — no tocar desde otras sesiones.
       y unificarlos es limpieza, no seguridad. Merece su propio paso
 - [x] V24.4.3 **No se toca `X-Active-Pais`**, que se sigue leyendo crudo: acota país, no empresa, y no
       decide el aislamiento multiempresa. Queda dicho para no darlo por revisado
+
+---
+
+# V25 · Triaje del tracker + 5 planes en paralelo (18ago26)
+
+Pedido del usuario: un loop que recorra los `- [ ]` del tracker, resuelva cada tarea en una sesión
+aislada y la marque hecha. **El loop tal cual escrito no era viable acá** y el diagnóstico es el
+entregable principal: en este tracker `- [ ]` no significaba «tarea», significaba «sin cerrar» por
+cuatro razones distintas. La primera tarea que agarraba el loop era un comando de PowerShell contra
+Exchange Online: ningún agente puede resolverla, así que o se colgaba en bucle o la marcaba hecha y
+el tracker pasaba a mentir. Y entre los pendientes había 4 acciones irreversibles sobre producción.
+
+## V25.1 — Convención de marcas
+- [x] V25.1.1 `- [ ]` tarea ejecutable · `- [!]` decisión del usuario · `- [~]` fuera del repo ·
+      `- [i]` hallazgo o nota. Leyenda al inicio del archivo. `grep -c '^- \[ \]'` pasa a contar solo
+      trabajo real
+- [x] V25.1.2 66 pendientes triados: 23 tareas (12 eran del bloque V24), 13 decisiones, 10 fuera del
+      repo, 20 hallazgos. **Hoy quedan 9 tareas ejecutables en todo el tracker**
+- [x] V25.1.3 Estado obsoleto corregido: la Fase 3 de R2 la había cerrado V16 (que la cita textual) y
+      B10 seguía listado como pendiente en 5 sitios pese a estar cerrado en `56f7caa`
+
+## V25.2 — Cinco planes, cinco sesiones aisladas
+- [x] V25.2.1 `v16_engorde_atribucion_persistida_plan.md` · `4f15a0c`
+- [x] V25.2.2 `b1_revocacion_sesion_plan.md` · `5d54dbd`
+- [x] V25.2.3 `pwa_sesiones_multislot_plan.md` · `b0cf608`
+- [x] V25.2.4 `pwa_f4_offline_edicion_plan.md` · `79d29f6`
+- [x] V25.2.5 `v12_5_1_migraciones_v16_ausentes_informe.md` · `0d8eee0` — cierra **V12.5.1**
+- [x] V25.2.6 Ninguna sesión compiló, tocó código, tocó el tracker ni commiteó (la sesión V24 estaba
+      editando el backend en paralelo; un `dotnet build` le habría bloqueado el `bin/`)
+- [x] V25.2.7 **V8.6 excluida a propósito**: el encabezado la reserva para otra sesión
+
+## V25.3 — 🔴 Defectos VIVOS que encontraron los planes al medir
+Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomados del agente.
+
+- [ ] V25.3.1 🔴 **El outbox se sincroniza sin filtrar por partición.** `sync.service.ts:71` usa
+      `OutboxService.listarTodas()`, cuyo propio doc-comment dice «toda la cola, sin filtrar».
+      Alcanzable HOY con un solo slot: el JWT vence a los 60 min → `authGuard` hace `logout()` → el
+      outbox **sobrevive** (`purgarTodo` limpia solo `STORE_CONSULTAS`) → entra otro operario y sus
+      capturas se empujan con el token del nuevo. Misma empresa ⇒ quedan firmadas por otro; empresa
+      distinta ⇒ `empresa_no_autorizada`, clasificado como *reintentar, no bandeja* ⇒ reintento
+      infinito e invisible
+- [ ] V25.3.2 🔴 **`/diagnostico` muestra y borra el outbox de todos, sin login.** La ruta no lleva
+      `authGuard` **a propósito** (es la pantalla de rescate) y esa decisión es correcta; lo que
+      caducó es su premisa. El doc-comment dice «no expone ningún dato de negocio»: cierto en F1,
+      falso desde F3.1 (`c44e0a4`), que agregó `listarTodas()` + `JSON.stringify` del payload + poder
+      descartarlo
+- [ ] V25.3.3 🔴 **La mitigación de la marca `para_proximo_ciclo` es solo de front.** El tracker decía
+      «la puerta de entrada está cerrada»: lo está la del navegador. La API sigue aceptando
+      `ParaProximoCiclo` (`InventarioGestionDtos.cs:147, 214, 405, 427`) ⇒ el defecto de v15 es
+      reintroducible desde Swagger o la PWA
+- [i] V25.3.4 **`auth_session` se guarda en claro.** `token-storage.service.ts:41` hace
+      `JSON.stringify(session)` directo al storage; CLAUDE.md afirma que va cifrado con AES
+- [i] V25.3.5 **El authGuard mata la jornada offline de 16 h a los 60 min**: al vencer el JWT hace
+      `logout()` y manda a `/login`, que sin red es un callejón sin salida
+- [i] V25.3.6 **El espejo C# de la marca nunca corre en producción**: ningún llamador pasa
+      `ciclosDelGalpon`, solo los xUnit ⇒ SQL y C# ya divergen, contra «una sola fórmula por número»
+- [i] V25.3.7 **`requiere_cuadre` no es preparación para F4, es un defecto vivo de F3**: el comentario
+      de `SyncPushCalculos.cs:42-45` dice que el alta de levante no valida saldos, y hoy es falso —
+      las 4 capturas validan stock y lanzan antes de persistir, así que el dato de campo queda varado
+      en la bandeja. Y no tiene lector: `SyncController` solo expone `POST push`
+
+## V25.4 — Lección para el próximo que lea este archivo
+- [i] V25.4.1 **Un `- [x]` de este tracker no garantiza que el código exista.** El bloque v16 declaraba
+      entregadas 2 migraciones, 2 fns SQL, un espejo C#, un índice y un gate de 566 líneas: nada llegó
+      a un commit. Antes de construir sobre un `- [x]`, verificalo contra el repo
