@@ -3,6 +3,7 @@ import { BehaviorSubject } from 'rxjs';
 import { AuthSession, MenuItem } from './auth.models';
 import { resolverEmpresaActiva } from './funciones/resolver-empresa-activa.funcion';
 import { CacheConsultasService } from '../../shared/offline/cache-consultas.service';
+import type { IdentidadParticion } from '../../shared/offline/models/offline.model';
 
 const KEY = 'auth_session';
 
@@ -15,8 +16,15 @@ export class TokenStorageService {
   // de nadie — recibe la identidad por parámetro justamente para poder vivir en el nivel más bajo.
   private readonly cacheOffline = inject(CacheConsultasService);
 
-  /** Identidad de partición de la sesión actual, para purgar su caché. */
-  private identidadActual() {
+  /**
+   * Identidad de partición de la sesión actual: quién es el dueño de lo que hay en el dispositivo.
+   *
+   * Es pública porque la usan dos consumidores con el mismo criterio y una sola derivación posible:
+   * la purga de esta clase y el push de `SyncService`, que necesita saber **de quién** es la cola
+   * antes de mandarla con el token de la sesión activa. Duplicar el `?? ` en cada llamador es cómo
+   * nacen las claves que colapsan.
+   */
+  identidadActual(): IdentidadParticion {
     const s = this.get();
     return {
       userId: s?.user?.id ?? s?.user?.userId ?? null,

@@ -3166,7 +3166,7 @@ el tracker pasaba a mentir. Y entre los pendientes había 4 acciones irreversibl
 ## V25.3 — 🔴 Defectos VIVOS que encontraron los planes al medir
 Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomados del agente.
 
-- [ ] V25.3.1 🔴 **El outbox se sincroniza sin filtrar por partición.** `sync.service.ts:71` usa
+- [x] V25.3.1 🔴 **El outbox se sincroniza sin filtrar por partición.** — **cerrado en V29** (al final). `sync.service.ts:71` usa
       `OutboxService.listarTodas()`, cuyo propio doc-comment dice «toda la cola, sin filtrar».
       Alcanzable HOY con un solo slot: el JWT vence a los 60 min → `authGuard` hace `logout()` → el
       outbox **sobrevive** (`purgarTodo` limpia solo `STORE_CONSULTAS`) → entra otro operario y sus
@@ -3178,7 +3178,7 @@ Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomado
       caducó es su premisa. El doc-comment dice «no expone ningún dato de negocio»: cierto en F1,
       falso desde F3.1 (`c44e0a4`), que agregó `listarTodas()` + `JSON.stringify` del payload + poder
       descartarlo
-- [ ] V25.3.3 🔴 **La mitigación de la marca `para_proximo_ciclo` es solo de front.** El tracker decía
+- [x] V25.3.3 🔴 **La mitigación de la marca `para_proximo_ciclo` es solo de front.** — **cerrado en V26.3**: `GuardarMarcaProximoCicloApagada` rechaza con 400 en los 3 caminos que persistían la marca (verificado: 3 llamadores en `InventarioGestionService.cs`). El tracker decía
       «la puerta de entrada está cerrada»: lo está la del navegador. La API sigue aceptando
       `ParaProximoCiclo` (`InventarioGestionDtos.cs:147, 214, 405, 427`) ⇒ el defecto de v15 es
       reintroducible desde Swagger o la PWA
@@ -3488,3 +3488,73 @@ plan excluye como «otro feature» (§6.2).
       falta una sesión de la app, así que ningún agente lo puede cerrar solo. Hoy la columna
       mostraría «—» en todas las filas (0 marcas en la BD): lo que hay que mirar es que el encabezado
       se vea y que la tabla siga scrolleando bien
+
+---
+
+# V29 · PWA F-3 — el push deja de firmar el trabajo de un operario con la identidad de otro (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 1 del §7** (F-3).
+**Bloque propio.** Cierra **V25.3.1**. El plan lo aísla a propósito: es un bug que ya existe y vale
+por sí solo *«aunque el multi-slot se cancele después»*.
+
+## El defecto
+
+`sync.service.ts:71` empujaba `outbox.listarTodas()` — **toda la cola, sin filtrar**. El token lo pone
+`AuthInterceptor` (el de quien esté logueado **ahora**) y el servidor estampa el autor desde ese token
+ignorando el del cuerpo (B5). No hace falta multi-slot para llegar: el JWT vence a los 60 min ⇒
+`authGuard` hace `logout()` ⇒ el outbox **sobrevive** (R9: nada borra capturas sin confirmación) ⇒
+entra el operario del turno siguiente y el `effect` de reconexión dispara solo.
+
+- [x] V29.1 **Función pura** `shared/offline/funciones/filtrar-operaciones-particion.funcion.ts`: de
+      toda la cola, las de la partición activa que ya cumplieron su backoff. **Fail-closed** (sin
+      identidad completa devuelve `[]`, mismo criterio que `claveParticion`). El predicado de estado
+      y backoff es **el mismo, literal**, que tenía `enviarPendientes`: lo único que se agrega es el
+      filtro por partición
+- [x] V29.2 `sync.service.ts` delega en ella e inyecta `TokenStorageService`. **Sin ciclo de DI**:
+      `TokenStorageService` solo depende de `CacheConsultasService`, y el interceptor sigue sin
+      arrastrar el service de sync (para eso existe `sync-context.ts`)
+- [x] V29.3 `TokenStorageService.identidadActual()` pasa de privada a **pública** en vez de copiar el
+      `?? ` de la identidad a un tercer lugar (ya estaba duplicado en el interceptor). El plan la
+      reusa igual en su paso 4
+- [x] V29.4 **Lo ajeno no se toca**: no se borra, no se marca rechazado, no se reprograma. Queda en
+      la cola esperando a su dueño (R9). Filtrar nunca es borrar
+
+## 🔑 Lo que apareció al verificar contra el servidor
+
+- [i] V29.5 **La partición completa —usuario + empresa + país— es la correcta, y el backend lo
+      confirma.** Se dudó de si filtrar por los 3 no era pasarse (la falsificación de autoría la causa
+      el `userId`). Pero `SyncPushCalculos.EvaluarOperacion` ya rechaza
+      `empresaDeLaSesion != companyId` como `empresa_no_autorizada` — y el cliente clasifica ese
+      código como *reintentar*. O sea que **hoy** la captura de un usuario multiempresa hecha en la
+      empresa A y sincronizada estando en la B **reintenta para siempre y nunca aterriza**. Con el
+      filtro espera callada y sale sola cuando vuelve a su empresa: no hay caso que empeore
+- [i] V29.6 **El contador de la barra sigue siendo global** (`refrescarContadores` cuenta toda la
+      cola). Es del paso 5 del plan, no de éste. No es una regresión: una captura ajena antes también
+      quedaba pendiente para siempre — la diferencia es que ahora **no gasta red ni batería**
+      intentándolo
+
+## Validación
+
+- [x] V29.7 `yarn build` (Node portable 22.23.1) **0 errores, 0 warnings** — ni el de bundle budget
+- [x] V29.8 `ng test --watch=false --browsers=ChromeHeadless`: **343 SUCCESS, 0 fallan** (326 previos
+      + 17 nuevos). Los 17 corren de verdad: se comprobó ejecutándolos aislados con `--include`
+- [x] V29.9 **Prueba de mutación 4/4 guardas.** Se desactivó cada una y se corrió el spec:
+      sin filtro de partición **3 rojos** · sin filtro de estado **1 rojo** · sin backoff **1 rojo** ·
+      sin el corte temprano de partición nula **1 rojo**. ⚠️ Honestidad: la 5.ª mutación (quitar
+      `!operaciones?.length`) muere **en compilación** (`TS18049`), no por un assert — ahí la guarda
+      es el tipo, señal más débil. El archivo se restauró y se verificó idéntico al original
+- [x] V29.10 El corte temprano **sí es load-bearing** y por eso tiene test propio: una fila de
+      IndexedDB con `particion` nula (esquema viejo o escritura a medias) haría `null === null` y se
+      colaría **justo sin sesión**, que es el peor momento. Sin ese test, el próximo refactor lo borra
+      por «redundante» — la primera pasada de mutación lo dio verde
+- [x] V29.11 Backend sin tocar. Sin procesos huérfanos (`:5002` libre en todo el bloque; nunca se
+      levantó backend)
+
+## Lo que NO hace
+
+- [i] V29.12 **No desbloquea el multi-slot.** Siguen abiertos F-2 (el `authGuard` mata la jornada de
+      16 h a los 60 min), F-4 (**V25.3.2**: `/diagnostico` muestra el payload de todos sin login) y
+      F-5 (el logout purga la caché de todos). Son los pasos 2, 3 y 4 del §7 del plan
+- [~] V29.13 **Falta el smoke en un equipo real** (S1 del plan: dos operarios turnándose sin red).
+      Ningún agente lo puede cerrar solo: necesita una tablet y dos sesiones. La PWA además sigue sin
+      desplegarse

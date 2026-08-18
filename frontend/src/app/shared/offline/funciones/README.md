@@ -4,7 +4,7 @@ Convención de CLAUDE.md: una función **pura** por responsabilidad, sin `this`,
 y sin tocar IndexedDB. `cache-consultas.service.ts` y `offline-cache.interceptor.ts` son orquestadores
 delgados que las invocan.
 
-## Por qué estas tres están acá
+## Por qué estas cuatro están acá
 
 Cada una decide algo cuyo error se paga caro y no se nota:
 
@@ -23,6 +23,12 @@ Cada una decide algo cuyo error se paga caro y no se nota:
   existe `frontend/scripts/verificar-lista-cacheable.js`, que **corre en CI y corta el gate de
   tests** si aparece un endpoint sin decisión o una entrada que la app nunca pide. Corrélo al tocar
   esta lista (`--informe` para mirar sin bloquear).
+
+- **`filtrar-operaciones-particion.funcion.ts`** — decide **qué capturas puede empujar la sesión
+  activa**. El token lo pone `AuthInterceptor` y el servidor estampa el autor desde ese token, así
+  que mandar la cola entera no es "mandar de más": firma el trabajo de un operario con la identidad
+  del que agarró la tablet después. También es `fail-closed`: sin identidad completa no envía nada.
+  Lo ajeno **queda en la cola**, intacto (R9) — filtrar nunca es borrar.
 
 - **`vigencia-cache.funcion.ts`** — TTL **duro** de 16 h (la jornada offline de la decisión D4).
   Vencida no se sirve. La alternativa —mostrar siempre lo último con un cartel de "datos de hace 3
