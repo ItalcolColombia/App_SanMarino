@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
+import { nuevoUuid, obtenerDeviceId } from '../../core/auth/funciones/device-id.funcion';
 import { claveParticion } from './funciones/clave-particion.funcion';
 import { resolverTipoOperacion } from './funciones/decidir-encolable.funcion';
 import {
@@ -12,8 +13,6 @@ import {
 import type { IdentidadParticion } from './models/offline.model';
 import type { EstadoOutbox, OperacionPendiente } from './models/outbox.model';
 
-/** Clave del identificador de equipo. Sobrevive al logout a propósito: identifica la tablet, no la sesión. */
-const CLAVE_DEVICE_ID = 'italgranja.deviceId';
 
 /**
  * Cola de capturas hechas sin red (F3).
@@ -187,40 +186,8 @@ export class OutboxService {
    * no al usuario. Es informativo — el servidor jamás autoriza con esto.
    */
   private deviceId(): string {
-    try {
-      const guardado = localStorage.getItem(CLAVE_DEVICE_ID);
-      if (guardado) return guardado;
-
-      const nuevo = nuevoUuid();
-      localStorage.setItem(CLAVE_DEVICE_ID, nuevo);
-      return nuevo;
-    } catch {
-      // Storage bloqueado por política: la operación igual se encola, solo pierde trazabilidad.
-      return 'desconocido';
-    }
+    return obtenerDeviceId();
   }
 }
 
-/**
- * UUID v4. Usa `crypto.randomUUID` cuando está, con respaldo para contextos donde no exista.
- * No puede fallar: sin un id no hay idempotencia posible.
- */
-function nuevoUuid(): string {
-  const cripto = globalThis.crypto as Crypto | undefined;
 
-  if (cripto?.randomUUID) {
-    return cripto.randomUUID();
-  }
-
-  if (cripto?.getRandomValues) {
-    const bytes = cripto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-
-  // Último recurso. Peor entropía, pero una operación sin id no se puede encolar.
-  const azar = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${azar()}${azar()}-${azar()}-4${azar().slice(1)}-a${azar().slice(1)}-${azar()}${azar()}${azar()}`;
-}

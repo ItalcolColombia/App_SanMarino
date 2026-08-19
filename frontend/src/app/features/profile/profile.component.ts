@@ -7,11 +7,12 @@ import { faUserCircle, faUserEdit, faLock, faSpinner, faSave, faExclamationCircl
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { UserProfileService, UpdateUserDto, ChangePasswordDto } from '../../core/services/user/user-profile.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../shared/components/confirmation-modal/confirmation-modal.component';
+import { MisDispositivosComponent } from './components/mis-dispositivos/mis-dispositivos.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterModule, FontAwesomeModule, ConfirmationModalComponent],
+  imports: [ReactiveFormsModule, RouterModule, FontAwesomeModule, ConfirmationModalComponent, MisDispositivosComponent],
   templateUrl: './profile.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./profile.component.scss']

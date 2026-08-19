@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Persistence/ZooSanMarinoContext.cs
+﻿// src/ZooSanMarino.Infrastructure/Persistence/ZooSanMarinoContext.cs
 using System;
 using System.Linq;
 using System.Text.Json;
@@ -149,6 +149,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
 
         // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
         public DbSet<ServiceToken> ServiceTokens => Set<ServiceToken>();
+
+        // Sesiones de usuario (B1): lista BLANCA por jti. Sin fila no hay sesion (fail-closed).
+        public DbSet<SesionActiva> SesionesActivas => Set<SesionActiva>();
 
         // Módulo de tickets de soporte / requerimientos
         public DbSet<Ticket> Tickets => Set<Ticket>();

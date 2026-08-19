@@ -120,6 +120,14 @@ describe('mensajeFinDeSesion', () => {
   it('tiene mensaje propio para la jornada vencida', () => {
     expect(mensajeFinDeSesion('jornada_offline_vencida')).toContain('sin conectarte al servidor');
   });
+
+  it('la sesión revocada dice QUIÉN la cerró, y no que expiró', () => {
+    const mensaje = mensajeFinDeSesion('revocada');
+
+    expect(mensaje).toBe('Un administrador cerró esta sesión. Iniciá sesión de nuevo.');
+    // Si dijera «expiró», quien perdió la tablet creería que es un problema de la app.
+    expect(mensaje).not.toBe(mensajeFinDeSesion('expirada'));
+  });
 });
 
 

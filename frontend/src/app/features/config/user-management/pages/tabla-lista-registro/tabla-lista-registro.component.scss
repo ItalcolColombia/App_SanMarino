@@ -380,6 +380,14 @@
     border-color: #bfdbfe;
   }
 
+  // Sesiones activas (B1). Es una consulta, no una accion destructiva: mismo tono neutro
+  // que el resto; el rojo queda para el boton de revocar, dentro del modal.
+  &.sessions-btn:hover {
+    background: #f5f3ff;
+    color: #4c1d95;
+    border-color: #ddd6fe;
+  }
+
   &.delete-btn:hover {
     background: var(--ital-orange-50);
     color: var(--ital-orange-dark);

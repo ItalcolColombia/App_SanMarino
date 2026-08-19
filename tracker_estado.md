@@ -1303,8 +1303,9 @@ Requiere push, que el usuario no autorizó todavía.
 
 1. **Desplegar** y hacer la verificación post-deploy + instalar en un Android real (nada de F1/F2/F3
    se probó nunca en producción)
-2. **B1** (jti + `sesiones_activas` + refresh) — prerrequisito de la jornada de 16 h: hoy un
-   dispositivo perdido **no se puede revocar**
+2. ~~**B1**~~ — hecho en **V39**. Falta el paso que no está en el repo: subir
+   `JwtSettings__DurationInMinutes` a 960 en la TaskDef de ECS, que es lo único que hace real la
+   jornada de 16 h (el `appsettings` no manda ahí — V39.15)
 3. **B5/B6** completos (~~B10~~ ya cerrado en V23), y **A4** con su gate de paridad
 4. **F4 — movimientos offline** → **mapeado en
    [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)**:
@@ -1434,8 +1435,13 @@ entera. Esto es más urgente que desplegar.
 
 ## 6. Deuda conocida que viaja con esto (ya documentada, sigue abierta)
 
-- [ ] **B1** revocación de sesión (`jti` + `sesiones_activas` + refresh) — el más urgente: una tablet
-      perdida no se puede revocar y la jornada offline dura 16 h
+- [x] ~~**B1** revocación de sesión~~ — **CERRADO en V39** (18ago26). El `jti` viaja en el token y
+      `sesiones_activas` es una lista BLANCA: sin fila no hay sesión. Cambiar la contraseña o dar de
+      baja al usuario apagan sus sesiones, que hasta hoy no invalidaban nada. El **refresh token
+      quedó afuera con argumento** (§1.3 del plan): no sirve offline. Texto original: *el más
+      urgente: una tablet perdida no se puede revocar y la jornada offline dura 16 h*. Redacción
+      honesta de lo que quedó: **una tablet perdida queda fuera del sistema en cuanto ve la red;
+      lo que ya se llevó, se lo llevó** (§6.2)
 - [~] **B8** rotar las 4 llaves de `environment.prod.ts` · ~~**B10** super admin por email → a datos~~
       **CERRADO en V23** (17ago26: eran 14 sitios, no 2; hoy es `users.is_super_admin`, revocable sin
       deploy) · **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
@@ -4122,3 +4128,99 @@ habían estado hablando con el servidor toda la mañana.
 - [x] V38.8 `SessionTimeoutService` no tenía **ningún** test hasta hoy, pese a ser quien decide cuándo
       se expulsa a alguien. Ahora tiene 7
 - [x] V38.9 Backend sin tocar · sin procesos huérfanos (`:5002` y `:4200` libres)
+
+---
+
+# V39 · B1 — revocación de sesión (`jti` + `sesiones_activas`), la deuda más urgente de la PWA (18ago26)
+
+**Plan:** [fase_de_desarrollo/b1_revocacion_sesion_plan.md](fase_de_desarrollo/b1_revocacion_sesion_plan.md) (`5d54dbd`, STEP 1 ya escrito).
+**Bloque propio.** Cierra el pendiente **B1** del bloque *«PWA — deuda conocida»*: hasta hoy un JWT
+emitido era **irrevocable** —una tablet perdida seguía entrando hasta que venciera— y cambiar la
+contraseña o desactivar al usuario **no invalidaba nada**.
+
+## Orden de trabajo (§7 del plan)
+
+- [x] V39.1 `RevocacionSesionCalculos` + **26 casos** xUnit (los 14 del plan, varios como `[Theory]`).
+      Verde antes de tocar nada más
+- [x] V39.2 Entidad `SesionActiva` + configuración + `DbSet` + migración `20260819001837_AddSesionesActivas`,
+      idempotente (`IF NOT EXISTS`), DDL puro, sin FK ni DML. Probada **dentro de una transacción con
+      ROLLBACK, dos pasadas**: la segunda avisa `already exists, skipping` y el único por `jti` rechaza
+      el duplicado. Después aplicada en la BD local (era la única pendiente)
+- [x] V39.3 `ISesionActivaService` + `SesionActivaService` con `IMemoryCache` (60 s si la sesión vale,
+      hasta el `exp` si está muerta) y limpieza perezosa de vencidas de más de 30 días
+- [x] V39.4 `jti` + `iat` en `AuthService`, registro de la sesión al emitir el token, y revocación en
+      **los tres** caminos de cambio de contraseña + al desactivar y al eliminar al usuario
+- [x] V39.5 `OnTokenValidated` + `OnChallenge` en el `JwtBearerEvents` **que ya existía** + DI
+- [x] V39.6 `SessionController`: el heartbeat toca `last_seen_at` (con throttle) y su respuesta queda
+      **byte a byte igual**; nuevos `mias`, `mias/{id}`, `de-usuario/{userId}` y `{id}` para administración
+- [x] V39.7 Front: `device-id.funcion` (extraída del privado del outbox, que ahora delega) + `X-Device-Id`
+      en el interceptor + `esSesionRevocada` + motivo `'revocada'` + `session-timeout`
+- [x] V39.8 Front: modal «Sesiones activas» en `user-management` + «Mis dispositivos» en `profile`,
+      los dos con `changeDetection: Eager` explícito y con `ConfirmDialogService` / `ToastService`
+- [x] V39.9 `JwtSettings:DurationInMinutes` 60 → **960** en los dos `appsettings` (último: §6.4)
+- [x] V39.10 Validación: `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.884 pasan** (+26)
+      · `yarn build` **0 errores** (initial 992,16 kB; los 2 componentes nuevos van en chunks lazy)
+      · `ng test` **573 pasan** (+24) · `verificar-lista-cacheable.js`: 87 endpoints, **0 sin decisión**
+      (los 3 nuevos cuelgan de `session`, ya excluido ⇒ no hubo que tocar el gate)
+
+## Lo que NO hace (§6.1 del plan)
+
+- [i] V39.11 **Sin refresh token**: descartado con argumento (§1.3). No sirve offline —renovar exige
+      red— y agrega un secreto de larga vida a un storage que hoy es JSON plano
+- [i] V39.12 **No cifra el storage local** (B9/D3) ni rota las llaves (B8): el JWT de la tablet sigue
+      siendo legible con DevTools. B1 garantiza que el aparato **no vuelve a entrar**, no que lo que ya
+      se llevó esté a salvo (§6.2)
+- [ ] V39.13 **Cerrar la ventana de gracia** de los tokens sin `jti`: hoy `Evaluar` devuelve `Legado` y
+      los acepta. Como el token viejo dura lo que duró, a la hora del despliegue ya no queda ninguno; el
+      cambio es borrar esa rama y dejar que caigan en `NoRegistrada`. Commit **posterior y explícito**,
+      con su casilla propia — no «cuando haya tiempo»
+- [~] V39.14 **Subir la vigencia en producción**: la TaskDef viva trae `JwtSettings__DurationInMinutes=60`
+      como variable de entorno y **pisa** el `appsettings` (ver V39.15). Cambiarla a `960` es un paso en
+      AWS y, según §6.4, sólo **después** de verificar la revocación en prod
+
+## 🔑 Lo que apareció al hacerlo
+
+- [i] V39.15 🔴 **El plan daba por hecho que `appsettings` manda la vigencia en prod, y no.** La TaskDef
+      **viva** en ECS trae `JwtSettings__DurationInMinutes=60` (verificado con
+      `aws ecs describe-task-definition`), y la variable de entorno gana sobre el JSON. O sea que el
+      60→960 de V39.9 **sólo aplica en local**. Los `ecs-taskdef*.json` del repo (12 copias) son
+      documentación: el workflow **no** los usa — hace `describe-task-definition` de la viva y sólo le
+      cambia la imagen
+- [i] V39.16 **Y así está bien**: es el orden que exige §6.4 —revocación primero, vigencia larga
+      después—. Con la TaskDef sin tocar, el deploy lleva la revocación y **no puede** emitir tokens de
+      16 h por accidente. Lo que hay que decir en voz alta: mientras esa variable siga en 60, **el
+      defecto §0.6.2 sigue vivo en prod** (el `authGuard` expulsa al minuto 61 sin señal)
+- [i] V39.17 **Tres caminos cambian la contraseña, no dos.** El plan nombraba `ChangePasswordAsync` y
+      `AdminResetPasswordAsync`; existe además `ValidateAndUsePasswordResetTokenAsync` (el enlace por
+      correo), que es **justo** el que se usa cuando alguien perdió el control de su cuenta. Los tres revocan
+- [i] V39.18 **`BaseHttpService.delete` no admite cuerpo**, así que el motivo de la revocación —lo que
+      queda en la auditoría— se manda con `HttpClient` directo y las mismas cabeceras autenticadas
+- [i] V39.19 ⚠️ **Casi me llevo puesto el tracker.** Un script que reescribía el archivo entero
+      (apertura en modo `w`) reventó a mitad por un emoji mal escapado y lo dejó en **0 bytes**, con el
+      bloque V30 de otra sesión adentro y sin commitear. Se recuperó completo del volcado de la lectura
+      previa (`git diff` = 50 inserciones, **0 borrados**). **Regla:** sobre un archivo compartido y
+      sucio se **agrega**, o se escribe a un temporal y se concatena; nunca se trunca para reescribir
+
+## Smoke §5.3 — contra el backend local, con la BD limpia al terminar
+
+- [x] V39.20 **Login**: el JWT trae `jti` e `iat`, vigencia **960 min**, y aparece **una** fila con su
+      `device_id` (`tablet-smoke-b1`), IP y user-agent
+- [x] V39.21 **Heartbeat**: marca `last_seen_at` la primera vez y el segundo **no reescribe** (throttle
+      de 5 min verificado contra la fila, no contra el log)
+- [x] V39.22 **Revocar** desde el super admin ⇒ el token cae con **401** y cuerpo
+      `{"errorCode":"sesion-revocada",…}` + cabecera `X-Auth-Failure` — el contrato que el front lee
+- [x] V39.23 **Fail-closed**: un `jti` bien firmado pero **sin fila** también da 401. Es la diferencia
+      con una lista negra, y se probó en vez de declararse
+- [x] V39.24 **Ventana de gracia**: un token **sin `jti`** (minteado con la llave) pasa con 200
+- [x] V39.25 **Cambio de contraseña** ⇒ sesiones vivas 1 → 0, y el token previo da 401
+- [x] V39.26 **Usuario desactivado** (`PATCH /api/Users/{id}`) ⇒ sesiones vivas 1 → 0, y su token da 401
+- [x] V39.27 **El PAT (`sk_…`) sigue intacto**: `GET /api/tickets/tablero` e `/indicadores` responden
+      **200** y el conteo de `sesiones_activas` **no se mueve** — el esquema ServiceToken no pasa por
+      `OnTokenValidated`, que era el riesgo de regresión para los crones
+- [x] V39.28 **`/api/session/mias`** lista la sesión con `esLaActual=true` y **etiqueta de 8 caracteres**:
+      el `jti` entero no viaja en el listado
+- [x] V39.29 Usuario de smoke, PAT y filas de sesión **borrados** (`sesiones_activas` en 0). Backend
+      local **apagado**; `:5002` y `:4200` libres
+- [~] V39.30 **Faltan los smokes 9 y 11 del plan**: capturas offline sobreviviendo a la revocación, y el
+      rate limit de `/api/sync/*` contando por dispositivo. Los dos piden navegador con DevTools en modo
+      offline y dos device-id distintos; ningún agente los cierra solo

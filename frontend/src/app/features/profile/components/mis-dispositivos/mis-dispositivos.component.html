@@ -1,0 +1,70 @@
+<!-- src/app/features/profile/components/mis-dispositivos/mis-dispositivos.component.html -->
+<section class="ux-card ux-card--soft" aria-labelledby="mis-dispositivos-title">
+  <div class="card-header">
+    <h2 id="mis-dispositivos-title">
+      <fa-icon [icon]="faDesktop" class="card-icon" aria-hidden="true"></fa-icon>
+      Mis dispositivos
+    </h2>
+    <button type="button" class="btn-actualizar" (click)="cargar()" [disabled]="cargando">
+      <fa-icon [icon]="faRotate" [class.girando]="cargando"></fa-icon>
+      Actualizar
+    </button>
+  </div>
+
+  <div class="card-content">
+    <p class="ayuda">
+      Equipos donde tu usuario tiene la sesión abierta. Si perdiste una tablet o un teléfono,
+      cerralo desde acá: <strong>no hace falta esperar a un administrador</strong>.
+    </p>
+
+    @if (cargando) {
+      <div class="estado-vacio">
+        <fa-icon [icon]="faRotate" class="girando"></fa-icon>
+        <span>Cargando…</span>
+      </div>
+    } @else if (error) {
+      <div class="estado-vacio error">
+        <fa-icon [icon]="faTriangleExclamation"></fa-icon>
+        <span>{{ error }}</span>
+      </div>
+    } @else if (sesiones.length === 0) {
+      <div class="estado-vacio">
+        <fa-icon [icon]="faCircleCheck"></fa-icon>
+        <span>No hay otros dispositivos con tu sesión abierta.</span>
+      </div>
+    } @else {
+      <ul class="lista-dispositivos">
+        @for (s of sesiones; track s.id) {
+          <li class="dispositivo" [class.actual]="s.esLaActual">
+            <fa-icon [icon]="esMovil(s) ? faMobileScreen : faDesktop" class="dispositivo-icono"></fa-icon>
+
+            <div class="dispositivo-datos">
+              <p class="dispositivo-equipo">
+                {{ dispositivo(s) }}
+                @if (s.esLaActual) { <span class="etiqueta-actual">este equipo</span> }
+              </p>
+              <p class="dispositivo-detalle">
+                <span class="estado" [class]="estado(s)">{{ estado(s) }}</span>
+                · último contacto {{ ultimoContacto(s) }}
+                @if (s.ipAddress) { · IP {{ s.ipAddress }} }
+              </p>
+              <p class="dispositivo-detalle tenue">
+                Inicio: {{ s.createdAt | date:'dd/MM/yyyy HH:mm' }}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="btn-cerrar"
+              [disabled]="cerrandoId === s.id"
+              (click)="cerrar(s)"
+              >
+              <fa-icon [icon]="faBan"></fa-icon>
+              {{ cerrandoId === s.id ? 'Cerrando…' : 'Cerrar' }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>

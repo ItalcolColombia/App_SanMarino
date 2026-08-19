@@ -1,0 +1,100 @@
+<!-- src/app/features/config/user-management/components/sesiones-usuario/sesiones-usuario.component.html -->
+<div
+  class="modal-overlay"
+  [class.active]="isOpen"
+  (click)="cerrar()"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sesiones-title"
+  >
+  <div class="modal-content" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <fa-icon [icon]="faDesktop" class="header-icon"></fa-icon>
+        <div class="header-text">
+          <h2 id="sesiones-title" class="modal-title">Sesiones activas</h2>
+          @if (userName) {
+            <p class="modal-subtitle">{{ userName }}</p>
+          }
+        </div>
+      </div>
+      <button (click)="cerrar()" class="modal-close-btn" aria-label="Cerrar modal">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Lo que hay que saber ANTES de apretar el botón -->
+      <p class="aviso">
+        Cerrar una sesión surte efecto <strong>en menos de un minuto</strong> desde que ese equipo
+        toque la red. Si tiene capturas sin enviar, no se pierden, pero no van a poder subir hasta
+        que alguien vuelva a iniciar sesión ahí.
+      </p>
+
+      @if (cargando) {
+        <div class="estado-vacio">
+          <fa-icon [icon]="faRotate" class="girando"></fa-icon>
+          <span>Cargando sesiones…</span>
+        </div>
+      } @else if (error) {
+        <div class="estado-vacio error">
+          <fa-icon [icon]="faTriangleExclamation"></fa-icon>
+          <span>{{ error }}</span>
+          <button type="button" class="btn-secundario" (click)="cargar()">Reintentar</button>
+        </div>
+      } @else if (sesiones.length === 0) {
+        <div class="estado-vacio">
+          <fa-icon [icon]="faCircleCheck"></fa-icon>
+          <span>No hay sesiones abiertas.</span>
+        </div>
+      } @else {
+        <ul class="lista-sesiones">
+          @for (s of sesiones; track s.id) {
+            <li class="sesion" [class.actual]="s.esLaActual">
+              <fa-icon [icon]="faMobileScreen" class="sesion-icono"></fa-icon>
+
+              <div class="sesion-datos">
+                <p class="sesion-equipo">
+                  {{ dispositivo(s) }}
+                  @if (s.esLaActual) { <span class="etiqueta-actual">esta sesión</span> }
+                </p>
+                <p class="sesion-detalle">
+                  <span class="estado" [class]="estado(s)">{{ estado(s) }}</span>
+                  @if (s.ipAddress) { · IP {{ s.ipAddress }} }
+                  · último contacto: {{ s.lastSeenAt ? (s.lastSeenAt | date:'dd/MM/yyyy HH:mm') : 'sin registrar' }}
+                </p>
+                <p class="sesion-detalle tenue">
+                  Inicio: {{ s.createdAt | date:'dd/MM/yyyy HH:mm' }} · vence: {{ s.expiresAt | date:'dd/MM/yyyy HH:mm' }}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="btn-revocar"
+                [disabled]="revocandoId === s.id"
+                (click)="revocar(s)"
+                >
+                <fa-icon [icon]="faBan"></fa-icon>
+                {{ revocandoId === s.id ? 'Cerrando…' : 'Cerrar' }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-secundario" (click)="cargar()" [disabled]="cargando">
+        <fa-icon [icon]="faRotate"></fa-icon> Actualizar
+      </button>
+      @if (sesiones.length > 0) {
+        <button type="button" class="btn-peligro" (click)="revocarTodas()" [disabled]="cargando">
+          <fa-icon [icon]="faBan"></fa-icon> Cerrar todas
+        </button>
+      }
+    </div>
+  </div>
+</div>

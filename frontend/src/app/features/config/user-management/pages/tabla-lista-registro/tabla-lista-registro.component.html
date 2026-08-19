@@ -151,6 +151,14 @@
                         <fa-icon [icon]="faLock"></fa-icon>
                       </button>
                       <button
+                        (click)="onSesionesClick(user)"
+                        class="action-btn sessions-btn"
+                        [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
+                        title="Sesiones activas"
+                        >
+                        <fa-icon [icon]="faDesktop"></fa-icon>
+                      </button>
+                      <button
                         (click)="deleteUser(user)"
                         class="action-btn delete-btn"
                         [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
@@ -235,6 +243,15 @@
                   >
                   <fa-icon [icon]="faLock"></fa-icon>
                   <span>Contraseña</span>
+                </button>
+                <button
+                  (click)="onSesionesClick(user)"
+                  class="action-btn sessions-btn"
+                  [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
+                  title="Sesiones activas"
+                  >
+                  <fa-icon [icon]="faDesktop"></fa-icon>
+                  <span>Sesiones</span>
                 </button>
                 <button
                   (click)="deleteUser(user)"
