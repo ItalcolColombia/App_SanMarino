@@ -3567,6 +3567,67 @@ entra el operario del turno siguiente y el `effect` de reconexión dispara solo.
 
 ---
 
+# V30 · Santa Reyes — Requerimientos de Italapp (plan de trabajo)
+
+Plan: [`fase_de_desarrollo/santa_reyes_requerimientos_italapp_plan.md`](fase_de_desarrollo/santa_reyes_requerimientos_italapp_plan.md)
+
+Origen: dos archivos del cliente (18-ago-2026) — `Requerimientos de Italapp.docx` (7 módulos,
+10 pantallas anotadas) y `Guías Genéticas.xlsx` (5 líneas × 108 semanas).
+
+## Entregables comerciales
+
+- [x] V30.1 Cronograma **v1** (descartado): 34 días hábiles a 1 actividad por día, entrega 5-oct
+- [x] V30.1b Cronograma **v2 vigente** — el usuario puede sostener **jornadas de 10 h resolviendo
+      varias actividades el mismo día**: **100 h en 10 jornadas**, mié 19-ago → **mar 1-sep-2026**,
+      1 dev full-stack, 4 hitos, 12 paquetes, 29 actividades. Las 10 jornadas cuadran exactas en
+      10 h cada una (verificado por script antes de generar los documentos)
+- [x] V30.2 `~/Desktop/Plan_de_Trabajo_Santa_Reyes.xlsx` (v2.0) — 8 hojas: Portada · Hitos ·
+      **Plan diario** · Cronograma · **Carga por jornada** · Alcance · Guías genéticas · Supuestos
+      y riesgos. Recalculado con Excel: **0 celdas con error de fórmula**; `Hitos!F9`=100,
+      `Cronograma!G37`=100, `Guías!C10`=540, y la fila «HORAS POR JORNADA» da **10 en los 10 días**
+- [x] V30.3 `~/Desktop/Plan_de_Trabajo_Santa_Reyes.docx` (v2.0) — 11 páginas, 14 secciones, con
+      plan diario, trazabilidad requerimiento→actividad y hoja de aprobación. Verificado
+      renderizando el PDF página por página
+- [i] V30.4 **Los dos documentos comerciales presentan TODO el alcance como trabajo por ejecutar**,
+      por decisión explícita del usuario, incluido lo que ya tiene base en el repo (silos,
+      clasificación por ítems, guía genética, `Placa`/`Conductor`/`Sellos` en `MovimientoAves`).
+      Los tiempos son cortos **porque** esa base existe; no se declara así hacia afuera. El estado
+      técnico real está en la §2 del plan
+
+## Ejecución (sin arrancar)
+
+- [!] V30.5 **Aprobación del cliente** del alcance, el cronograma y los supuestos (§13 del Word).
+      Nada arranca antes de esto
+- [~] V30.6 Santa Reyes debe entregar, **a más tardar el mar 18-ago-2026 (un día antes del
+      inicio)**, la estructura física real (núcleos, galpones, silos, bodegas) y los códigos ERP
+      (CO, bodegas, ubicaciones, centros de costo). ⚠️ En el plan de 2 semanas **F1.2 corre el
+      día 1**: no hay holgura para esperarlos. Es el riesgo **Alto** #1 del documento
+- [ ] V30.7 H1 · Fundaciones: flags en `companies` + catálogo de ítems + silo en el form de ingreso
+      a granja + homologación ERP + seed de las 5 guías genéticas (540 filas)
+- [ ] V30.8 H2 · Ciclo de vida del ave: semanas por raza (hoy hardcodeadas en
+      `modal-seguimiento-diario.component.ts:1463`), consumo solo hembras, ocultar machos y error de
+      sexaje **en UI** (⚠️ no borrar del modelo: lo consumen los saldos), tipos de inventario
+- [ ] V30.9 H3 · Huevos: renombrar incubables→sin clasificar, los 7 ítems, primera postura por raza
+      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas), eficiencia
+      cuadrada contra el total de granja
+- [ ] V30.10 H4 · Traslados (días 9-10): aves (exponer `Placa`/`Conductor`/`Sellos` en postura) y
+      huevos (bodega destino desplegable), + pruebas de no regresión multipaís + despliegue
+- [i] V30.11 El **acompañamiento** (F12.2, semana del 2 al 8-sep) quedó **fuera de las 10 jornadas**,
+      declarado como bajo demanda. Si se promete dentro del plan, la entrega se corre un día
+- [i] V30.12 **Bloque commiteado el 18ago26 21:00** — hasta ese momento vivía sólo en el working tree,
+      y el plan al que enlaza (`santa_reyes_requerimientos_italapp_plan.md`) estaba **sin trackear**: un
+      commit de cualquier otra sesión lo habría borrado sin dejar rastro. Los dos entregables comerciales
+      que declaran V30.2 y V30.3 **existen** en el Escritorio (`.xlsx` 35 kB, `.docx` 27 kB), verificado.
+      Commitear **no** cierra el bloque: la ejecución (V30.7-V30.10) sigue abierta
+- [!] V30.13 ⏰ **El cronograma arranca mañana y los dos destrabes siguen sin resolverse.** Hoy es
+      **mar 18-ago-2026**: es el último día del plazo de V30.6 (estructura física + códigos ERP) y el día
+      previo al inicio (mié 19-ago), con **V30.5 —la aprobación del cliente— todavía sin dar**. Como
+      F1.2 corre el día 1 y el plan no tiene holgura, cada día que se demore cualquiera de los dos
+      corre la entrega del **1-sep** en la misma medida. Es el riesgo Alto #1 del documento,
+      materializándose: decisión tuya, ningún agente lo destraba
+
+---
+
 # V31 · PWA F-4 — la pantalla de rescate deja de mostrar (y de borrar) lo que capturó otro (18ago26)
 
 **Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 3 del §7** (F-4).
