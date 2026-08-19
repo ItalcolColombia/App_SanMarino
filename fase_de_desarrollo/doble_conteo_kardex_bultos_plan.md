@@ -218,10 +218,12 @@ componente más allá del texto.
   incumplido. **No entra** porque con este arreglo el recorte deja de activarse en los lotes medidos
   (`sin clamp == con clamp` en los 9) ⇒ arreglarlo no cambia nada acá y sí movería la rama vieja sin
   medición que lo respalde.
-- **`ObtenerSaldoAnteriorSemana` (V40.11).** El resumen semanal no arrastra el saldo entre semanas
-  vacías (lote 114: 259,9 vs 509,7). **No entra**, y no es criterio propio: `b853e95` ya lo midió el
-  8-ago y lo dejó afuera con número — arreglarlo hace que **72 encabezados** cambien y que 50 de las
-  80 semanas del lote 13 dejen de mostrar 0. **Es una decisión de producto, no de este arreglo.**
+- ~~**`ObtenerSaldoAnteriorSemana` (V40.11).**~~ — **ENTRÓ**, por decisión del usuario del 19-ago con
+  el radio sobre la mesa (bloque **V43** del tracker). El resumen semanal no arrastraba el saldo entre
+  semanas vacías y se contradecía con su propio detalle diario (lote 114: encabezado 259,90 contra
+  518,23 de la última fila). Radio **re-medido hoy**, porque la cifra de «72 encabezados» de `b853e95`
+  era pre-V41 y de la rama legacy: cambian **165 de 460** encabezados (36 %) y **0** de aves. Las
+  semanas sin filas dejan de mostrar `0,00` y muestran el saldo que la granja tenía.
 - **El escritor del front** (`modal-seguimiento-engorde.component.ts:1833,1867`). Sigue posteando al
   kardex legacy. Sacarlo sin medir puede dejar a Colombia sin descuento.
 - **La deriva entre los dos escritores** (§3.4): 74,2 bultos en LA ESMERALDA, 0,0 en MANGOS.

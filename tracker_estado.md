@@ -2472,3 +2472,56 @@ veredicto con su evidencia, y quien retome cada bloque decide.
 - [i] V42.3.3 **El resumen del encabezado quedó desactualizado** por esta misma auditoría: los conteos
       de «45 pendientes reales» incluyen los 15 de V42.1. No se reescribe acá para no pisar el trabajo
       de otras sesiones; quien depure el archivo tiene la tabla lista
+
+---
+
+# V43 · El arrastre semanal del kardex de bultos (19ago26)
+
+**Plan:** [`fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md`](fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md) §4.4
+**Cierra V40.11**, que V41.4.2 había dejado explícitamente afuera por ser decisión de producto.
+**Decisión tomada por el usuario el 19-ago-2026**, con el radio de impacto sobre la mesa.
+**Bloque propio.**
+
+## V43.0 — El defecto
+
+- [i] V43.0.1 `ObtenerSaldoAnteriorSemana` miraba **sólo** la semana `actual − 1`. Si esa semana no
+      tenía filas devolvía `0` y la siguiente abría de cero — pero **el kardex de alimento es
+      continuo**: una semana sin filas es un hueco del calendario, no un stock que se vació
+- [i] V43.0.2 **El síntoma es una contradicción dentro del MISMO reporte**: en el lote 114 el
+      encabezado de la semana 44 cerraba en **259,90** mientras la última fila de su propio detalle
+      diario decía **518,23**. Entre la semana 37 y la 44 hay 6 semanas vacías
+
+## V43.1 — Lo que entró
+
+- [x] V43.1.1 **`ReporteContableBultosCalculos.SaldoAnteriorDeLaSemana(filas, semanaInicio)`** (nuevo,
+      puro): el saldo del último día con fila **anterior al inicio de esta semana**, no sólo dentro de
+      la previa. Dentro de un mismo día gana el mayor, que es la regla histórica (`Max`)
+- [x] V43.1.2 El service delega y conserva un **fail-safe**: si la semana actual no está en la lista,
+      el corte cae al día siguiente del fin de la anterior ⇒ comportamiento histórico exacto
+- [x] V43.1.3 **Las aves NO se tocan.** Siguen leyéndose del último día de la semana anterior CON dato
+      del lote: una fila solo-bultos no describe el inventario de aves. Son dos reglas distintas a
+      propósito, y ahora el doc lo dice
+
+## V43.2 — El radio de impacto, medido HOY (no heredado)
+
+- [i] V43.2.1 **165 de 460 encabezados cambian (36 %)** en los 9 lotes padres de Sanmarino.
+      Reparto: lote 13 → 39 · 144 y 145 → 27 c/u · 142 y 143 → 24 c/u · 114-117 → 6 c/u
+- [i] V43.2.2 ⚠️ **La cifra de «72 encabezados» que citaba V41.4.2 era de `b853e95` (8-ago) y quedó
+      obsoleta**: se midió antes de V41, sobre la rama legacy. Se volvió a medir de cero contra el
+      endpoint real, con captura antes/después de los 460 encabezados
+- [i] V43.2.3 **0 encabezados de AVES cambian.** Verificado empíricamente comparando
+      `saldoAnteriorHembras/Machos` y `saldoFinHembras/Machos` en los 460: el arreglo no roza el
+      inventario de aves
+- [i] V43.2.4 **Lo que se ve distinto en pantalla**: las semanas **sin filas** dejan de mostrar `0,00`
+      y muestran el saldo que la granja efectivamente tenía (lote 114, semanas 39 a 43: `258,32` en vez
+      de `0,00`). Es el cambio visible que `b853e95` había marcado como decisión de producto
+
+## V43.3 — Validación
+
+- [x] V43.3.1 `dotnet build` **0 errores**, 9 warnings (los mismos preexistentes)
+- [x] V43.3.2 `dotnet test` **2.902 pasan**, 0 fallos (+6)
+- [x] V43.3.3 🔑 **La propiedad que el arreglo promete, verificada en los 9 lotes**: el último
+      encabezado semanal y la última fila del detalle diario **coinciden exactamente** —
+      518,23 · 518,23 · 518,23 · 518,23 · 376,42 · 376,42 · 376,42 · 376,42 · 3.158,59. Antes se
+      contradecían en 2 de los 9
+- [x] V43.3.4 Backend local **apagado**; `:5002` y `:4200` sin listener

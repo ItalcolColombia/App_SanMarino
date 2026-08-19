@@ -198,6 +198,62 @@ public static class ReporteContableBultosCalculos
             : fila;
 
     /// <summary>
+    /// Saldo de bultos con el que ABRE una semana contable: el del último día con fila
+    /// <b>anterior</b> al inicio de esa semana.
+    ///
+    /// <para>
+    /// 🔑 <b>El kardex de bultos es CONTINUO</b> —es el alimento que hay en la granja, no un número
+    /// que se reinicia cada lunes—, así que una semana sin filas es un hueco del calendario, no un
+    /// stock que se vació. Hasta el 19-ago-2026 el service miraba <b>sólo</b> la semana
+    /// <c>actual − 1</c>: si esa semana no tenía filas, el saldo anterior salía <c>0</c> y la semana
+    /// abría de cero, contradiciendo al detalle diario del <b>mismo reporte</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Medido en el lote <b>114</b> (A374A, LA ESMERALDA): entre la semana 37 y la 44 hay 6 semanas
+    /// vacías, así que la 44 abría en 0 y cerraba en <b>259,9</b> (1.481,2 − 1.221,3) mientras la
+    /// última fila diaria decía <b>509,7</b>. Igual en el 116.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Sin semanas vacías en medio el resultado es idéntico al histórico</b>: el último día
+    /// anterior al inicio de la semana ES el último día de la semana previa.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Dentro de un mismo día gana el saldo mayor</b>, que es la regla histórica
+    /// (<c>Max(d =&gt; d.SaldoBultos)</c>): las filas de una fecha son los lotes de la familia y el
+    /// kardex de bultos sólo lo lleva la del padre; las de los sublotes traen 0.
+    /// </para>
+    /// </summary>
+    /// <param name="filas">Filas del detalle diario con su saldo ya acumulado. Puede venir sin ordenar.</param>
+    /// <param name="semanaInicio">Primer día de la semana contable que abre.</param>
+    public static decimal SaldoAnteriorDeLaSemana(
+        IEnumerable<(DateTime Fecha, decimal SaldoBultos)> filas,
+        DateTime semanaInicio)
+    {
+        DateTime? ultima = null;
+        decimal saldo = 0m;
+
+        foreach (var (fecha, saldoFila) in filas)
+        {
+            if (fecha >= semanaInicio) continue;
+
+            if (ultima is null || fecha > ultima.Value)
+            {
+                ultima = fecha;
+                saldo = saldoFila;
+            }
+            else if (fecha == ultima.Value && saldoFila > saldo)
+            {
+                saldo = saldoFila;
+            }
+        }
+
+        return ultima is null ? 0m : saldo;
+    }
+
+    /// <summary>
     /// ¿Esta fecha genera una fila "solo bultos" del lote padre? Sí cuando hay movimiento real, el
     /// padre no generó ya una fila propia ese día (si la generó, esa fila YA lleva los bultos: el
     /// comportamiento histórico queda intacto) y la fecha cae en la ventana del reporte.

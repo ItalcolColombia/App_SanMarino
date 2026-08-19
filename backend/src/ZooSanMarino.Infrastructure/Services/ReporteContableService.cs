@@ -1074,13 +1074,23 @@ public class ReporteContableService : IReporteContableService
     }
 
     /// <summary>
-    /// Obtiene el saldo anterior de una semana (saldo final de la semana anterior).
+    /// Obtiene el saldo anterior de una semana.
     /// <para>
     /// Las aves se leen del último día de la semana anterior CON dato del lote: una fila solo-bultos
     /// (kardex de alimento sin registro del lote) no describe el inventario de aves de la familia de
-    /// lotes, así que no puede definir ese día. Los bultos, en cambio, sí se leen del último día con
-    /// cualquier movimiento — es su kardex. Sin filas solo-bultos ambas fechas coinciden y el
-    /// resultado es idéntico al histórico.
+    /// lotes, así que no puede definir ese día.
+    /// </para>
+    /// <para>
+    /// 🔑 <b>Los bultos NO se leen de la semana anterior, sino del último día con fila anterior al
+    /// inicio de ESTA semana</b> — son dos reglas distintas a propósito. El kardex de alimento es
+    /// continuo: una semana sin filas es un hueco del calendario, no un stock que se vació. Antes se
+    /// miraba sólo la semana <c>actual − 1</c> y una semana vacía hacía abrir la siguiente en 0,
+    /// contradiciendo al detalle diario del mismo reporte (lote 114: encabezado 259,9 contra
+    /// 509,7 de la última fila). La regla y su medición viven en
+    /// <see cref="ReporteContableBultosCalculos.SaldoAnteriorDeLaSemana"/>.
+    /// </para>
+    /// <para>
+    /// Sin semanas vacías en medio las dos reglas coinciden y el resultado es idéntico al histórico.
     /// </para>
     /// </summary>
     private (int hembras, int machos, decimal bultos) ObtenerSaldoAnteriorSemana(
@@ -1112,17 +1122,23 @@ public class ReporteContableService : IReporteContableService
             .Where(d => d.Fecha >= semanaAnterior.FechaInicio && d.Fecha <= semanaAnterior.FechaFin)
             .ToList();
 
-        // Bultos: último día con movimiento (incluye las filas solo-bultos, son su kardex)
-        var ultimaFechaBultos = datosSemanaAnterior
-            .Select(d => d.Fecha)
-            .DefaultIfEmpty(default)
-            .Max();
+        // Inicio de ESTA semana: el corte del kardex de bultos, que es continuo (ver abajo).
+        var semanaActualInicio = semanasContables
+            .FirstOrDefault(s => s.Semana == semanaActual)
+            .FechaInicio;
 
-        var saldoBultos = ultimaFechaBultos == default(DateTime)
-            ? 0
-            : datosConSaldos
-                .Where(d => d.Fecha == ultimaFechaBultos)
-                .Max(d => (decimal?)d.SaldoBultos) ?? 0;
+        // Fail-safe: si la semana actual no está en la lista, el corte cae al día siguiente del fin
+        // de la anterior y el comportamiento es exactamente el histórico.
+        if (semanaActualInicio == default(DateTime))
+            semanaActualInicio = semanaAnterior.FechaFin.AddDays(1);
+
+        // Bultos: el kardex es CONTINUO, así que el arrastre no puede depender de que la semana previa
+        // tenga filas — una semana vacía es un hueco del calendario, no un stock que se vació. La
+        // decisión es pura y vive en ReporteContableBultosCalculos con sus tests. Las filas
+        // solo-bultos entran a propósito: son el kardex de alimento.
+        var saldoBultos = ReporteContableBultosCalculos.SaldoAnteriorDeLaSemana(
+            datosConSaldos.Select(d => (d.Fecha, d.SaldoBultos)),
+            semanaActualInicio);
 
         // Aves: último día con dato del lote y suma de los saldos de esa fecha
         var ultimaFechaSemanaAnterior = datosSemanaAnterior

@@ -167,6 +167,96 @@ public class ReporteContableBultosCalculosTests
         Assert.Equal(376.4m, despues[0].Saldo);
     }
 
+    // ───────────────────────── arrastre del saldo entre semanas ─────────────────────────
+    // El kardex de bultos es continuo: una semana sin filas es un hueco del calendario, no un stock
+    // que se vació. Hasta el 19-ago-2026 el resumen semanal miraba SOLO la semana anterior y abría en
+    // 0 cuando esa semana estaba vacía, contradiciendo al detalle diario del mismo reporte.
+
+    [Fact]
+    public void ArrastreConSemanasVaciasEnMedio_TomaElUltimoSaldoConDatos()
+    {
+        // El caso del lote 114: última fila con datos el 01-jul, seis semanas sin filas, y la semana
+        // que abre el 13-ago. Antes daba 0 (y el encabezado cerraba en 259,9 contra 509,7 del
+        // detalle); ahora arrastra 249,8.
+        var filas = new[]
+        {
+            (new DateTime(2026, 6, 30), 357.3m),
+            (new DateTime(2026, 7, 1),  249.8m),
+        };
+
+        Assert.Equal(249.8m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 8, 13)));
+    }
+
+    [Fact]
+    public void ArrastreSinHuecos_EsIdenticoAlHistorico()
+    {
+        // Sin semanas vacías el último día anterior al inicio ES el último de la semana previa ⇒ la
+        // regla nueva y la vieja dan lo mismo. Este test es el seguro de no-regresión.
+        var filas = new[]
+        {
+            (new DateTime(2026, 3, 5), 10m),
+            (new DateTime(2026, 3, 6), 20m),
+            (new DateTime(2026, 3, 7), 30m),   // último día de la semana previa
+            (new DateTime(2026, 3, 8), 99m),   // ya es la semana que abre: no cuenta
+        };
+
+        Assert.Equal(30m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreConVariasFilasElMismoDia_TomaLaMayor()
+    {
+        // Regla histórica (Max): las filas de una fecha son los lotes de la familia y el kardex de
+        // bultos sólo lo lleva la del padre; las de los sublotes traen 0.
+        var filas = new[]
+        {
+            (new DateTime(2026, 3, 7), 0m),
+            (new DateTime(2026, 3, 7), 42m),
+            (new DateTime(2026, 3, 7), 0m),
+        };
+
+        Assert.Equal(42m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreSinFilasPrevias_EsCero()
+    {
+        var filas = new[] { (new DateTime(2026, 3, 10), 500m) };
+
+        Assert.Equal(0m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+        Assert.Equal(0m, SaldoAnteriorDeLaSemana(Array.Empty<(DateTime, decimal)>(), new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreNoDependeDelOrdenDeEntrada()
+    {
+        var desordenadas = new[]
+        {
+            (new DateTime(2026, 3, 7), 30m),
+            (new DateTime(2026, 3, 5), 10m),
+            (new DateTime(2026, 3, 6), 20m),
+        };
+
+        Assert.Equal(30m, SaldoAnteriorDeLaSemana(desordenadas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreYDetalleDiarioDejanDeContradecirse()
+    {
+        // La propiedad que el arreglo garantiza: el saldo con el que abre una semana es el mismo con
+        // el que cerró la última fila anterior. Antes, con un hueco en medio, eran dos números
+        // distintos dentro del MISMO reporte.
+        var filas = new[]
+        {
+            (new DateTime(2026, 6, 30), 357.3m),
+            (new DateTime(2026, 7, 1),  249.8m),
+        };
+
+        var ultimoSaldoDelDetalle = filas[^1].Item2;
+
+        Assert.Equal(ultimoSaldoDelDetalle, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 8, 13)));
+    }
+
     // ───────────────────────── pertenencia a la semana contable ─────────────────────────
 
     [Fact]
