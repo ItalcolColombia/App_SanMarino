@@ -202,7 +202,12 @@ public class ReporteContableService : IReporteContableService
             ct);
 
         // Calcular saldos acumulativos
-        var datosConSaldos = CalcularSaldosAcumulativos(datosDiarios, entradasIniciales, semanasContables, lotePadre.GranjaId, ct);
+        // ¿El kardex de bultos viene del módulo unificado? Ahí los `retiros` son los movimientos
+        // `Consumo`, que escribe el propio seguimiento diario de TODOS los lotes de la granja ⇒ el
+        // consumo de este padre no se puede restar otra vez. Se resuelve una sola vez por reporte.
+        var retirosYaTraenElConsumo = await LeeInventarioUnificadoAsync(_currentUser.CompanyId, ct);
+
+        var datosConSaldos = CalcularSaldosAcumulativos(datosDiarios, entradasIniciales, semanasContables, lotePadre.GranjaId, retirosYaTraenElConsumo, ct);
 
         // Agrupar por semana contable y consolidar
         // Validar que haya semanas para procesar
@@ -831,10 +836,21 @@ public class ReporteContableService : IReporteContableService
         if (await LeeInventarioUnificadoAsync(companyId, ct))
             return await ObtenerDatosBultosUnificadoAsync(granjaId, companyId, desdeUtc, hastaUtc, tipoAlimento, ct);
 
+        // Un Exit sellado con ESTOS DOS campos es el espejo de un consumo que el reporte ya publica en
+        // sus columnas de consumo: contarlo también como retiro resta los mismos kilos dos veces. Se
+        // descarta acá para que ni siquiera viaje (la BD filtra, el backend orquesta); el criterio es
+        // el mismo que EsConsumoYaContabilizadoPorSeguimiento y se compara igual (Trim + minúsculas),
+        // porque EF traduce Trim()/ToLower() a SQL pero no una llamada a ese método.
+        var reasonConsumo = ReporteContableBultosCalculos.ReasonConsumoDiario.ToLower();
+        var destinoConsumo = ReporteContableBultosCalculos.DestinoConsumo.ToLower();
+
         var queryMovimientos = _ctx.FarmInventoryMovements
             .AsNoTracking()
             .Where(m => m.FarmId == granjaId &&
                         m.CompanyId == companyId &&
+                        !(m.Reason != null && m.Destination != null &&
+                          m.Reason.Trim().ToLower() == reasonConsumo &&
+                          m.Destination.Trim().ToLower() == destinoConsumo) &&
                         (m.ItemType != null && m.ItemType != ""
                             ? m.ItemType.Trim().ToLower()
                             : m.CatalogItem.ItemType.Trim().ToLower()) == tipoAlimento &&
@@ -982,6 +998,7 @@ public class ReporteContableService : IReporteContableService
         Dictionary<int, (int hembras, int machos)> entradasIniciales,
         List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasContables,
         int granjaId,
+        bool retirosYaTraenElConsumo,
         CancellationToken ct)
     {
         var datosConSaldos = new List<DatoDiarioContableDto>();
@@ -1001,15 +1018,20 @@ public class ReporteContableService : IReporteContableService
             .ToList();
 
         // Saldo de bultos: cálculo puro (mismo algoritmo que vivía acá, ahora testeable)
+        // `DeltaDelSaldo` decide qué términos entran según de qué módulo venga el kardex: en el
+        // unificado los `retiros` YA son el consumo diario de la granja, así que restar además el
+        // consumo del seguimiento descontaría el de este padre dos veces. Ver su doc.
         var saldosBultos = ReporteContableBultosCalculos.AcumularSaldos(
             datosPorFecha.Select(d => (
                 d.Fecha,
-                new ReporteContableBultosCalculos.DeltaBultosFila(
-                    d.EntradasBultos,
-                    d.TrasladosBultos,
-                    d.RetirosBultos,
-                    d.ConsumoBultosHembras,
-                    d.ConsumoBultosMachos))));
+                ReporteContableBultosCalculos.DeltaDelSaldo(
+                    new ReporteContableBultosCalculos.DeltaBultosFila(
+                        d.EntradasBultos,
+                        d.TrasladosBultos,
+                        d.RetirosBultos,
+                        d.ConsumoBultosHembras,
+                        d.ConsumoBultosMachos),
+                    retirosYaTraenElConsumo))));
 
         for (var i = 0; i < datosPorFecha.Count; i++)
         {

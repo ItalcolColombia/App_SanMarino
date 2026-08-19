@@ -102,6 +102,101 @@ public static class ReporteContableBultosCalculos
         (DateTime Desde, DateTime Hasta) ventana) =>
         (ventana.Desde.Date, ventana.Hasta.Date.AddDays(1));
 
+    // ── El consumo restado DOS VECES ────────────────────────────────────────────────────────────
+    // El saldo suma dos fuentes que registran el MISMO hecho físico: el kardex de alimento (columna
+    // RETIROS) y el consumo del seguimiento diario (columnas CONSUMO H/M). Pasa en las DOS ramas del
+    // reporte, con firmas distintas, y en las dos el recorte a 0 de AcumularSaldos lo disfraza: el
+    // acumulado real de los lotes 142 y 143 (MANGOS) llega a −2.599,6 y −2.644,7 bultos y se publica
+    // como 0,0 — no como un negativo, sino como un galpón vacío.
+
+    /// <summary><c>reason</c> con el que el seguimiento diario sellaba su salida de kardex legacy.</summary>
+    public const string ReasonConsumoDiario = "Consumo diario";
+
+    /// <summary><c>destination</c> con el que el seguimiento diario sellaba su salida de kardex legacy.</summary>
+    public const string DestinoConsumo = "Consumo";
+
+    /// <summary>
+    /// <b>Rama LEGACY</b> (<c>farm_inventory_movements</c>): ¿este <c>Exit</c> es el ESPEJO de un
+    /// consumo que el reporte ya publica en sus columnas de consumo?
+    ///
+    /// <para>
+    /// <b>De dónde salen estas filas.</b> Hasta el 10-jul-2026 el modal de seguimiento, al guardar,
+    /// posteaba un <c>Exit</c> al kardex legacy por los MISMOS kg que grababa en
+    /// <c>seguimiento_diario_levante.consumo_kg_hembras/machos</c>. El commit <c>8e9bbc1</c> borró ese
+    /// escritor porque duplicaba el descuento del inventario nuevo, pero <b>no tocó este reporte</b>,
+    /// que siguió sumando las dos fuentes. En la BD local quedaron <b>252</b> movimientos /
+    /// <b>131.278,3 kg</b> en la empresa 1 y 1 movimiento / 500 kg en Demo, todos con esta firma.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué el arreglo es de LECTURA y no de datos.</b> Esas filas decrementaron
+    /// <c>farm_inventory.quantity</c> de verdad: en el kardex legacy son el único registro de que ese
+    /// alimento salió, así que borrarlas desincronizaría el stock.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué se exigen los DOS campos.</b> Ambos son texto libre en el formulario manual, así que
+    /// ninguno por separado prueba el origen; juntos son la firma que sólo producía la ruta del
+    /// seguimiento. Y hace falta discriminar: la granja 20 tiene un <c>Exit</c> REAL de 3.280 kg, con
+    /// <c>reason</c> vacío y <c>destination</c> <c>"Devolución"</c>, que sí tiene que restar.
+    /// </para>
+    ///
+    /// <para>
+    /// Portado del trabajo del 8-ago-2026 (<c>b853e95</c>, rama <c>claude/heuristic-perlman-f10ea4</c>),
+    /// que arregló esta rama con plan y tests y nunca llegó a <c>main</c>.
+    /// </para>
+    /// </summary>
+    public static bool EsConsumoYaContabilizadoPorSeguimiento(string? reason, string? destination) =>
+        !string.IsNullOrWhiteSpace(reason) &&
+        !string.IsNullOrWhiteSpace(destination) &&
+        string.Equals(reason.Trim(), ReasonConsumoDiario, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(destination.Trim(), DestinoConsumo, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// <b>Rama UNIFICADA</b> (<c>inventario_gestion_movimiento</c>): qué deltas entran al SALDO.
+    ///
+    /// <para>
+    /// 🔑 <b>Acá el problema es de GRANO, no de firma.</b> Los <c>retiros</c> de esta rama son los
+    /// movimientos <c>Consumo</c>, que escribe el propio seguimiento diario de <b>todos</b> los lotes
+    /// de la granja; <c>consumoHembras/Machos</c> es el consumo de <b>ESTE lote padre</b> nada más.
+    /// Restar los dos descuenta el de este padre dos veces.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Y el arreglo no es «excluir el consumo del seguimiento de los retiros»</b> —lo que sí
+    /// corresponde en la rama legacy—: acá eso dejaría fuera el consumo de los OTROS padres de la
+    /// granja, que es justamente lo que <c>retiros</c> aporta. Medido: el saldo se dispara a
+    /// 3.730,2 / 2.257,3 / 3.137,3 / 4.266,2 y deja de converger. La resta correcta al grano de la
+    /// granja es <c>entradas − traslados − retiros</c> ⇒ <b>518,2</b> (LA ESMERALDA) y <b>376,4</b>
+    /// (MANGOS), un solo saldo por granja.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por eso la decisión es POR RAMA.</b> En la legacy <c>retiros = Exit</c> y el consumo del
+    /// backend va a <c>InventoryMovementType.ConsumoSeguimiento</c>, excluido a propósito de los 4
+    /// buckets ⇒ ahí restar <c>consumoH/M</c> es correcto y único, y esta función devuelve la fila
+    /// intacta. Un cambio plano en <see cref="AcumularSaldos"/> habría roto una rama para arreglar la
+    /// otra.
+    /// </para>
+    ///
+    /// <para>
+    /// Es la misma invariante que engorde ya enforcaba en
+    /// <c>TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde</c> («Contarlo acá lo descontaría dos
+    /// veces»), resuelta del lado que el Contable tiene disponible: engorde puede restar el consumo del
+    /// seguimiento porque su kardex es por GALPÓN, al mismo grano; el Contable no, porque el suyo es
+    /// por GRANJA.
+    /// </para>
+    /// </summary>
+    /// <param name="fila">Los deltas de la fila, tal como los trae el detalle diario.</param>
+    /// <param name="retirosYaTraenElConsumo">
+    /// <c>true</c> cuando el kardex viene del módulo unificado
+    /// (<c>companies.reportes_alimento_desde_inventario_unificado</c>).
+    /// </param>
+    public static DeltaBultosFila DeltaDelSaldo(DeltaBultosFila fila, bool retirosYaTraenElConsumo) =>
+        retirosYaTraenElConsumo
+            ? fila with { ConsumoHembras = 0m, ConsumoMachos = 0m }
+            : fila;
+
     /// <summary>
     /// ¿Esta fecha genera una fila "solo bultos" del lote padre? Sí cuando hay movimiento real, el
     /// padre no generó ya una fila propia ese día (si la generó, esa fila YA lleva los bultos: el

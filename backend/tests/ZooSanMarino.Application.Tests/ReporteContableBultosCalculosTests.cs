@@ -90,6 +90,83 @@ public class ReporteContableBultosCalculosTests
             Ventana(Encaset, null, new DateTime(2026, 1, 1), new DateTime(2026, 4, 30)).Desde);
     }
 
+    // ───────────────────────── el consumo restado DOS VECES ─────────────────────────
+    // El saldo sumaba dos fuentes del MISMO hecho físico: el kardex (RETIROS) y el seguimiento
+    // (CONSUMO H/M). Pasa en las dos ramas del reporte, con firmas distintas.
+
+    [Theory]
+    [InlineData("Consumo diario", "Consumo", true)]
+    [InlineData("consumo diario", "consumo", true)]   // la comparación no distingue mayúsculas
+    [InlineData("  Consumo diario  ", " Consumo ", true)] // ni espacios
+    public void Legacy_ElExitEspejoDelSeguimientoNoEsUnRetiro(string reason, string destino, bool esperado)
+    {
+        Assert.Equal(esperado, EsConsumoYaContabilizadoPorSeguimiento(reason, destino));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "Consumo")]
+    [InlineData("Consumo diario", null)]              // hace falta la firma COMPLETA
+    [InlineData("Consumo diario", "Devolución")]
+    [InlineData(null, "Devolución")]                   // el Exit real de 3.280 kg de la granja 20
+    [InlineData("Ajuste", "Consumo")]
+    public void Legacy_UnRetiroDeVerdadSigueRestando(string? reason, string? destino)
+    {
+        // Los dos campos son texto libre en el formulario manual: ninguno por separado prueba el
+        // origen. Si se excluyera con uno solo se perderían salidas reales.
+        Assert.False(EsConsumoYaContabilizadoPorSeguimiento(reason, destino));
+    }
+
+    [Fact]
+    public void Unificado_ElConsumoDelSeguimientoNoEntraAlSaldo()
+    {
+        var fila = new DeltaBultosFila(
+            Entradas: 100m, Traslados: 5m, Retiros: 60m, ConsumoHembras: 20m, ConsumoMachos: 4m);
+
+        var delta = DeltaDelSaldo(fila, retirosYaTraenElConsumo: true);
+
+        // Entradas, traslados y retiros intactos; el consumo se anula SOLO para el saldo (el detalle
+        // diario lo sigue mostrando en sus columnas).
+        Assert.Equal(100m, delta.Entradas);
+        Assert.Equal(5m, delta.Traslados);
+        Assert.Equal(60m, delta.Retiros);
+        Assert.Equal(0m, delta.ConsumoHembras);
+        Assert.Equal(0m, delta.ConsumoMachos);
+    }
+
+    [Fact]
+    public void Legacy_DeltaDelSaldoNoCambiaNada()
+    {
+        // En farm_inventory_movements retiros = Exit y el consumo del backend va a ConsumoSeguimiento,
+        // excluido de los 4 buckets ⇒ ahí restar el consumo es correcto y único. Este test es el que
+        // garantiza que la rama vieja no se mueve un byte.
+        var fila = new DeltaBultosFila(
+            Entradas: 100m, Traslados: 5m, Retiros: 60m, ConsumoHembras: 20m, ConsumoMachos: 4m);
+
+        Assert.Equal(fila, DeltaDelSaldo(fila, retirosYaTraenElConsumo: false));
+    }
+
+    [Fact]
+    public void Unificado_ElConsumoDeUnPadreYaNoSeDescuentaDosVeces()
+    {
+        // El caso medido: entradas de la granja 6.373,6 · retiros (= consumo de TODA la granja)
+        // 5.997,2 · consumo de ESTE padre 2.976,0 (lote 142 de MANGOS).
+        var fila = new DeltaBultosFila(
+            Entradas: 6373.6m, Traslados: 0m, Retiros: 5997.2m,
+            ConsumoHembras: 2976.0m, ConsumoMachos: 0m);
+
+        var antes = AcumularSaldos(new[] { (new DateTime(2026, 3, 1), fila) });
+        var despues = AcumularSaldos(new[]
+        {
+            (new DateTime(2026, 3, 1), DeltaDelSaldo(fila, retirosYaTraenElConsumo: true))
+        });
+
+        // Antes: 6373,6 − 5997,2 − 2976,0 = −2.599,6 → el piso en 0 lo mostraba como galpón vacío.
+        Assert.Equal(0m, antes[0].Saldo);
+        // Después: 6373,6 − 5997,2 = 376,4, el saldo real de la granja.
+        Assert.Equal(376.4m, despues[0].Saldo);
+    }
+
     // ───────────────────────── pertenencia a la semana contable ─────────────────────────
 
     [Fact]

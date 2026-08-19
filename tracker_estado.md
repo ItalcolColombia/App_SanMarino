@@ -2291,3 +2291,184 @@ como control y no está afectada.
       activar una escribe su blob en `auth_session`, así que el segundo operario **ya entra sin red**.
       Es el mismo patrón que documentó `30fe5a2`: pendientes marcados después de resueltos. Lo que
       queda del multi-slot no es código, es el smoke **S-1**
+
+---
+
+# V41 · Arreglado el doble conteo del kardex de bultos, en las DOS ramas (19ago26)
+
+**Plan:** [`fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md`](fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md)
+**Cierra** el defecto que midió V40 y, con él, **la decisión V19.2.1** (abierta desde el 17-ago
+esperando elegir entre dos opciones que la medición mostró insuficientes).
+**Bloque propio.**
+
+## 🔑 V41.0 — El punto profundo: `retiros` y `consumo` están en GRANOS distintos
+
+- [i] V41.0.1 **`retiros` es de la GRANJA y `consumo` es de ESTE lote padre.** En el módulo unificado
+      los `retiros` son los `Consumo` de `inventario_gestion_movimiento` — que **los escribe el propio
+      seguimiento**, de **todos** los lotes de la granja. Restar los dos descuenta el consumo de ese
+      padre **dos veces**
+- [i] V41.0.2 **Por qué no se veía**: `AcumularSaldos` recorta cada día con `Math.Max(0m, …)`. El
+      acumulado real de los lotes 142 y 143 (MANGOS) llegaba a **−2.599,6** y **−2.644,7** bultos y se
+      publicaba como **0,0** — no como un negativo, sino como un galpón vacío
+- [i] V41.0.3 **La invariante ya estaba escrita, en dos lugares**: el módulo viejo con el TIPO
+      (`InventoryMovementType.ConsumoSeguimiento`, *«EXCLUIDOS de los 4 buckets del ReporteContable»*)
+      y engorde con `AfectaSaldoAlimentoEngorde` (*«Contarlo acá lo descontaría dos veces»*). El
+      unificado colapsó los dos conceptos en un solo `movement_type='Consumo'` y la traducción lo mandó
+      entero a `Retiro`
+
+## 🔴 V41.1 — El arreglo que parecía obvio y estaba MAL
+
+- [i] V41.1.1 La primera implementación fue la de engorde: **excluir de `retiros` el consumo escrito
+      por un seguimiento**. Compilaba y pasaba los 2.922 tests. **Y estaba mal**: al quitar `retiros` se
+      pierde el consumo de los **otros** padres de la granja, que era justo lo que ese término
+      aportaba. El saldo se disparaba a **3.730,2 · 2.257,3 · 3.137,3 · 4.266,2** y **dejaba de
+      converger**
+- [i] V41.1.2 🔑 **Lo delató calcular el número esperado ANTES de correr el smoke, no un test.** La
+      lección: *engorde puede restar el consumo del seguimiento porque su kardex es **por galpón**, al
+      mismo grano; el Contable no, porque el suyo es **por granja**.* Copiar el patrón sin comparar los
+      granos era el error
+
+## V41.2 — Las DOS ramas duplican, con firmas distintas
+
+| | rama LEGACY (`farm_inventory_movements`) | rama UNIFICADA (`inventario_gestion_movimiento`) |
+|---|---|---|
+| quién duplicaba | el **front**, `postExit` (`reason='Consumo diario'` + `destination='Consumo'`) | el **backend**, `movement_type='Consumo'` |
+| cuánto (empresa 1) | 252 movs · 131.278,3 kg | 930 movs · 420.016,0 kg |
+| grano de `retiros` | mezcla: espejos del consumo + salidas reales | **la GRANJA entera** |
+| arreglo | **excluir los espejos**; el consumo lo sigue aportando el seguimiento | **no restar el consumo del seguimiento**; `retiros` ya lo trae, y mejor |
+
+- [x] V41.2.1 **`EsConsumoYaContabilizadoPorSeguimiento(reason, destination)`** — rama legacy.
+      **Portado de `b853e95`** (8-ago-2026, rama `claude/heuristic-perlman-f10ea4`), que arregló esta
+      rama con plan y tests y **nunca llegó a `main`**. Exige los DOS campos: la granja 20 tiene un
+      `Exit` REAL de 3.280 kg con `destination='Devolución'` que sí tiene que restar
+- [x] V41.2.2 **`DeltaDelSaldo(fila, retirosYaTraenElConsumo)`** — rama unificada. El saldo pasa a ser
+      `entradas − traslados − retiros`
+- [x] V41.2.3 **Es una decisión POR RAMA, no un cambio plano.** `DeltaDelSaldo(..., false)` devuelve la
+      fila **idéntica**: un cambio plano en `AcumularSaldos` habría roto Demo, Ecuador y Panamá para
+      arreglar Sanmarino y Santa Reyes
+
+## V41.3 — El número, verificado contra el endpoint real
+
+| Granja | Lote | id | antes | **después** |
+|---|---|---|---|---|
+| LA ESMERALDA | A374A | 114 | 509,7 | **518,2** |
+| LA ESMERALDA | A374A | 116 | 494,9 | **518,2** |
+| LA ESMERALDA | A374B | 115 | 505,9 | **518,2** |
+| LA ESMERALDA | A374B | 117 | 518,2 | **518,2** |
+| MANGOS | S369A | 142 | **0,0** | **376,4** |
+| MANGOS | S369A | 144 | 376,4 | **376,4** |
+| MANGOS | S369B | 143 | **0,0** | **376,4** |
+| MANGOS | S369B | 145 | 376,4 | **376,4** |
+| NIZA III (1 padre) | K345A | 13 | 3.123,5 | **3.158,6** |
+
+- [x] V41.3.1 **Los 4 padres de una granja convergen a UN saldo.** Es lo que la opción (a) de V19.2.1
+      perseguía, conseguido sin restar consumo ajeno — y sin el efecto que la habría hundido
+- [i] V41.3.2 **Lo que NO resuelve, dicho:** el saldo sigue siendo un número **de granja** en un reporte
+      **por lote** ⇒ el aviso de V19.1 sigue haciendo falta. Lo que desaparece es la **contradicción**
+      de mostrar 4 saldos distintos del mismo kardex
+
+## V41.4 — Lo que NO entró, y por qué
+
+- [i] V41.4.1 **El recorte a 0 de `AcumularSaldos`.** Su doc dice que «el acumulador interno conserva el
+      negativo» y **no lo conserva** (el carry entre días contiguos relee el valor recortado). Contrato
+      incumplido, pero con este arreglo el recorte **deja de activarse** en los 9 lotes medidos ⇒
+      arreglarlo no cambia nada acá y movería la rama vieja sin medición que lo respalde
+- [i] V41.4.2 **`ObtenerSaldoAnteriorSemana` (V40.11).** No es criterio propio: **`b853e95` ya lo midió
+      el 8-ago y lo dejó afuera con número** — arreglarlo cambia **72 encabezados** y hace que 50 de las
+      80 semanas del lote 13 dejen de mostrar 0. **Decisión de producto, no de este arreglo**
+- [i] V41.4.3 **El escritor del front** (`modal-seguimiento-engorde.component.ts:1833,1867`) sigue
+      posteando al kardex legacy. Sacarlo sin medir puede dejar a Colombia sin descuento
+- [i] V41.4.4 **La deriva entre los dos escritores del mismo consumo**: LA ESMERALDA 149.918,5 kg
+      (inventario) vs 146.952,5 kg (seguimiento) = 74,2 bultos; MANGOS **0,0** (239.886,2 de los dos
+      lados). Dos espejos del mismo hecho que ya no coinciden
+
+## V41.5 — Validación
+
+- [x] V41.5.1 `dotnet build` **0 errores**, 9 warnings (los mismos preexistentes de V25.8.5)
+- [x] V41.5.2 `dotnet test` **2.896 pasan**, 0 fallos (+12 nuevos: 5 legacy, 3 unificada, 4 de firma)
+- [x] V41.5.3 **Smoke contra el endpoint real**, backend local en `:5002`: **9 de 9 lotes padres OK**
+      contra el número calculado de antemano. Filas, entradas, retiros y consumo idénticos; sólo se
+      movió el saldo
+- [x] V41.5.4 **Rama vieja sin regresión**: los 5 lotes padres de **Demo** (flag apagado) siguen en
+      `entradas 0 · retiros 0 · saldo 0`, igual que antes
+- [i] V41.5.5 **El gate `verificar_paridad_saldo_engorde.sql` NO aplica**: compara la salida de
+      `fn_seguimiento_diario_engorde`, y este cambio es C# del Reporte Contable — no toca ninguna fn SQL
+      ni ningún `*SaldoAlimento*`. Correrlo sería teatro
+- [x] V41.5.6 Backend local **apagado**; `:5002` y `:4200` sin listener (verificado con `netstat`)
+
+---
+
+# V42 · Auditoría de los 45 pendientes contra el código de hoy — un tercio era ruido (19ago26)
+
+Cada pendiente `- [ ]` / `- [!]` / `- [~]` verificado contra el código, la BD local, git, GitHub
+Actions y AWS. **15 de 45 estaban YA_RESUELTOS u OBSOLETOS** (33 %), 28 VIVOS y 2 duplicados.
+**Bloque propio.** Los bloques de origen **no se editaron** —son de otras sesiones—: acá queda el
+veredicto con su evidencia, y quien retome cada bloque decide.
+
+## 🔴 V42.0 — Lo que reordena todo: **la PWA YA ESTÁ DESPLEGADA**
+
+- [i] V42.0.1 🔴 **El encabezado en rojo del bloque «PWA — PUNTO DE RETOMA» es FALSO desde el 18-ago.**
+      Dice *«La PWA sigue SIN desplegarse … `ngsw.json` da 404»*. Medido hoy: el merge se hizo el
+      **18-ago 14:45 -05 (PR #74)**, el run `32178414139` salió **success**, `/version.json` =
+      `2026-08-18T19:54:28.749Z`, y `ngsw.json` · `manifest.webmanifest` · `ngsw-worker.js` responden
+      **200**. Mata 3 pendientes (líneas 1010, 1116, 1117) y la advertencia
+- [i] V42.0.2 **Verificación post-deploy: corrida y en verde.** TaskDef `sanmarino-back-task:160`,
+      imagen `backend:79aeccfa…` = `git rev-parse main-produccion`, `rolloutState COMPLETED`, 1 tarea
+      corriendo. **No hubo rollback silencioso**
+- [i] V42.0.3 **Lo único que falta desplegar es `c9a7349` (V39 · B1, revocación de sesión)** — el único
+      feature de `main` fuera de `main-produccion`. Los otros 3 commits de diferencia son docs
+
+## V42.1 — Pendientes YA_RESUELTOS u OBSOLETOS (no hay nada que hacer)
+
+| Línea | Pendiente | Veredicto | Evidencia |
+|---|---|---|---|
+| 1010 · 1116 · 1117 | Merge `main` → `main-produccion` para desplegar la PWA | **YA_RESUELTO** | PR #74, run success, `/version.json` 18-ago 19:54Z |
+| 1120 | Verificación post-deploy obligatoria | **YA_RESUELTO** (corrida acá) | TaskDef 160 ↔ imagen ↔ version.json |
+| 1122 | Invariante de `company_permissions` antes/después | **OBSOLETO** | pide una foto «antes» del 18-ago que ya no es tomable |
+| 1125 | Avisar del menú «Lote Reproductora» | **OBSOLETO** | la migración entró el 12-ago (`6980fa3`); el aviso llega 7 días tarde |
+| 264 | Lote 132 (19.387 vs 19.187) | **YA_RESUELTO** | BD = **19.187** · `fn_cuadre_aves_engorde(NULL)` → 0 y 0 |
+| 483 | Limpiar los 15 días traslapados de K345 | **YA_RESUELTO** | ejecutado en V25.8.3 (`6ce89cc`) |
+| 532 | ¿Sale el tile «Venta Engorde»? | **YA_RESUELTO** | decidido en V25.7.1: se queda |
+| 581 | Santa Reyes pierde Migraciones Masivas | **YA_RESUELTO** | decidido y ya aplicado en datos |
+| 941 | Menú «Lote Reproductora» a 3 roles | **YA_RESUELTO** | 0 filas en `role_menus` y `company_menus` |
+| 1885 | V25.8.7 «Falta desplegar» las 2 migraciones | **YA_RESUELTO** | entraron con el PR #74 |
+| 272 | Cerrar el grupo A (39 lotes de Ecuador) | **OBSOLETO** | la lista de 39 no existe; queda un caso más chico |
+| 472 | Corte levante/producción 24 vs 25 semanas | **la decisión YA se tomó** | V25.6.2 |
+| 1716 | V20.4.1 decisión sobre el lote 12 | **YA_RESUELTO** como decisión · **duplicado** de V25.5.4 | |
+| 908 | «Persistir la atribución como hecho» | **DUPLICADO** de V27.1 | |
+| 1649 | V19.2.1 opción (a) vs (b) | **OBSOLETO** | V40.8 midió que (a) empeora; lo cierra **V41** |
+
+## V42.2 — Pendientes VIVOS, con lo que los destraba
+
+- [i] V42.2.1 **Nada de esto lo puede cerrar un agente hoy.** El reparto: **4** esperan al admin de
+      Microsoft 365 (el correo sigue roto: último envío exitoso **3-jun-2026**, 85 fallidos, el más
+      reciente **17-ago**), **1** el merge+deploy de B1, **1** un paso en AWS, **2** la aprobación del
+      cliente de Santa Reyes, **4** un Android y dos operarios (S-1 a S-4), **1** secretos de prod (B8),
+      y el resto decisiones de negocio sobre datos de producción
+- [i] V42.2.2 ⏰ **V39.14 confirmado contra AWS**: la TaskDef 160 —la que corre— sigue con
+      `JwtSettings__DurationInMinutes=60`. Mientras siga así, **el `authGuard` expulsa al minuto 61 sin
+      señal en producción**: la jornada offline de 16 h todavía no existe para el operario, aunque la
+      PWA ya esté desplegada. El orden correcto sigue siendo B1 primero
+- [i] V42.2.3 **V39.13** (cerrar la ventana de gracia) sigue **VIVO y bloqueado por el orden**: hay que
+      desplegar B1 y verificar antes de borrar la rama `Legado`. ⚠️ Y trae una trampa: `SesionActivaService`
+      devuelve `Legado` **también ante un fallo de BD** (fail-open deliberado) — borrar el estado sin
+      distinguir los dos usos convertiría una caída de BD en un **logout masivo**
+- [i] V42.2.4 **S-1 a S-4 ya son ejecutables por primera vez**: la PWA está en prod, así que los cuatro
+      smokes que piden un aparato dejaron de estar bloqueados por el deploy
+- [i] V42.2.5 **V30.5 / V30.6 / V30.13 (Santa Reyes) vencidos**: el cronograma arrancaba el 19-ago
+      —hoy— y la aprobación del cliente y la estructura física siguen sin llegar
+- [i] V42.2.6 **V30.10 está a medias sin que el tracker lo diga**: `Placa`/`Conductor`/`Sellos` ya
+      existen en `MovimientoAves`; falta exponerlos en postura
+
+## V42.3 — Lo que apareció y no era un pendiente
+
+- [i] V42.3.1 🔴 **Una rama abandonada con el arreglo ya hecho.** `b853e95` (8-ago-2026, rama
+      `claude/heuristic-perlman-f10ea4`) se titula literal *«fix(reportes): el saldo de bultos de
+      postura restaba el consumo dos veces»* y trae plan, tests xUnit y gate sobre los 10 lote-padre ×
+      2 fases. **No está en `main`.** Diez días después V40 volvió a descubrir el mismo defecto desde
+      cero. Su parte legacy se **portó en V41.2.1**; el resto de su medición se conserva acá
+- [i] V42.3.2 **Lección**: una rama `claude/*` con trabajo terminado y sin mergear es invisible para el
+      tracker. Antes de abrir un defecto, `git log --all -S` sobre el síntoma cuesta 30 segundos
+- [i] V42.3.3 **El resumen del encabezado quedó desactualizado** por esta misma auditoría: los conteos
+      de «45 pendientes reales» incluyen los 15 de V42.1. No se reescribe acá para no pisar el trabajo
+      de otras sesiones; quien depure el archivo tiene la tabla lista
