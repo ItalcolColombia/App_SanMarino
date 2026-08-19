@@ -13,10 +13,11 @@ import type { AuthSession } from '../../../core/auth/auth.models';
 /**
  * El pie del sidebar: las tres salidas.
  *
- * Dos cosas se prueban acá y ninguna es cosmética. La primera: **sin sesión no se muestran**, porque
+ * Tres cosas se prueban acá y ninguna es cosmética. La primera: **sin sesión no se muestran**, porque
  * el sidebar se decide por ruta y en pantallas públicas como `/diagnostico` aparece igual — y una de
  * las tres borra el equipo entero. La segunda: con capturas sin enviar se **avisa antes** de salir,
- * no después.
+ * no después. La tercera: lo del equipo vive **plegado** bajo «Este dispositivo», y el rescate queda
+ * suelto y a la vista justo cuando es la única salida (sin sesión).
  */
 describe('SidebarComponent · el pie', () => {
   const sesion = { accessToken: 'token', user: { id: 'guid-alex' } } as unknown as AuthSession;
@@ -32,6 +33,12 @@ describe('SidebarComponent · el pie', () => {
 
   function ver(testId: string): HTMLElement | null {
     return (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${testId}"]`);
+  }
+
+  /** El pie arranca plegado: para ver lo del equipo hay que abrirlo. */
+  function abrirDispositivo(): void {
+    ver('acciones-dispositivo')!.click();
+    fixture.detectChanges();
   }
 
   function montar(): void {
@@ -67,29 +74,62 @@ describe('SidebarComponent · el pie', () => {
   });
 
   describe('visibilidad', () => {
-    it('con sesión se ven las tres salidas', () => {
+    it('con sesión el pie sólo muestra la salida de todos los días', () => {
       montar();
 
-      expect(ver('cambiar-usuario')).not.toBeNull();
       expect(ver('cerrar-sesion')).not.toBeNull();
+      expect(ver('acciones-dispositivo')).not.toBeNull();
+      // Lo del equipo queda plegado: no pesa debajo del menú en todas las pantallas.
+      expect(ver('diagnostico')).toBeNull();
+      expect(ver('cambiar-usuario')).toBeNull();
+      expect(ver('borrar-dispositivo')).toBeNull();
+    });
+
+    it('abriendo «Este dispositivo» aparecen las tres acciones del equipo', () => {
+      montar();
+
+      abrirDispositivo();
+
+      expect(ver('diagnostico')).not.toBeNull();
+      expect(ver('cambiar-usuario')).not.toBeNull();
       expect(ver('borrar-dispositivo')).not.toBeNull();
+    });
+
+    it('cerrar el menú lo vuelve a plegar: no queda abierto de una pantalla a la otra', () => {
+      montar();
+      abrirDispositivo();
+
+      componente.onClose();
+      fixture.detectChanges();
+
+      expect(ver('borrar-dispositivo')).toBeNull();
     });
 
     it('🔑 SIN sesión no se ve ninguna: «borrar el dispositivo» no puede quedar a mano de cualquiera', () => {
       session$.next(null);
       montar();
 
+      expect(ver('acciones-dispositivo')).toBeNull();
       expect(ver('cambiar-usuario')).toBeNull();
       expect(ver('cerrar-sesion')).toBeNull();
       expect(ver('borrar-dispositivo')).toBeNull();
     });
 
+    it('🔑 …pero el rescate sí, y suelto: sin sesión es la única salida que queda', () => {
+      session$.next(null);
+      montar();
+
+      expect(ver('diagnostico')).not.toBeNull();
+    });
+
     it('sin llavero en el equipo no se ofrece «cambiar de usuario», pero sí las otras dos', () => {
       disponible = false;
       montar();
+      abrirDispositivo();
 
       expect(ver('cambiar-usuario')).toBeNull();
       expect(ver('cerrar-sesion')).not.toBeNull();
+      expect(ver('borrar-dispositivo')).not.toBeNull();
     });
   });
 

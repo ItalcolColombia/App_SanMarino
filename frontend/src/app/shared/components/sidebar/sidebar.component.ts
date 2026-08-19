@@ -79,6 +79,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   onClose(): void {
+    this.dispositivoAbierto = false;
     this.close.emit();
   }
 
@@ -89,7 +90,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
         takeUntil(this.destroy$)
       )
-      .subscribe(() => this.close.emit());
+      .subscribe(() => {
+        this.dispositivoAbierto = false;
+        this.close.emit();
+      });
   }
 
   ngOnDestroy(): void {
@@ -99,6 +103,19 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   toggle(item: UiMenuItem) {
     item.expanded = !item.expanded;
+  }
+
+  /**
+   * Acordeón del pie: «Este dispositivo». Cerrado por defecto y a propósito.
+   *
+   * Adentro viven las acciones del equipo —diagnóstico, relevo de operario, entrega del
+   * dispositivo—, que se tocan una vez en la vida de la tablet. Sueltas en el pie eran cuatro filas
+   * fijas debajo del menú, dos de ellas destructivas, en todas las pantallas.
+   */
+  dispositivoAbierto = false;
+
+  toggleDispositivo(): void {
+    this.dispositivoAbierto = !this.dispositivoAbierto;
   }
 
   /** ¿Este equipo puede guardar sesiones? Sin cripto no se ofrece «cambiar de usuario». */
