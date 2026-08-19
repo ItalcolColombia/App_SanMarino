@@ -36,23 +36,23 @@
 | 1 | Lote cerrado que absorbe el ciclo siguiente (KM 86) | operación (cerrar por pantalla) |
 | 2 | v16 de engorde — marca `para_proximo_ciclo` | rediseño (persistir la atribución) |
 | 1 | PWA — auditoría de acceso offline | **decisión** |
-| 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
+| 2 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 2 | PWA — brecha para salir a producción | **push + merge** |
 | 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
 | 1 | Bitácora agosto 2026 — V8.6 | **V8 reservada para otra sesión** |
 | 1 | V19 · kardex de bultos de la GRANJA | **decisión** (el saldo sobreestima) |
 | 2 | V20 · saldo negativo del lote 12 (KM 86) | **decisión irreversible en prod** |
-| 5 | V25 · trabajo derivado del triaje | 3 tareas + el detector contra prod |
+| 4 | V25 · trabajo derivado del triaje | 2 tareas + el detector contra prod |
 | 1 | V27 · Engorde FASE B | **decisión de producto** (rediseño del modelo de entrega) |
 | 1 | V28 · columna «Próx. ciclo» | smoke manual en pantalla |
 | 7 | V30 · Santa Reyes — Italapp | **aprobación del cliente** + estructura física y códigos ERP |
 | 2 | V39 · B1 — revocación de sesión | 1 tarea (cerrar la ventana de gracia) + vigencia en la TaskDef |
 | 4 | PWA — lo único que falta probar en un equipo real | **un Android y dos operarios** |
 
-> **47 pendientes reales al 18-ago-2026** (11 tareas · 17 decisiones · 19 fuera del repo), repartidos
-> en **21 bloques abiertos**. Los `- [i]` —39— son hallazgos, no pendientes: no entran en la cuenta.
+> **45 pendientes reales al 18-ago-2026** (9 tareas · 17 decisiones · 19 fuera del repo), repartidos
+> en **21 bloques abiertos**. Los `- [i]` —45— son hallazgos, no pendientes: no entran en la cuenta.
 >
-> - **11 `- [ ]` son tareas ejecutables.** Varias son *features* que piden su propio plan según el
+> - **9 `- [ ]` son tareas ejecutables.** Varias son *features* que piden su propio plan según el
 >   workflow de CLAUDE.md, no entran en «una tarea = un commit».
 > - **17 `- [!]` esperan una decisión tuya.** Varias tocan producción de forma irreversible
 >   (los lotes de Ecuador · los 15 días traslapados de K345 · el lote 12 de KM 86 · los lotes 2601).
@@ -948,10 +948,15 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
 - [x] ✅ Perder la red **no cierra la sesión** (B2), con tope duro de 16 h (D4)
 - [x] 🔴 **El primer ingreso exige red** (`POST /auth/login` + reCAPTCHA en prod) ⇒ alistamiento:
       instalar y entrar una vez con señal, **por cada usuario**
-- [i] 🔴 **El dispositivo guarda UNA sola sesión** (`auth_session`, clave única). No hay «los usuarios
-      registrados» en plural: entra el último que hizo login. Dos operarios turnándose en la misma
-      tablet ⇒ el segundo no puede entrar sin red. **Soportar varios exige sesiones multi-slot**
-      (la partición de la caché ya está preparada; el storage de sesión no)
+- [x] ~~🔴 **El dispositivo guarda UNA sola sesión**~~ — **CERRADO por V34-V38** (18ago26, `9b6b157`
+      → `6e4fe7f`). El llavero (`core/auth/llavero-sesiones.service.ts`) aparca cada sesión cifrada en
+      su propio slot y activar uno es escribir su blob en `auth_session`: **el segundo operario ya
+      entra sin red**, con su PIN. `auth_session` sigue siendo clave única a propósito —el multi-slot
+      se construyó AL LADO— para no tocar interceptor, guards ni los ~190 componentes. Texto original:
+      *No hay «los usuarios registrados» en plural: entra el último que hizo login. Dos operarios
+      turnándose en la misma tablet ⇒ el segundo no puede entrar sin red.* Único caso donde la
+      afirmación vieja sigue valiendo: **sin `crypto.subtle`** el llavero se apaga entero (fail-closed)
+      y el dispositivo vuelve a ser de una sola sesión
 
 ## 3. Acciones operativas sin red — se CONSULTAN, no se guardan
 - [x] Con caché de lectura (✅ ver / ❌ guardar): gastos de inventario · gestión de inventario ·
@@ -1011,8 +1016,12 @@ Requiere push, que el usuario no autorizó todavía.
 - [x] ~~**Menú «Lote Reproductora» (id 9)**~~ — RESUELTO: migración
       `20260812080000_OcultarMenuLoteReproductoraPostura`. Etiqueta corregida a «Seguimiento
       Reproductora Postura» y **desasignado de todos los roles**; la fila del menú se conserva
-- [ ] **Sesiones multi-slot por dispositivo**: es lo ÚNICO que bloquea «varios usuarios sin
-      internet». Hoy `auth_session` es clave única ⇒ un usuario por tablet
+- [x] ~~**Sesiones multi-slot por dispositivo**~~ — **HECHO en V34-V38** (18ago26), archivadas arriba.
+      Quedó marcado como pendiente después de resuelto: es el mismo patrón que el commit `30fe5a2`
+      documentó (V34.15 y V35.19 esperaban una decisión ya tomada). Lo que queda del multi-slot **no
+      es código**: es el smoke **S-1** del bloque «PWA — lo único que falta probar en un equipo real».
+      Texto original: *es lo ÚNICO que bloquea «varios usuarios sin internet». Hoy `auth_session` es
+      clave única ⇒ un usuario por tablet*
 - [~] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
       inventan secretos de prod
 
@@ -1120,9 +1129,10 @@ entera. Esto es más urgente que desplegar.
 
 ## 5. Lo que falta para que funcione BIEN en campo (no bloquea el deploy)
 
-- [i] 🔴 **Un solo usuario por dispositivo.** `auth_session` es clave única en `localStorage`: dos
-      operarios turnándose en la misma tablet ⇒ el segundo no entra sin red. Exige sesiones
-      multi-slot
+- [x] ~~🔴 **Un solo usuario por dispositivo.**~~ — **CERRADO por V34-V38** (18ago26). El llavero de
+      slots ya lo resuelve; lo que falta es probarlo con dos operarios de verdad (**S-1**). Texto
+      original: *`auth_session` es clave única en `localStorage`: dos operarios turnándose en la misma
+      tablet ⇒ el segundo no entra sin red. Exige sesiones multi-slot*
 - [~] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
       reCAPTCHA exigen red) y **visitar las pantallas** que se van a usar, o la caché está vacía
 - [x] 🟠 ~~La bandeja de rechazos no muestra el payload~~ — **cerrado 17ago26**: cada fila trae
@@ -1841,8 +1851,10 @@ antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6
 - [i] V25.7.5 A favor de hacerlo: el cálculo **ya está extraído** a
       `Application/Calculos/ReporteContableBultosCalculos.cs` (static puro) ⇒ la corrección es local y
       testeable con xUnit, sin tocar el service
-- [ ] V25.7.6 **Falta el número fino**: el delta exacto en bultos por padre exige reproducir la query
-      completa del reporte por lote-padre y fecha. Es el siguiente paso si se quiere decidir con la cifra
+- [x] V25.7.6 ~~**Falta el número fino**~~ — **MEDIDO en V40** (18ago26, bloque al final). La cifra
+      está lote por lote y validada contra el endpoint real en 8 de 8. Y cambió la pregunta: la opción
+      (a) **empeora** un doble conteo que nadie había visto (`retiros` del inventario y `consumo` del
+      seguimiento son el mismo alimento — V40.6). Antes de decidir entre (a) y (b), leer V40.8
 
 ## V25.8 — Implementadas: lote 132 y K345 (18ago26)
 **Planes:** [`correccion_lote_132_encaset_plan.md`](fase_de_desarrollo/correccion_lote_132_encaset_plan.md) ·
@@ -2174,3 +2186,108 @@ escenarios significa nada. Nada de F1/F2/F3 se probó nunca fuera de local.
 
 - [i] Ninguno lo cierra un agente: los cuatro piden un aparato, o dos sesiones, o DevTools en modo
       offline. Son la deuda de verificación de toda la serie PWA, no de un bloque suelto
+
+---
+
+# V40 · V25.7.6 — el número fino del kardex de bultos, y el doble conteo que la decisión no contemplaba (18ago26)
+
+**Cierra V25.7.6** (*«falta el número fino»*), el insumo que V19.2.1 pedía para decidir entre **(a)**
+restar el consumo de todos los lotes de la granja y **(b)** dejarlo con el aviso al lado.
+**Bloque propio.** No se tocó ni una línea del cálculo: es una medición de solo lectura.
+
+**Script:** [`backend/sql/verificar_kardex_bultos_por_lote_padre.sql`](backend/sql/verificar_kardex_bultos_por_lote_padre.sql)
+— reproduce en SQL puro `ReporteContableService.ObtenerDatosBultosUnificadoAsync` +
+`ReporteContableBultosCalculos.AcumularSaldos`: la ventana de `dias_alimento_previo_encaset`, la
+clasificación de `movement_type`, el factor de 40 kg/bulto, las filas «solo bultos» de C1 y el
+recorte a 0 con su regla de reinicio por día calendario.
+
+## V40.1 — La cifra, por lote padre (BD local `sanmarinoapplocal`, empresa 1, corte 18-ago-2026)
+
+| Granja | Lote | id | entradas | retiros | cons. propio | cons. ajeno | **saldo hoy** | **(a)** | **sin doble conteo** |
+|---|---|---|---|---|---|---|---|---|---|
+| LA ESMERALDA | A374A | 114 | 4.348,2 | 3.830,0 | 536,0 | 3.137,8 | **509,7** | 494,9 | 518,2 |
+| LA ESMERALDA | A374A | 116 | 4.348,2 | 3.830,0 | 2.008,9 | 1.664,9 | **494,9** | 494,9 | 518,2 |
+| LA ESMERALDA | A374B | 115 | 4.348,2 | 3.830,0 | 1.128,9 | 2.544,9 | **505,9** | 494,9 | 518,2 |
+| LA ESMERALDA | A374B | 117 | 4.348,2 | 3.830,0 | 0,0 | 3.673,8 | **518,2** | 494,9 | 518,2 |
+| MANGOS | S369A | 142 | 6.373,6 | 5.997,2 | 2.976,0 | 3.021,2 | **0,0** | 0,0 | 376,4 |
+| MANGOS | S369A | 144 | 6.373,6 | 5.997,2 | 0,0 | 5.997,2 | **376,4** | 0,0 | 376,4 |
+| MANGOS | S369B | 143 | 6.373,6 | 5.997,2 | 3.021,2 | 2.976,0 | **0,0** | 0,0 | 376,4 |
+| MANGOS | S369B | 145 | 6.373,6 | 5.997,2 | 0,0 | 5.997,2 | **376,4** | 0,0 | 376,4 |
+
+En bultos de 40 kg, fase Levante. **MIRALINDO no aparece**: sus 2 padres (146 A402A, 147 A402B,
+encaset jul-2026) no tienen ni una fila de seguimiento ni un movimiento de alimento en la ventana ⇒
+su sección BULTO sale vacía y el problema todavía no los toca. **NIZA III** (K345A, 1 padre) entró
+como control y no está afectada.
+
+- [x] V40.2 **El delta de la opción (a), lote por lote**: LA ESMERALDA **14,8 · 0,0 · 11,0 · 23,3**;
+      MANGOS **0,0 · 376,4 · 0,0 · 376,4**. Sumados por granja: **49,1** y **752,8** bultos
+- [x] V40.3 🔑 **La opción (a) hace lo que promete: converge.** Los 4 padres de LA ESMERALDA pasan de
+      cuatro saldos distintos (509,7 · 494,9 · 505,9 · 518,2) a **uno solo, 494,9**, y los 4 de MANGOS
+      a **0,0**. Es exactamente lo que anticipó V25.7.4: (a) no devuelve el número por lote —imposible
+      sin dato de lote en las entradas— sino un número **de granja bien calculado**
+- [x] V40.4 **El daño de sumar, medido**: los 4 reportes de LA ESMERALDA suman hoy **2.028,7** bultos
+      donde la granja tiene **518,2**; los de MANGOS suman **752,8** donde tiene **376,4**
+
+## 🔴 V40.5 — Lo que apareció al reproducir la query: el consumo se resta DOS veces
+
+- [i] V40.6 🔴 **`retiros` y `consumo` son el mismo alimento.** El saldo es
+      `entradas − traslados − retiros − consumoH − consumoM`, donde `retiros` son los movimientos
+      `Consumo` del inventario y `consumoH/M` el consumo del seguimiento diario. **Los movimientos
+      `Consumo` los escribe el propio seguimiento**: su `reference` dice literal
+      `«Seguimiento lote levante #1103 2025-08-3…»` y `«Consumo diario levante - Lote A374A»`
+- [i] V40.7 **Medido por granja**, en kg de alimento: MANGOS **239.886,2 en inventario vs 239.886,2
+      en seguimiento — idénticos al gramo**, 504 movimientos, todos con referencia de seguimiento.
+      LA ESMERALDA 153.198,5 vs 146.952,5: 149.918,5 vienen de seguimientos (en dos formatos de
+      referencia), **3.280,0 de una salida manual** (*«se realiza salida por entrada…»*) y ~2.966 de
+      deriva entre los dos escritores
+- [i] V40.8 🔴 **Esto reencuadra la decisión entera.** El saldo verificable contra el inventario es
+      `entradas − traslados − retiros` = **518,2** (LA ESMERALDA) y **376,4** (MANGOS) — el mismo para
+      los 4 padres, sin restar el consumo por segunda vez. Consecuencias:
+      · **la opción (a) empeora el doble conteo**, no lo arregla: lleva LA ESMERALDA a 494,9 (−23,3
+        contra el inventario) y deja MANGOS clavado en **0,0** para los 4 padres
+      · los saldos **0,0** de los lotes 142 y 143 no dicen «el galpón está vacío»: son el recorte a 0
+        de un acumulado que llegó a **−2.599,6** por restar 2.976 bultos dos veces
+      · los únicos saldos que hoy dan bien son los de los padres **sin** seguimiento propio (117, 144,
+        145), y dan bien **por accidente**: no tienen consumo que duplicar
+- [i] V40.9 **Por qué no se arregló acá.** Mueve una columna de un reporte contable en uso —lo mismo
+      que V19.2.1 dejó explícitamente como decisión de producto—, y el arreglo correcto ya no es
+      elegir entre (a) y (b) sino **(c) dejar de restar el consumo dos veces**. Pide su propio plan,
+      su espejo en `Application/Calculos/` con tests y el smoke doble. Queda planteado, no ejecutado
+
+## 🟡 V40.10 — Segundo hallazgo: el resumen semanal no arrastra el saldo entre semanas vacías
+
+- [i] V40.11 `ObtenerSaldoAnteriorSemana` (`ReporteContableService.cs:1064`) mira **sólo** la semana
+      `actual − 1`. Si esa semana no tiene filas, devuelve `0` en vez de caminar hacia atrás hasta la
+      última con datos ⇒ el resumen semanal y el detalle diario del **mismo reporte** se contradicen.
+      Medido en el lote **114**: la semana 44 arranca con `saldoAnterior = 0` y cierra en **259,9**
+      (1.481,2 − 1.221,3) mientras la última fila diaria dice **509,7**; entre la semana 37 y la 44
+      hay 6 semanas sin filas. Igual en el **116** (259,9 vs 494,9). Los otros 6 lotes coinciden
+- [i] V40.12 No se tocó, por la misma razón que V40.9: mueve una columna del reporte contable
+
+## V40.13 — Validación
+
+- [x] V40.14 **La reproducción se contrastó contra el endpoint real**, no se declaró:
+      `GET /api/ReporteContable/generar?lotePadreId=<n>&faseLote=Levante` con el backend local en
+      `:5002`. En **8 de 8** lotes padres coinciden el número de filas, las entradas, los retiros, el
+      consumo y el **saldo de bultos de la última fila diaria** — los 8 valores de la columna
+      «saldo hoy» de V40.1 salen del endpoint tal cual
+- [i] V40.15 ⚠️ **Ojo con el campo que se compara**: `saldoBultosFinal` (resumen semanal) **no** es el
+      saldo diario acumulado — es el defecto de V40.11. La comparación válida es contra
+      `datosDiarios[].saldoBultos` de la última fila
+- [x] V40.16 **Cero escrituras**: el script es `SELECT` + tablas `TEMP`; los `DROP TABLE IF EXISTS`
+      sólo tocan las temporales de la propia sesión. Ninguna fila de negocio se modificó
+- [x] V40.17 Backend local **apagado** al terminar: `:5002` y `:4200` sin listener (verificado con
+      `netstat`, no con el log)
+- [i] V40.18 El script suma el consumo de levante **y** de producción; el reporte lee sólo el de la
+      fase pedida. En los 10 padres afectados da igual (son todos de levante), pero para un lote con
+      las dos fases —como el 13 de NIZA III— el script y el reporte **no** son comparables
+
+## V40.19 — Además: tres marcas obsoletas del multi-slot
+
+- [x] V40.20 «Sesiones multi-slot por dispositivo» seguía como `- [ ]` en el punto de retoma, y otras
+      dos afirmaciones (`- [i]`) decían que la tablet guarda **una sola** sesión. Las tres las cerró
+      **V34-V38** (`9b6b157` → `6e4fe7f`): el llavero
+      (`frontend/src/app/core/auth/llavero-sesiones.service.ts`) aparca sesiones cifradas por slot y
+      activar una escribe su blob en `auth_session`, así que el segundo operario **ya entra sin red**.
+      Es el mismo patrón que documentó `30fe5a2`: pendientes marcados después de resueltos. Lo que
+      queda del multi-slot no es código, es el smoke **S-1**
