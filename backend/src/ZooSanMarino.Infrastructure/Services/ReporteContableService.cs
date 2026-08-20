@@ -202,7 +202,12 @@ public class ReporteContableService : IReporteContableService
             ct);
 
         // Calcular saldos acumulativos
-        var datosConSaldos = CalcularSaldosAcumulativos(datosDiarios, entradasIniciales, semanasContables, lotePadre.GranjaId, ct);
+        // ¿El kardex de bultos viene del módulo unificado? Ahí los `retiros` son los movimientos
+        // `Consumo`, que escribe el propio seguimiento diario de TODOS los lotes de la granja ⇒ el
+        // consumo de este padre no se puede restar otra vez. Se resuelve una sola vez por reporte.
+        var retirosYaTraenElConsumo = await LeeInventarioUnificadoAsync(_currentUser.CompanyId, ct);
+
+        var datosConSaldos = CalcularSaldosAcumulativos(datosDiarios, entradasIniciales, semanasContables, lotePadre.GranjaId, retirosYaTraenElConsumo, ct);
 
         // Agrupar por semana contable y consolidar
         // Validar que haya semanas para procesar
@@ -831,10 +836,21 @@ public class ReporteContableService : IReporteContableService
         if (await LeeInventarioUnificadoAsync(companyId, ct))
             return await ObtenerDatosBultosUnificadoAsync(granjaId, companyId, desdeUtc, hastaUtc, tipoAlimento, ct);
 
+        // Un Exit sellado con ESTOS DOS campos es el espejo de un consumo que el reporte ya publica en
+        // sus columnas de consumo: contarlo también como retiro resta los mismos kilos dos veces. Se
+        // descarta acá para que ni siquiera viaje (la BD filtra, el backend orquesta); el criterio es
+        // el mismo que EsConsumoYaContabilizadoPorSeguimiento y se compara igual (Trim + minúsculas),
+        // porque EF traduce Trim()/ToLower() a SQL pero no una llamada a ese método.
+        var reasonConsumo = ReporteContableBultosCalculos.ReasonConsumoDiario.ToLower();
+        var destinoConsumo = ReporteContableBultosCalculos.DestinoConsumo.ToLower();
+
         var queryMovimientos = _ctx.FarmInventoryMovements
             .AsNoTracking()
             .Where(m => m.FarmId == granjaId &&
                         m.CompanyId == companyId &&
+                        !(m.Reason != null && m.Destination != null &&
+                          m.Reason.Trim().ToLower() == reasonConsumo &&
+                          m.Destination.Trim().ToLower() == destinoConsumo) &&
                         (m.ItemType != null && m.ItemType != ""
                             ? m.ItemType.Trim().ToLower()
                             : m.CatalogItem.ItemType.Trim().ToLower()) == tipoAlimento &&
@@ -982,6 +998,7 @@ public class ReporteContableService : IReporteContableService
         Dictionary<int, (int hembras, int machos)> entradasIniciales,
         List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasContables,
         int granjaId,
+        bool retirosYaTraenElConsumo,
         CancellationToken ct)
     {
         var datosConSaldos = new List<DatoDiarioContableDto>();
@@ -1001,15 +1018,20 @@ public class ReporteContableService : IReporteContableService
             .ToList();
 
         // Saldo de bultos: cálculo puro (mismo algoritmo que vivía acá, ahora testeable)
+        // `DeltaDelSaldo` decide qué términos entran según de qué módulo venga el kardex: en el
+        // unificado los `retiros` YA son el consumo diario de la granja, así que restar además el
+        // consumo del seguimiento descontaría el de este padre dos veces. Ver su doc.
         var saldosBultos = ReporteContableBultosCalculos.AcumularSaldos(
             datosPorFecha.Select(d => (
                 d.Fecha,
-                new ReporteContableBultosCalculos.DeltaBultosFila(
-                    d.EntradasBultos,
-                    d.TrasladosBultos,
-                    d.RetirosBultos,
-                    d.ConsumoBultosHembras,
-                    d.ConsumoBultosMachos))));
+                ReporteContableBultosCalculos.DeltaDelSaldo(
+                    new ReporteContableBultosCalculos.DeltaBultosFila(
+                        d.EntradasBultos,
+                        d.TrasladosBultos,
+                        d.RetirosBultos,
+                        d.ConsumoBultosHembras,
+                        d.ConsumoBultosMachos),
+                    retirosYaTraenElConsumo))));
 
         for (var i = 0; i < datosPorFecha.Count; i++)
         {
@@ -1052,13 +1074,23 @@ public class ReporteContableService : IReporteContableService
     }
 
     /// <summary>
-    /// Obtiene el saldo anterior de una semana (saldo final de la semana anterior).
+    /// Obtiene el saldo anterior de una semana.
     /// <para>
     /// Las aves se leen del último día de la semana anterior CON dato del lote: una fila solo-bultos
     /// (kardex de alimento sin registro del lote) no describe el inventario de aves de la familia de
-    /// lotes, así que no puede definir ese día. Los bultos, en cambio, sí se leen del último día con
-    /// cualquier movimiento — es su kardex. Sin filas solo-bultos ambas fechas coinciden y el
-    /// resultado es idéntico al histórico.
+    /// lotes, así que no puede definir ese día.
+    /// </para>
+    /// <para>
+    /// 🔑 <b>Los bultos NO se leen de la semana anterior, sino del último día con fila anterior al
+    /// inicio de ESTA semana</b> — son dos reglas distintas a propósito. El kardex de alimento es
+    /// continuo: una semana sin filas es un hueco del calendario, no un stock que se vació. Antes se
+    /// miraba sólo la semana <c>actual − 1</c> y una semana vacía hacía abrir la siguiente en 0,
+    /// contradiciendo al detalle diario del mismo reporte (lote 114: encabezado 259,9 contra
+    /// 509,7 de la última fila). La regla y su medición viven en
+    /// <see cref="ReporteContableBultosCalculos.SaldoAnteriorDeLaSemana"/>.
+    /// </para>
+    /// <para>
+    /// Sin semanas vacías en medio las dos reglas coinciden y el resultado es idéntico al histórico.
     /// </para>
     /// </summary>
     private (int hembras, int machos, decimal bultos) ObtenerSaldoAnteriorSemana(
@@ -1090,17 +1122,23 @@ public class ReporteContableService : IReporteContableService
             .Where(d => d.Fecha >= semanaAnterior.FechaInicio && d.Fecha <= semanaAnterior.FechaFin)
             .ToList();
 
-        // Bultos: último día con movimiento (incluye las filas solo-bultos, son su kardex)
-        var ultimaFechaBultos = datosSemanaAnterior
-            .Select(d => d.Fecha)
-            .DefaultIfEmpty(default)
-            .Max();
+        // Inicio de ESTA semana: el corte del kardex de bultos, que es continuo (ver abajo).
+        var semanaActualInicio = semanasContables
+            .FirstOrDefault(s => s.Semana == semanaActual)
+            .FechaInicio;
 
-        var saldoBultos = ultimaFechaBultos == default(DateTime)
-            ? 0
-            : datosConSaldos
-                .Where(d => d.Fecha == ultimaFechaBultos)
-                .Max(d => (decimal?)d.SaldoBultos) ?? 0;
+        // Fail-safe: si la semana actual no está en la lista, el corte cae al día siguiente del fin
+        // de la anterior y el comportamiento es exactamente el histórico.
+        if (semanaActualInicio == default(DateTime))
+            semanaActualInicio = semanaAnterior.FechaFin.AddDays(1);
+
+        // Bultos: el kardex es CONTINUO, así que el arrastre no puede depender de que la semana previa
+        // tenga filas — una semana vacía es un hueco del calendario, no un stock que se vació. La
+        // decisión es pura y vive en ReporteContableBultosCalculos con sus tests. Las filas
+        // solo-bultos entran a propósito: son el kardex de alimento.
+        var saldoBultos = ReporteContableBultosCalculos.SaldoAnteriorDeLaSemana(
+            datosConSaldos.Select(d => (d.Fecha, d.SaldoBultos)),
+            semanaActualInicio);
 
         // Aves: último día con dato del lote y suma de los saldos de esa fecha
         var ultimaFechaSemanaAnterior = datosSemanaAnterior

@@ -8,6 +8,7 @@ import { EncryptionService } from './encryption.service';
 import { SessionTimeoutService } from './session-timeout.service';
 import { ConexionService } from '../pwa/conexion.service';
 import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
+import { obtenerDeviceId } from './funciones/device-id.funcion';
 import { environment } from '../../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => {
@@ -44,6 +45,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
 
       // Agregar SECRET_UP encriptado en TODAS las peticiones
       headers['X-Secret-Up'] = encryptedSecretUp;
+
+      // Identificador del equipo. El backend lo declaraba desde hace meses
+      // (`RateLimitingCalculos.DeviceIdHeader`) y ningún cliente lo mandaba, así que:
+      //  1. el login puede anotar QUÉ dispositivo abrió cada sesión — sin eso, revocar la tablet
+      //     perdida sería elegir a ciegas entre filas idénticas;
+      //  2. el rate limit de `/api/sync/*` pasa a contar POR DISPOSITIVO en vez de por IP, que es
+      //     lo que ese código dice que quiere: dos tablets detrás del mismo NAT drenan su cola sin
+      //     bloquearse entre sí. Ninguna otra ruta cambia (`AlcanceDeRuta` sólo usa el device en Sync).
+      // Es una etiqueta, no una credencial: el servidor jamás autoriza con esto.
+      headers['X-Device-Id'] = obtenerDeviceId();
 
       // Agregar token de autenticación si existe
       if (token) {

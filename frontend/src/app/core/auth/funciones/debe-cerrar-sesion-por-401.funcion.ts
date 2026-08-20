@@ -7,6 +7,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 export const MOTIVO_FALLA_PLATAFORMA = 'platform-secret';
 
 /**
+ * Marca del 401 de **sesión revocada** (B1). Espeja `RevocacionSesionCalculos.MotivoRevocada`.
+ * A diferencia del de plataforma, éste **sí** cierra la sesión: es el caso de autenticación por
+ * excelencia —alguien apagó esta sesión a propósito— y el token ya no sirve para nada.
+ */
+export const MOTIVO_SESION_REVOCADA = 'sesion-revocada';
+
+/**
  * ¿Este 401 significa que la sesión del usuario terminó?
  *
  * **No todos los 401 son iguales.** El backend devuelve 401 en dos situaciones que no
@@ -43,19 +50,40 @@ export function debeCerrarSesionPor401(err: unknown, teniaToken: boolean): boole
   return true;
 }
 
+/**
+ * ¿Este 401 es una sesión **revocada** desde el servidor?
+ *
+ * Cerrar la sesión ya lo hacía `debeCerrarSesionPor401` —todo 401 con token que no sea de
+ * plataforma cierra—; lo que agrega distinguirlo es el **motivo**: sin esto, al operario cuya
+ * tablet acaban de revocar se le dice «tu sesión expiró», que es falso y lo manda a esperar en vez
+ * de a hablar con quien la cerró.
+ */
+export function esSesionRevocada(err: unknown): boolean {
+  if (!(err instanceof HttpErrorResponse) || err.status !== 401) return false;
+  return tieneMotivo(err, MOTIVO_SESION_REVOCADA);
+}
+
 /** Reconoce el rechazo del gate de plataforma, tolerando cuerpo string, objeto o ausente. */
 function esFallaDePlataforma(err: HttpErrorResponse): boolean {
+  return tieneMotivo(err, MOTIVO_FALLA_PLATAFORMA);
+}
+
+/**
+ * ¿El 401 trae este `errorCode`? Se lee del CUERPO (en dev el front es otro origen y no puede
+ * leer cabeceras personalizadas); la cabecera queda de respaldo para mismo origen y para `curl`.
+ */
+function tieneMotivo(err: HttpErrorResponse, motivo: string): boolean {
   const cuerpo: unknown = err.error;
 
   if (typeof cuerpo === 'string') {
-    return cuerpo.includes(MOTIVO_FALLA_PLATAFORMA);
+    return cuerpo.includes(motivo);
   }
 
   if (cuerpo && typeof cuerpo === 'object') {
     const codigo = (cuerpo as { errorCode?: unknown }).errorCode;
-    if (codigo === MOTIVO_FALLA_PLATAFORMA) return true;
+    if (codigo === motivo) return true;
   }
 
   // Mismo origen (producción): la cabecera sí es legible y sirve de respaldo.
-  return err.headers?.get('X-Auth-Failure') === MOTIVO_FALLA_PLATAFORMA;
+  return err.headers?.get('X-Auth-Failure') === motivo;
 }

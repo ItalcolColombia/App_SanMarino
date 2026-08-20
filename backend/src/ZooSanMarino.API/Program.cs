@@ -400,6 +400,9 @@ builder.Services.AddScoped<IHistoriaService, HistoriaService>();
 // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
 builder.Services.AddScoped<IServiceTokenService, ServiceTokenService>();
 
+// B1 — sesiones revocables (lista blanca por `jti`). La consulta la cachea el propio service.
+builder.Services.AddScoped<ISesionActivaService, SesionActivaService>();
+
 
 // ─────────────────────────────────────
 // 9) FluentValidation + HealthChecks
@@ -454,6 +457,55 @@ builder.Services.AddAuthentication(o =>
                 if (HttpMethods.IsOptions(ctx.Request.Method))
                     ctx.NoResult();
                 return Task.CompletedTask;
+            },
+
+            // B1 — REVOCACIÓN. Firma y `exp` válidos ya no alcanzan: la sesión tiene que seguir
+            // viva en `sesiones_activas`. Va acá y no en un middleware por dos razones: corre DENTRO
+            // de UseAuthentication() —o sea antes de resolver empresa activa y de evaluar permisos— y
+            // cubre TODOS los endpoints, incluidos los que todavía no existen (un middleware con
+            // lista de rutas se desactualiza).
+            // El esquema ServiceToken (PAT `sk_…`) NO pasa por acá: tiene su propia revocación.
+            OnTokenValidated = async ctx =>
+            {
+                var jti = ctx.Principal?.FindFirst(
+                    System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+
+                var expiracion = (ctx.SecurityToken as Microsoft.IdentityModel.JsonWebTokens.JsonWebToken)?.ValidTo
+                    ?? DateTime.UtcNow;
+
+                var sesiones = ctx.HttpContext.RequestServices.GetRequiredService<ISesionActivaService>();
+                var estado = await sesiones.EvaluarAsync(jti, expiracion, ctx.HttpContext.RequestAborted);
+
+                if (RevocacionSesionCalculos.EsSesionValida(estado))
+                    return;
+
+                // El motivo viaja por Items hasta OnChallenge, que es quien escribe la respuesta.
+                ctx.HttpContext.Items[RevocacionSesionCalculos.MotivoRevocada] =
+                    RevocacionSesionCalculos.MotivoParaCliente(estado);
+                ctx.Fail("Sesión revocada o no registrada.");
+            },
+
+            // Mismo contrato que PlatformSecretMiddleware: cabecera X-Auth-Failure + `errorCode` en
+            // el CUERPO (en dev el front es otro origen y no puede leer cabeceras personalizadas).
+            // Sólo se toca la respuesta cuando el rechazo es NUESTRO; el resto de los 401 del
+            // JwtBearer siguen saliendo exactamente igual que antes.
+            OnChallenge = async ctx =>
+            {
+                if (ctx.HttpContext.Items[RevocacionSesionCalculos.MotivoRevocada] is not string motivo)
+                    return;
+
+                ctx.HandleResponse();
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                ctx.Response.ContentType = "application/json";
+                ctx.Response.Headers[PlatformSecretMiddleware.AuthFailureHeader] = motivo;
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    error = "Unauthorized",
+                    errorCode = motivo,
+                    message = motivo == RevocacionSesionCalculos.MotivoRevocada
+                        ? "La sesión fue cerrada. Inicia sesión de nuevo."
+                        : "La sesión expiró. Inicia sesión de nuevo."
+                });
             }
         };
     })

@@ -6,7 +6,7 @@ import { TokenStorageService } from './token-storage.service';
 import { AuthService } from './auth.service';
 import { LlaveroSesionesService } from './llavero-sesiones.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
+import { debeCerrarSesionPor401, esSesionRevocada } from './funciones/debe-cerrar-sesion-por-401.funcion';
 import {
   EstadoSesion,
   LIMITES_SESION_POR_DEFECTO,
@@ -167,7 +167,11 @@ export class SessionTimeoutService {
         // 401 de autenticación: el token ya no vale, la sesión terminó de verdad.
         // El 401 del gate de plataforma NO cuenta (ver debe-cerrar-sesion-por-401.funcion.ts).
         if (debeCerrarSesionPor401(err, true)) {
-          this.zone.run(() => this.endSession('expirada'));
+          // «Revocada» y «expirada» cierran igual; lo que cambia es qué se le dice al operario.
+          // Decirle «expiró» a alguien cuya tablet acaban de apagar a propósito lo manda a esperar
+          // en vez de a hablar con quien la cerró.
+          const motivo: MotivoFinDeSesion = esSesionRevocada(err) ? 'revocada' : 'expirada';
+          this.zone.run(() => this.endSession(motivo));
           return;
         }
 

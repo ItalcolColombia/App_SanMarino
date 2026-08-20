@@ -1,6 +1,7 @@
 // src/ZooSanMarino.API/Controllers/TrasladosController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Traslados;
@@ -89,6 +90,11 @@ public class TrasladosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<MovimientoAvesDto>> CrearTrasladoAves([FromBody] CrearTrasladoAvesDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaTraslado) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             // Validar disponibilidad
@@ -146,6 +152,11 @@ public class TrasladosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<TrasladoHuevosDto>> CrearTrasladoHuevos([FromBody] CrearTrasladoHuevosDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaTraslado) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             var traslado = await _trasladoHuevosService.CrearTrasladoHuevosAsync(dto, _currentUser.UserId);
@@ -322,6 +333,11 @@ public class TrasladosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TrasladoHuevosDto>> ActualizarTrasladoHuevos(int id, [FromBody] ActualizarTrasladoHuevosDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaTraslado) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             var traslado = await _trasladoHuevosService.ActualizarTrasladoHuevosAsync(id, dto, _currentUser.UserId);

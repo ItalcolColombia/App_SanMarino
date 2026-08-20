@@ -196,6 +196,22 @@ Infrastructure/Services/<Modulo>/
 
 **SQL crudo en `/backend/sql/`** solo para: funciones/triggers/vistas (ej. `fn_seguimiento_diario_engorde.sql`), backfills masivos (DDL+DML mezclados), seeds de catálogos. Para columnas/tablas/índices/constraints simples → **migración EF idempotente**.
 
+### 🔴 El `.sql` es el ESPEJO; la migración es el VEHÍCULO
+
+**Nada aplica `backend/sql/` solo: ni el arranque de la app, ni el deploy.** Lo único que corre en producción son las migraciones EF (`Database__RunMigrations=true` en la TaskDef). Un `fn_*.sql` o `vw_*.sql` que viva **sólo** como archivo **no existe en producción**, aunque el repo lo muestre como trabajo hecho.
+
+> **Regla vinculante:** todo objeto de BD que la app consulte —función, vista, trigger, índice, tabla, seed— llega a producción **por migración**. El `.sql` en `backend/sql/` se conserva como espejo legible del objeto, nunca como el medio para aplicarlo. Si escribís un `fn_`/`vw_` nuevo, la migración que lo crea entra **en el mismo commit**.
+
+**Gate de máquina** (corta el CI): `node backend/scripts/verificar-sql-llega-por-migracion.js` exige que cada `fn_*.sql` / `vw_*.sql` esté nombrado por al menos una migración. Si un archivo legítimamente no lleva una, se declara **en el propio archivo**:
+
+```sql
+-- SIN-MIGRACION: <motivo concreto>
+```
+
+**Exentos por prefijo, a propósito:** `verificar_*.sql` son diagnósticos de **solo lectura** —se corren a mano contra un dump para medir, no crean nada, migrarlos no tendría sentido—; `migracion_*.sql` y `backfill_*.sql` son operativos de una sola vez que quedan como registro de lo que se hizo.
+
+**Por qué existe la regla:** medido el 20-ago-2026 contra la copia de producción, dos vistas del repo **no existían en la BD** — `vw_validacion_alimento_engorde` (1-jun) sin un solo lector, y `vw_seguimiento_pollo_engorde_add_company_id` (16-abr), cuyo contenido alguien había plegado dentro de otra migración. Ninguna era un hueco funcional; el daño fue hacer perder tiempo y confundir el estado real del sistema.
+
 ---
 
 ## 🔍 Regla de schema — EL CÓDIGO MANDA
@@ -283,6 +299,24 @@ cerrados de saldo 0 a negativo** sin mejorar el cuadre: eran alimento real ya co
 `GET /api/CuadreAlimentoEngorde` responde el invariante por galpón
 (`saldo del ciclo activo == stock − movimientos posteriores`). Si un cambio lo mueve de **0
 descuadrados**, es una regresión.
+
+⚠️ **No lo consultes con `WHERE abs(descuadre_kg) > 1 OR filas_negativas > 0`: esa condición mezcla
+dos problemas distintos** y devuelve un número que asusta sin decir nada. `descuadre_kg` son KILOS
+que faltan o sobran; `filas_negativas` son DÍAS que cerraron en rojo con el total perfecto (está mal
+el orden o la fecha de los ingresos). Medido el 20-ago-2026 en Panamá: esa consulta daba **23
+galpones** cuando los que tenían kilos eran **8** — los otros 15 entraban con un `descuadre_kg` de
+~1e-11, o sea cero.
+
+Usá el reporte canónico, que separa las dos señales, **atribuye la causa de cada descuadre** y trae
+línea base para comparar antes/después:
+
+```bash
+psql ... -f backend/sql/verificar_cuadre_alimento_engorde.sql   # 1ª vez congela; 2ª compara
+```
+
+**Un descuadre NO se resuelve cerrando el lote: se HEREDA al ciclo siguiente**, porque el stock es
+del GALPÓN y el saldo es del CICLO ACTIVO. Medido: el galpón G0483 arrastró 23.300,0 kg del lote 187
+al 190. Por eso el reporte dice cuántos ciclos pasaron por cada galpón.
 
 ---
 

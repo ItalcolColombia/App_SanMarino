@@ -11,12 +11,13 @@ import { TablaListaRegistroComponent } from './pages/tabla-lista-registro/tabla-
 import { ModalCreateEditComponent } from './components/modal-create-edit/modal-create-edit.component';
 import { AsignarUsuarioGranjaComponent } from './components/asignar-usuario-granja/asignar-usuario-granja.component';
 import { ModalResetPasswordComponent } from './components/modal-reset-password/modal-reset-password.component';
+import { SesionesUsuarioComponent } from './components/sesiones-usuario/sesiones-usuario.component';
 import { UserListItem } from '../../../core/services/user/user.service';
 
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent],
+  imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent, SesionesUsuarioComponent],
   templateUrl: './user-management.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./user-management.component.scss']
@@ -43,6 +44,10 @@ export class UserManagementComponent implements OnInit {
   // Modal de reset de contraseña
   resetPasswordModalOpen = false;
   selectedUserForReset: UserListItem | null = null;
+
+  // Modal de sesiones activas (B1): es lo que se abre cuando reportan una tablet perdida.
+  sesionesModalOpen = false;
+  selectedUserForSesiones: UserListItem | null = null;
 
   constructor(private library: FaIconLibrary) {
     library.addIcons(
@@ -92,6 +97,16 @@ export class UserManagementComponent implements OnInit {
   closeResetPasswordModal(): void {
     this.resetPasswordModalOpen = false;
     this.selectedUserForReset = null;
+  }
+
+  openSesionesModal(user: UserListItem): void {
+    this.selectedUserForSesiones = user;
+    this.sesionesModalOpen = true;
+  }
+
+  closeSesionesModal(): void {
+    this.sesionesModalOpen = false;
+    this.selectedUserForSesiones = null;
   }
 
   getUserCompanyId(user: UserListItem): number {

@@ -197,43 +197,77 @@
           </div>
           <!-- /SCROLL AREA -->
 
-          <!-- FOOTER: Diagnóstico + Cerrar sesión -->
+          <!-- FOOTER: la salida del día a día; lo del equipo, plegado -->
           <div class="sb-footer">
-            <!-- `/diagnostico` NO sale de `role_menus` a propósito: es la pantalla de rescate
-                 (sesión vencida, SW en safe mode, capturas sin enviar) y depender de un permiso la
-                 haría inalcanzable justo cuando hace falta. Hasta hoy sólo se llegaba por el aviso
-                 de la barra PWA o por el atajo del manifest —o sea, sólo con la app instalada—. -->
-            <a routerLink="/diagnostico"
-               routerLinkActive="is-active"
-               [routerLinkActiveOptions]="{ exact: true }"
-               class="sb-diagnostico">
-              <fa-icon [icon]="faScrewdriverWrench" class="sb-diagnostico__icon"></fa-icon>
-              <span class="sb-diagnostico__label">Diagnóstico del dispositivo</span>
-            </a>
 
             @if (haySesion$ | async) {
-            @if (hayLlavero) {
-              <!-- Aparcar: la sesión queda cifrada en el equipo y entra otro operario. NO purga
-                   nada, porque quien aparca vuelve y su caché es lo que le deja seguir sin red. -->
-              <button type="button" class="sb-logout" (click)="cambiarDeUsuario()"
-                      data-testid="cambiar-usuario">
-                <fa-icon [icon]="faUser" class="sb-logout__icon"></fa-icon>
-                <span class="sb-logout__label">Cambiar de usuario</span>
+              <!-- Lo único que se usa todos los días queda a la vista. -->
+              <button type="button" class="sb-logout" (click)="logout()" data-testid="cerrar-sesion">
+                <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
+                <span class="sb-logout__label">Cerrar Sesión</span>
               </button>
-            }
 
-            <button type="button" class="sb-logout" (click)="logout()" data-testid="cerrar-sesion">
-              <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
-              <span class="sb-logout__label">Cerrar Sesión</span>
-            </button>
+              <!-- Lo del equipo (diagnóstico, relevo de operario, entrega del dispositivo) se usa
+                   una vez en la vida de la tablet: vive plegado. Desplegado metía tres botones
+                   —dos destructivos— en el pie de todas las pantallas. -->
+              <div class="sb-device">
+                <button type="button"
+                        class="sb-device__toggle"
+                        [class.sb-device__toggle--open]="dispositivoAbierto"
+                        [attr.aria-expanded]="dispositivoAbierto"
+                        aria-controls="sb-device-panel"
+                        (click)="toggleDispositivo()"
+                        data-testid="acciones-dispositivo">
+                  <fa-icon [icon]="faScrewdriverWrench" class="sb-device__icon"></fa-icon>
+                  <span class="sb-device__label">Este dispositivo</span>
+                  <fa-icon [icon]="faChevronDown" class="sb-device__caret"></fa-icon>
+                </button>
 
-            <!-- «Este equipo cambia de manos»: se van los slots de todos y toda la caché. La cola
-                 de capturas no se toca ni acá (R9), y el diálogo lo dice. -->
-            <button type="button" class="sb-logout" (click)="borrarDispositivo()"
-                    data-testid="borrar-dispositivo">
-              <fa-icon [icon]="faTimes" class="sb-logout__icon"></fa-icon>
-              <span class="sb-logout__label">Borrar este dispositivo</span>
-            </button>
+                @if (dispositivoAbierto) {
+                  <div class="sb-device__panel" id="sb-device-panel">
+                    <!-- `/diagnostico` NO sale de `role_menus` a propósito: es la pantalla de rescate
+                         (sesión vencida, SW en safe mode, capturas sin enviar) y depender de un
+                         permiso la haría inalcanzable justo cuando hace falta. -->
+                    <a routerLink="/diagnostico"
+                       routerLinkActive="is-active"
+                       [routerLinkActiveOptions]="{ exact: true }"
+                       class="sb-device__item"
+                       data-testid="diagnostico">
+                      <fa-icon [icon]="faScrewdriverWrench" class="sb-device__item-icon"></fa-icon>
+                      <span class="sb-device__item-label">Diagnóstico</span>
+                    </a>
+
+                    @if (hayLlavero) {
+                      <!-- Aparcar: la sesión queda cifrada en el equipo y entra otro operario. NO purga
+                           nada, porque quien aparca vuelve y su caché es lo que le deja seguir sin red. -->
+                      <button type="button" class="sb-device__item" (click)="cambiarDeUsuario()"
+                              data-testid="cambiar-usuario">
+                        <fa-icon [icon]="faUser" class="sb-device__item-icon"></fa-icon>
+                        <span class="sb-device__item-label">Cambiar de usuario</span>
+                      </button>
+                    }
+
+                    <!-- «Este equipo cambia de manos»: se van los slots de todos y toda la caché. La cola
+                         de capturas no se toca ni acá (R9), y el diálogo lo dice. -->
+                    <button type="button" class="sb-device__item sb-device__item--danger"
+                            (click)="borrarDispositivo()" data-testid="borrar-dispositivo">
+                      <fa-icon [icon]="faTimes" class="sb-device__item-icon"></fa-icon>
+                      <span class="sb-device__item-label">Borrar este dispositivo</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            } @else {
+              <!-- Sin sesión el pie es SÓLO el rescate: no hay nada que ordenar, y plegarlo sería
+                   esconder la única salida justo cuando hace falta (ver `haySesion$`). -->
+              <a routerLink="/diagnostico"
+                 routerLinkActive="is-active"
+                 [routerLinkActiveOptions]="{ exact: true }"
+                 class="sb-diagnostico"
+                 data-testid="diagnostico">
+                <fa-icon [icon]="faScrewdriverWrench" class="sb-diagnostico__icon"></fa-icon>
+                <span class="sb-diagnostico__label">Diagnóstico del dispositivo</span>
+              </a>
             }
           </div>
           <!-- /FOOTER -->

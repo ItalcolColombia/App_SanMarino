@@ -17,6 +17,15 @@ namespace ZooSanMarino.Application.Tests;
 /// encasetamiento real del galpón (nunca el mes anterior entero, nunca el futuro) y que sin encaset
 /// el comportamiento es byte a byte el de la regla previa.
 /// </para>
+///
+/// <para>
+/// 🔑 20-ago-2026: la ventana BASE (sin D4) se amplió a <c>MIN(1 del mes, hoy − 15)</c>
+/// (<see cref="VentanaFechaRegistroCalculos"/>). Con <c>Hoy = 07/08/2026</c> eso es <c>23/07/2026</c>.
+/// Varios de los casos que antes solo la excepción D4 admitía ahora los admite la base sola —es la
+/// ampliación funcionando— así que los escenarios que quieren seguir probando el LÍMITE propio de D4
+/// (no el de la base) se corrieron a fechas anteriores al 23/07, donde la base por sí sola todavía
+/// rechaza y la única vía posible es la excepción.
+/// </para>
 /// </summary>
 public class VentanaFechaMovimientoInventarioEncasetProximoTests
 {
@@ -48,11 +57,23 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     public void SinFecha_PermitidoAunqueHayaEncaset()
         => Assert.True(Permitida(null, new DateTime(2026, 8, 10)));
 
-    // ─── Sin encaset que la justifique, el mes anterior sigue cerrado ───────────
+    // ─── Últimos 15 días: ahora la BASE los admite, sin necesitar D4 ─────────────
 
     [Fact]
-    public void MesAnterior_SinEncaset_Rechazado()
-        => Assert.False(Permitida(new DateTime(2026, 7, 31), null));
+    public void UltimosQuinceDias_SinEncaset_YaLoPermiteLaBase()
+    {
+        // 31/07 está a 7 días de Hoy (07/08): dentro del piso rodante (23/07) de la ventana base
+        // ampliada. Ya no hace falta ningún encaset que lo justifique — es la ampliación pedida por
+        // el usuario, no la excepción D4.
+        Assert.True(Permitida(new DateTime(2026, 7, 31), null));
+    }
+
+    // ─── Sin encaset que la justifique, más allá de los 15 días sigue cerrado ───
+
+    [Fact]
+    public void MasAllaDeQuinceDias_SinEncaset_Rechazado()
+        // 20/07: 18 días atrás, fuera del piso rodante (23/07) y sin encaset que abra una excepción.
+        => Assert.False(Permitida(new DateTime(2026, 7, 20), null));
 
     [Fact]
     public void MesAnteriorCompleto_SinEncaset_Rechazado()
@@ -64,34 +85,39 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     public void MesAnterior_ConEncasetASieteDias_Permitido()
     {
         // Alimento recibido el 31/07 para el lote que se encaseta el 07/08: 7 días antes, dentro de
-        // la ventana de 10 que la empresa ya tenía configurada.
+        // la ventana de 10 que la empresa ya tenía configurada. (Con la base ampliada, 31/07 ya lo
+        // admite la regla vigente sola; el resultado es el mismo, la excepción es redundante acá y
+        // eso está bien.)
         Assert.True(Permitida(new DateTime(2026, 7, 31), new DateTime(2026, 8, 7)));
     }
 
     [Fact]
     public void MesAnterior_CruceDeMes_ConEncasetAPrincipioDeMes_Permitido()
     {
-        // Llega el 29/07, encaset el 01/08. Es el escenario que motivó la excepción.
+        // Llega el 29/07, encaset el 01/08. Es el escenario que motivó la excepción originalmente.
         Assert.True(Permitida(new DateTime(2026, 7, 29), new DateTime(2026, 8, 1)));
     }
 
     [Fact]
-    public void BordeExactoDeLaVentanaDeLaEmpresa_Permitido()
+    public void BordeExactoDeLaVentanaDeLaEmpresa_MasAllaDelPisoRodante_Permitido()
     {
-        // encaset − 10 días exactos: inclusive, mismo criterio que la fn de engorde (fecha >= encaset − N).
-        Assert.True(Permitida(new DateTime(2026, 7, 28), new DateTime(2026, 8, 7)));
+        // encaset 20/07 − 10 días = 10/07: exactamente en el borde de la ventana propia de D4, y
+        // fuera del piso rodante (23/07) — así que solo la excepción lo admite, no la base.
+        Assert.True(Permitida(new DateTime(2026, 7, 10), new DateTime(2026, 7, 20)));
     }
 
     [Fact]
-    public void UnDiaAntesDeLaVentanaDeLaEmpresa_Rechazado()
-        => Assert.False(Permitida(new DateTime(2026, 7, 27), new DateTime(2026, 8, 7)));
+    public void UnDiaAntesDeLaVentanaDeLaEmpresa_MasAllaDelPisoRodante_Rechazado()
+        // Un día antes del borde de arriba (09/07): ni la base (fuera del piso rodante) ni D4 (fuera
+        // de [10/07, 20/07]) lo admiten.
+        => Assert.False(Permitida(new DateTime(2026, 7, 9), new DateTime(2026, 7, 20)));
 
     [Fact]
-    public void PosteriorAlEncaset_YFueraDelMes_Rechazado()
+    public void PosteriorAlEncaset_YFueraDeTodaVentana_Rechazado()
     {
-        // La ventana es [encaset − N, encaset]: un ingreso del 31/07 con encaset el 20/07 ya no es
-        // "alimento previo", es un movimiento del ciclo en marcha fechado en un mes cerrado.
-        Assert.False(Permitida(new DateTime(2026, 7, 31), new DateTime(2026, 7, 20)));
+        // La ventana es [encaset − N, encaset]: un ingreso del 15/07 con encaset el 10/07 ya no es
+        // "alimento previo", es un movimiento posterior fechado fuera de toda ventana (base y D4).
+        Assert.False(Permitida(new DateTime(2026, 7, 15), new DateTime(2026, 7, 10)));
     }
 
     // ─── Topes duros: futuro y 30 días ──────────────────────────────────────────
@@ -127,18 +153,19 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     [Fact]
     public void VentanaEmpresaCero_SoloElDiaDelEncaset()
     {
-        var encaset = new DateTime(2026, 7, 31);
-        Assert.True(Permitida(new DateTime(2026, 7, 31), encaset, dias: 0));
-        Assert.False(Permitida(new DateTime(2026, 7, 30), encaset, dias: 0));
+        // Corrido a julio (fuera del piso rodante de 23/07) para que la base no ensombrezca el caso.
+        var encaset = new DateTime(2026, 7, 10);
+        Assert.True(Permitida(new DateTime(2026, 7, 10), encaset, dias: 0));
+        Assert.False(Permitida(new DateTime(2026, 7, 9), encaset, dias: 0));
     }
 
     [Fact]
     public void VentanaEmpresaNegativa_SeNormalizaACero()
     {
         // Mismo criterio que AvisoFechaFueraDeCicloCalculos: Math.Max(0, dias).
-        var encaset = new DateTime(2026, 7, 31);
-        Assert.True(Permitida(new DateTime(2026, 7, 31), encaset, dias: -5));
-        Assert.False(Permitida(new DateTime(2026, 7, 30), encaset, dias: -5));
+        var encaset = new DateTime(2026, 7, 10);
+        Assert.True(Permitida(new DateTime(2026, 7, 10), encaset, dias: -5));
+        Assert.False(Permitida(new DateTime(2026, 7, 9), encaset, dias: -5));
     }
 
     [Fact]
@@ -148,6 +175,17 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
         Assert.True(Permitida(new DateTime(2026, 7, 28, 0, 0, 0), new DateTime(2026, 8, 7, 12, 0, 0)));
     }
 
+    // ─── Con el permiso de fecha retroactiva, D4 ni se llega a evaluar ──────────
+
+    [Fact]
+    public void ConPermisoRetroactivo_NoHaceFaltaEncaset()
+    {
+        var permitida = VentanaFechaMovimientoInventarioCalculos.EsFechaPermitidaConEncasetProximo(
+            new DateTime(2024, 1, 1), Hoy, proximoEncasetEnGalpon: null, VentanaEmpresa,
+            puedeRetroactivar: true);
+        Assert.True(permitida);
+    }
+
     // ─── Mensajes ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -155,7 +193,7 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     {
         var msg = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(Hoy, null, VentanaEmpresa);
 
-        Assert.Contains("01/08/2026", msg);          // conserva el mensaje base
+        Assert.Contains("23/07/2026", msg);           // piso rodante, no el 1 del mes
         Assert.Contains("07/08/2026", msg);
         Assert.Contains("encasetamiento", msg);
     }
@@ -164,10 +202,10 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     public void MensajeConEncaset_NombraLosDosExtremosDeLaVentanaDelEncaset()
     {
         var msg = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
-            Hoy, new DateTime(2026, 8, 7), VentanaEmpresa);
+            Hoy, new DateTime(2026, 7, 20), VentanaEmpresa);
 
-        Assert.Contains("28/07/2026", msg);          // encaset − 10
-        Assert.Contains("07/08/2026", msg);          // encaset
+        Assert.Contains("10/07/2026", msg);          // encaset − 10
+        Assert.Contains("20/07/2026", msg);          // encaset
         Assert.Contains("30", msg);                  // tope duro
     }
 
@@ -176,9 +214,20 @@ public class VentanaFechaMovimientoInventarioEncasetProximoTests
     {
         var basico = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentana(Hoy);
         var conEncaset = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
-            Hoy, new DateTime(2026, 8, 7), VentanaEmpresa);
+            Hoy, new DateTime(2026, 7, 20), VentanaEmpresa);
 
         Assert.NotEqual(basico, conEncaset);
         Assert.StartsWith(basico, conEncaset);
+    }
+
+    [Fact]
+    public void ConPermisoRetroactivo_ElMensajeEsElBasico_SinHablarDeEncaset()
+    {
+        var basico = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentana(Hoy, puedeRetroactivar: true);
+        var conEncaset = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
+            Hoy, new DateTime(2026, 7, 20), VentanaEmpresa, puedeRetroactivar: true);
+
+        Assert.Equal(basico, conEncaset);
+        Assert.DoesNotContain("encasetamiento", conEncaset);
     }
 }

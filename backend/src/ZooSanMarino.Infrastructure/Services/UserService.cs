@@ -16,13 +16,19 @@ public class UserService : IUserService
     private readonly IUserPermissionService _userPermissionService;
     private readonly ITicketPerfilService _ticketPerfil;
 
-    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ITicketPerfilService ticketPerfil)
+    // B1 — dar de baja a alguien tiene que sacarlo del sistema YA. Hasta ago-2026 un usuario
+    // desactivado seguía operando con su token hasta que venciera: el login lo frenaba, la sesión
+    // ya emitida no.
+    private readonly ISesionActivaService _sesiones;
+
+    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ITicketPerfilService ticketPerfil, ISesionActivaService sesiones)
     {
         _ctx = ctx;
         _hasher = hasher;
         _currentUser = currentUser;
         _userPermissionService = userPermissionService;
         _ticketPerfil = ticketPerfil;
+        _sesiones = sesiones;
     }
 
     /// <summary>
@@ -382,6 +388,9 @@ public class UserService : IUserService
         if (dto.Cedula    is not null) user.cedula    = dto.Cedula.Trim();
         if (dto.Telefono  is not null) user.telefono  = dto.Telefono.Trim();
         if (dto.Ubicacion is not null) user.ubicacion = dto.Ubicacion.Trim();
+        // B1: se anota para revocar las sesiones DESPUÉS del commit (si la transacción se cae,
+        // no se apagan sesiones de un usuario que siguió activo).
+        var quedaDesactivado = dto.IsActive is not null && !dto.IsActive.Value && user.IsActive;
         if (dto.IsActive  is not null) user.IsActive  = dto.IsActive.Value;
         if (dto.IsLocked  is not null)
         {
@@ -470,6 +479,11 @@ public class UserService : IUserService
         await _ctx.SaveChangesAsync();
         await tx.CommitAsync();
 
+        // B1 — desactivar al usuario apaga sus sesiones vivas sin esperar al `exp` del token.
+        if (quedaDesactivado)
+            await _sesiones.RevocarTodasDelUsuarioAsync(
+                user.Id, revocadaPor: _currentUser.UserGuid, motivo: "Usuario desactivado", CancellationToken.None);
+
         // Auto-aplicar la plantilla de resolutor de cada rol recién asignado (best effort).
         if (pairsToSeed.Count > 0)
             await SeedTicketPerfilesAsync(user.Id, pairsToSeed);
@@ -544,6 +558,11 @@ public class UserService : IUserService
 
         await _ctx.SaveChangesAsync();
         await tx.CommitAsync();
+
+        // B1 — la fila de sesión NO tiene FK a users (a propósito: un ON DELETE mal elegido tumba el
+        // arranque en ECS), así que borrar al usuario dejaría sus sesiones huérfanas y VIVAS.
+        await _sesiones.RevocarTodasDelUsuarioAsync(
+            id, revocadaPor: _currentUser.UserGuid, motivo: "Usuario eliminado", CancellationToken.None);
     }
 
     // ─────────────────────────────────────────────────────────────────────

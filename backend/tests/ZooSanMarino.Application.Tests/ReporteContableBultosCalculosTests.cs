@@ -90,6 +90,173 @@ public class ReporteContableBultosCalculosTests
             Ventana(Encaset, null, new DateTime(2026, 1, 1), new DateTime(2026, 4, 30)).Desde);
     }
 
+    // ───────────────────────── el consumo restado DOS VECES ─────────────────────────
+    // El saldo sumaba dos fuentes del MISMO hecho físico: el kardex (RETIROS) y el seguimiento
+    // (CONSUMO H/M). Pasa en las dos ramas del reporte, con firmas distintas.
+
+    [Theory]
+    [InlineData("Consumo diario", "Consumo", true)]
+    [InlineData("consumo diario", "consumo", true)]   // la comparación no distingue mayúsculas
+    [InlineData("  Consumo diario  ", " Consumo ", true)] // ni espacios
+    public void Legacy_ElExitEspejoDelSeguimientoNoEsUnRetiro(string reason, string destino, bool esperado)
+    {
+        Assert.Equal(esperado, EsConsumoYaContabilizadoPorSeguimiento(reason, destino));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "Consumo")]
+    [InlineData("Consumo diario", null)]              // hace falta la firma COMPLETA
+    [InlineData("Consumo diario", "Devolución")]
+    [InlineData(null, "Devolución")]                   // el Exit real de 3.280 kg de la granja 20
+    [InlineData("Ajuste", "Consumo")]
+    public void Legacy_UnRetiroDeVerdadSigueRestando(string? reason, string? destino)
+    {
+        // Los dos campos son texto libre en el formulario manual: ninguno por separado prueba el
+        // origen. Si se excluyera con uno solo se perderían salidas reales.
+        Assert.False(EsConsumoYaContabilizadoPorSeguimiento(reason, destino));
+    }
+
+    [Fact]
+    public void Unificado_ElConsumoDelSeguimientoNoEntraAlSaldo()
+    {
+        var fila = new DeltaBultosFila(
+            Entradas: 100m, Traslados: 5m, Retiros: 60m, ConsumoHembras: 20m, ConsumoMachos: 4m);
+
+        var delta = DeltaDelSaldo(fila, retirosYaTraenElConsumo: true);
+
+        // Entradas, traslados y retiros intactos; el consumo se anula SOLO para el saldo (el detalle
+        // diario lo sigue mostrando en sus columnas).
+        Assert.Equal(100m, delta.Entradas);
+        Assert.Equal(5m, delta.Traslados);
+        Assert.Equal(60m, delta.Retiros);
+        Assert.Equal(0m, delta.ConsumoHembras);
+        Assert.Equal(0m, delta.ConsumoMachos);
+    }
+
+    [Fact]
+    public void Legacy_DeltaDelSaldoNoCambiaNada()
+    {
+        // En farm_inventory_movements retiros = Exit y el consumo del backend va a ConsumoSeguimiento,
+        // excluido de los 4 buckets ⇒ ahí restar el consumo es correcto y único. Este test es el que
+        // garantiza que la rama vieja no se mueve un byte.
+        var fila = new DeltaBultosFila(
+            Entradas: 100m, Traslados: 5m, Retiros: 60m, ConsumoHembras: 20m, ConsumoMachos: 4m);
+
+        Assert.Equal(fila, DeltaDelSaldo(fila, retirosYaTraenElConsumo: false));
+    }
+
+    [Fact]
+    public void Unificado_ElConsumoDeUnPadreYaNoSeDescuentaDosVeces()
+    {
+        // El caso medido: entradas de la granja 6.373,6 · retiros (= consumo de TODA la granja)
+        // 5.997,2 · consumo de ESTE padre 2.976,0 (lote 142 de MANGOS).
+        var fila = new DeltaBultosFila(
+            Entradas: 6373.6m, Traslados: 0m, Retiros: 5997.2m,
+            ConsumoHembras: 2976.0m, ConsumoMachos: 0m);
+
+        var antes = AcumularSaldos(new[] { (new DateTime(2026, 3, 1), fila) });
+        var despues = AcumularSaldos(new[]
+        {
+            (new DateTime(2026, 3, 1), DeltaDelSaldo(fila, retirosYaTraenElConsumo: true))
+        });
+
+        // Antes: 6373,6 − 5997,2 − 2976,0 = −2.599,6 → el piso en 0 lo mostraba como galpón vacío.
+        Assert.Equal(0m, antes[0].Saldo);
+        // Después: 6373,6 − 5997,2 = 376,4, el saldo real de la granja.
+        Assert.Equal(376.4m, despues[0].Saldo);
+    }
+
+    // ───────────────────────── arrastre del saldo entre semanas ─────────────────────────
+    // El kardex de bultos es continuo: una semana sin filas es un hueco del calendario, no un stock
+    // que se vació. Hasta el 19-ago-2026 el resumen semanal miraba SOLO la semana anterior y abría en
+    // 0 cuando esa semana estaba vacía, contradiciendo al detalle diario del mismo reporte.
+
+    [Fact]
+    public void ArrastreConSemanasVaciasEnMedio_TomaElUltimoSaldoConDatos()
+    {
+        // El caso del lote 114: última fila con datos el 01-jul, seis semanas sin filas, y la semana
+        // que abre el 13-ago. Antes daba 0 (y el encabezado cerraba en 259,9 contra 509,7 del
+        // detalle); ahora arrastra 249,8.
+        var filas = new[]
+        {
+            (new DateTime(2026, 6, 30), 357.3m),
+            (new DateTime(2026, 7, 1),  249.8m),
+        };
+
+        Assert.Equal(249.8m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 8, 13)));
+    }
+
+    [Fact]
+    public void ArrastreSinHuecos_EsIdenticoAlHistorico()
+    {
+        // Sin semanas vacías el último día anterior al inicio ES el último de la semana previa ⇒ la
+        // regla nueva y la vieja dan lo mismo. Este test es el seguro de no-regresión.
+        var filas = new[]
+        {
+            (new DateTime(2026, 3, 5), 10m),
+            (new DateTime(2026, 3, 6), 20m),
+            (new DateTime(2026, 3, 7), 30m),   // último día de la semana previa
+            (new DateTime(2026, 3, 8), 99m),   // ya es la semana que abre: no cuenta
+        };
+
+        Assert.Equal(30m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreConVariasFilasElMismoDia_TomaLaMayor()
+    {
+        // Regla histórica (Max): las filas de una fecha son los lotes de la familia y el kardex de
+        // bultos sólo lo lleva la del padre; las de los sublotes traen 0.
+        var filas = new[]
+        {
+            (new DateTime(2026, 3, 7), 0m),
+            (new DateTime(2026, 3, 7), 42m),
+            (new DateTime(2026, 3, 7), 0m),
+        };
+
+        Assert.Equal(42m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreSinFilasPrevias_EsCero()
+    {
+        var filas = new[] { (new DateTime(2026, 3, 10), 500m) };
+
+        Assert.Equal(0m, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 3, 8)));
+        Assert.Equal(0m, SaldoAnteriorDeLaSemana(Array.Empty<(DateTime, decimal)>(), new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreNoDependeDelOrdenDeEntrada()
+    {
+        var desordenadas = new[]
+        {
+            (new DateTime(2026, 3, 7), 30m),
+            (new DateTime(2026, 3, 5), 10m),
+            (new DateTime(2026, 3, 6), 20m),
+        };
+
+        Assert.Equal(30m, SaldoAnteriorDeLaSemana(desordenadas, new DateTime(2026, 3, 8)));
+    }
+
+    [Fact]
+    public void ArrastreYDetalleDiarioDejanDeContradecirse()
+    {
+        // La propiedad que el arreglo garantiza: el saldo con el que abre una semana es el mismo con
+        // el que cerró la última fila anterior. Antes, con un hueco en medio, eran dos números
+        // distintos dentro del MISMO reporte.
+        var filas = new[]
+        {
+            (new DateTime(2026, 6, 30), 357.3m),
+            (new DateTime(2026, 7, 1),  249.8m),
+        };
+
+        var ultimoSaldoDelDetalle = filas[^1].Item2;
+
+        Assert.Equal(ultimoSaldoDelDetalle, SaldoAnteriorDeLaSemana(filas, new DateTime(2026, 8, 13)));
+    }
+
     // ───────────────────────── pertenencia a la semana contable ─────────────────────────
 
     [Fact]
@@ -245,16 +412,83 @@ public class ReporteContableBultosCalculosTests
     [Fact]
     public void ElSaldoPublicadoTienePisoCeroPeroElAcumuladorConservaElNegativo()
     {
+        // ⚠️ CAMBIO DE COMPORTAMIENTO DELIBERADO (19-ago-2026).
+        // Este test se llamaba así desde el principio, pero su assert afirmaba lo CONTRARIO de lo que
+        // dice su nombre: el acumulador NO conservaba el negativo, porque el carry entre días
+        // contiguos releía el valor ya recortado del mapa por fecha.
+        //   esperado ANTES:  { 0, 0, 40 }   (el -20 se perdonaba al día siguiente)
+        //   esperado AHORA:  { 0, 0, 20 }   (-20 + 40 = 20)
         var d1 = new DateTime(2026, 3, 1);
 
         var saldos = AcumularSaldos(new[]
         {
-            (d1,            Consumo(30m)),        // -30 → se publica 0
+            (d1,            Consumo(30m)),        // -30 → se publica 0, el acumulado sigue en -30
             (d1.AddDays(2), EntradaDelta(10m)),   // hueco: -30 + 10 = -20 → se publica 0
-            (d1.AddDays(3), EntradaDelta(40m)),   // día contiguo: retoma el 0 publicado → 40
+            (d1.AddDays(3), EntradaDelta(40m)),   // día contiguo: retoma el -20 CRUDO → 20
         });
 
-        Assert.Equal(new[] { 0m, 0m, 40m }, saldos.Select(s => s.Saldo).ToArray());
+        Assert.Equal(new[] { 0m, 0m, 20m }, saldos.Select(s => s.Saldo).ToArray());
+
+        // Lo publicado nunca es negativo: el piso en 0 es de presentación.
+        Assert.All(saldos, s => Assert.True(s.Saldo >= 0m));
+        Assert.All(saldos, s => Assert.True(s.SaldoAnterior >= 0m));
+    }
+
+    [Fact]
+    public void ElCarryEsIgualConHuecoYSinHueco()
+    {
+        // La incoherencia que esto cierra: ante un HUECO de fechas el acumulado ya seguía crudo, pero
+        // entre días CONTIGUOS se recortaba. Eran dos comportamientos para la misma integración según
+        // si el día anterior tenía filas. Ahora las dos series terminan igual.
+        var d1 = new DateTime(2026, 3, 1);
+
+        var contiguas = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(30m)),
+            (d1.AddDays(1), EntradaDelta(50m)),   // -30 + 50 = 20
+        });
+
+        var conHueco = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(30m)),
+            (d1.AddDays(5), EntradaDelta(50m)),   // -30 + 50 = 20
+        });
+
+        Assert.Equal(20m, contiguas[^1].Saldo);
+        Assert.Equal(20m, conHueco[^1].Saldo);
+    }
+
+    [Fact]
+    public void ElConsumoEnRojoNoSePerdonaAlDiaSiguiente()
+    {
+        // El caso que motiva el arreglo: el galpón consume mas de lo que recibió y al otro día llega
+        // una remisión. Antes el rojo se borraba contra el piso de 0 y la remisión entraba entera.
+        var d1 = new DateTime(2026, 3, 1);
+
+        var saldos = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(100m)),        // -100
+            (d1.AddDays(1), Consumo(100m)),        // -200
+            (d1.AddDays(2), Consumo(100m)),        // -300
+            (d1.AddDays(3), EntradaDelta(1000m)),  // -300 + 1000 = 700, NO 1000
+        });
+
+        Assert.Equal(700m, saldos[^1].Saldo);
+    }
+
+    [Fact]
+    public void ConSaldoSiempreNoNegativo_LaSalidaEsIdenticaAlLegado()
+    {
+        // El seguro de no-regresión del cambio del carry: mientras el acumulado no baja de 0,
+        // Math.Max(0m, x) == x y el crudo y el recortado son el mismo número ⇒ byte a byte igual.
+        var filas = EscenarioSinSoloBultos();
+
+        var saldos = AcumularSaldos(filas);
+        var legado = AcumuladorLegado(filas);
+
+        Assert.Equal(legado.Select(l => l.Saldo).ToArray(), saldos.Select(s => s.Saldo).ToArray());
+        Assert.Equal(legado.Select(l => l.SaldoAnterior).ToArray(), saldos.Select(s => s.SaldoAnterior).ToArray());
+        Assert.All(saldos, s => Assert.True(s.Saldo >= 0m));
     }
 
     [Fact]

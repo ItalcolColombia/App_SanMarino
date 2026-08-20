@@ -1,5 +1,6 @@
 // src/ZooSanMarino.API/Controllers/FarmInventoryMovementsController.cs
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using System.Text.Json.Serialization;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -36,6 +37,11 @@ public class FarmInventoryMovementsController : ControllerBase
         [FromBody] InventoryEntryRequest req,
         CancellationToken ct = default)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         var mov = await _service.PostEntryAsync(farmId, req, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }
@@ -49,6 +55,11 @@ public class FarmInventoryMovementsController : ControllerBase
         [FromBody] InventoryExitRequest req,
         CancellationToken ct = default)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         var mov = await _service.PostExitAsync(farmId, req, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }
@@ -62,6 +73,11 @@ public class FarmInventoryMovementsController : ControllerBase
         [FromBody] InventoryTransferRequest req,
         CancellationToken ct = default)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         var (outMov, inMov) = await _service.PostTransferAsync(farmId, req, ct);
         // Devolvemos { "out": ..., "In": ... } tal como espera el front
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = outMov.Id }, new TransferResponse(outMov, inMov));
@@ -76,6 +92,11 @@ public class FarmInventoryMovementsController : ControllerBase
         [FromBody] InventoryAdjustRequest req,
         CancellationToken ct = default)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         var mov = await _service.PostAdjustAsync(farmId, req, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }

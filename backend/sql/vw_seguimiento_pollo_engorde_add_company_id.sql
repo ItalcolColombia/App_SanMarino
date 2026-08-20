@@ -1,3 +1,9 @@
+-- SIN-MIGRACION: fragmento SUPERADO. Verificado el 20-ago-2026 contra la copia de produccion:
+-- la vista `vw_seguimiento_pollo_engorde_add_company_id` NO existe, pero las tres columnas que
+-- este archivo agregaba (company_id, saldo_aves_vivas_hembras, saldo_aves_vivas_machos) SI estan
+-- vivas dentro de `vw_seguimiento_pollo_engorde`: alguien las plego en la migracion de la vista
+-- principal. Se conserva como registro de por que existen esas columnas; no hay nada que aplicar.
+
 -- =============================================================================
 -- Agrega a vw_seguimiento_pollo_engorde:
 --   • company_id        (farms.company_id de la granja del lote)

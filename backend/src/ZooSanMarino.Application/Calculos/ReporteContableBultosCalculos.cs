@@ -102,6 +102,157 @@ public static class ReporteContableBultosCalculos
         (DateTime Desde, DateTime Hasta) ventana) =>
         (ventana.Desde.Date, ventana.Hasta.Date.AddDays(1));
 
+    // ── El consumo restado DOS VECES ────────────────────────────────────────────────────────────
+    // El saldo suma dos fuentes que registran el MISMO hecho físico: el kardex de alimento (columna
+    // RETIROS) y el consumo del seguimiento diario (columnas CONSUMO H/M). Pasa en las DOS ramas del
+    // reporte, con firmas distintas, y en las dos el recorte a 0 de AcumularSaldos lo disfraza: el
+    // acumulado real de los lotes 142 y 143 (MANGOS) llega a −2.599,6 y −2.644,7 bultos y se publica
+    // como 0,0 — no como un negativo, sino como un galpón vacío.
+
+    /// <summary><c>reason</c> con el que el seguimiento diario sellaba su salida de kardex legacy.</summary>
+    public const string ReasonConsumoDiario = "Consumo diario";
+
+    /// <summary><c>destination</c> con el que el seguimiento diario sellaba su salida de kardex legacy.</summary>
+    public const string DestinoConsumo = "Consumo";
+
+    /// <summary>
+    /// <b>Rama LEGACY</b> (<c>farm_inventory_movements</c>): ¿este <c>Exit</c> es el ESPEJO de un
+    /// consumo que el reporte ya publica en sus columnas de consumo?
+    ///
+    /// <para>
+    /// <b>De dónde salen estas filas.</b> Hasta el 10-jul-2026 el modal de seguimiento, al guardar,
+    /// posteaba un <c>Exit</c> al kardex legacy por los MISMOS kg que grababa en
+    /// <c>seguimiento_diario_levante.consumo_kg_hembras/machos</c>. El commit <c>8e9bbc1</c> borró ese
+    /// escritor porque duplicaba el descuento del inventario nuevo, pero <b>no tocó este reporte</b>,
+    /// que siguió sumando las dos fuentes. En la BD local quedaron <b>252</b> movimientos /
+    /// <b>131.278,3 kg</b> en la empresa 1 y 1 movimiento / 500 kg en Demo, todos con esta firma.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué el arreglo es de LECTURA y no de datos.</b> Esas filas decrementaron
+    /// <c>farm_inventory.quantity</c> de verdad: en el kardex legacy son el único registro de que ese
+    /// alimento salió, así que borrarlas desincronizaría el stock.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué se exigen los DOS campos.</b> Ambos son texto libre en el formulario manual, así que
+    /// ninguno por separado prueba el origen; juntos son la firma que sólo producía la ruta del
+    /// seguimiento. Y hace falta discriminar: la granja 20 tiene un <c>Exit</c> REAL de 3.280 kg, con
+    /// <c>reason</c> vacío y <c>destination</c> <c>"Devolución"</c>, que sí tiene que restar.
+    /// </para>
+    ///
+    /// <para>
+    /// Portado del trabajo del 8-ago-2026 (<c>b853e95</c>, rama <c>claude/heuristic-perlman-f10ea4</c>),
+    /// que arregló esta rama con plan y tests y nunca llegó a <c>main</c>.
+    /// </para>
+    /// </summary>
+    public static bool EsConsumoYaContabilizadoPorSeguimiento(string? reason, string? destination) =>
+        !string.IsNullOrWhiteSpace(reason) &&
+        !string.IsNullOrWhiteSpace(destination) &&
+        string.Equals(reason.Trim(), ReasonConsumoDiario, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(destination.Trim(), DestinoConsumo, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// <b>Rama UNIFICADA</b> (<c>inventario_gestion_movimiento</c>): qué deltas entran al SALDO.
+    ///
+    /// <para>
+    /// 🔑 <b>Acá el problema es de GRANO, no de firma.</b> Los <c>retiros</c> de esta rama son los
+    /// movimientos <c>Consumo</c>, que escribe el propio seguimiento diario de <b>todos</b> los lotes
+    /// de la granja; <c>consumoHembras/Machos</c> es el consumo de <b>ESTE lote padre</b> nada más.
+    /// Restar los dos descuenta el de este padre dos veces.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Y el arreglo no es «excluir el consumo del seguimiento de los retiros»</b> —lo que sí
+    /// corresponde en la rama legacy—: acá eso dejaría fuera el consumo de los OTROS padres de la
+    /// granja, que es justamente lo que <c>retiros</c> aporta. Medido: el saldo se dispara a
+    /// 3.730,2 / 2.257,3 / 3.137,3 / 4.266,2 y deja de converger. La resta correcta al grano de la
+    /// granja es <c>entradas − traslados − retiros</c> ⇒ <b>518,2</b> (LA ESMERALDA) y <b>376,4</b>
+    /// (MANGOS), un solo saldo por granja.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por eso la decisión es POR RAMA.</b> En la legacy <c>retiros = Exit</c> y el consumo del
+    /// backend va a <c>InventoryMovementType.ConsumoSeguimiento</c>, excluido a propósito de los 4
+    /// buckets ⇒ ahí restar <c>consumoH/M</c> es correcto y único, y esta función devuelve la fila
+    /// intacta. Un cambio plano en <see cref="AcumularSaldos"/> habría roto una rama para arreglar la
+    /// otra.
+    /// </para>
+    ///
+    /// <para>
+    /// Es la misma invariante que engorde ya enforcaba en
+    /// <c>TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde</c> («Contarlo acá lo descontaría dos
+    /// veces»), resuelta del lado que el Contable tiene disponible: engorde puede restar el consumo del
+    /// seguimiento porque su kardex es por GALPÓN, al mismo grano; el Contable no, porque el suyo es
+    /// por GRANJA.
+    /// </para>
+    /// </summary>
+    /// <param name="fila">Los deltas de la fila, tal como los trae el detalle diario.</param>
+    /// <param name="retirosYaTraenElConsumo">
+    /// <c>true</c> cuando el kardex viene del módulo unificado
+    /// (<c>companies.reportes_alimento_desde_inventario_unificado</c>).
+    /// </param>
+    public static DeltaBultosFila DeltaDelSaldo(DeltaBultosFila fila, bool retirosYaTraenElConsumo) =>
+        retirosYaTraenElConsumo
+            ? fila with { ConsumoHembras = 0m, ConsumoMachos = 0m }
+            : fila;
+
+    /// <summary>
+    /// Saldo de bultos con el que ABRE una semana contable: el del último día con fila
+    /// <b>anterior</b> al inicio de esa semana.
+    ///
+    /// <para>
+    /// 🔑 <b>El kardex de bultos es CONTINUO</b> —es el alimento que hay en la granja, no un número
+    /// que se reinicia cada lunes—, así que una semana sin filas es un hueco del calendario, no un
+    /// stock que se vació. Hasta el 19-ago-2026 el service miraba <b>sólo</b> la semana
+    /// <c>actual − 1</c>: si esa semana no tenía filas, el saldo anterior salía <c>0</c> y la semana
+    /// abría de cero, contradiciendo al detalle diario del <b>mismo reporte</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Medido en el lote <b>114</b> (A374A, LA ESMERALDA): entre la semana 37 y la 44 hay 6 semanas
+    /// vacías, así que la 44 abría en 0 y cerraba en <b>259,9</b> (1.481,2 − 1.221,3) mientras la
+    /// última fila diaria decía <b>509,7</b>. Igual en el 116.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Sin semanas vacías en medio el resultado es idéntico al histórico</b>: el último día
+    /// anterior al inicio de la semana ES el último día de la semana previa.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Dentro de un mismo día gana el saldo mayor</b>, que es la regla histórica
+    /// (<c>Max(d =&gt; d.SaldoBultos)</c>): las filas de una fecha son los lotes de la familia y el
+    /// kardex de bultos sólo lo lleva la del padre; las de los sublotes traen 0.
+    /// </para>
+    /// </summary>
+    /// <param name="filas">Filas del detalle diario con su saldo ya acumulado. Puede venir sin ordenar.</param>
+    /// <param name="semanaInicio">Primer día de la semana contable que abre.</param>
+    public static decimal SaldoAnteriorDeLaSemana(
+        IEnumerable<(DateTime Fecha, decimal SaldoBultos)> filas,
+        DateTime semanaInicio)
+    {
+        DateTime? ultima = null;
+        decimal saldo = 0m;
+
+        foreach (var (fecha, saldoFila) in filas)
+        {
+            if (fecha >= semanaInicio) continue;
+
+            if (ultima is null || fecha > ultima.Value)
+            {
+                ultima = fecha;
+                saldo = saldoFila;
+            }
+            else if (fecha == ultima.Value && saldoFila > saldo)
+            {
+                saldo = saldoFila;
+            }
+        }
+
+        return ultima is null ? 0m : saldo;
+    }
+
     /// <summary>
     /// ¿Esta fecha genera una fila "solo bultos" del lote padre? Sí cuando hay movimiento real, el
     /// padre no generó ya una fila propia ese día (si la generó, esa fila YA lleva los bultos: el
@@ -172,6 +323,28 @@ public static class ReporteContableBultosCalculos
     /// <item>cada fila suma entradas y resta traslados, retiros y consumos;</item>
     /// <item>el saldo se publica con piso en 0, pero el acumulador interno conserva el negativo.</item>
     /// </list>
+    ///
+    /// <para>
+    /// 🔑 <b>El último punto es el contrato, y hasta el 19-ago-2026 la implementación no lo cumplía.</b>
+    /// El acumulado se guardaba en el mapa por fecha <i>ya recortado</i> (<c>Math.Max(0m, …)</c>) y el
+    /// grupo siguiente lo releía de ahí, así que el negativo <b>no</b> sobrevivía al salto de día: se
+    /// perdía en cada carry entre días <b>contiguos</b>. Y era incoherente consigo mismo, porque ante
+    /// un <b>hueco</b> de fechas el acumulado sí seguía crudo — dos comportamientos para la misma
+    /// integración, según si el día anterior tenía filas o no.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Qué significaba en datos:</b> un día que cerraba en rojo se "perdonaba" al día siguiente, y
+    /// el alimento consumido de más desaparecía del acumulado. Ahora el mapa guarda el acumulado
+    /// <b>crudo</b> y el piso en 0 se aplica sólo a lo que se publica — que es lo que este doc decía
+    /// desde el principio.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Lo publicado nunca es negativo</b> (ni el saldo ni el saldo anterior): el piso en 0 es de
+    /// presentación. Y mientras el acumulado no baje de 0, <c>Math.Max(0m, x) == x</c> ⇒ la salida es
+    /// <b>byte a byte la misma</b> que antes. Sólo cambia donde el recorte estaba borrando consumo.
+    /// </para>
     /// La entrada debe venir agrupada por fecha y ordenada ascendentemente (es lo que produce el
     /// <c>GroupBy(fecha).OrderBy(key)</c> del reporte).
     /// </summary>
@@ -189,15 +362,17 @@ public static class ReporteContableBultosCalculos
         {
             if (fechaDelGrupo != fecha)
             {
+                // El mapa guarda el acumulado CRUDO: es el carry aritmético, no lo que se publica.
                 if (fechaDelGrupo.HasValue)
-                    saldoPorFecha[fechaDelGrupo.Value] = Math.Max(0m, acumulado);
+                    saldoPorFecha[fechaDelGrupo.Value] = acumulado;
 
                 fechaDelGrupo = fecha;
 
                 if (saldoPorFecha.TryGetValue(fecha.AddDays(-1), out var saldoDiaAnterior))
                 {
-                    saldoAnteriorDelGrupo = saldoDiaAnterior;
+                    // Se retoma el crudo; el piso en 0 es sólo de presentación.
                     acumulado = saldoDiaAnterior;
+                    saldoAnteriorDelGrupo = Math.Max(0m, saldoDiaAnterior);
                 }
                 else
                 {
@@ -216,7 +391,7 @@ public static class ReporteContableBultosCalculos
         }
 
         if (fechaDelGrupo.HasValue)
-            saldoPorFecha[fechaDelGrupo.Value] = Math.Max(0m, acumulado);
+            saldoPorFecha[fechaDelGrupo.Value] = acumulado;
 
         return salida;
     }

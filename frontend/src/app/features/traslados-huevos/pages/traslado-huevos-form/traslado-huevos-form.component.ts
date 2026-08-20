@@ -7,6 +7,12 @@ import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-sel
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, HuevosDisponiblesDto } from '../../services/traslados-huevos.service';
 import { FarmService } from '../../../farm/services/farm.service';
 import { environment } from '../../../../../environments/environment';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 @Component({
   selector: 'app-traslado-huevos-form',
@@ -50,9 +56,27 @@ export class TrasladoHuevosFormComponent implements OnInit {
     private fb: FormBuilder,
     private trasladosService: TrasladosHuevosService,
     private farmService: FarmService,
-    private router: Router
+    private router: Router,
+    private userPermService: UserPermissionService
   ) {
     this.initForm();
+  }
+
+  /** Ventana de fechas admitida para `fechaTraslado` (mes en curso ∪ últimos 15 días). */
+  private get puedeRetroactivar(): boolean {
+    return this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaTrasladoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaTrasladoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaTrasladoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   ngOnInit(): void {

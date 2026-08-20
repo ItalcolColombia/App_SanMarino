@@ -87,7 +87,11 @@
                   id="fechaTrasladoHuevos"
                   formControlName="fechaTraslado"
                   class="form-control"
-                  [readonly]="isReadOnly()">
+                  [readonly]="isReadOnly()"
+                  [attr.min]="fechaTrasladoMin" [max]="fechaTrasladoMax">
+                @if (!isReadOnly()) {
+                  <small class="field-hint">{{ fechaTrasladoHint }}</small>
+                }
                 </div>
                 <div class="form-group">
                   <label for="tipoOperacionHuevos">Tipo de operación <span class="required">*</span></label>

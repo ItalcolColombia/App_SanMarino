@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -24,6 +25,11 @@ public class AuthService : IAuthService
     private readonly IRoleCompositeService _acl; // ← reemplaza a IMenuService
     private readonly IEmailService _emailService;
 
+    // B1 — revocación de sesión. El login deja de emitir un token irrevocable: registra su `jti`
+    // en `sesiones_activas` (lista blanca), y cambiar la contraseña apaga todas las sesiones vivas.
+    private readonly ISesionActivaService _sesiones;
+    private readonly IHttpContextAccessor _http;
+
     // Respuesta única para recuperación de contraseña: no revela si el correo existe (anti-enumeración).
     private const string NeutralRecoveryMessage =
         "Si el correo está registrado, recibirás un mensaje con instrucciones para restablecer tu contraseña.";
@@ -33,13 +39,17 @@ public class AuthService : IAuthService
         IPasswordHasher<Login> hasher,
         JwtOptions jwt,
         IRoleCompositeService acl,
-        IEmailService emailService)
+        IEmailService emailService,
+        ISesionActivaService sesiones,
+        IHttpContextAccessor http)
     {
         _ctx = ctx;
         _hasher = hasher;
         _jwt = jwt;
         _acl = acl;
         _emailService = emailService;
+        _sesiones = sesiones;
+        _http = http;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -197,6 +207,12 @@ public class AuthService : IAuthService
 
         login.PasswordHash = _hasher.HashPassword(login, dto.NewPassword);
         await _ctx.SaveChangesAsync();
+
+        // B1 — cambiar la contraseña apaga TODAS las sesiones del usuario, incluida la actual.
+        // Hasta ago-2026 no invalidaba nada: quien se hubiera llevado un token seguía entrando con
+        // él hasta que venciera, aunque la víctima cambiara la clave justo por eso.
+        await _sesiones.RevocarTodasDelUsuarioAsync(
+            userId, revocadaPor: userId, motivo: "Cambio de contraseña", CancellationToken.None);
     }
 
     public async Task ChangeEmailAsync(Guid userId, ChangeEmailDto dto)
@@ -273,6 +289,26 @@ public class AuthService : IAuthService
             .ToList();
     }
 
+    /// <summary>
+    /// Metadatos del dispositivo que está iniciando sesión, para poder listarla y reconocerla después
+    /// («esta es la tablet del galpón 3»). Todos opcionales: sin contexto HTTP —tests, seeds— la sesión
+    /// se registra igual, porque lo que la hace revocable es la fila, no su metadata.
+    /// </summary>
+    private (string? DeviceId, string? Ip, string? UserAgent) DatosDelDispositivo()
+    {
+        var ctx = _http.HttpContext;
+        if (ctx is null) return (null, null, null);
+
+        var deviceId = ctx.Request.Headers[RateLimitingCalculos.DeviceIdHeader].ToString();
+        var userAgent = ctx.Request.Headers.UserAgent.ToString();
+        var ip = ctx.Connection.RemoteIpAddress?.ToString();
+
+        return (
+            string.IsNullOrWhiteSpace(deviceId) ? null : deviceId,
+            string.IsNullOrWhiteSpace(ip) ? null : ip,
+            string.IsNullOrWhiteSpace(userAgent) ? null : userAgent);
+    }
+
     // Genera el JWT y arma la respuesta
     private async Task<AuthResponseDto> GenerateResponseAsync(User user, Login login)
 {
@@ -304,11 +340,19 @@ public class AuthService : IAuthService
     // ===== Claims para el JWT =====
     // Generar un identificador numérico único desde el Guid para compatibilidad
     var userIdHash = Math.Abs(user.Id.GetHashCode());
-    
+
+    // B1 — identidad de ESTA sesión. Se genera ANTES del token porque hay que persistirla:
+    // el `jti` es la llave con la que cada request pregunta si la sesión sigue viva.
+    var jti = Guid.NewGuid();
+    var emitidoEn = DateTime.UtcNow;
+
     var claims = new List<Claim>
     {
         new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
         new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+        new Claim(JwtRegisteredClaimNames.Jti, jti.ToString()),
+        new Claim(JwtRegisteredClaimNames.Iat,
+            EpochTime.GetIntDate(emitidoEn).ToString(), ClaimValueTypes.Integer64),
         new Claim(JwtRegisteredClaimNames.UniqueName, login.email),
         new Claim(JwtRegisteredClaimNames.Email, login.email),
         new Claim("firstName", user.firstName ?? string.Empty),
@@ -352,6 +396,12 @@ public class AuthService : IAuthService
         expires: expires,
         signingCredentials: creds
     );
+
+    // B1 — el token recién emitido queda anotado como sesión viva. Sin esta fila el token no vale:
+    // es una lista BLANCA, no una lista negra. Así una tablet perdida se apaga con un UPDATE en vez
+    // de esperar a que venza el token.
+    var (deviceId, ip, userAgent) = DatosDelDispositivo();
+    await _sesiones.RegistrarAsync(jti, user.Id, expires, deviceId, ip, userAgent, CancellationToken.None);
 
     // ===== Respuesta enriquecida =====
     // Obtener IDs de empresas del usuario
@@ -710,6 +760,12 @@ public class AuthService : IAuthService
                 throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
             }
 
+            // B1 — mismo criterio que los otros dos caminos de cambio de contraseña: el enlace de
+            // recuperación se usa, justamente, cuando alguien perdió el control de su cuenta.
+            await _sesiones.RevocarTodasDelUsuarioAsync(
+                resetToken.UserId, revocadaPor: resetToken.UserId,
+                motivo: "Restablecimiento de contraseña", CancellationToken.None);
+
             return new ValidatePasswordResetTokenResponseDto
             {
                 Success = true,
@@ -741,6 +797,12 @@ public class AuthService : IAuthService
 
         loginData.Login.PasswordHash = _hasher.HashPassword(loginData.Login, newPassword);
         await _ctx.SaveChangesAsync();
+
+        // B1 — restablecer la contraseña desde administración apaga las sesiones del usuario: si se
+        // hace porque perdió el equipo o le tomaron la cuenta, dejarlas vivas anula el remedio.
+        await _sesiones.RevocarTodasDelUsuarioAsync(
+            userId, revocadaPor: null, motivo: "Restablecimiento de contraseña por administración",
+            CancellationToken.None);
 
         int? emailQueueId = null;
         bool emailQueued = false;

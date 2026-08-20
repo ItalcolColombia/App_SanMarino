@@ -1,3 +1,8 @@
+-- SIN-MIGRACION: nunca se desplego y hoy no lo lee nadie. Verificado el 20-ago-2026 contra la
+-- copia de produccion: la vista NO existe en la BD y `grep` sobre backend/src y frontend/src da
+-- 0 referencias. Queda como diseno del plan que la propuso (fase_de_desarrollo/19). Si se decide
+-- usarla, entra por migracion; si no, se borra. No es un hueco funcional: nada la espera.
+
 -- =============================================================================
 -- Vistas READ-ONLY de validación de alimento engorde (plan fase_de_desarrollo/19).
 -- Reconcilian el SEGUIMIENTO (fuente de verdad acordada) contra el INVENTARIO real.

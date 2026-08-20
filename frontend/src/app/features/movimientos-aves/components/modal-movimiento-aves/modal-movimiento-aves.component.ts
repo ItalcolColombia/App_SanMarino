@@ -9,6 +9,12 @@ import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-sel
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 @Component({
   selector: 'app-modal-movimiento-aves',
@@ -102,14 +108,26 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   // Tab activo
   activeTab: 'general' | 'cantidades' | 'despacho' = 'general';
 
+  /** Ventana de fechas admitida para `fechaMovimiento` (mes en curso ∪ últimos 15 días). */
+  fechaMovimientoMin: string | null = '';
+  fechaMovimientoMax = '';
+  fechaMovimientoHint = '';
+
   constructor(
     private fb: FormBuilder,
     private movimientosService: MovimientosAvesService,
     private farmService: FarmService,
     private masterListService: MasterListService,
-    private countryFilterService: CountryFilterService
+    private countryFilterService: CountryFilterService,
+    private userPermService: UserPermissionService
   ) {
     this.initForm();
+    const puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+    const hoy = new Date();
+    const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);
+    this.fechaMovimientoMin = extremos.min;
+    this.fechaMovimientoMax = extremos.max;
+    this.fechaMovimientoHint = hintVentanaFechaRegistro(hoy, puedeRetroactivar);
   }
 
   ngOnInit(): void {

@@ -27,7 +27,9 @@ export type MotivoFinDeSesion =
   /** El servidor rechazó el token (401 de autenticación). */
   | 'expirada'
   /** Se agotó la jornada permitida sin contacto con el servidor. */
-  | 'jornada_offline_vencida';
+  | 'jornada_offline_vencida'
+  /** Alguien apagó esta sesión desde el servidor (B1). No es que venció: la revocaron. */
+  | 'revocada';
 
 export interface EstadoSesion {
   /** Ahora, en ms epoch. */
@@ -190,5 +192,9 @@ export function mensajeFinDeSesion(motivo: MotivoFinDeSesion): string {
       return 'Tu sesión expiró. Inicia sesión nuevamente.';
     case 'jornada_offline_vencida':
       return 'Llevás demasiado tiempo sin conectarte al servidor. Conectate a una red para seguir trabajando.';
+    // Se dice QUIÉN la cerró y no «expiró»: quien pierde una tablet y la reportan necesita
+    // entender que fue a propósito, no un problema de la app.
+    case 'revocada':
+      return 'Un administrador cerró esta sesión. Iniciá sesión de nuevo.';
   }
 }

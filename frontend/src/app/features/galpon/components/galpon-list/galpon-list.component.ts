@@ -398,13 +398,8 @@ export class GalponListComponent implements OnInit, OnDestroy {
       this.form.get('granjaId')?.disable();
       this.form.get('nucleoId')?.disable();
     } else {
-      const lastNum = this.allGalpones
-        .map(x => parseInt(String(x.galponId || '').replace(/\D/g, ''), 10))
-        .filter(n => !isNaN(n))
-        .reduce((m, c) => Math.max(m, c), 0);
-      const newId = `G${(lastNum + 1).toString().padStart(4, '0')}`;
       this.form.reset({
-        galponId: newId,
+        galponId: this.siguienteIdLocal(),
         galponNombre: '',
         granjaId: null,
         nucleoId: '',
@@ -417,7 +412,26 @@ export class GalponListComponent implements OnInit, OnDestroy {
       this.form.get('galponId')?.enable();
       this.form.get('granjaId')?.enable();
       this.form.get('nucleoId')?.enable();
+
+      // El Id definitivo lo da el backend: `galpon_id` es PK GLOBAL y acá solo se ven los galpones
+      // de las granjas asignadas, así que el máximo local pertenece a otra numeración y el alta
+      // chocaba con un Id ya ocupado en otra empresa. El cálculo local queda de respaldo si falla.
+      this.svc.siguienteId()
+        .pipe(takeUntil(this.destroy$), catchError(() => of(null)))
+        .subscribe(res => {
+          const id = res?.galponId?.trim();
+          if (id && !this.editing) this.form.patchValue({ galponId: id }, { emitEvent: false });
+        });
     }
+  }
+
+  /** Respaldo del Id sugerido: máximo numérico de lo visible + 1 (puede chocar; ver applyFormInModal). */
+  private siguienteIdLocal(): string {
+    const lastNum = this.allGalpones
+      .map(x => parseInt(String(x.galponId || '').replace(/\D/g, ''), 10))
+      .filter(n => !isNaN(n))
+      .reduce((m, c) => Math.max(m, c), 0);
+    return `G${(lastNum + 1).toString().padStart(4, '0')}`;
   }
 
   get nucleoOptionsFiltrados(): NucleoOption[] {

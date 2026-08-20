@@ -1204,9 +1204,12 @@
                           </div>
                           <div class="form-field">
                             <label class="ux-label" for="fecha-mov">📅 Fecha del movimiento <span class="required">*</span></label>
-                            <input id="fecha-mov" type="date" class="ux-input" formControlName="fechaMovimiento" />
+                            <input id="fecha-mov" type="date" class="ux-input" formControlName="fechaMovimiento"
+                              [attr.min]="fechaTrasladoMin" [max]="fechaTrasladoMax" />
                             @if (trasladoForm.get('fechaMovimiento')?.touched && trasladoForm.get('fechaMovimiento')?.invalid) {
                               <small class="text-danger">Requerido.</small>
+                            } @else {
+                              <small class="text-muted">{{ fechaTrasladoHint }}</small>
                             }
                           </div>
                         </div>
@@ -1503,7 +1506,9 @@
                                     <label class="ux-label" for="aves-fecha">
                                       📅 Fecha de Traslado <span class="required">*</span>
                                     </label>
-                                    <input id="aves-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                                    <input id="aves-fecha" type="date" class="ux-input" formControlName="fechaTraslado"
+                                      [attr.min]="fechaTrasladoMin" [max]="fechaTrasladoMax" />
+                                    <small class="text-muted">{{ fechaTrasladoHint }}</small>
                                   </div>
                                 </div>
                                 <!-- Cantidades -->
@@ -1703,7 +1708,9 @@
                                             <label class="ux-label" for="huevos-fecha">
                                               📅 Fecha de Traslado <span class="required">*</span>
                                             </label>
-                                            <input id="huevos-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                                            <input id="huevos-fecha" type="date" class="ux-input" formControlName="fechaTraslado"
+                                              [attr.min]="fechaTrasladoMin" [max]="fechaTrasladoMax" />
+                                            <small class="text-muted">{{ fechaTrasladoHint }}</small>
                                           </div>
                                         </div>
                                         <!-- Cantidades por Tipo de Huevo -->

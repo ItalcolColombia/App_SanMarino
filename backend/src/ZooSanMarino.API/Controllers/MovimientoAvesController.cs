@@ -1,6 +1,7 @@
 // src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -293,6 +294,11 @@ public class MovimientoAvesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateMovimientoAvesDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             if (!ModelState.IsValid)
@@ -383,6 +389,11 @@ public class MovimientoAvesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(int id, [FromBody] ActualizarMovimientoAvesDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             if (!ModelState.IsValid)

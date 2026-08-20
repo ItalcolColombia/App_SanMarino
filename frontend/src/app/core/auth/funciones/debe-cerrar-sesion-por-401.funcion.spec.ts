@@ -2,7 +2,9 @@ import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 
 import {
   debeCerrarSesionPor401,
-  MOTIVO_FALLA_PLATAFORMA
+  esSesionRevocada,
+  MOTIVO_FALLA_PLATAFORMA,
+  MOTIVO_SESION_REVOCADA
 } from './debe-cerrar-sesion-por-401.funcion';
 
 function error401(cuerpo: unknown, cabeceras?: Record<string, string>): HttpErrorResponse {
@@ -73,5 +75,44 @@ describe('debeCerrarSesionPor401', () => {
     // Con la PWA offline-first esto es crítico: perder señal no puede desloguear a nadie.
     const sinRed = new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' });
     expect(debeCerrarSesionPor401(sinRed, true)).toBeFalse();
+  });
+
+  it('la sesión revocada (B1) SÍ cierra', () => {
+    const err = error401({ errorCode: MOTIVO_SESION_REVOCADA });
+    expect(debeCerrarSesionPor401(err, true)).toBeTrue();
+  });
+});
+
+describe('esSesionRevocada', () => {
+  it('reconoce el errorCode en el cuerpo', () => {
+    expect(esSesionRevocada(error401({ errorCode: MOTIVO_SESION_REVOCADA }))).toBeTrue();
+  });
+
+  it('tolera el cuerpo como string', () => {
+    expect(esSesionRevocada(error401(`{"errorCode":"${MOTIVO_SESION_REVOCADA}"}`))).toBeTrue();
+  });
+
+  it('cae a la cabecera cuando el cuerpo no dice nada (mismo origen)', () => {
+    expect(esSesionRevocada(error401(null, { 'X-Auth-Failure': MOTIVO_SESION_REVOCADA }))).toBeTrue();
+  });
+
+  it('REGRESIÓN: el 401 de plataforma NO es sesión revocada — y sigue sin cerrar sesión', () => {
+    // Es el caso que no se puede romper: rotar el SECRET_UP desloguearía a todas las tablets,
+    // y con la cola de capturas encima eso destruye trabajo de campo.
+    const err = error401({ errorCode: MOTIVO_FALLA_PLATAFORMA });
+    expect(esSesionRevocada(err)).toBeFalse();
+    expect(debeCerrarSesionPor401(err, true)).toBeFalse();
+  });
+
+  it('un 401 genérico cierra sesión pero NO como revocada (el mensaje es otro)', () => {
+    const err = error401({ message: 'Token expirado' });
+    expect(debeCerrarSesionPor401(err, true)).toBeTrue();
+    expect(esSesionRevocada(err)).toBeFalse();
+  });
+
+  it('otros estados y no-errores', () => {
+    expect(esSesionRevocada(new HttpErrorResponse({ status: 403, statusText: 'x' }))).toBeFalse();
+    expect(esSesionRevocada(new Error('boom'))).toBeFalse();
+    expect(esSesionRevocada(null)).toBeFalse();
   });
 });

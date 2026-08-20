@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
-  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock
+  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock, faDesktop
 } from '@fortawesome/free-solid-svg-icons';
 
 import { forkJoin, of, interval, Subject, Observable } from 'rxjs';
@@ -32,6 +32,8 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   @Output() editUser = new EventEmitter<UserListItem>();
   @Output() assignFarms = new EventEmitter<UserListItem>();
   @Output() resetPassword = new EventEmitter<UserListItem>();
+  /** B1: abrir las sesiones abiertas de ese usuario para poder revocar la tablet que se perdió. */
+  @Output() verSesiones = new EventEmitter<UserListItem>();
 
   // Iconos
   faUserPlus = faUserPlus;
@@ -47,6 +49,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   faBuilding = faBuilding;
   faEdit = faEdit;
   faLock = faLock;
+  faDesktop = faDesktop;
 
   // Estado
   loading = false;
@@ -76,7 +79,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   constructor(private confirmDialog: ConfirmDialogService, private library: FaIconLibrary) {
     library.addIcons(
       faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
-      faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock
+      faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock, faDesktop
     );
   }
 
@@ -158,6 +161,10 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
 
   onEditUserClick(user: UserListItem): void {
     this.editUser.emit(user);
+  }
+
+  onSesionesClick(user: UserListItem): void {
+    this.verSesiones.emit(user);
   }
 
   onResetPasswordClick(user: UserListItem): void {

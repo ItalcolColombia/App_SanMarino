@@ -1,6 +1,7 @@
 // src/ZooSanMarino.API/Controllers/MovimientoPolloEngordeController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -165,6 +166,11 @@ public class MovimientoPolloEngordeController : ControllerBase
     public async Task<IActionResult> PostVentaGranjaDespacho([FromBody] CreateVentaGranjaDespachoDto dto)
     {
         if (dto is null) return BadRequest(new { error = "Body requerido." });
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             var res = await _service.CreateVentaGranjaDespachoAsync(dto);
@@ -258,6 +264,11 @@ public class MovimientoPolloEngordeController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateMovimientoPolloEngordeDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             var created = await _service.CreateAsync(dto);
@@ -275,6 +286,11 @@ public class MovimientoPolloEngordeController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateMovimientoPolloEngordeDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             var updated = await _service.UpdateAsync(id, dto);

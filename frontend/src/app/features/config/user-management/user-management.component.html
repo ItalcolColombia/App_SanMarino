@@ -28,6 +28,7 @@
           (editUser)="navigateToEdit($event)"
           (assignFarms)="navigateToAssignFarms($event)"
           (resetPassword)="openResetPasswordModal($event)"
+          (verSesiones)="openSesionesModal($event)"
         ></app-tabla-lista-registro>
       }
 
@@ -85,6 +86,16 @@
     (close)="closeFarmModal()"
     (granjasUpdated)="onFarmsUpdated()"
   ></app-asignar-usuario-granja>
+}
+
+<!-- Modal de Sesiones Activas (B1) -->
+@if (selectedUserForSesiones) {
+  <app-sesiones-usuario
+    [isOpen]="sesionesModalOpen"
+    [userId]="selectedUserForSesiones.id"
+    [userName]="selectedUserForSesiones.firstName + ' ' + selectedUserForSesiones.surName"
+    (close)="closeSesionesModal()"
+  ></app-sesiones-usuario>
 }
 
 <!-- Modal de Restablecer Contraseña -->
