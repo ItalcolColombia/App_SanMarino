@@ -2775,7 +2775,17 @@ Ticket de operación: el núcleo «Modulo IV» de NIZA III no aparece al crear l
 - [x] X1.4 Front: `GalponService.siguienteId()` y `applyFormInModal` lo usa al crear (fallback al
       cálculo local si falla la llamada)
 - [x] X1.5 Validar: `dotnet build` + `dotnet test` y `yarn build`
-- [ ] X1.6 Confirmar el estado real de prod con el SELECT del plan §5 (la BD local es del 27jul26)
+- [x] X1.6 **Confirmado contra la copia fresca de produccion (20ago26).** Modulo IV (`543`) esta
+      ACTIVO, empresa 1, y tiene **0 galpones**; Modulo I=4, II=3, III=3 (+3 borrados) = los 10 de la
+      captura. `user_farms.restrict_locations = false` para la reportante ⇒ no era alcance granular
+- [i] X1.8 **La secuencia quedo en la auditoria**: el 18ago26 12:50-12:52 se renombraron los galpones de
+      Modulo II y III, y a las **12:56** se borraron G0020/G0021/G0022 (`Galpon 11/12/13` de Modulo III).
+      Con ese alcance el modal proponia **G0443** (`galpon pruebas`, granja 44 `Pruebas Moises`, que ella
+      no ve) ⇒ alta rechazada en cada intento. Los tres borrados no tienen **ni una** fila dependiente
+- [x] X1.9 Correccion de datos: `backend/sql/crear_galpones_modulo_iv_niza_iii.sql` (idempotente, elige
+      ids libres). Aplicado en la copia local → G0535/G0536/G0537 = `Galpon 1/2/3` en Modulo IV; la
+      consulta que emula `GET /api/Galpon` con el alcance de la reportante ya devuelve **13** filas con
+      Modulo IV incluido. **En produccion NO se aplico** (sin acceso al RDS desde esta maquina)
 - [i] X1.7 Smoke: `/api/Galpon/siguiente-id` resuelve la ruta (401 del middleware de plataforma,
       no 404) en un backend aislado :5501; el Id que devuelve el generador para la empresa 1 se
       verificó por SQL contra la BD local: **G0535** (libre) frente al **G0025** que proponía el front
