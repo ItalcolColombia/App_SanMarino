@@ -2758,3 +2758,93 @@ equivocado desvía al próximo que lea. **Bloque propio.**
       que 197 de los 252 movimientos correlacionan a menos de 60 s con filas de
       `seguimiento_diario_levante` y **0 de 252** con `seguimiento_diario_aves_engorde` de cualquier
       empresa, y que borrarlo no deja a Colombia sin descuento
+
+---
+
+# W1 · Núcleo 4 de NIZA III sin galpones + Id de galpón que choca (19ago26)
+
+Plan: [nucleo_sin_galpones_niza_iii_plan.md](fase_de_desarrollo/nucleo_sin_galpones_niza_iii_plan.md).
+Ticket de operación: el núcleo «Modulo IV» de NIZA III no aparece al crear lotes. **Bloque propio.**
+
+- [ ] W1.1 Diagnóstico: el núcleo existe (`543`/granja 5, activo); lo que falta son sus galpones. El
+      desplegable de la tab Galpones se deriva de `allGalpones`, así que un núcleo vacío no figura
+- [ ] W1.2 🔴 Bug verificado: el modal propone `galponId` desde el máximo **visible** y `galpon_id` es
+      PK **global** ⇒ un usuario con alcance NIZA I+III propone `G0025`, ocupado por SAN GUILLERMO
+- [ ] W1.3 Backend: `IGalponService.GetNextGalponIdAsync()` + `GET /api/Galpon/siguiente-id` exponiendo
+      `GenerateNextGalponIdAsync` (ya verifica existencia global)
+- [ ] W1.4 Front: `GalponService.siguienteId()` y `applyFormInModal` lo usa al crear (fallback al
+      cálculo local si falla la llamada)
+- [ ] W1.5 Validar: `dotnet build` + `dotnet test` y `yarn build`
+- [ ] W1.6 Confirmar el estado real de prod con el SELECT del plan §5 (la BD local es del 27jul26)
+
+---
+
+# V48 · Validación de los arreglos contra la COPIA DE PRODUCCIÓN (19ago26)
+
+La BD local se refrescó con datos de producción al **19-ago-2026** y se revalidaron los tres
+arreglos del kardex de bultos (V41 · V43 · V44) más el del front (V45) contra ese dato real.
+**Bloque propio.**
+
+## V48.0 — Que la copia es nueva, verificado antes de creerle
+
+- [x] V48.0.1 Contra las cifras que registró esta sesión sobre el dump viejo: **lotes 24 → 26**,
+      movimientos de inventario **12.137 → 12.486**, usuarios **57 → 58**, lotes de engorde
+      **212 → 219**, y el dato más reciente pasó del 17-ago a **hoy 19-ago**
+- [i] V48.0.2 🔑 **El alcance del defecto creció con el dato real**: Sanmarino pasó de 11 a **13 lotes
+      padres**, y **MIRALINDO pasó de 2 a 4** ⇒ los padres afectados son **12**, no los 10 que midió
+      V40. La medición vieja se habría quedado corta
+
+## V48.1 — Estado de migraciones, y lo que se aplicó a propósito
+
+- [x] V48.1.1 La copia venía en `20260818130200_RecalcularSaldoAlimentoEngordeV16a`. Faltaban **dos**
+- [x] V48.1.2 Se aplicó **sólo `20260819001837_AddSesionesActivas`** (V39/B1, ya en `main`): es
+      exactamente lo que prod recibirá en el deploy. `dotnet ef database update <target>` acota al
+      objetivo, así que la otra no corrió
+- [i] V48.1.3 ⛔ **`20260819120000_SeedTicketPlanItalappSantaReyes` NO se aplicó, a propósito**: está
+      **sin commitear** y es de otra sesión. Aplicar un seed ajeno habría metido datos que producción
+      no tiene en la copia que se usa para validar. Por eso el backend corrió con
+      `Database__RunMigrations=false`
+- [i] V48.1.4 **Lo único que el arranque tocó**: 5 sentencias DDL idempotentes (`lote_postura_base` y
+      una columna en `lotes`, todas `IF NOT EXISTS`). **Ninguna fn de engorde se recreó** — verificado:
+      0 `CREATE OR REPLACE FUNCTION` en el log. La copia conserva las fns tal como vinieron de prod
+- [i] V48.1.5 **Cero escrituras de negocio**: el script de verificación es `SELECT` + tablas `TEMP` y
+      el smoke es sólo `GET`
+
+## V48.2 — Los tres arreglos, contra dato real: **13 de 13**
+
+| Granja | Lotes | antes (dump viejo) | **después, con dato de prod** |
+|---|---|---|---|
+| LA ESMERALDA | 114 · 116 · 115 · 117 | 561,4 · 546,7 · 549,0 · 570,0 | **570,0** en los 4 |
+| MANGOS | 142 · 144 · 143 · 145 | 0,0 · 376,4 · 0,0 · 376,4 | **376,4** en los 4 |
+| MIRALINDO | 146 · 148 · 147 · 149 | — (antes 2 padres) | **0,0** en los 4 |
+| NIZA III | 13 | 3.123,5 | **3.158,6** |
+
+- [x] V48.2.1 **Los 4 padres de cada granja convergen a UN saldo** (V41), con el número calculado de
+      antemano por SQL y comparado después contra el endpoint
+- [x] V48.2.2 **El resumen semanal coincide con el detalle diario en los 13** (V43): la columna
+      `sem==dia` da **SI** en todos. Era la contradicción que el reporte mostraba consigo mismo
+- [x] V48.2.3 **Ningún saldo publicado en negativo** (V44), y los valores coinciden con la aritmética
+      sin recorte
+
+## V48.3 — Que no se movió lo que no debía
+
+- [x] V48.3.1 **Demo (rama legacy, flag apagado): idéntica.** Sus 5 lotes padres siguen en
+      `entradas 0 · retiros 0 · saldo 0`, con `sem==dia` = SI. La decisión por rama de V41.2.3 se
+      comporta como se diseñó
+- [x] V48.3.2 **Invariante de stock del módulo unificado**: **Sanmarino 0 descuadres** (24 claves) y
+      **Demo 0** (6 claves). Ninguna de las dos usa `AjusteStock`, así que la comprobación es completa
+- [i] V48.3.3 Ecuador (173 de 405) y Panamá (11 de 12) siguen sin ser comparables por esta vía: **sí**
+      usan `AjusteStock`, que guarda la cantidad en valor absoluto sin el signo del delta
+- [x] V48.3.4 **`fn_cuadre_alimento_engorde(3)` — ItalcolEcuador: 0 descuadrados.** El termómetro que
+      CLAUDE.md manda mirar, en verde
+
+## 🔴 V48.4 — Un hallazgo del dato de producción, que NO es de esta sesión
+
+- [i] V48.4.1 **`fn_cuadre_alimento_engorde(5)` — ItalcolPanamá: 23 galpones descuadrados,
+      69.620,5 kg, 19 con filas negativas.** El baseline que dejó **V8** el 16-ago era **6
+      descuadrados / 55.045,359 kg** ⇒ **creció a casi 4×** con la operación de estos tres días
+- [i] V48.4.2 **No lo causó esta sesión, y se puede afirmar**: los cambios son C# del Reporte Contable
+      de **postura**, y el cuadre es una **fn SQL sobre engorde** — cero solape. Además esta sesión no
+      escribió **ni una fila** de negocio, y Ecuador —que comparte esas fns— quedó en **0**
+- [i] V48.4.3 **Es territorio del bloque V8**, reservado para otra sesión. Se deja medido acá porque el
+      cuadre es el termómetro y hoy está más rojo que cuando se anotó

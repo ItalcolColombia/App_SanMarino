@@ -6,7 +6,9 @@
 -- Uso:
 --   psql ... -f backend/sql/verificar_kardex_bultos_por_lote_padre.sql
 --
--- Parámetros: el CTE `par` de abajo (empresa, fecha de corte, kg por bulto). Cambiar `empresa` para
+-- Parámetros: el CTE `par` de abajo (empresa, fecha de corte, kg por bulto). La fecha usa
+-- CURRENT_DATE a propósito: con una fecha fija el script se vuelve inútil al día siguiente y las
+-- cifras dejan de ser comparables. Cambiar `empresa` para
 -- medir otro tenant; la rama unificada (`inventario_gestion_movimiento`) sólo aplica a las empresas
 -- con `companies.reportes_alimento_desde_inventario_unificado = true`. Para las demás el reporte lee
 -- `farm_inventory_movements` y este script NO las mide.
@@ -25,7 +27,7 @@ DROP TABLE IF EXISTS tmp_v2576_res;
 
 CREATE TEMP TABLE tmp_v2576_deltas AS
 WITH par AS (
-    SELECT 1 AS empresa, DATE '2026-08-18' AS hoy, 40.0::numeric AS factor
+    SELECT 1 AS empresa, CURRENT_DATE AS hoy, 40.0::numeric AS factor
 ),
 padres AS (
     SELECT l.lote_id AS padre_id, l.lote_nombre, l.granja_id
