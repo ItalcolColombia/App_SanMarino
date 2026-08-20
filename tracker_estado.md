@@ -2721,3 +2721,40 @@ había destapado `b853e95`. **Bloque propio.**
       se movió y que no hay `DropColumn` acechando
 - [x] V46.3.3 `dotnet test` **completo**, no por módulo —esto toca el `SaveChanges` de TODO el
       contexto—: **2.905 + 1 pasan**, 0 fallos
+
+---
+
+# V47 · Correcciones a V45, salidas de la verificación adversarial (19ago26)
+
+El barrido de refutación sobre V45 confirmó el fondo y encontró **dos citas mal dirigidas y un
+detalle que faltaba**. La conclusión de V45 no cambia; las referencias sí, y un `archivo:línea`
+equivocado desvía al próximo que lea. **Bloque propio.**
+
+- [x] V47.1 🔴 **El service que corre NO es el que decía V45.2.2.** Esta pantalla postea a
+      **`/SeguimientoAvesEngordeEcuador`** (`seguimiento-aves-engorde.service.ts:170`) para los **tres**
+      países, así que el bloque atómico que cubre a Colombia vive en
+      **`SeguimientoAvesEngordeEcuadorService.Crud.cs:143-162`**, no en `SeguimientoAvesEngordeService.Crud.cs:208`.
+      Los dos tienen el bloque **idéntico** y escriben la MISMA tabla ⇒ **el argumento de V45.2.2 se
+      sostiene entero**, sólo estaba mal citado. Corregido en el comentario del front
+- [i] V47.2 **Es un gotcha ya conocido del repo** («el front de engorde pega al controller Ecuador»), y
+      aun así se citó mal: la lección es que al afirmar «el backend lo cubre» hay que seguir la URL del
+      service del front, no el nombre del service del backend
+- [x] V47.3 **La copia de los 252 movimientos la hizo una migración EF, no sólo el `.sql`.**
+      `20260705194156_MigrarInventarioColombiaAModeloB.cs:59-82` inserta en
+      `inventario_gestion_movimiento` mapeando `Entry→Ingreso · Exit→Consumo · TransferIn/Out→Traslado…`,
+      conservando `reference`, `created_at` y `transfer_group_id`, con `NOT EXISTS` (idempotente). El
+      `backend/sql/migracion_inventario_colombia_03_movimientos.sql` que citaba V45.3.4 es su **espejo**
+- [i] V47.4 **Lo que eso confirma**: los mismos kg figuran en las dos tablas con el mismo `created_at`
+      (p. ej. `2026-04-04 21:27:06.245695-05` en ambas). **No es doble descuento**: cada módulo cuadra
+      internamente (V45.3.1 y V45.3.2, 0 descuadres en los dos) y el viejo es un ciclo cerrado que
+      ningún reporte de la empresa 1 consulta
+- [i] V47.5 🟡 **Un defecto latente que el bloque borrado se llevó puesto**:
+      `farm_inventory_movements.reference` es `varchar(50)` y el prefijo
+      `«Consumo diario levante - Lote »` ocupa **30 caracteres** ⇒ un `loteNombre` de más de 20 habría
+      reventado el INSERT. Hoy no pasaba porque el nombre más largo de la empresa 1 mide **5**
+      (las 252 referencias existentes miden 35), pero era una bomba de tiempo por longitud de nombre
+- [i] V47.6 **Lo que la refutación NO logró tumbar**: que el bloque era inalcanzable (además de los 0
+      lotes de engorde, **ningún rol de las empresas 1/4/6 tiene el menú 44** `/daily-log/aves-engorde`),
+      que 197 de los 252 movimientos correlacionan a menos de 60 s con filas de
+      `seguimiento_diario_levante` y **0 de 252** con `seguimiento_diario_aves_engorde` de cualquier
+      empresa, y que borrarlo no deja a Colombia sin descuento

@@ -1810,11 +1810,16 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     // «Consumo diario levante».
     //
     // Por qué el backend alcanza, y es mejor: `InventarioConsumoGate.ResolverModelo` manda Colombia a
-    // `ModeloBNivelGranja` (el inventario unificado, resolviendo el ítem por código A→B), y
-    // `SeguimientoAvesEngordeService.Crud` lo aplica con BLOQUEO ATÓMICO — valida el stock de todos
-    // los ítems ANTES de commitear y descuenta dentro de la misma transacción, así que si falta stock
-    // no se guarda el seguimiento. Eso es exactamente lo que esta pantalla intentaba garantizar
-    // esperando las promesas, sólo que del lado del servidor y sin poder saltearse.
+    // `ModeloBNivelGranja` (el inventario unificado, resolviendo el ítem por código A→B), y el service
+    // lo aplica con BLOQUEO ATÓMICO — valida el stock de todos los ítems ANTES de commitear y
+    // descuenta dentro de la misma transacción, así que si falta stock no se guarda el seguimiento.
+    // Eso es exactamente lo que esta pantalla intentaba garantizar esperando las promesas, sólo que
+    // del lado del servidor y sin poder saltearse.
+    //
+    // ⚠️ El service VIVO es `SeguimientoAvesEngordeEcuadorService.Crud.cs:143-162`, no el que sugiere
+    // el nombre: esta pantalla postea a `/SeguimientoAvesEngordeEcuador` (`seguimiento-aves-engorde.service.ts:170`)
+    // para los tres países. `SeguimientoAvesEngordeService` tiene el bloque idéntico, pero no es el que
+    // corre desde acá — los dos services escriben la MISMA tabla.
     //
     // El propio `InventarioConsumoGate` documenta que el modelo A —la tabla a la que apuntaba este
     // código— «quedó sin uso» para Colombia.
