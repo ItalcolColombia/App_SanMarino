@@ -46,6 +46,18 @@ public class GalponController : ControllerBase
         return Ok(res);
     }
 
+    /// <summary>
+    /// Siguiente Id libre para dar de alta un galpón. El Id es PK global, así que lo resuelve el
+    /// backend: el front solo ve sus granjas y proponía Ids ocupados en otra empresa.
+    /// </summary>
+    [HttpGet("siguiente-id")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> GetSiguienteId()
+    {
+        var galponId = await _svc.GetNextGalponIdAsync();
+        return Ok(new { galponId });
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // QUERIES POR ID / FILTROS
     // ─────────────────────────────────────────────────────────────────────────────

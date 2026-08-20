@@ -412,6 +412,13 @@ public partial class GalponService : AppInterfaces.IGalponService
     // ─────────────────────────────────────────────────────────────────────────────
     // CREATE / UPDATE / DELETE
     // ─────────────────────────────────────────────────────────────────────────────
+    /// <inheritdoc />
+    public async Task<string> GetNextGalponIdAsync()
+    {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+        return await GenerateNextGalponIdAsync(effectiveCompanyId);
+    }
+
     public async Task<GalponDtos.GalponDetailDto> CreateAsync(CreateGalponDto dto)
     {
         await EnsureFarmExists(dto.GranjaId);

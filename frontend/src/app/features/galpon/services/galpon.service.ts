@@ -20,6 +20,13 @@ export class GalponService {
     return this.http.get<GalponDetailDto[]>(this.baseUrl, { params });
   }
 
+  /** Siguiente Id libre para un galpón nuevo.
+   *  Lo resuelve el backend porque `galpon_id` es PK GLOBAL: acá solo se ven los galpones de las
+   *  granjas asignadas, y calcularlo con ese subconjunto propone Ids ya ocupados en otra empresa. */
+  siguienteId(): Observable<{ galponId: string }> {
+    return this.http.get<{ galponId: string }>(`${this.baseUrl}/siguiente-id`);
+  }
+
   /** Detalle por id */
   getById(id: string): Observable<GalponDetailDto> {
     return this.http.get<GalponDetailDto>(`${this.baseUrl}/${id}`);

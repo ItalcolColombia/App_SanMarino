@@ -22,6 +22,13 @@ public interface IGalponService
     Task<IEnumerable<GalponDetailDto>> GetByGranjaAsync(int granjaId, bool paraDestino = false);
     Task<IEnumerable<GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId, bool paraDestino = false);
     Task<GalponDetailDto>              CreateAsync(CreateGalponDto dto);
+
+    /// <summary>
+    /// Siguiente Id libre para un galpón nuevo. Lo resuelve el backend porque <c>galpon_id</c> es PK
+    /// GLOBAL: el front solo ve los galpones de sus granjas y proponía Ids ya ocupados en otra
+    /// empresa/granja, con lo que el alta fallaba siempre para usuarios de alcance parcial.
+    /// </summary>
+    Task<string>                       GetNextGalponIdAsync();
     Task<GalponDetailDto?>             UpdateAsync(UpdateGalponDto dto);
     Task<bool>                         DeleteAsync(string galponId);     // Soft delete (bloquea si tiene lotes activos)
     Task<bool>                         HardDeleteAsync(string galponId); // Hard delete

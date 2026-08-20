@@ -2761,21 +2761,24 @@ equivocado desvía al próximo que lea. **Bloque propio.**
 
 ---
 
-# W1 · Núcleo 4 de NIZA III sin galpones + Id de galpón que choca (19ago26)
+# X1 · Núcleo 4 de NIZA III sin galpones + Id de galpón que choca (19ago26)
 
 Plan: [nucleo_sin_galpones_niza_iii_plan.md](fase_de_desarrollo/nucleo_sin_galpones_niza_iii_plan.md).
 Ticket de operación: el núcleo «Modulo IV» de NIZA III no aparece al crear lotes. **Bloque propio.**
 
-- [ ] W1.1 Diagnóstico: el núcleo existe (`543`/granja 5, activo); lo que falta son sus galpones. El
+- [x] X1.1 Diagnóstico: el núcleo existe (`543`/granja 5, activo); lo que falta son sus galpones. El
       desplegable de la tab Galpones se deriva de `allGalpones`, así que un núcleo vacío no figura
-- [ ] W1.2 🔴 Bug verificado: el modal propone `galponId` desde el máximo **visible** y `galpon_id` es
+- [x] X1.2 🔴 Bug verificado: el modal propone `galponId` desde el máximo **visible** y `galpon_id` es
       PK **global** ⇒ un usuario con alcance NIZA I+III propone `G0025`, ocupado por SAN GUILLERMO
-- [ ] W1.3 Backend: `IGalponService.GetNextGalponIdAsync()` + `GET /api/Galpon/siguiente-id` exponiendo
+- [x] X1.3 Backend: `IGalponService.GetNextGalponIdAsync()` + `GET /api/Galpon/siguiente-id` exponiendo
       `GenerateNextGalponIdAsync` (ya verifica existencia global)
-- [ ] W1.4 Front: `GalponService.siguienteId()` y `applyFormInModal` lo usa al crear (fallback al
+- [x] X1.4 Front: `GalponService.siguienteId()` y `applyFormInModal` lo usa al crear (fallback al
       cálculo local si falla la llamada)
-- [ ] W1.5 Validar: `dotnet build` + `dotnet test` y `yarn build`
-- [ ] W1.6 Confirmar el estado real de prod con el SELECT del plan §5 (la BD local es del 27jul26)
+- [x] X1.5 Validar: `dotnet build` + `dotnet test` y `yarn build`
+- [ ] X1.6 Confirmar el estado real de prod con el SELECT del plan §5 (la BD local es del 27jul26)
+- [i] X1.7 Smoke: `/api/Galpon/siguiente-id` resuelve la ruta (401 del middleware de plataforma,
+      no 404) en un backend aislado :5501; el Id que devuelve el generador para la empresa 1 se
+      verificó por SQL contra la BD local: **G0535** (libre) frente al **G0025** que proponía el front
 
 ---
 
