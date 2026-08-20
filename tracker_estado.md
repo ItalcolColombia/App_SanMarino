@@ -432,17 +432,43 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         (Manchado/Picado/Fárfara/Decolorado) + variantes "primeras posturas sin clas" por raza
         (Rojo/Blanco/Criollo). ⚠️ Hallazgo para F8.1: **falta "Enyemado"** — ninguna raza lo tiene hoy
         en el catálogo, y el plan lo pide junto a Manchado/Decolorado/Picado/Fárfara
-- [ ] **F1 · Estructura física de granja y códigos ERP** (10h)
-  - [ ] F1.1 Silo como estructura física de la granja: alta, edición, listado, asociación a galpón y lote
-        — **parcial**: ya existe pantalla propia de silos (botón "Silos y bodega" en `farm-list`,
-        gateado por `manejaInventarioPorSilo`) con alta/edición/listado/asociación a galpón y lote
-        (Fases B-D). Lo que el plan pide y no está: integrarlo **dentro del modal de alta de granja**
-        (hoy vive aparte, en inventario) — a decidir si el botón actual ya cumple el requerimiento
-        o si el cliente espera verlo en el mismo formulario
-  - [ ] F1.2 Códigos ERP por nivel: granja=CO, núcleo=bodega, silo/bodega=ubicación, lote=centro de costo
-- [ ] **F2 · Guías genéticas** (10h)
-  - [ ] F2.1 Carga de las 5 líneas (Babcock Brown, Hy Line Brown, Lohmann LSL, Criolla, Azur), sem 18-125
-  - [ ] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
+- [x] **F1 · Estructura física de granja y códigos ERP** (10h) — **verificado 20-ago: YA ESTABA HECHO**
+      de fases anteriores (Fase 1 de `santa-reyes-implementacion` + Fases B-D de silos), sin escribir
+      código nuevo
+  - [x] F1.1 Silo como estructura física de la granja: alta, edición, listado, asociación a galpón y lote
+        — botón "Silos y bodega" en `farm-list` (gateado por `manejaInventarioPorSilo`) abre
+        `modal-silos-granja`: marca silos del catálogo maestro, crea la bodega de la granja, y por
+        cada ubicación asignada tiene su propio sub-modal de edición ERP (`abrirErp`/`guardarErp`).
+        La lectura literal del audit 18-ago ("falta exponerlo en el form de ingreso a granja") es una
+        imprecisión: una granja sin `id` no puede tener silos asignados todavía — configurarlos
+        DESPUÉS de crear la granja, desde su fila en la lista, es el flujo correcto, no un gap
+  - [x] F1.2 Códigos ERP por nivel: granja=CO, núcleo=bodega, silo/bodega=ubicación, lote=centro de costo
+        — los 4 niveles YA tienen campo + input editable: `Farm.CodigoBodega/CentroOperacion/
+        CodigoInstalacion` (`farm-list`, gateado por `manejaCodigosErp`), `Nucleo.CodigoBodega`
+        (`nucleo-list`), `FarmSilo.CodigoErpUbicacion/CentroOperacion/CodigoBodega` (sub-modal ERP de
+        `modal-silos-granja`, DTOs ya los aceptan), `LotePosturaBase.CodigoErp`
+        (`lote-list`, `formControlName="codigoErp"`). Nada que construir; falta cargar los códigos
+        REALES que entregó el cliente (dato, no código)
+- [~] **F2 · Guías genéticas** (10h)
+  - [x] F2.1 Carga de las 5 líneas (Babcock Brown, Hy Line Brown, Lohmann LSL, Criolla, Azur), sem 18-125
+        — **corrección del usuario en sesión: va en una TABLA PROPIA**, no en
+        `guia_genetica_sanmarino_colombia` (esa es compartida con postura y pollo engorde de otras
+        empresas, ~50 columnas para casos que Santa Reyes no usa). Se creó `guia_genetica_santa_reyes`
+        (entidad `GuiaGeneticaSantaReyes`, migración `AddTablaGuiaGeneticaSantaReyes`, esquema
+        idempotente) + seed de datos (`SeedGuiaGeneticaSantaReyes`, data-only, idempotente por
+        `(company_id, codigo_guia_genetica)`, fail-open si la empresa no existe). **615 filas, no 540**:
+        recontado contra el Excel real del cliente (`~/Downloads/Guías Genéticas.xlsx`), son **5 líneas
+        × 123 semanas (18-140)**, no 108 — la cifra del plan comercial estaba mal, corregida acá.
+        Mapeo: SEM→edad, % PROD. TAB→prod_porcentaje, % Mort Acum.→retiro_ac_h (acumulada),
+        Gramo/Ave/Día→gr_ave_dia_h, redondeado a 2 decimales (el Excel trae artefactos de coma
+        flotante de 15+ dígitos). Criolla no trae producción desde semana 101 (40 filas con
+        `prod_porcentaje NULL`, retiro/consumo sí poblados) — dato real del cliente, no un bug.
+        Verificado: 615/615 filas, round-trip Down→Up sin duplicar, `codigo_guia_genetica` calculado
+        igual que `ExcelImportService.ComputeCodigo` (Raza+AnioGuia+Edad) para que una futura
+        reimportación por Excel lo reconozca
+  - [ ] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes — pendiente:
+        service+endpoint que lea `guia_genetica_santa_reyes` (hoy nada la consume todavía) + wireo del
+        selector de raza en `modal-create-edit-lote`/`lote-list` para Santa Reyes
 - [ ] **F3 · Semanas de producción por raza** (10h)
   - [ ] F3.1 Levante por raza: 8 sem alistamiento + 16 sem levante
   - [ ] F3.2 Producción: 4 sem levante-en-granja-de-producción + 74 sem postura (rojas/criollas) u 84 (blancas/Azur)
