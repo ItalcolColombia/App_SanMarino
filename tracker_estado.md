@@ -533,7 +533,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           **2959/2959** (23 nuevos, sin regresión) · `dotnet ef database update` aplicado en local
           sin error · `yarn build` 0 errores. Sin smoke visual en navegador (mismo bloqueo del
           clasificador de seguridad que F0.1 — minteo de sesión).
-- [x] **F4 · Consumo de alimento solo hembras** (8h)
+- [x] **F4 · Consumo de alimento solo hembras** (8h) — commit `107cf3c`
   - [x] F4.1 Retirar consumo de machos del seguimiento diario de producción — `modal-seguimiento-diario`
         (lote-produccion): bloque «Machos» (ítems dinámicos, sin botón «+ agregar» visible — código
         ya huérfano de UI) envuelto en `@if (!consumoAlimentoSoloHembras)`. Flag propagado a
@@ -546,7 +546,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         acá (a diferencia de producción, no tiene ítem fijo obligatorio) — solo hacía falta ocultar
         la UI y vaciar el array si el flag llega ON con un registro viejo ya hidratado
         - Validado: `yarn build` 0 errores
-- [~] **F5 · Mortalidad, pesaje y ventas** (9h) — F5.1+F5.2 hechos, F5.3 documentado sin implementar
+- [~] **F5 · Mortalidad, pesaje y ventas** (9h) — F5.1+F5.2 hechos (commit `b93a053`), F5.3 documentado sin implementar
   - [x] F5.1 Retirar el concepto de error de sexaje del registro diario — fila «Error de sexaje»
         (Hembras y Machos) retirada ENTERA de `modal-seguimiento-diario` (producción) y
         `modal-create-edit` (levante), gateada por `ocultaMachosEnPostura` (F0.1, propagado recién
@@ -570,8 +570,27 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         mal — a definir con el cliente o el usuario antes de tocar código
         - Validado (F5.1+F5.2): `yarn build` 0 errores; cruce manual del nombre de la propiedad
           `ocultaMachosEnPostura` entre `.ts`/`.html` en los 2 formularios (11 usos cada uno)
-- [ ] **F6 · Tipos de inventario** (3h)
-  - [ ] F6.1 Limitar tipos de ítem de inventario a Alimento y Aves
+  - [x] **Gap cerrado (20-ago-2026, migración `20260820220645`):** F4 y F5.1+F5.2 construyeron y
+        probaron la UI pero **ningún commit encendió los flags para Santa Reyes** — mismo "toggle
+        sin efecto" que F0.1 advertía evitar. Verificado por consulta directa a `companies` en la
+        BD local: `consumo_alimento_solo_hembras`/`oculta_machos_en_postura` seguían en `false`.
+        Migración data-only idempotente los enciende para Santa Reyes; re-verificado por consulta
+        directa, ahora `true` en las dos. Sanmarino/Demo siguen en `false`
+- [x] **F6 · Tipos de inventario** (3h) — commit pendiente de crear en esta sesión
+  - [x] F6.1 Limitar tipos de ítem de inventario a Alimento y Aves — flag nuevo
+        `limitaTiposInventarioAlimentoYAves` (8 capas backend + `flags-empresa.funcion.ts` +
+        `active-company-config.service.ts`). Módulo real: `CatalogoAlimentosListComponent`
+        (`config/catalogo-alimentos`, con su modal de alta/edición embebido) — se agregó `'aves'`
+        a `CatalogItemType` y `tiposItem` pasó de array fijo a getter (referencia estable, no
+        rompe cambio de detección) que devuelve `['alimento','aves']` con el flag ON o los 6 tipos
+        de siempre con el flag OFF. `CatalogoAlimentosFormComponent` (rutas `nuevo`/`editar/:id`
+        del mismo módulo) es **huérfano** — verificado sin `routerLink` ni `.navigate` hacia esas
+        rutas en todo el repo — no se tocó. Backend no valida `ItemType` contra lista cerrada: sin
+        cambios ahí, es acotar la UI, no agregar una regla nueva. Sin ítems `itemType='aves'`
+        existentes en ninguna empresa, nada que reclasificar
+        - Validado: `dotnet build` 0 errores (20-21 warnings preexistentes) · `dotnet test`
+          **2959/2959** · `yarn build` 0 errores · migración aplicada y verificada en BD local
+          (Santa Reyes `true`, Sanmarino/Demo `false`)
 - [ ] **F7 · Huevo sin clasificar y primera postura** (17h)
   - [ ] F7.1 Renombrar huevos incubables → huevos sin clasificar (formularios, tablas, reportes)
   - [ ] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula
