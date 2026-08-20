@@ -78,7 +78,8 @@
                 <div class="vp-grid">
                   <div class="vp-field">
                     <label for="vp-fecha">Fecha *</label>
-                    <input id="vp-fecha" type="date" formControlName="fechaMovimiento" />
+                    <input id="vp-fecha" type="date" formControlName="fechaMovimiento"
+                      [attr.min]="fechaMovimientoMin" [max]="fechaMovimientoMax" [title]="fechaMovimientoHint" />
                   </div>
                   <div class="vp-field">
                     <label for="vp-despacho">N.º despacho</label>

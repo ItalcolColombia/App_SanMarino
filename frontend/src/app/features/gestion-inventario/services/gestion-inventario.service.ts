@@ -368,8 +368,8 @@ export interface InventarioGestionIngresoListDto {
  * envolvente. La que rechaza sigue siendo la guarda del controller.
  */
 export interface InventarioGestionVentanaFechaIngresoDto {
-  /** yyyy-MM-dd */
-  min: string;
+  /** yyyy-MM-dd, o `null` si el usuario tiene el permiso de fecha retroactiva (sin piso). */
+  min: string | null;
   /** yyyy-MM-dd, siempre hoy: el futuro no lo abre ninguna vía. */
   max: string;
   /** Encasetamiento que justifica la apertura, o null si no hay ninguno. */

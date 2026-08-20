@@ -6,6 +6,12 @@ import { Router } from '@angular/router';
 import { TrasladosAvesService, DisponibilidadLoteDto, CrearTrasladoAvesDto } from '../../services/traslados-aves.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { FarmService } from '../../../farm/services/farm.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 @Component({
   selector: 'app-traslado-aves',
@@ -41,7 +47,8 @@ export class TrasladoAvesComponent implements OnInit {
     private trasladosService: TrasladosAvesService,
     private loteService: LoteService,
     private farmService: FarmService,
-    private router: Router
+    private router: Router,
+    private userPermService: UserPermissionService
   ) {
     this.initForm();
   }
@@ -49,6 +56,23 @@ export class TrasladoAvesComponent implements OnInit {
   ngOnInit(): void {
     this.cargarLotes();
     this.cargarGranjas();
+  }
+
+  /** Ventana de fechas admitida para `fechaTraslado` (mes en curso ∪ últimos 15 días). */
+  private get puedeRetroactivar(): boolean {
+    return this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaTrasladoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaTrasladoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaTrasladoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   private initForm(): void {
@@ -214,7 +238,7 @@ export class TrasladoAvesComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error creando traslado de aves:', error);
-        this.error.set(error.message || 'Error al crear traslado de aves');
+        this.error.set(error?.error?.message || error?.error?.error || error?.message || 'Error al crear traslado de aves');
         this.loading.set(false);
       }
     });

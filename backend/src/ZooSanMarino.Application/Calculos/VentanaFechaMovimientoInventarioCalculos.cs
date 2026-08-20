@@ -4,12 +4,19 @@ using System.Globalization;
 namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
-/// Ventana de fechas admitida para los movimientos de inventario que se cargan A MANO por pantalla:
-/// del día 1 del mes en curso hasta HOY.
+/// Ventana de fechas admitida para los movimientos de inventario que se cargan A MANO por pantalla,
+/// más la excepción D4 del alimento previo al encasetamiento.
 ///
 /// <para>
 /// Por qué existe: la fecha del movimiento era libre, así que se podían registrar entradas de meses
 /// ya cerrados (y también fechas futuras, que nadie validaba). Pedido del usuario, 07-ago-2026.
+/// </para>
+///
+/// <para>
+/// 🔑 <b>La ventana base ya no vive acá:</b> la manda <see cref="VentanaFechaRegistroCalculos"/>
+/// —mes en curso ∪ últimos 15 días, más el permiso de fecha retroactiva— y esta clase la
+/// <b>delega</b>, agregando encima lo único que es propio de inventario: la excepción D4. Una sola
+/// fórmula por número; si la base se duplicara acá, las dos divergirían.
 /// </para>
 ///
 /// <para>
@@ -22,39 +29,34 @@ namespace ZooSanMarino.Application.Calculos;
 public static class VentanaFechaMovimientoInventarioCalculos
 {
     /// <summary>
-    /// Colombia, Ecuador y Panamá operan las tres en UTC−5 (sin horario de verano), así que el día
-    /// operativo es el día UTC menos 5 horas. Sin esto, entre las 19:00 y la medianoche local el
-    /// servidor ya estaría en el día —y el último día del mes, en el MES— siguiente, y rechazaría la
-    /// fecha de hoy que el usuario ve en su pantalla.
+    /// Día operativo (UTC−5) correspondiente a un instante UTC. Delega en
+    /// <see cref="VentanaFechaRegistroCalculos.DiaOperativo"/>: el offset es el mismo para todos los
+    /// registros y por eso vive en un solo lugar.
     /// </summary>
-    private const int HorasOffsetDiaOperativo = -5;
-
-    /// <summary>Día operativo (UTC−5) correspondiente a un instante UTC.</summary>
     public static DateTime DiaOperativo(DateTimeOffset ahoraUtc) =>
-        ahoraUtc.UtcDateTime.AddHours(HorasOffsetDiaOperativo).Date;
-
-    /// <summary>Primer día admitido: el 1 del mes de <paramref name="hoy"/>.</summary>
-    public static DateTime PrimerDiaAdmitido(DateTime hoy) => new(hoy.Year, hoy.Month, 1);
+        VentanaFechaRegistroCalculos.DiaOperativo(ahoraUtc);
 
     /// <summary>
-    /// ¿La fecha pedida cae dentro de la ventana? <c>null</c> siempre es válido: significa «sin fecha
-    /// explícita», y el servicio le pone la hora actual (que por construcción está dentro).
+    /// Primer día que admite la ventana base: el 1 del mes de <paramref name="hoy"/> o
+    /// <c>hoy − 15</c>, el que llegue más atrás (ver <see cref="VentanaFechaRegistroCalculos"/>).
     /// </summary>
-    public static bool EsFechaPermitida(DateTime? fecha, DateTime hoy)
-    {
-        if (fecha is null) return true;
-        var dia = fecha.Value.Date;
-        return dia >= PrimerDiaAdmitido(hoy) && dia <= hoy.Date;
-    }
+    public static DateTime PrimerDiaAdmitido(DateTime hoy) =>
+        VentanaFechaRegistroCalculos.PrimerDiaAdmitido(hoy);
+
+    /// <summary>
+    /// ¿La fecha pedida cae dentro de la ventana base? <c>null</c> siempre es válido: significa «sin
+    /// fecha explícita», y el servicio le pone la hora actual (que por construcción está dentro).
+    /// </summary>
+    /// <param name="puedeRetroactivar">
+    /// El usuario tiene <see cref="VentanaFechaRegistroCalculos.PermisoFechaRetroactiva"/> ⇒ todo el
+    /// pasado es admisible y no hace falta ninguna excepción. El futuro se rechaza igual.
+    /// </param>
+    public static bool EsFechaPermitida(DateTime? fecha, DateTime hoy, bool puedeRetroactivar = false) =>
+        VentanaFechaRegistroCalculos.EsFechaPermitida(fecha, hoy, puedeRetroactivar);
 
     /// <summary>Mensaje único del rechazo, para que las cinco puertas manuales digan lo mismo.</summary>
-    public static string MensajeFueraDeVentana(DateTime hoy)
-    {
-        var desde = PrimerDiaAdmitido(hoy).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-        var hasta = hoy.Date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-        return $"La fecha debe estar dentro del mes en curso: entre el {desde} y el {hasta}. " +
-               "No se pueden registrar movimientos de meses anteriores ni con fecha futura.";
-    }
+    public static string MensajeFueraDeVentana(DateTime hoy, bool puedeRetroactivar = false) =>
+        VentanaFechaRegistroCalculos.MensajeFueraDeVentana(hoy, puedeRetroactivar);
 
     // ─── D4: excepción por alimento previo al encasetamiento ────────────────────
     //
@@ -93,11 +95,17 @@ public static class VentanaFechaMovimientoInventarioCalculos
     /// <c>companies.dias_alimento_previo_encaset</c>. Los negativos se normalizan a 0, igual que en
     /// <see cref="AvisoFechaFueraDeCicloCalculos"/>.
     /// </param>
+    /// <param name="puedeRetroactivar">
+    /// El usuario tiene el permiso de fecha retroactiva ⇒ la ventana base ya acepta todo el pasado y
+    /// la excepción no se llega a evaluar. Se enhebra igual para que el llamador no tenga que decidir
+    /// cuál de las dos reglas consultar.
+    /// </param>
     public static bool EsFechaPermitidaConEncasetProximo(
-        DateTime? fecha, DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+        DateTime? fecha, DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa,
+        bool puedeRetroactivar = false)
     {
         // La regla vigente manda: si ya la acepta (incluido el caso null), no se evalúa nada más.
-        if (EsFechaPermitida(fecha, hoy)) return true;
+        if (EsFechaPermitida(fecha, hoy, puedeRetroactivar)) return true;
 
         // Acá fecha nunca es null: EsFechaPermitida acepta null siempre.
         var dia = fecha!.Value.Date;
@@ -119,9 +127,14 @@ public static class VentanaFechaMovimientoInventarioCalculos
     /// operación sepa que la excepción existe y por qué no aplicó en su caso.
     /// </summary>
     public static string MensajeFueraDeVentanaConEncaset(
-        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa,
+        bool puedeRetroactivar = false)
     {
-        var basico = MensajeFueraDeVentana(hoy);
+        var basico = MensajeFueraDeVentana(hoy, puedeRetroactivar);
+
+        // Con el permiso, lo único que pudo fallar es la fecha futura: contar la excepción del
+        // alimento previo confundiría, porque a ese usuario no lo estaba limitando la ventana.
+        if (puedeRetroactivar) return basico;
 
         if (proximoEncasetEnGalpon is not { } encaset)
             return basico + " Se admite una fecha anterior solo cuando el alimento llegó antes de un " +
@@ -155,10 +168,17 @@ public static class VentanaFechaMovimientoInventarioCalculos
     /// Encasetamiento más cercano del galpón, o <c>null</c> si no hay ⇒ extremos de la regla vigente.
     /// </param>
     /// <param name="diasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c>; los negativos van a 0.</param>
-    public static (DateTime Min, DateTime Max) ExtremosVentanaIngreso(
-        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+    /// <param name="puedeRetroactivar">
+    /// Con el permiso de fecha retroactiva no hay piso: <c>Min</c> sale <c>null</c> y el datepicker no
+    /// debe llevar atributo <c>min</c> (un piso cualquiera volvería a recortar lo que el permiso abre).
+    /// </param>
+    public static (DateTime? Min, DateTime Max) ExtremosVentanaIngreso(
+        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa,
+        bool puedeRetroactivar = false)
     {
         var max = hoy.Date;
+        if (puedeRetroactivar) return (null, max);
+
         var min = PrimerDiaAdmitido(hoy);
 
         if (proximoEncasetEnGalpon is not { } encaset) return (min, max);
@@ -183,11 +203,12 @@ public static class VentanaFechaMovimientoInventarioCalculos
     /// «solo el mes en curso» cuando el galpón tiene un encasetamiento que admite más.
     /// </summary>
     public static string TextoAyudaVentanaIngreso(
-        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa,
+        bool puedeRetroactivar = false)
     {
-        var desdeMes = Fecha(PrimerDiaAdmitido(hoy));
-        var hasta = Fecha(hoy.Date);
-        var basico = $"Se admite el mes en curso (del {desdeMes} al {hasta}).";
+        // Con el permiso no hay ventana que explicar, y nombrar el encaset sería ruido.
+        var basico = VentanaFechaRegistroCalculos.TextoAyudaVentana(hoy, puedeRetroactivar);
+        if (puedeRetroactivar) return basico;
 
         var (min, _) = ExtremosVentanaIngreso(hoy, proximoEncasetEnGalpon, diasVentanaEmpresa);
         if (proximoEncasetEnGalpon is not { } encaset || min >= PrimerDiaAdmitido(hoy))

@@ -447,13 +447,16 @@ public sealed record InventarioGestionVentanaAlimentoPrevioDto(
 /// envolvente—, pero permite que el datepicker no recorte la fecha real del alimento previo al
 /// encasetamiento y que el hint nombre el encaset concreto en vez de una promesa vaga.
 /// </summary>
-/// <param name="Min">Primera fecha ofrecible (<c>yyyy-MM-dd</c>).</param>
+/// <param name="Min">
+/// Primera fecha ofrecible (<c>yyyy-MM-dd</c>), o <c>null</c> cuando NO hay piso: el usuario tiene el
+/// permiso de fecha retroactiva y la pantalla no debe poner atributo <c>min</c> en el datepicker.
+/// </param>
 /// <param name="Max">Última fecha ofrecible: siempre hoy, el futuro no lo abre ninguna vía.</param>
 /// <param name="ProximoEncaset">Encasetamiento que justifica la apertura, o <c>null</c> si no hay.</param>
 /// <param name="DiasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c> de la empresa de la granja.</param>
 /// <param name="Ayuda">Texto ya armado para el hint, para que backend y front digan lo mismo.</param>
 public sealed record InventarioGestionVentanaFechaIngresoDto(
-    DateOnly Min,
+    DateOnly? Min,
     DateOnly Max,
     DateOnly? ProximoEncaset,
     int DiasVentanaEmpresa,

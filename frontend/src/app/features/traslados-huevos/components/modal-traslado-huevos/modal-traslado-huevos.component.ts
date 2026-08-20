@@ -5,6 +5,12 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractContro
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, ActualizarTrasladoHuevosDto, HuevosDisponiblesDto, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 @Component({
   selector: 'app-modal-traslado-huevos',
@@ -109,13 +115,31 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     private fb: FormBuilder,
     private trasladosService: TrasladosHuevosService,
     private loteService: LoteService,
-    private masterListService: MasterListService
+    private masterListService: MasterListService,
+    private userPermService: UserPermissionService
   ) {
     this.initForm();
   }
 
   ngOnInit(): void {
     // Catálogos se cargan al abrir el modal (ngOnChanges isOpen) para evitar llamadas múltiples
+  }
+
+  /** Ventana de fechas admitida para `fechaTraslado` (mes en curso ∪ últimos 15 días). */
+  private get puedeRetroactivar(): boolean {
+    return this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaTrasladoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaTrasladoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaTrasladoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   /** Carga Farm y listas maestras solo cuando se abre el modal y una sola vez */
@@ -635,7 +659,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
           console.error('Error actualizando traslado de huevos:', error);
           this.loading.set(false);
           const tipoOperacion = formValue.tipoOperacion?.toLowerCase().includes('venta') ? 'venta' : 'traslado';
-          this.errorMessage.set(`No se pudo actualizar el ${tipoOperacion}. ${error.message || 'Error desconocido'}`);
+          const detalle = error?.error?.message || error?.error?.error || error?.message || 'Error desconocido';
+          this.errorMessage.set(`No se pudo actualizar el ${tipoOperacion}. ${detalle}`);
           this.showErrorModal.set(true);
           this.error.set(null);
           this.success.set(null);
@@ -660,7 +685,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
           console.error('Error creando traslado de huevos:', error);
           this.loading.set(false);
           const tipoOperacion = formValue.tipoOperacion?.toLowerCase().includes('venta') ? 'venta' : 'traslado';
-          this.errorMessage.set(`No se pudo guardar el ${tipoOperacion}. ${error.message || 'Error desconocido'}`);
+          const detalle = error?.error?.message || error?.error?.error || error?.message || 'Error desconocido';
+          this.errorMessage.set(`No se pudo guardar el ${tipoOperacion}. ${detalle}`);
           this.showErrorModal.set(true);
           this.error.set(null);
           this.success.set(null);

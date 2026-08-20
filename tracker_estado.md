@@ -340,3 +340,41 @@ en un plan viejo, esta tabla es la respuesta.
 | V19.2.1 opción (a) vs (b) del kardex | **OBSOLETO** | V40.8 midió que (a) empeora; lo cerró **V41** |
 | V8.6 · simular la corrección + gate de paridad | **ABSORBIDO** | es el paso de ejecución de **B2**, no un pendiente aparte |
 | S-1 a S-4 «bloqueados por el deploy» | **DESBLOQUEADOS** | la PWA está en prod: los 4 smokes ya son ejecutables → **C10-C13** |
+
+---
+
+## V51 — Permiso de fecha retroactiva + ventana base de 15 días (20-ago-2026)
+
+**Plan:** [`fase_de_desarrollo/permiso_fecha_retroactiva_registros_plan.md`](fase_de_desarrollo/permiso_fecha_retroactiva_registros_plan.md)
+
+Pedido: permiso que habilite fechar hacia atrás en los registros manuales, y ampliar la ventana base
+del "solo mes en curso" a `MIN(1 del mes, hoy − 15)` (el día 1 no dejaba cargar lo del día anterior).
+Alcance: movimientos/traslados de aves, pollo engorde, huevos, alimento + gestión de inventario y
+gastos. Fuera (por instrucción explícita): tickets/ItalJira, Implementación, Vacunación; y por
+naturaleza del dato: filtros de reporte y fechas que van al futuro (`fecha_vencimiento`, lotes
+programados).
+
+- [x] `VentanaFechaRegistroCalculos` (nuevo, Application/Calculos): ventana base + permiso
+      `registros.fecha_retroactiva`; `VentanaFechaMovimientoInventarioCalculos` delega en él y
+      conserva la excepción D4 (alimento previo al encaset) encima — una sola fórmula por número
+- [x] `VentanaFechaRegistroGuard` (extensión de `ControllerBase`) + **17 puertas** guardadas en 7
+      controllers (creación y edición, no solo alta) — `POST /InventarioGestion/consumo` y los
+      endpoints de venta/traslado disparados desde seguimiento diario quedaron fuera con motivo
+      documentado en el plan
+- [x] Migración `SeedPermisoFechaRetroactivaRegistros` (data-only, Designer clonado con diff de 4
+      líneas): permiso + `company_permissions` en las 5 empresas + rol Admin. **Verificado contra la
+      BD local real**: aplica sin SIGSEGV, idempotente (`INSERT 0 0` al re-correr el SQL a mano),
+      Swagger 200 con el DTO `Min` ahora nullable
+- [x] Frontend: `shared/utils/fecha/ventana-fecha-registro.funcion.ts` (canónica) + 11 formularios
+      (`[attr.min]`/`[max]`, no `[min]`: con permiso el atributo desaparece) + de paso, 7 manejadores
+      de error que descartaban el mensaje real del backend (`error.message` en vez de
+      `error.error?.message`) quedaron corregidos — sin eso el 400 del permiso nunca le habría
+      llegado al usuario
+- [x] `dotnet build` 0 errores (20 warnings preexistentes, ninguno nuevo) · `dotnet test` **2936/2936**
+      (incluye 76 tests de la ventana, 3 archivos viejos actualizados a la regla ampliada + equivalencia
+      a mitad de mes) · `yarn build` 0 errores, 0 warnings · gate `verificar-sql-llega-por-migracion.js`
+      en verde
+- [i] **El bloque de este pendiente se perdió una vez**: escrito con `cat >> tracker_estado.md` sin
+      commitear, la limpieza de esta misma tarde (`13a969a`/`7a8d1fe`) lo pisó al reescribir el
+      archivo. Recuperado y committeado de inmediato — la lección de
+      `como-trabaja-el-usuario.md` era literal.

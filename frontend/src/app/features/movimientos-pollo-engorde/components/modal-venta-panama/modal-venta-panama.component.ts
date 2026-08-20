@@ -15,7 +15,13 @@ import { MovimientoPolloEngordeService } from '../../services/movimiento-pollo-e
 import { VentaPanamaPolloEngordeService } from '../../services/venta-panama-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 import { VentaPanamaLineaUI } from '../../models/venta-panama.model';
 import { buildVentaPanamaDespachoDto, VentaPanamaFormValue } from '../../funciones/mapear-venta-panama-dto.funcion';
 import { formatearNumero as fmtNumero } from '../../funciones/formato.funcion';
@@ -68,9 +74,27 @@ export class ModalVentaPanamaComponent implements OnChanges {
     private panamaSvc: VentaPanamaPolloEngordeService,
     private tokenStorage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private permService: UserPermissionService
   ) {
     this.buildForm();
+  }
+
+  /** Permiso `registros.fecha_retroactiva`: destraba `fechaMovimiento` más allá de la ventana base. */
+  private get puedeRetroactivar(): boolean {
+    return this.permService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaMovimientoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaMovimientoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaMovimientoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -310,7 +334,8 @@ export class ModalVentaPanamaComponent implements OnChanges {
       this.saved.emit(res.movimientos.length);
     } catch (err: unknown) {
       this.loading = false;
-      this.error = err instanceof Error ? err.message : 'Error al guardar la venta Panamá.';
+      const httpErr = err as { error?: { message?: string; error?: string }; message?: string };
+      this.error = httpErr?.error?.message ?? httpErr?.error?.error ?? httpErr?.message ?? 'Error al guardar la venta Panamá.';
     }
   }
 }

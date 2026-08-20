@@ -465,11 +465,11 @@
                   id="traslado-fecha-movimiento"
                   class="form-input"
                   type="date"
-                  [min]="fechaMovimientoMin"
+                  [attr.min]="fechaMovimientoMin"
                   [max]="fechaMovimientoMax"
                   [(ngModel)]="trasladoFechaMovimiento" />
                 <small class="hint" style="display: block; margin-top: 0.35rem">
-                  Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+                  {{ hintFechaMovimientoTexto }}
                 </small>
                 </div>
                 <div class="field field-full traslado-modos">
@@ -1429,12 +1429,12 @@
                   id="stock-edit-fecha"
                   class="form-input"
                   type="date"
-                  [min]="fechaMovimientoMin"
+                  [attr.min]="fechaMovimientoMin"
                   [max]="fechaMovimientoMax"
                   [(ngModel)]="stockEditFechaIngreso" />
                 <small class="hint" style="display: block; margin-top: 0.35rem">
                   Es la fecha mostrada en la columna «Fecha ingreso» del stock; el sistema la guarda como fecha del primer registro en esa ubicación.
-                  Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+                  {{ hintFechaMovimientoTexto }}
                 </small>
               </div>
               <div class="field">
@@ -1500,7 +1500,7 @@
                 id="ingreso-fecha-input"
                 class="form-input"
                 type="date"
-                [min]="fechaIngresoMin"
+                [attr.min]="fechaIngresoMin"
                 [max]="fechaIngresoMax"
                 [(ngModel)]="ingresoFechaDraft" />
               <small class="hint" style="display: block; margin-top: 0.35rem">

@@ -59,6 +59,11 @@ import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { catchError, of } from 'rxjs';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 /** Permiso que habilita cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
 const PERMISO_VENDER_LOTES_CERRADOS = 'movimientos_pollo_engorde.vender_lotes_cerrados';
@@ -337,6 +342,23 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   get hayLoteBloqueadoSinPermiso(): boolean {
     if (this.puedeVenderLotesCerrados) return false;
     return this.ventaLineasGranja.some((l) => l.bloqueada);
+  }
+
+  /** Permiso `registros.fecha_retroactiva`: destraba `fechaMovimiento` más allá de la ventana base. */
+  private get puedeRetroactivar(): boolean {
+    return this.permService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaMovimientoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaMovimientoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaMovimientoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -831,7 +853,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         },
         error: (err) => {
           this.loading = false;
-          this.error = err?.message ?? err?.error ?? 'Error al actualizar.';
+          this.error = err?.error?.message ?? err?.error?.error ?? err?.message ?? 'Error al actualizar.';
         }
       });
       return;
@@ -851,7 +873,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       },
       error: (err) => {
         this.loading = false;
-        this.error = err?.message ?? err?.error ?? 'Error al guardar.';
+        this.error = err?.error?.message ?? err?.error?.error ?? err?.message ?? 'Error al guardar.';
       }
     });
   }
@@ -870,8 +892,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       this.save.emit({ ventaGranjaBatchCount: res.movimientos.length });
     } catch (err: unknown) {
       this.loading = false;
-      this.error =
-        err instanceof Error ? err.message : String((err as { message?: string })?.message ?? 'Error al guardar.');
+      const httpErr = err as { error?: { message?: string; error?: string }; message?: string };
+      this.error = httpErr?.error?.message ?? httpErr?.error?.error ?? httpErr?.message ?? 'Error al guardar.';
     }
   }
 

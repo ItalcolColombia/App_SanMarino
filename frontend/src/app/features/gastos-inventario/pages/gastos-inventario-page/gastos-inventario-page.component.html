@@ -270,7 +270,9 @@
               <div class="modal-row">
                 <div class="ux-field">
                   <label>Fecha</label>
-                  <input type="date" [(ngModel)]="formFecha" />
+                  <input type="date" [(ngModel)]="formFecha" name="formFecha"
+                    [attr.min]="formFechaMin" [max]="formFechaMax" />
+                  <small class="hint">{{ formFechaHint }}</small>
                 </div>
                 <div class="ux-field grow">
                   <label>Observaciones</label>

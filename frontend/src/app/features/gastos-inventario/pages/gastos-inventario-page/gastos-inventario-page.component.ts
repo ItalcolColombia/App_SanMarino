@@ -10,6 +10,12 @@ import { LoteBaseEngordeApi, LoteBaseEngordeDto } from '../../../engorde-comun/s
 import { GestionInventarioService, InventarioGestionSiloDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 import {
   PRESETS_RANGO_GASTOS,
   RangoPresetGastos,
@@ -122,8 +128,26 @@ export class GastosInventarioPageComponent implements OnInit {
     private confirmDialog: ConfirmDialogService,
     private companyConfig: ActiveCompanyConfigService,
     private loteBaseApi: LoteBaseEngordeApi,
-    private gestionInventarioSvc: GestionInventarioService
+    private gestionInventarioSvc: GestionInventarioService,
+    private userPermService: UserPermissionService
   ) {}
+
+  /** Ventana de fechas admitida para `formFecha` (mes en curso ∪ últimos 15 días). */
+  private get puedeRetroactivar(): boolean {
+    return this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get formFechaMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get formFechaMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get formFechaHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
+  }
 
   get qtyExceedsStock(): boolean {
     if (!this.selectedItem || this.qtyToAdd == null) return false;
@@ -509,7 +533,7 @@ export class GastosInventarioPageComponent implements OnInit {
       this.toast.success('Gasto registrado y stock descontado.', 'Éxito');
       await this.refresh();
     } catch (e: any) {
-      this.error = e?.error?.error ?? 'No se pudo registrar el gasto.';
+      this.error = e?.error?.message ?? e?.error?.error ?? 'No se pudo registrar el gasto.';
       this.toast.error(this.error ?? 'No se pudo registrar el gasto.', 'Error');
     } finally {
       this.loading = false;

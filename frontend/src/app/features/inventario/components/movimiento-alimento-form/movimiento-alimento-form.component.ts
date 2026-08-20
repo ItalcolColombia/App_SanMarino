@@ -22,6 +22,12 @@ import {
 } from '../../services/inventario.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 // Tipos de documento origen
 type DocumentoOrigen = 'Autoconsumo' | 'RVN' | 'EAN';
@@ -73,15 +79,22 @@ export class MovimientoAlimentoFormComponent implements OnInit {
     tipoEntrada?: string;
   } | null = null;
 
-  constructor(private toast: ToastService, 
+  /** Ventana de fechas admitida para el campo `fechaMovimiento` (mes en curso ∪ últimos 15 días). */
+  fechaMovimientoMin: string | null = '';
+  fechaMovimientoMax = '';
+  fechaMovimientoHint = '';
+
+  constructor(private toast: ToastService,
     private fb: FormBuilder,
     private invSvc: InventarioService,
-    private galponSvc: GalponService
+    private galponSvc: GalponService,
+    private userPermService: UserPermissionService
   ) {}
 
   ngOnInit(): void {
     this.initForm();
     this.loadFarms();
+    this.aplicarVentanaFecha();
     
     // Cargar productos iniciales (solo tipo alimento)
     this.loadProducts('alimento', null);
@@ -205,6 +218,16 @@ export class MovimientoAlimentoFormComponent implements OnInit {
     });
   }
 
+  /** Deja min/max/hint listos para el template (referencias estables). */
+  private aplicarVentanaFecha(): void {
+    const puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+    const hoy = new Date();
+    const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);
+    this.fechaMovimientoMin = extremos.min;
+    this.fechaMovimientoMax = extremos.max;
+    this.fechaMovimientoHint = hintVentanaFechaRegistro(hoy, puedeRetroactivar);
+  }
+
   get selectedProduct(): CatalogItemDto | null {
     const productId = this.form.get('catalogItemId')?.value;
     return this.items.find(p => p.id === productId) || null;
@@ -279,7 +302,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar movimiento de alimento:', err);
-          this.toast.error('Error al registrar el movimiento. Por favor, intente nuevamente.');
+          this.toast.error(err?.error?.message || 'Error al registrar el movimiento. Por favor, intente nuevamente.');
         }
       });
   }
@@ -331,7 +354,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar traslado de alimento:', err);
-          this.toast.error('Error al registrar el traslado. Por favor, intente nuevamente.');
+          this.toast.error(err?.error?.message || 'Error al registrar el traslado. Por favor, intente nuevamente.');
         }
       });
   }

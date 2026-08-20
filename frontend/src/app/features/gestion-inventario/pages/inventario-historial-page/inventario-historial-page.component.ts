@@ -19,11 +19,13 @@ import {
   hintFechaIngreso,
   mensajeFechaFueraDeVentana,
   mensajeFechaIngresoFueraDeVentana,
-  ventanaFechaMovimiento,
+  PERMISO_FECHA_RETROACTIVA,
   type VentanaFechaIngreso,
 } from '../../funciones/ventana-fecha-movimiento.funcion';
+import { hintVentanaFechaRegistro } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
 type ActiveTab = 'traslados' | 'ingresos';
 
@@ -64,6 +66,10 @@ export class InventarioHistorialPageComponent implements OnInit {
   private svc = inject(GestionInventarioService);
   private confirmDialog = inject(ConfirmDialogService);
   private toast = inject(ToastService);
+  private userPermService = inject(UserPermissionService);
+
+  /** Permiso `registros.fecha_retroactiva`: destraba el campo de fecha más allá de la ventana base. */
+  readonly puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
 
   activeTab: ActiveTab = 'traslados';
 
@@ -111,18 +117,19 @@ export class InventarioHistorialPageComponent implements OnInit {
   editSaving = false;
   editError = '';
   /**
-   * Ventana admitida para la fecha (día 1 del mes en curso → hoy). Campos, no getters: el template
-   * los lee en cada ciclo y tienen que ser referencias estables.
+   * Hint de la ventana admitida para la fecha (mes en curso ∪ últimos 15 días → hoy, o sin piso con
+   * el permiso de fecha retroactiva). Campo, no getter: el template lo lee en cada ciclo y tiene que
+   * ser una referencia estable.
    */
-  fechaMovimientoMin = '';
-  fechaMovimientoMax = '';
+  hintFechaMovimientoTexto = '';
 
   /**
    * D4 — el modal de fecha lo comparten traslados e ingresos, pero la excepción del alimento previo
    * al encasetamiento es SOLO de los ingresos (igual que en el backend). `null` ⇒ regla dura.
+   * `editFechaMin: string | null` — `null` = sin piso, ligado con `[attr.min]`.
    */
   ventanaEdicion: VentanaFechaIngreso | null = null;
-  editFechaMin = '';
+  editFechaMin: string | null = '';
   editFechaMax = '';
   editHint = '';
 
@@ -135,9 +142,8 @@ export class InventarioHistorialPageComponent implements OnInit {
   deleteError = '';
 
   ngOnInit(): void {
-    const ventana = ventanaFechaMovimiento(new Date());
-    this.fechaMovimientoMin = ventana.min;
-    this.fechaMovimientoMax = ventana.max;
+    const hoy = new Date();
+    this.hintFechaMovimientoTexto = hintVentanaFechaRegistro(hoy, this.puedeRetroactivar);
     this.aplicarVentanaEdicion(null);
     this.loadFilterData();
     this.loadTraslados();
@@ -256,10 +262,10 @@ export class InventarioHistorialPageComponent implements OnInit {
   private aplicarVentanaEdicion(ventana: VentanaFechaIngreso | null): void {
     const hoy = new Date();
     this.ventanaEdicion = ventana;
-    const extremos = extremosFechaIngreso(hoy, ventana);
+    const extremos = extremosFechaIngreso(hoy, ventana, this.puedeRetroactivar);
     this.editFechaMin = extremos.min;
     this.editFechaMax = extremos.max;
-    this.editHint = hintFechaIngreso(hoy, ventana);
+    this.editHint = hintFechaIngreso(hoy, ventana, this.puedeRetroactivar);
   }
 
   openDeleteIngreso(i: InventarioGestionIngresoListDto): void {
@@ -365,12 +371,12 @@ export class InventarioHistorialPageComponent implements OnInit {
     // El ingreso lleva además la excepción D4; el traslado conserva la regla dura.
     const hoy = new Date();
     if (this.editType === 'ingresos') {
-      if (!esFechaIngresoOfrecible(this.editFecha, hoy, this.ventanaEdicion)) {
-        this.editError = mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaEdicion);
+      if (!esFechaIngresoOfrecible(this.editFecha, hoy, this.ventanaEdicion, this.puedeRetroactivar)) {
+        this.editError = mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaEdicion, this.puedeRetroactivar);
         return;
       }
-    } else if (!esFechaMovimientoPermitida(this.editFecha, hoy)) {
-      this.editError = mensajeFechaFueraDeVentana(hoy);
+    } else if (!esFechaMovimientoPermitida(this.editFecha, hoy, this.puedeRetroactivar)) {
+      this.editError = mensajeFechaFueraDeVentana(hoy, this.puedeRetroactivar);
       return;
     }
     this.editSaving = true;

@@ -98,9 +98,10 @@
             <div class="form-group">
               <label class="form-label" for="fechaMovimiento">Fecha del movimiento <span class="req">*</span></label>
               <input type="date" id="fechaMovimiento" formControlName="fechaMovimiento"
-                class="form-control" [readonly]="isReadOnly()">
+                class="form-control" [readonly]="isReadOnly()"
+                [attr.min]="fechaMovimientoMin" [max]="fechaMovimientoMax">
                 <small class="field-hint">
-                  Día real en que se movieron las aves (puede ser retroactivo).
+                  Día real en que se movieron las aves. {{ fechaMovimientoHint }}
                   @if (editingMovimiento?.createdAt) {
                     Registrado en el sistema el <strong>{{ editingMovimiento!.createdAt | date:'dd/MM/yyyy HH:mm' }}</strong>.
                   } @else {

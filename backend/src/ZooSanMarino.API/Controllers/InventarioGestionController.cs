@@ -1,5 +1,6 @@
 // src/ZooSanMarino.API/Controllers/InventarioGestionController.cs
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -19,8 +20,9 @@ public class InventarioGestionController : ControllerBase
     }
 
     /// <summary>
-    /// Ventana de fechas de los movimientos cargados A MANO: del 1 del mes en curso hasta hoy
-    /// (<see cref="VentanaFechaMovimientoInventarioCalculos"/>). Devuelve el 400 ya armado, o
+    /// Ventana de fechas de los movimientos cargados A MANO: el mes en curso o los últimos 15 días
+    /// —el que llegue más atrás— hasta hoy, salvo que el usuario tenga el permiso de fecha
+    /// retroactiva (<see cref="VentanaFechaRegistroCalculos"/>). Devuelve el 400 ya armado, o
     /// <c>null</c> si la fecha es válida.
     /// <para>
     /// ⚠️ La guarda vive acá y NO en <c>InventarioGestionService</c> a propósito: los mismos métodos
@@ -29,13 +31,8 @@ public class InventarioGestionController : ControllerBase
     /// El controller es la única frontera «esto lo tipeó una persona en pantalla».
     /// </para>
     /// </summary>
-    private IActionResult? ValidarVentanaFecha(DateTime? fecha)
-    {
-        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
-        return VentanaFechaMovimientoInventarioCalculos.EsFechaPermitida(fecha, hoy)
-            ? null
-            : BadRequest(new { message = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentana(hoy) });
-    }
+    private IActionResult? ValidarVentanaFecha(DateTime? fecha) =>
+        this.ValidarVentanaFechaRegistro(fecha);
 
     /// <summary>
     /// D4 — misma ventana que <see cref="ValidarVentanaFecha"/> más la excepción del alimento previo
@@ -52,20 +49,19 @@ public class InventarioGestionController : ControllerBase
         Func<CancellationToken, Task<InventarioGestionVentanaAlimentoPrevioDto>> resolverVentana,
         CancellationToken ct)
     {
-        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
-        if (VentanaFechaMovimientoInventarioCalculos.EsFechaPermitida(fecha, hoy))
+        var puedeRetroactivar = this.PuedeFecharRetroactivo();
+        var hoy = this.DiaOperativoActual();
+        if (VentanaFechaMovimientoInventarioCalculos.EsFechaPermitida(fecha, hoy, puedeRetroactivar))
             return null;
 
         var ventana = await resolverVentana(ct);
         if (VentanaFechaMovimientoInventarioCalculos.EsFechaPermitidaConEncasetProximo(
-                fecha, hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa))
+                fecha, hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa, puedeRetroactivar))
             return null;
 
-        return BadRequest(new
-        {
-            message = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
-                hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa)
-        });
+        var mensaje = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
+            hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa, puedeRetroactivar);
+        return BadRequest(new { message = mensaje, error = mensaje });
     }
 
     /// <summary>
@@ -73,20 +69,22 @@ public class InventarioGestionController : ControllerBase
     /// los extremos y el texto salen de <see cref="VentanaFechaMovimientoInventarioCalculos"/>, que
     /// es la misma clase que decide el 400 de las dos puertas de ingreso.
     /// </summary>
-    private static InventarioGestionVentanaFechaIngresoDto ArmarVentanaFechaIngreso(
+    private InventarioGestionVentanaFechaIngresoDto ArmarVentanaFechaIngreso(
         InventarioGestionVentanaAlimentoPrevioDto ventana)
     {
-        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
+        var puedeRetroactivar = this.PuedeFecharRetroactivo();
+        var hoy = this.DiaOperativoActual();
         var (min, max) = VentanaFechaMovimientoInventarioCalculos.ExtremosVentanaIngreso(
-            hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa);
+            hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa, puedeRetroactivar);
 
         return new InventarioGestionVentanaFechaIngresoDto(
-            DateOnly.FromDateTime(min),
+            // `null` = sin piso (el usuario tiene el permiso): la pantalla no debe poner `min`.
+            min is { } m ? DateOnly.FromDateTime(m) : null,
             DateOnly.FromDateTime(max),
             ventana.ProximoEncaset is { } e ? DateOnly.FromDateTime(e) : null,
             ventana.DiasVentanaEmpresa,
             VentanaFechaMovimientoInventarioCalculos.TextoAyudaVentanaIngreso(
-                hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa));
+                hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa, puedeRetroactivar));
     }
 
     /// <summary>

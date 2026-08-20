@@ -36,6 +36,12 @@ import { LoteService } from '../../../lote/services/lote.service';
 import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
 import { SeguimientoLoteLevanteService, CreateSeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-produccion/services/lote-produccion.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 
 @Component({
   selector: 'app-inventario-dashboard',
@@ -156,13 +162,35 @@ export class InventarioDashboardComponent implements OnInit {
     private trasladoNavigationService: TrasladoNavigationService,
     // 🔴 Servicios para seguimiento diario
     private seguimientoLevanteService: SeguimientoLoteLevanteService,
-    private produccionService: LoteProduccionService
+    private produccionService: LoteProduccionService,
+    private userPermService: UserPermissionService
   ) {
     this.initTrasladoForm();
 
     effect(() => {
       if (this.inventarioOrigen()) this.validarCantidades();
     });
+  }
+
+  /**
+   * Ventana de fechas de los tres formularios de este dashboard (traslado de aves entre lotes,
+   * retiro/traslado de aves, traslado de huevos): todos escriben movimientos/traslados cargados a
+   * mano y comparten la misma regla — mes en curso ∪ últimos 15 días, o sin piso con el permiso.
+   */
+  private get puedeRetroactivar(): boolean {
+    return this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+  }
+
+  get fechaTrasladoMin(): string | null {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).min;
+  }
+
+  get fechaTrasladoMax(): string {
+    return extremosVentanaRegistro(new Date(), this.puedeRetroactivar).max;
+  }
+
+  get fechaTrasladoHint(): string {
+    return hintVentanaFechaRegistro(new Date(), this.puedeRetroactivar);
   }
 
   ngOnInit(): void {
@@ -707,7 +735,7 @@ export class InventarioDashboardComponent implements OnInit {
       setTimeout(() => this.cerrarModalTraslado(), 1000);
     } catch (err: any) {
       console.error('Error procesando traslado:', err);
-      this.errorTraslado.set(err.message || 'Error al procesar el traslado');
+      this.errorTraslado.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el traslado');
     } finally {
       this.procesandoTraslado.set(false);
     }
@@ -1573,7 +1601,7 @@ export class InventarioDashboardComponent implements OnInit {
 
     } catch (err: any) {
       console.error('Error al procesar retiro/traslado de aves:', err);
-      this.errorRetiro.set(err?.message || 'Error al procesar el retiro/traslado de aves');
+      this.errorRetiro.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el retiro/traslado de aves');
     } finally {
       this.procesandoRetiro.set(false);
     }
@@ -1655,7 +1683,7 @@ export class InventarioDashboardComponent implements OnInit {
 
     } catch (err: any) {
       console.error('Error al procesar traslado de huevos:', err);
-      this.errorRetiro.set(err?.message || 'Error al procesar el traslado de huevos');
+      this.errorRetiro.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el traslado de huevos');
     } finally {
       this.procesandoRetiro.set(false);
     }

@@ -160,11 +160,15 @@
               type="date"
               id="fechaMovimiento"
               class="form-input"
+              [attr.min]="fechaMovimientoMin"
+              [max]="fechaMovimientoMax"
               formControlName="fechaMovimiento">
               @if (isFieldInvalid('fechaMovimiento')) {
                 <span class="error-message">
                   {{ getFieldError('fechaMovimiento') }}
                 </span>
+              } @else {
+                <div class="field-help"><small>{{ fechaMovimientoHint }}</small></div>
               }
             </div>
           </div>

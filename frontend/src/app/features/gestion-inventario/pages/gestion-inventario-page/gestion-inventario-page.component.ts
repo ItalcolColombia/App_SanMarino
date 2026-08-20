@@ -23,6 +23,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { CuadreAlimentoEngordeComponent } from '../../components/cuadre-alimento-engorde/cuadre-alimento-engorde.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
@@ -34,8 +35,10 @@ import {
   mensajeFechaFueraDeVentana,
   mensajeFechaIngresoFueraDeVentana,
   ventanaFechaMovimiento,
+  PERMISO_FECHA_RETROACTIVA,
   type VentanaFechaIngreso
 } from '../../funciones/ventana-fecha-movimiento.funcion';
+import { hintVentanaFechaRegistro } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -277,11 +280,14 @@ export class GestionInventarioPageComponent implements OnInit {
   readonly isColombiaInventario: boolean;
 
   /**
-   * Extremos de la ventana de fechas de los movimientos manuales (1 del mes en curso → hoy).
-   * Campos, no getters: el template los lee en cada ciclo y tienen que ser referencias estables.
+   * Extremos de la ventana de fechas de los movimientos manuales (mes en curso ∪ últimos 15 días →
+   * hoy, o sin piso con el permiso de fecha retroactiva). Campos, no getters: el template los lee en
+   * cada ciclo y tienen que ser referencias estables. `min` es `string | null`: `null` = sin piso,
+   * el template lo liga con `[attr.min]` para que el atributo directamente no exista.
    */
-  fechaMovimientoMin = '';
+  fechaMovimientoMin: string | null = '';
   fechaMovimientoMax = '';
+  hintFechaMovimientoTexto = '';
 
   /**
    * D4 — ventana del INGRESO informada por el backend para la ubicación elegida. `null` mientras no
@@ -289,22 +295,29 @@ export class GestionInventarioPageComponent implements OnInit {
    * mismo que los de arriba (referencias estables para el template).
    */
   ventanaIngreso: VentanaFechaIngreso | null = null;
-  fechaIngresoMin = '';
+  fechaIngresoMin: string | null = '';
   fechaIngresoMax = '';
   hintFechaIngresoTexto = '';
+
+  /** Permiso `registros.fecha_retroactiva`: destraba el campo de fecha más allá de la ventana base. */
+  readonly puedeRetroactivar: boolean;
 
   constructor(
     private svc: GestionInventarioService,
     private route: ActivatedRoute,
-    private country: CountryFilterService
+    private country: CountryFilterService,
+    private userPermService: UserPermissionService
   ) {
     this.isColombiaInventario = this.country.isColombia();
+    this.puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
   }
 
   ngOnInit(): void {
-    const ventana = ventanaFechaMovimiento(new Date());
+    const hoy = new Date();
+    const ventana = ventanaFechaMovimiento(hoy, this.puedeRetroactivar);
     this.fechaMovimientoMin = ventana.min;
     this.fechaMovimientoMax = ventana.max;
+    this.hintFechaMovimientoTexto = hintVentanaFechaRegistro(hoy, this.puedeRetroactivar);
     this.aplicarVentanaIngreso(null);
     this.ingresoFechaMovimiento = this.todayYmd();
     this.trasladoFechaMovimiento = this.todayYmd();
@@ -1244,10 +1257,10 @@ export class GestionInventarioPageComponent implements OnInit {
   private aplicarVentanaIngreso(ventana: VentanaFechaIngreso | null): void {
     const hoy = new Date();
     this.ventanaIngreso = ventana;
-    const extremos = extremosFechaIngreso(hoy, ventana);
+    const extremos = extremosFechaIngreso(hoy, ventana, this.puedeRetroactivar);
     this.fechaIngresoMin = extremos.min;
     this.fechaIngresoMax = extremos.max;
-    this.hintFechaIngresoTexto = hintFechaIngreso(hoy, ventana);
+    this.hintFechaIngresoTexto = hintFechaIngreso(hoy, ventana, this.puedeRetroactivar);
   }
 
   submitIngreso(): void {
@@ -1691,8 +1704,8 @@ export class GestionInventarioPageComponent implements OnInit {
    */
   private validarVentanaFecha(ymd: string | null | undefined): boolean {
     const hoy = new Date();
-    if (esFechaMovimientoPermitida(ymd, hoy)) return true;
-    this.openAlertModal('error', 'Validación', mensajeFechaFueraDeVentana(hoy));
+    if (esFechaMovimientoPermitida(ymd, hoy, this.puedeRetroactivar)) return true;
+    this.openAlertModal('error', 'Validación', mensajeFechaFueraDeVentana(hoy, this.puedeRetroactivar));
     return false;
   }
 
@@ -1703,8 +1716,12 @@ export class GestionInventarioPageComponent implements OnInit {
    */
   private validarVentanaFechaIngreso(ymd: string | null | undefined): boolean {
     const hoy = new Date();
-    if (esFechaIngresoOfrecible(ymd, hoy, this.ventanaIngreso)) return true;
-    this.openAlertModal('error', 'Validación', mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaIngreso));
+    if (esFechaIngresoOfrecible(ymd, hoy, this.ventanaIngreso, this.puedeRetroactivar)) return true;
+    this.openAlertModal(
+      'error',
+      'Validación',
+      mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaIngreso, this.puedeRetroactivar)
+    );
     return false;
   }
 
