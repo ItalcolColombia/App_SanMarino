@@ -75,25 +75,56 @@ inventarlo.
 3. Editar un galpón existente ⇒ el Id sigue readonly y no se pide al backend.
 4. Si `siguiente-id` falla (500/red) ⇒ el modal abre igual con el Id calculado localmente.
 
-## 5. Acción de datos en prod (la que resuelve el ticket)
+## 5. La corrección de datos viaja como migración EF (se aplica en el despliegue)
 
-Con el fix desplegado, la creación se hace **desde la UI** (Gestión de Granjas → Galpones → Nuevo
-Galpón, granja NIZA III, núcleo Modulo IV, nombres `Galpon 1/2/3`). No hace falta SQL.
+`20260820055219_SeedGalponesModuloIvNizaIii` — **data-only** (Designer clonado, ModelSnapshot
+intacto). Crea `Galpon 1/2/3` en el núcleo Modulo IV de NIZA III. Como la TaskDef de ECS corre con
+`Database__RunMigrations=true`, **el deploy la aplica solo**; no hace falta SQL a mano.
 
-Antes de eso conviene confirmar el estado real de prod (la BD local es del 27jul26) con este SELECT
-en DB Studio:
+- **Identidad por nombre**, nunca por id fijo: empresa `Agroavicola Sanmarino` → granja `NIZA III` →
+  núcleo `Modulo IV` (acepta la grafía vieja `Modulo IV -`).
+- **Fail-open**: si el entorno no tiene esa granja/núcleo, `RAISE NOTICE` + `RETURN` — un seed no
+  puede tumbar el arranque de la app.
+- **Idempotente por partida doble**: no toca nada si el núcleo ya tiene 3 galpones activos (por si
+  operación los crea a mano antes del deploy) y, por galpón, salta el que ya exista por nombre.
+- **El Id se elige libre en ejecución** (máximo global `Gnnnn` + 1, avanzando si está ocupado), misma
+  regla que `GalponService.GenerateNextGalponIdAsync`. Nada de ids hardcodeados.
+- **Sin medidas inventadas**: `ancho`/`largo` NULL, `tipo_galpon = 'Abierto'` (el de los otros 13 de
+  la granja), `created_by_user_id = 0` (marca de sistema).
+- **`Down()`** borra solo los sembrados (`created_by_user_id = 0`) y **solo si siguen vacíos** (sin
+  lotes/inventario/producción): revertir no puede llevarse por delante datos de negocio.
+- Espejo en `backend/sql/crear_galpones_modulo_iv_niza_iii.sql` por si hay que correrlo en DB Studio
+  antes del despliegue.
 
-```sql
-SELECT n.nucleo_id, n.nucleo_nombre, n.company_id, n.deleted_at,
-       count(g.galpon_id) FILTER (WHERE g.deleted_at IS NULL) AS galpones_activos,
-       count(g.galpon_id) FILTER (WHERE g.deleted_at IS NOT NULL) AS galpones_borrados
-FROM nucleos n
-LEFT JOIN galpones g ON g.nucleo_id = n.nucleo_id AND g.granja_id = n.granja_id
-WHERE n.granja_id = 5
-GROUP BY 1,2,3,4
-ORDER BY 2;
-```
+### Verificación de la migración (contra la copia de producción)
+| Escenario | Resultado |
+|---|---|
+| Núcleo vacío | crea 3 (`NOTICE: 3 galpon(es) creado(s)`) |
+| Segunda corrida | `NOTICE: ya tiene 3 galpon(es) activo(s); no se toca nada` — 0 filas |
+| Falta 1 de 3 | crea solo ese, con id libre |
+| Sin el núcleo (en transacción + ROLLBACK) | `NOTICE ... nada que hacer`, 0 inserts, sin excepción |
+| `Down()` (en transacción + ROLLBACK) | borra los 3 sembrados; los 9 homónimos de Modulo I/II/III intactos |
 
-- Si Modulo IV sale con `galpones_activos = 0` ⇒ es exactamente este caso: crear los 3 galpones.
-- Si sale con galpones activos pero la UI no los muestra ⇒ mirar `company_id` de esos galpones
-  (el filtro COMPAÑÍA del front descarta los de otra empresa) y `user_farm_scopes` del usuario.
+## 5.1. Diagnóstico confirmado contra la copia de producción (20ago26)
+
+La copia local ya está sincronizada con producción, así que el diagnóstico dejó de ser hipótesis:
+
+| Núcleo | Galpones activos | |
+|---|---|---|
+| Modulo I (324) | 4 | |
+| Modulo II (323) | 3 | |
+| Modulo III (233) | 3 | +3 borrados |
+| **Modulo IV (543)** | **0** | activo, empresa 1, `deleted_at` NULL |
+
+Son los 10 registros de la captura del ticket. **No era el servicio ni permisos**:
+`user_farms.restrict_locations = false` para la reportante, con NIZA III asignada.
+
+La auditoría reconstruye la secuencia del **18ago26**: 12:50–12:52 se renombraron los galpones de
+Modulo II y III a `1/2/3`; **12:56** se borraron `G0020/G0021/G0022` (`Galpon 11/12/13` de Modulo III),
+que no tienen **ni una** fila dependiente. Los de Modulo IV nunca se pudieron crear: con el alcance de
+la reportante (54 granjas de la empresa 1) el modal proponía **`G0443`** — `galpon pruebas`, granja 44
+*Pruebas Moises*, que ella no ve — y el alta se rechazaba por Id ocupado.
+
+Verificado también que la consulta que emula `GET /api/Galpon` con su alcance devuelve **13 filas con
+Modulo IV incluido** una vez creados los galpones ⇒ el desplegable pasa a 4 núcleos y el formulario de
+lotes ofrece los 3 galpones.

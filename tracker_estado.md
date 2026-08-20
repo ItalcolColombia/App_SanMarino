@@ -2786,6 +2786,14 @@ Ticket de operación: el núcleo «Modulo IV» de NIZA III no aparece al crear l
       ids libres). Aplicado en la copia local → G0535/G0536/G0537 = `Galpon 1/2/3` en Modulo IV; la
       consulta que emula `GET /api/Galpon` con el alcance de la reportante ya devuelve **13** filas con
       Modulo IV incluido. **En produccion NO se aplico** (sin acceso al RDS desde esta maquina)
+- [x] X1.10 **La correccion viaja como migracion EF** `20260820055219_SeedGalponesModuloIvNizaIii`
+      (data-only, Designer clonado, ModelSnapshot intacto) ⇒ el despliegue la aplica solo
+      (`Database__RunMigrations=true`). Lookups por NOMBRE (empresa→granja→nucleo, acepta la grafia
+      vieja `Modulo IV -`), fail-open con `RAISE NOTICE`, idempotente por conteo y por nombre, id
+      libre elegido en ejecucion. `Down()` borra solo lo sembrado y solo si sigue vacio
+- [x] X1.11 Verificada contra la copia de produccion, las 5 ramas: nucleo vacio crea 3 · 2a corrida
+      0 filas · falta 1 crea solo ese · sin nucleo NOTICE sin excepcion · `Down()` deja intactos los 9
+      homonimos de Modulo I/II/III. `dotnet build` 0 errores; `migrations list` la da **(Pending)**
 - [i] X1.7 Smoke: `/api/Galpon/siguiente-id` resuelve la ruta (401 del middleware de plataforma,
       no 404) en un backend aislado :5501; el Id que devuelve el generador para la empresa 1 se
       verificó por SQL contra la BD local: **G0535** (libre) frente al **G0025** que proponía el front
