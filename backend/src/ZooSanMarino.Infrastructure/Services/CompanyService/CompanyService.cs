@@ -59,6 +59,7 @@ public partial class CompanyService : ICompanyService
         c.ConsumoAlimentoSoloHembras,
         c.OcultaMachosEnPostura,
         c.HuevoPrimeraPosturaHastaSemana,
-        c.SemanasCicloPosturaPorRaza
+        c.SemanasCicloPosturaPorRaza,
+        c.LimitaTiposInventarioAlimentoYAves
     );
 }

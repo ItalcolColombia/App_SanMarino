@@ -76,5 +76,7 @@ public record CompanyDto(
     /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. Null = la empresa no usa el concepto.</summary>
     int? HuevoPrimeraPosturaHastaSemana = null,
     /// <summary>La etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/postura) se calcula por semana y por raza.</summary>
-    bool SemanasCicloPosturaPorRaza = false
+    bool SemanasCicloPosturaPorRaza = false,
+    /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
+    bool LimitaTiposInventarioAlimentoYAves = false
 );

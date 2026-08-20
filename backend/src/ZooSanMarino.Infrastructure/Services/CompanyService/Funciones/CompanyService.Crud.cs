@@ -88,7 +88,8 @@ public partial class CompanyService
             ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras,
             OcultaMachosEnPostura = dto.OcultaMachosEnPostura,
             HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana,
-            SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza
+            SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza,
+            LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves
         };
 
         _ctx.Companies.Add(c);
@@ -153,6 +154,7 @@ public partial class CompanyService
         c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
         c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
         c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
+        c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
 
         await _ctx.SaveChangesAsync();
 

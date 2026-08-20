@@ -76,6 +76,8 @@ export interface CompanyFlags {
    * (lo consumen saldos e históricos de otras empresas).
    */
   ocultaMachosEnPostura: boolean;
+  /** Santa Reyes: el catálogo de ítems de inventario sólo ofrece Alimento y Aves (en vez de los 6 tipos de siempre). */
+  limitaTiposInventarioAlimentoYAves: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -92,7 +94,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   requiereValidacionSeguimientoDiario: false,
   semanasCicloPosturaPorRaza: false,
   consumoAlimentoSoloHembras: false,
-  ocultaMachosEnPostura: false
+  ocultaMachosEnPostura: false,
+  limitaTiposInventarioAlimentoYAves: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -118,6 +121,7 @@ interface CompanyFlagsResponse {
   semanasCicloPosturaPorRaza?: boolean | null;
   consumoAlimentoSoloHembras?: boolean | null;
   ocultaMachosEnPostura?: boolean | null;
+  limitaTiposInventarioAlimentoYAves?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -195,6 +199,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa oculta Machos en mortalidad/selección/peso/uniformidad/ventas? */
   readonly ocultaMachosEnPostura$: Observable<boolean> = this.flags$.pipe(
     map(f => f.ocultaMachosEnPostura),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿el catálogo de ítems de inventario de la empresa activa se limita a Alimento y Aves? */
+  readonly limitaTiposInventarioAlimentoYAves$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.limitaTiposInventarioAlimentoYAves),
     distinctUntilChanged()
   );
 
@@ -310,7 +320,8 @@ export class ActiveCompanyConfigService {
       requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true,
       semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true,
       consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true,
-      ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true
+      ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true,
+      limitaTiposInventarioAlimentoYAves: dto?.limitaTiposInventarioAlimentoYAves === true
     };
   }
 
@@ -331,7 +342,8 @@ export class ActiveCompanyConfigService {
       actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario &&
       actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza &&
       actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras &&
-      actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura
+      actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura &&
+      actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves
     ) return;
     this.flagsSubject.next(flags);
   }

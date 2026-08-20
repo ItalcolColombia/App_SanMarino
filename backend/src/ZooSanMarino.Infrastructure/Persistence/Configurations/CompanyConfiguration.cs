@@ -150,6 +150,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el catálogo de ítems de inventario sólo ofrece Alimento
+        // y Aves. Nace de Santa Reyes.
+        builder.Property(x => x.LimitaTiposInventarioAlimentoYAves)
+            .HasColumnName("limita_tipos_inventario_alimento_y_aves")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

@@ -283,6 +283,16 @@
         /// </summary>
         public bool SemanasCicloPosturaPorRaza { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = el catálogo de ítems de inventario (<c>CatalogItem.ItemType</c>) sólo
+        /// ofrece «Alimento» y «Aves» al crear/editar/filtrar, en vez de los 6 tipos de siempre
+        /// (alimento/medicamento/accesorio/biologico/consumible/otro).
+        /// <para>Nace de Santa Reyes. Solo acota las opciones de la UI: no valida ni migra ítems
+        /// existentes de otros tipos.</para>
+        /// <c>false</c> (default) = comportamiento actual, los 6 tipos de siempre.
+        /// </summary>
+        public bool LimitaTiposInventarioAlimentoYAves { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

@@ -239,3 +239,43 @@ data-only para encenderlo en Santa Reyes, con timestamp posterior a
    (`null`/string arbitrario) ⇒ `ObtenerEtapa` devuelve `null`, no asume un grupo.
 5. Equivalencia frontend↔backend: mismos 5 puntos de corte en `semanas-ciclo-postura.funcion.ts`
    (test Karma o comparación manual documentada si el módulo no tiene harness de test unitario hoy).
+
+---
+
+## 7. F6 — Tipos de inventario (diseño técnico, 20-ago-2026)
+
+**Texto literal** (`Requerimientos de Italapp.docx`, sección «LEVANTES»): *"En el tipo de Items, se
+deben actualizar los tipos de inventarios que manejan la compañía así: Alimento. Aves."*
+
+**Módulo real:** `CatalogItem.ItemType` (`api/catalogo-alimentos`) — el plan §2 ya lo señalaba. Hoy
+el tipo es un string abierto con 6 valores usables desde la UI: `alimento`, `medicamento`,
+`accesorio`, `biologico`, `consumible`, `otro` (`aves` no existe todavía, hay que crearlo). La
+pantalla viva es **`CatalogoAlimentosListComponent`** (ruta lazy `config/catalogo-alimentos` →
+`CatalogoAlimentosModule` → `CatalogoAlimentosRoutingModule`, path `''`) — trae su propio modal de
+alta/edición embebido. **`CatalogoAlimentosFormComponent`** (rutas `nuevo`/`editar/:id` del mismo
+módulo) está **huérfano**: nada navega ahí (verificado, sin `routerLink` ni `.navigate` hacia esas
+rutas en todo el repo) — no se toca.
+
+**Alcance:** sólo UI (mismo criterio que F4/F5 — `OcultaMachosEnPostura` es "solo UI", no borra
+nada del modelo). El backend no valida `ItemType` contra una lista cerrada hoy; no se le agrega
+validación nueva — sería ampliar el alcance más allá de "acotar las opciones que ve Santa Reyes".
+
+- Flag nuevo `Company.LimitaTiposInventarioAlimentoYAves` (bool, default `false`), mismas 8 capas +
+  `flags-empresa.funcion.ts` + `active-company-config.service.ts` que los flags anteriores.
+  Migración idempotente + `UPDATE … WHERE name = 'Santa Reyes'` (mismo patrón que §6.3), esta vez sí
+  la enciende porque esta misma entrega construye lo que la consume.
+- `catalogo-alimentos.service.ts`: agrega `'aves'` a `CatalogItemType` (tipo compartido, usado
+  también por engorde/levante/producción para tipar `CatalogItemDto.itemType` — agregar un literal
+  al union no cambia el comportamiento de nadie que no lo use).
+- `CatalogoAlimentosListComponent`: `tiposItem` pasa de array fijo a getter que devuelve
+  `['alimento', 'aves']` con el flag ON, o los 6 de siempre con el flag OFF — alimenta los DOS
+  `<select>` que ya iteran sobre él (filtro de la lista y el combo `itemType` del modal alta/edición,
+  líneas 65 y 225 del template). `camposPorTipo['aves'] = []` (sin campos estructurados propios,
+  igual que `'otro'` hoy) y su propio type-union local (duplicado histórico del de servicio, no se
+  toca esa duplicación — no es parte de este alcance).
+
+**Riesgo:** ninguno — aditivo, y ninguna empresa hoy tiene items con `itemType = 'aves'`, así que no
+hay dato existente que reclasificar.
+
+**Validación:** `dotnet build`/`dotnet test` (flag nuevo, sin lógica de cálculo — no hace falta test
+xUnit dedicado) + `yarn build` + cruce manual de los dos `@for` del template contra `tiposItem`.

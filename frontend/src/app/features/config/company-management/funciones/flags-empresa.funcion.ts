@@ -59,6 +59,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     descripcion: 'El reporte de costos toma el alimento de los movimientos reales de inventario en vez del consumo declarado.',
     grupo: 'Inventario y alimento'
   },
+  {
+    key: 'limitaTiposInventarioAlimentoYAves',
+    titulo: 'Limitar tipos de ítem a Alimento y Aves',
+    descripcion: 'El catálogo de ítems de inventario solo ofrece Alimento y Aves al crear/editar/filtrar. Apagado, siguen los 6 tipos de siempre (alimento, medicamento, accesorio, biológico, consumible, otro).',
+    grupo: 'Inventario y alimento'
+  },
 
   // ── Postura ──────────────────────────────────────────────────────────────
   {
