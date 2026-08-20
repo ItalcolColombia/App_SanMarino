@@ -125,7 +125,10 @@ public class CompanyPaisService : ICompanyPaisService
             ReportesAlimentoDesdeInventarioUnificado: cp.Company.ReportesAlimentoDesdeInventarioUnificado,
             RequiereValidacionSeguimientoDiario: cp.Company.RequiereValidacionSeguimientoDiario,
             SeguimientoEngordeMixto: cp.Company.SeguimientoEngordeMixto,
-            ReporteCostosAlimentoDesdeFuentesReales: cp.Company.ReporteCostosAlimentoDesdeFuentesReales
+            ReporteCostosAlimentoDesdeFuentesReales: cp.Company.ReporteCostosAlimentoDesdeFuentesReales,
+            ConsumoAlimentoSoloHembras: cp.Company.ConsumoAlimentoSoloHembras,
+            OcultaMachosEnPostura: cp.Company.OcultaMachosEnPostura,
+            HuevoPrimeraPosturaHastaSemana: cp.Company.HuevoPrimeraPosturaHastaSemana
         )).ToList();
     }
 

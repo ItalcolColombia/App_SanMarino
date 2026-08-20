@@ -54,5 +54,11 @@ public record UpdateCompanyDto(
     /// <summary>Los seguimientos diarios exigen doble validación (separan al guardar, descuentan al validar).</summary>
     bool?    RequiereValidacionSeguimientoDiario = null,
     bool?    SeguimientoEngordeMixto = null,
-    bool?    ReporteCostosAlimentoDesdeFuentesReales = null
+    bool?    ReporteCostosAlimentoDesdeFuentesReales = null,
+    /// <summary>El seguimiento diario no captura consumo de alimento de machos (producción ni levante).</summary>
+    bool?    ConsumoAlimentoSoloHembras = null,
+    /// <summary>Oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas y retira error de sexaje del registro diario.</summary>
+    bool?    OcultaMachosEnPostura = null,
+    /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. Null = la empresa no usa el concepto (omitir conserva el valor actual; para borrarlo explícitamente no hay bandera separada, hoy no hace falta).</summary>
+    int?     HuevoPrimeraPosturaHastaSemana = null
 );

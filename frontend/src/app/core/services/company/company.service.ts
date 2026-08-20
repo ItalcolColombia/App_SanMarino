@@ -59,6 +59,12 @@ export interface Company {
   requiereValidacionSeguimientoDiario?: boolean;
   /** El primer día con registro depende de la hora de llegada de las aves. */
   primerRegistroSegunHoraLlegada?: boolean;
+  /** El seguimiento diario no captura consumo de alimento de machos (producción ni levante). */
+  consumoAlimentoSoloHembras?: boolean;
+  /** Oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas y retira error de sexaje del registro diario. */
+  ocultaMachosEnPostura?: boolean;
+  /** Última semana con huevo de primera postura habilitado. Sin valor = la empresa no usa el concepto. */
+  huevoPrimeraPosturaHastaSemana?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

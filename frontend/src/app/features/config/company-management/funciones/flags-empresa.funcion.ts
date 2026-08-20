@@ -79,6 +79,18 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     descripcion: 'Habilita mover aves de Levante a Producción conservando su edad. El sentido inverso nunca se permite.',
     grupo: 'Postura'
   },
+  {
+    key: 'consumoAlimentoSoloHembras',
+    titulo: 'Consumo de alimento solo hembras',
+    descripcion: 'El seguimiento diario de producción y levante deja de pedir consumo de machos. Apagado, sigue pidiendo hembras y machos por separado.',
+    grupo: 'Postura'
+  },
+  {
+    key: 'ocultaMachosEnPostura',
+    titulo: 'Ocultar machos en postura',
+    descripcion: 'Oculta la columna Machos en mortalidad, selección, peso, uniformidad, traslados y ventas, y retira el error de sexaje del registro diario. Solo cambia la UI: el dato sigue existiendo en el modelo.',
+    grupo: 'Postura'
+  },
 
   // ── Pollo engorde ────────────────────────────────────────────────────────
   {

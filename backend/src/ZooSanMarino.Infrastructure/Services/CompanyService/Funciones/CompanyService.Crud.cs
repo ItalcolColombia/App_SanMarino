@@ -84,7 +84,10 @@ public partial class CompanyService
             ReportesAlimentoDesdeInventarioUnificado = dto.ReportesAlimentoDesdeInventarioUnificado,
             RequiereValidacionSeguimientoDiario = dto.RequiereValidacionSeguimientoDiario,
             SeguimientoEngordeMixto = dto.SeguimientoEngordeMixto,
-            ReporteCostosAlimentoDesdeFuentesReales = dto.ReporteCostosAlimentoDesdeFuentesReales
+            ReporteCostosAlimentoDesdeFuentesReales = dto.ReporteCostosAlimentoDesdeFuentesReales,
+            ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras,
+            OcultaMachosEnPostura = dto.OcultaMachosEnPostura,
+            HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana
         };
 
         _ctx.Companies.Add(c);
@@ -145,6 +148,9 @@ public partial class CompanyService
         c.SeguimientoEngordeMixto = dto.SeguimientoEngordeMixto ?? c.SeguimientoEngordeMixto;
         c.ReporteCostosAlimentoDesdeFuentesReales =
             dto.ReporteCostosAlimentoDesdeFuentesReales ?? c.ReporteCostosAlimentoDesdeFuentesReales;
+        c.ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras ?? c.ConsumoAlimentoSoloHembras;
+        c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
+        c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
 
         await _ctx.SaveChangesAsync();
 

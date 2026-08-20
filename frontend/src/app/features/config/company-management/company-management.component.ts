@@ -197,7 +197,9 @@ export class CompanyManagementComponent implements OnInit {
       // agregar uno nuevo es una línea allá, sin tocar el formulario ni el guardado.
       ...controlesDeFlags(),
       // Días previos al encaset cuyo alimento cuenta como «ingreso inicial del ciclo» (0-30, default 10)
-      diasAlimentoPrevioEncaset: [10, [Validators.min(0), Validators.max(30)]]
+      diasAlimentoPrevioEncaset: [10, [Validators.min(0), Validators.max(30)]],
+      // Última semana con huevo de primera postura habilitado. Vacío = la empresa no usa el concepto.
+      huevoPrimeraPosturaHastaSemana: [null, [Validators.min(1), Validators.max(60)]]
     });
 
     this.mlSvc.getByKey('type_identit').subscribe({
@@ -380,6 +382,7 @@ export class CompanyManagementComponent implements OnInit {
       this.form.reset({
         id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '',
         country: '', state: '', city: '', mobileAccess: false, diasAlimentoPrevioEncaset: 10,
+        huevoPrimeraPosturaHastaSemana: null,
         ...valoresDeFlags(null)
       });
       this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
@@ -403,6 +406,7 @@ export class CompanyManagementComponent implements OnInit {
       country: codeCountry, state: codeDept, city: cityName,
       mobileAccess: c.mobileAccess ?? false,
       diasAlimentoPrevioEncaset: c.diasAlimentoPrevioEncaset ?? 10,
+      huevoPrimeraPosturaHastaSemana: c.huevoPrimeraPosturaHastaSemana ?? null,
       ...valoresDeFlags(c as unknown as Record<string, unknown>)
     });
 
@@ -458,7 +462,8 @@ export class CompanyManagementComponent implements OnInit {
       country: v.country, state: v.state, city: v.city,
       visualPermissions: vp, mobileAccess: v.mobileAccess,
       diasAlimentoPrevioEncaset: v.diasAlimentoPrevioEncaset,
-      // Los 14 flags viajan SIEMPRE con su valor booleano. Mandar solo los encendidos haría que
+      huevoPrimeraPosturaHastaSemana: v.huevoPrimeraPosturaHastaSemana,
+      // Los flags viajan SIEMPRE con su valor booleano. Mandar solo los encendidos haría que
       // apagar uno no llegara al backend (que interpreta la ausencia como «no lo toques»).
       ...flagsDelFormulario(v as Record<string, unknown>),
       roleIds: this.roleIds,

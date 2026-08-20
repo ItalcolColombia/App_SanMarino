@@ -228,6 +228,47 @@
         /// </summary>
         public bool RequiereValidacionSeguimientoDiario { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = el seguimiento diario de esta empresa NO registra consumo de alimento de
+        /// MACHOS en producción ni en levante: el bloque «Machos» del formulario se retira y el
+        /// consumo se captura únicamente para hembras.
+        /// <para>
+        /// Nace de Santa Reyes: la empresa no maneja machos en postura, así que exigir su consumo
+        /// es un campo que nunca tiene dato real y una fuente de error de captura.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual: el formulario sigue pidiendo consumo de
+        /// hembras y machos por separado.
+        /// </summary>
+        public bool ConsumoAlimentoSoloHembras { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = esta empresa oculta la columna «Machos» en mortalidad, selección, peso y
+        /// uniformidad, retira el concepto de error de sexaje del registro diario, y en traslados y
+        /// ventas de aves el campo Machos deja de pedirse como discriminado (el total de aves ya
+        /// asume que son hembras).
+        /// <para>
+        /// Nace de Santa Reyes: mismo motivo que <see cref="ConsumoAlimentoSoloHembras"/> pero para
+        /// el resto de los registros que distinguen sexo, no solo el consumo de alimento.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual, sin cambios de UI.
+        /// <para>
+        /// ⚠️ Solo oculta en UI. <c>ErrorSexaje</c> sigue existiendo en el modelo y en los cálculos
+        /// de saldo (<c>SaldoAvesLevanteCalculos</c>, históricos de otras empresas): no se borra.
+        /// </para>
+        /// </summary>
+        public bool OcultaMachosEnPostura { get; set; }
+
+        /// <summary>
+        /// Última semana de vida del lote en la que el huevo de primera postura sigue habilitado
+        /// para capturarse; desde la primera semana siguiente queda deshabilitado. <c>null</c>
+        /// (default) = la empresa no usa el concepto de «primera postura» y no aplica ningún corte.
+        /// <para>
+        /// Nace de Santa Reyes con valor 22: habilitado hasta el último día de la semana 22,
+        /// deshabilitado desde el primer día de la semana 23.
+        /// </para>
+        /// </summary>
+        public int? HuevoPrimeraPosturaHastaSemana { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

@@ -56,15 +56,16 @@ detalle con `git show e971871:tracker_estado.md`.
 
 ### A · Tareas ejecutables — hay código o comandos que correr
 
-- [ ] **A1 · Push + merge + verificación post-deploy de los 17 commits.** `git push origin main`,
-      merge a `main-produccion` (dispara el deploy; las migraciones se aplican solas con
-      `Database__RunMigrations=true`) y la **verificación obligatoria** de CLAUDE.md §🚀:
-      TaskDef ↔ imagen ↔ `/version.json`. ECS revierte en silencio y el CLI igual dice «completado».
-      Arrastra `20260820055219_SeedGalponesModuloIvNizaIii` (X1) y `AddSesionesActivas` (V39).
-      **No lo ejecuté yo**: es push + deploy, y las dos acciones piden pedido explícito
-      (ver [[como-trabaja-el-usuario]]) — confirmado que sigue 100 % listo (`dotnet build` 0 errores
-      hoy en un worktree aislado; TaskDef viva = `sanmarino-back-task:160` = imagen `79aeccf`, sin
-      ninguno de los 17)
+- [x] **A1 · Push + merge + verificación post-deploy de los 17 commits.** **Resuelto el 20-ago-2026
+      fuera de esta sesión** (push+merge a `main-produccion` los hizo otra sesión/el usuario, PR #75,
+      commit `652366a`) — **verificado acá con el checklist obligatorio de CLAUDE.md §🚀**:
+      `aws ecs describe-services` → TaskDef viva `sanmarino-back-task:161`, `rolloutState COMPLETED`,
+      1/1 running; `aws ecs describe-task-definition` → imagen
+      `...backend:652366ab1959a2c6d3a7cd54a08feff4e62e4420`, coincide EXACTO con el merge commit de
+      PR #75. No es un rollback silencioso. Arrastra `20260820055219_SeedGalponesModuloIvNizaIii` (X1),
+      `AddSesionesActivas` (V39) y `20260819120000_SeedTicketPlanItalappSantaReyes` (X3, caso
+      Santa Reyes en ItalJira) — las tres migraciones ya corrieron en prod
+      (`Database__RunMigrations=true`)
 - [ ] **A2 · V39.13 — cerrar la ventana de gracia** de los tokens sin `jti`: hoy `Evaluar` devuelve
       `Legado` y los acepta. Va **después** de A1 y de verificar la revocación en prod.
       ⚠️ Trampa: `SesionActivaService` devuelve `Legado` **también ante un fallo de BD** (fail-open
@@ -73,18 +74,23 @@ detalle con `git show e971871:tracker_estado.md`.
       *Releído el código hoy (`SesionActivaService.EvaluarAsync`): el diagnóstico sigue exacto —
       `jti` vacío ⇒ retorna sin consultar nada, rama `Legado` intacta*
 - [ ] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
-      ingreso a granja + homologación ERP + seed de las 5 guías genéticas (540 filas)
+      ingreso a granja + homologación ERP + seed de las 5 guías genéticas (540 filas). **Detalle
+      granular y estado real → V52 (F0-F2)**
 - [ ] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
       `modal-seguimiento-diario.component.ts:1463`), consumo sólo hembras, ocultar machos y error de
-      sexaje **en UI** (⚠️ no borrar del modelo: lo consumen los saldos), tipos de inventario
+      sexaje **en UI** (⚠️ no borrar del modelo: lo consumen los saldos), tipos de inventario.
+      **→ V52 (F3-F6)**
 - [ ] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
-      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas)
+      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**
 - [ ] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
       existen en `MovimientoAves`**, falta la UI) y huevos (bodega destino desplegable) + no regresión
-      multipaís
+      multipaís. **→ V52 (F9-F12)**
 
-> **A4-A7 están bloqueadas por B5** (aprobación del cliente). No arrancan antes. **A3 se retiró de
-> esta lista** — bajó de categoría, ver el hallazgo nuevo en «Muertos» más abajo.
+> **A4-A7 quedaron DESBLOQUEADAS el 20-ago-2026**: el usuario confirmó en sesión que B5 (aprobación
+> del cliente) y C7 (entrega de estructura física + códigos ERP) ya se dieron. Ejecución en curso,
+> ver **V52** (checklist granular F0-F12, calcado del desglose real ya sembrado en ItalJira
+> `TK-2026-000172`). **A3 se retiró de esta lista** — bajó de categoría, ver el hallazgo nuevo en
+> «Muertos» más abajo.
 
 ### B · Decisiones tuyas
 
@@ -106,9 +112,9 @@ detalle con `git show e971871:tracker_estado.md`.
 - [!] **B4 · Lotes con `Inicio` ficticio (ids 3, 4, 6, 8)**: encaset 50.000 **y** `Inicio` de plantilla,
       cero movimientos — los dos números son inventados. El detector no los ve; el arreglo exige el
       documento físico de encasetamiento. *Origen: bloque «referencia `Inicio`»*
-- [!] **B5 · Santa Reyes — aprobación del cliente** (V30.5) del alcance, el cronograma y los supuestos
-      (§13 del Word). **Vencida**: el cronograma arrancaba el 19-ago y cada día de demora corre la
-      entrega del 1-sep en la misma medida
+- [x] **B5 · Santa Reyes — aprobación del cliente** (V30.5) del alcance, el cronograma y los supuestos
+      (§13 del Word). **Confirmada por el usuario el 20-ago-2026** (en sesión, no hay documento en el
+      repo que lo respalde). Desbloquea A4-A7 → ejecución en **V52**
 - [!] **B6 · Grupos B y C de Ecuador** (lotes con aves pendientes): **re-medir antes de decidir** — los
       31 abiertos tienen aves y la lista vieja de 39 ya no existe. Panamá **no se toca**
 
@@ -135,9 +141,12 @@ detalle con `git show e971871:tracker_estado.md`.
       cuenta `196080479890`): `enableExecuteCommand` = **false** en el servicio ECS, y el TCP al
       endpoint del RDS (`reproductoras-pesadas...rds.amazonaws.com:5432`) **da timeout** desde esta
       máquina — sigue bloqueado, ahora confirmado y no sólo heredado
-- [~] **C7 · Santa Reyes debe entregar** la estructura física real (núcleos, galpones, silos, bodegas) y
-      los códigos ERP (CO, bodegas, ubicaciones, centros de costo). Vencido el 18-ago; **F1.2 corre el
-      día 1** y el plan no tiene holgura. Es el riesgo Alto #1 del documento
+- [x] **C7 · Santa Reyes debe entregar** la estructura física real (núcleos, galpones, silos, bodegas) y
+      los códigos ERP (CO, bodegas, ubicaciones, centros de costo). **Confirmada entregada por el
+      usuario el 20-ago-2026** (en sesión). ⚠️ No encontré en Desktop/Downloads un archivo nuevo con
+      fecha ≥19-ago distinto de los ya usados en Fase 1 (`Granja.xlsx`/`Items.xlsx`/`Lotes.xlsx`,
+      25-jul) — si la entrega llegó por otro canal (correo, verbal), F1.2 la toma como viene; si
+      aparece un Excel nuevo, actualizar el seed antes de dar F1.2 por cerrado
 - [~] **C9 · Alistamiento de la PWA con red, por usuario y por dispositivo** — **precondición de C10-C13**:
       instalar, entrar una vez (login y reCAPTCHA exigen red) y **visitar las pantallas** que se van a
       usar, o la caché está vacía y ningún escenario significa nada
@@ -185,12 +194,13 @@ Origen: dos archivos del cliente (18-ago-2026) — `Requerimientos de Italapp.do
 
 ## Ejecución (sin arrancar)
 
-- [i] V30.5 (→ **B5**) **Aprobación del cliente** del alcance, el cronograma y los supuestos (§13 del Word).
-      Nada arranca antes de esto
-- [i] V30.6 (→ **C7**) Santa Reyes debe entregar, **a más tardar el mar 18-ago-2026 (un día antes del
+- [x] V30.5 (→ **B5**) **Aprobación del cliente** del alcance, el cronograma y los supuestos (§13 del Word).
+      **Confirmada 20-ago-2026.** Ejecución arrancó → **V52**
+- [x] V30.6 (→ **C7**) Santa Reyes debe entregar, **a más tardar el mar 18-ago-2026 (un día antes del
       inicio)**, la estructura física real (núcleos, galpones, silos, bodegas) y los códigos ERP
-      (CO, bodegas, ubicaciones, centros de costo). ⚠️ En el plan de 2 semanas **F1.2 corre el
-      día 1**: no hay holgura para esperarlos. Es el riesgo **Alto** #1 del documento
+      (CO, bodegas, ubicaciones, centros de costo). **Confirmada entregada 20-ago-2026** (2 días
+      tarde). ⚠️ En el plan de 2 semanas **F1.2 corre el día 1**: no hay holgura para esperarlos —
+      era el riesgo **Alto** #1 del documento, ver nota en V52 sobre dónde vive el archivo
 - [i] V30.7 (→ **A4**) H1 · Fundaciones: flags en `companies` + catálogo de ítems + silo en el form de ingreso
       a granja + homologación ERP + seed de las 5 guías genéticas (540 filas)
 - [i] V30.8 (→ **A5**) H2 · Ciclo de vida del ave: semanas por raza (hoy hardcodeadas en
@@ -378,3 +388,91 @@ programados).
       commitear, la limpieza de esta misma tarde (`13a969a`/`7a8d1fe`) lo pisó al reescribir el
       archivo. Recuperado y committeado de inmediato — la lección de
       `como-trabaja-el-usuario.md` era literal.
+
+---
+
+## V52 — Santa Reyes: ejecución H1-H4 (F0-F12), 20-ago-2026
+
+**Desbloqueada esta sesión** (B5 y C7 confirmadas por el usuario). Plan técnico:
+[`fase_de_desarrollo/santa_reyes_requerimientos_italapp_plan.md`](fase_de_desarrollo/santa_reyes_requerimientos_italapp_plan.md).
+Checklist calcado **1:1** del desglose ya sembrado en ItalJira (caso `TK-2026-000172`, historia
+`HIS-2026-0024`) para que el avance real y lo que ve el cliente sean la misma lista — cada ítem trae
+su código de tarea/subtarea. Fuente técnica de qué ya existe vs qué falta: §2 del plan (auditoría
+18-ago, releída y confirmada vigente el 20-ago vía `git log` — nada de esto se tocó entretanto).
+
+⚠️ **No expone al cliente** que buena parte de la base ya existía antes del plan comercial (silos,
+clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo decidió el usuario en V30.4.
+
+- [x] **F0 · Parametrización por empresa** (6h)
+  - [x] F0.1 Banderas de comportamiento de Santa Reyes en la ficha de empresa (BD, servicio, pantalla admin)
+        — 3 flags nuevos (`ConsumoAlimentoSoloHembras`, `OcultaMachosEnPostura` bool;
+        `HuevoPrimeraPosturaHastaSemana` int? — no es booleano, va como campo numérico propio igual
+        que `diasAlimentoPrevioEncaset`, no entra en `flags-empresa.funcion.ts`). Wireado en las 8
+        capas backend (entidad, 3 DTOs, EF config, `CompanyService` x2, `CompanyResolver` x2,
+        `CompanyPaisService`) + admin UI (catálogo de 2 flags + input numérico, contador
+        `totalFlags` se ajusta solo). Migración `20260820083544_AddFlagsSantaReyesCicloVidaYHuevo`
+        idempotente (`ADD/DROP COLUMN IF EXISTS`), aplicada y re-corrida a mano sin error. `dotnet
+        build` 0 errores · `dotnet test` **2936/2936** (sin regresión, ningún cálculo nuevo todavía) ·
+        `yarn build` 0 errores. **Los 3 flags nacen en `false`/`null` en TODAS las empresas
+        (incluida Santa Reyes) a propósito**: se encienden recién en el commit que construya F4/F5/F7
+        (la lógica que los consume), mismo patrón que el resto de los flags del repo — prender un
+        flag sin nada que lo lea generaría un toggle visible sin efecto
+        - Verificación: build+test verdes de punta a punta + cruce manual carácter-por-carácter de
+          los 5 `formControlName="huevoPrimeraPosturaHastaSemana"` (HTML↔TS) — Angular NO valida esa
+          coincidencia en compilación, un typo ahí solo revienta en runtime. **No pude hacer el smoke
+          visual en navegador**: requería mintear una sesión de `moiesbbuga@gmail.com` (JWT a mano o
+          hash de contraseña) y el clasificador de seguridad de Auto Mode lo bloqueó dos veces —
+          correctamente, es fabricar credenciales de un usuario real aunque sea en BD local. Queda
+          pendiente que alguien lo abra una vez en pantalla (Configuración → Empresas, grupo
+          "Postura") para el visto bueno final
+  - [x] F0.2 Catálogo de ítems de huevo y alimento de Santa Reyes (creación y carga inicial) — **YA
+        EXISTÍA, verificado en BD 20-ago**: 45 ítems alimento (`item_inventario_ecuador`) + **21 ítems
+        huevo en `catalogo_items`** (`item_type='huevo'`) cubriendo los 7 tipos Primera del plan
+        (Rojo/Blanco/Criollo/Gallina Feliz/Bonegg/Azur/Libre de Jaula Certificado) + variantes PNC
+        (Manchado/Picado/Fárfara/Decolorado) + variantes "primeras posturas sin clas" por raza
+        (Rojo/Blanco/Criollo). ⚠️ Hallazgo para F8.1: **falta "Enyemado"** — ninguna raza lo tiene hoy
+        en el catálogo, y el plan lo pide junto a Manchado/Decolorado/Picado/Fárfara
+- [ ] **F1 · Estructura física de granja y códigos ERP** (10h)
+  - [ ] F1.1 Silo como estructura física de la granja: alta, edición, listado, asociación a galpón y lote
+        — **parcial**: ya existe pantalla propia de silos (botón "Silos y bodega" en `farm-list`,
+        gateado por `manejaInventarioPorSilo`) con alta/edición/listado/asociación a galpón y lote
+        (Fases B-D). Lo que el plan pide y no está: integrarlo **dentro del modal de alta de granja**
+        (hoy vive aparte, en inventario) — a decidir si el botón actual ya cumple el requerimiento
+        o si el cliente espera verlo en el mismo formulario
+  - [ ] F1.2 Códigos ERP por nivel: granja=CO, núcleo=bodega, silo/bodega=ubicación, lote=centro de costo
+- [ ] **F2 · Guías genéticas** (10h)
+  - [ ] F2.1 Carga de las 5 líneas (Babcock Brown, Hy Line Brown, Lohmann LSL, Criolla, Azur), sem 18-125
+  - [ ] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
+- [ ] **F3 · Semanas de producción por raza** (10h)
+  - [ ] F3.1 Levante por raza: 8 sem alistamiento + 16 sem levante
+  - [ ] F3.2 Producción: 4 sem levante-en-granja-de-producción + 74 sem postura (rojas/criollas) u 84 (blancas/Azur)
+- [ ] **F4 · Consumo de alimento solo hembras** (8h)
+  - [ ] F4.1 Retirar consumo de machos del seguimiento diario de producción
+  - [ ] F4.2 Retirar consumo de machos del seguimiento diario de levante
+- [ ] **F5 · Mortalidad, pesaje y ventas** (9h)
+  - [ ] F5.1 Retirar el concepto de error de sexaje del registro diario
+  - [ ] F5.2 Ocultar columna de machos en mortalidad, selección, peso y uniformidad
+  - [ ] F5.3 Campo machos sobre el total de aves en el registro de ventas
+- [ ] **F6 · Tipos de inventario** (3h)
+  - [ ] F6.1 Limitar tipos de ítem de inventario a Alimento y Aves
+- [ ] **F7 · Huevo sin clasificar y primera postura** (17h)
+  - [ ] F7.1 Renombrar huevos incubables → huevos sin clasificar (formularios, tablas, reportes)
+  - [ ] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula
+  - [ ] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote
+  - [ ] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día de semana 23
+- [ ] **F8 · Productos no conformes y panel de eficiencia** (7h)
+  - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara
+  - [ ] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción
+  - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja
+- [ ] **F9 · Traslado de aves** (5h)
+  - [ ] F9.1 Ocultar machos en el traslado de aves
+  - [ ] F9.2 Campos de transporte: placa, precinto, conductor — en listado y comprobante
+- [ ] **F10 · Traslado de huevos** (5h)
+  - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre)
+  - [ ] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo
+- [ ] **F11 · Pruebas** (8h)
+  - [ ] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas
+  - [ ] F11.2 No regresión sobre empresas productivas (Sanmarino, Panamá, Ecuador) — gate multipaís si toca `*SaldoAlimento*`/`fn_seguimiento_diario_*`
+  - [ ] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales
+- [ ] **F12 · Despliegue** (2h)
+  - [ ] F12.1 Despliegue a producción y verificación posterior (TaskDef↔imagen↔`/version.json`)

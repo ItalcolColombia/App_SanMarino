@@ -55,6 +55,9 @@ public partial class CompanyService : ICompanyService
         c.ReportesAlimentoDesdeInventarioUnificado,
         c.RequiereValidacionSeguimientoDiario,
         c.SeguimientoEngordeMixto,
-        c.ReporteCostosAlimentoDesdeFuentesReales
+        c.ReporteCostosAlimentoDesdeFuentesReales,
+        c.ConsumoAlimentoSoloHembras,
+        c.OcultaMachosEnPostura,
+        c.HuevoPrimeraPosturaHastaSemana
     );
 }

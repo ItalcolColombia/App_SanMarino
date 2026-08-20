@@ -808,6 +808,23 @@
                               </span>
                             </label>
                           </section>
+                          <!-- Fila 5 · Vigencia del huevo de primera postura (postura) -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Huevo de primera postura</div>
+                            </div>
+                            <label class="block max-w-sm">
+                              <span class="form-label">Habilitado hasta la semana</span>
+                              <input type="number" formControlName="huevoPrimeraPosturaHastaSemana" min="1" max="60" class="form-input"
+                                [class.form-input--invalid]="form.get('huevoPrimeraPosturaHastaSemana')?.invalid && form.get('huevoPrimeraPosturaHastaSemana')?.touched"/>
+                              @if (form.get('huevoPrimeraPosturaHastaSemana')?.invalid && form.get('huevoPrimeraPosturaHastaSemana')?.touched) {
+                                <p class="form-error">Debe estar entre 1 y 60</p>
+                              }
+                              <span class="block text-xs text-warm-gray-500 mt-1">
+                                Habilitado hasta el último día de esta semana de vida del lote; deshabilitado desde la semana siguiente. Vacío = la empresa no usa el concepto.
+                              </span>
+                            </label>
+                          </section>
                       </div>
                     }
                   </div>
