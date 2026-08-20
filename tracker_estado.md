@@ -640,3 +640,26 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [ ] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales
 - [ ] **F12 · Despliegue** (2h)
   - [ ] F12.1 Despliegue a producción y verificación posterior (TaskDef↔imagen↔`/version.json`)
+
+---
+
+## X4 — Fix mismatch front/back en `traslado-rapido` (20-ago-2026)
+
+**Sin relación con Santa Reyes** — hallazgo de paso durante F9 (arriba, `task_88856448`), bug
+general que afecta a cualquier empresa. Plan:
+[`fase_de_desarrollo/fix_traslado_rapido_aves_mismatch_plan.md`](fase_de_desarrollo/fix_traslado_rapido_aves_mismatch_plan.md).
+
+`traslado-form.component` (ruta `/traslados-aves/traslados`) arma un request con
+`loteOrigenId`/`loteDestinoId` pero `POST api/MovimientoAves/traslado-rapido` bindea
+`TrasladoRapidoRequest` (`LoteId` único + granja/núcleo/galpón origen-destino) — ningún nombre
+coincide, `request.LoteId` queda `null`, `int.Parse(null)` explota → 500 en cualquier uso real.
+
+- [ ] X4.1 Smoke "antes": request real a `traslado-rapido` con el payload del front → confirmar 500
+- [ ] X4.2 Redirigir ruta `traslados-aves/traslados` → `traslados-aves/nuevo` (pantalla que ya
+      funciona, mismo DTO en las 2 puntas) en `app.config.ts`
+- [ ] X4.3 Borrar `pages/traslado-form/` + `trasladoRapido()`/`TrasladoRapidoRequest`/`TrasladoRapidoResponse` de `traslados-aves.service.ts`
+- [ ] X4.4 Borrar `traslados-aves.module.ts` + `traslados-aves-routing.module.ts` (huérfanos, ya sin nada que los importe tras X4.3)
+- [ ] X4.5 `yarn build` 0 errores · smoke "después" en navegador: `/traslados-aves/traslados` redirige y la pantalla destino carga
+- [i] Backend `TrasladoRapidoAsync`/`TrasladoRapidoDto` **no se tocan**: quedan sin caller en el
+      front pero son consistentes puertas adentro; fusionarlos con `Lote/trasladar` (mismo
+      concepto: reubicar un lote) es una decisión aparte, no bloquea este fix
