@@ -245,39 +245,55 @@
 
             <!-- MORTALIDAD, SELECCIÓN Y ERROR DE SEXAJE (tabla Hembras | Machos) -->
             <div class="data-group">
-              <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
-              <div class="compare-grid">
+              <h3 class="data-group-title">💀 Mortalidad, Selección{{ ocultaMachosEnPostura ? '' : ' y Error de sexaje' }}</h3>
+              <div class="compare-grid" [class.compare-grid--sin-machos]="ocultaMachosEnPostura">
                 <div class="compare-grid__row-title"></div>
                 <div class="compare-grid__col-title">Hembras</div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="compare-grid__col-title">Machos</div>
+                }
                 <div class="compare-grid__row-title">Mortalidad *</div>
                 <div class="form-field"><input type="number" min="0" formControlName="mortalidadH" placeholder="0" required /></div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field"><input type="number" min="0" formControlName="mortalidadM" placeholder="0" required /></div>
+                }
                 <div class="compare-grid__row-title">Selección (retiradas) *</div>
                 <div class="form-field"><input type="number" min="0" formControlName="selH" placeholder="0" required /></div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field"><input type="number" min="0" formControlName="selM" placeholder="0" required /></div>
+                }
+                @if (!ocultaMachosEnPostura) {
                 <div class="compare-grid__row-title">Error de sexaje</div>
                 <div class="form-field"><input type="number" min="0" formControlName="errorSexajeHembras" placeholder="0" /></div>
                 <div class="form-field"><input type="number" min="0" formControlName="errorSexajeMachos" placeholder="0" /></div>
+                }
               </div>
             </div>
 
             <!-- PESO Y UNIFORMIDAD (pesaje semanal · tabla Hembras | Machos) -->
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad <span class="ux-hint">· pesaje semanal</span></h3>
-              <div class="compare-grid">
+              <div class="compare-grid" [class.compare-grid--sin-machos]="ocultaMachosEnPostura">
                 <div class="compare-grid__row-title"></div>
                 <div class="compare-grid__col-title">Hembras</div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="compare-grid__col-title">Machos</div>
+                }
                 <div class="compare-grid__row-title">Peso promedio (kg)</div>
                 <div class="form-field"><input type="number" step="0.01" min="0" formControlName="pesoH" placeholder="0.00" /></div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field"><input type="number" step="0.01" min="0" formControlName="pesoM" placeholder="0.00" /></div>
+                }
                 <div class="compare-grid__row-title">Uniformidad (%)</div>
                 <div class="form-field"><input type="number" step="0.01" min="0" max="100" formControlName="uniformidadHembras" placeholder="0.00" /></div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field"><input type="number" step="0.01" min="0" max="100" formControlName="uniformidadMachos" placeholder="0.00" /></div>
+                }
                 <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
                 <div class="form-field"><input type="number" step="0.01" min="0" max="100" formControlName="cvHembras" placeholder="0.00" /></div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field"><input type="number" step="0.01" min="0" max="100" formControlName="cvMachos" placeholder="0.00" /></div>
+                }
               </div>
               <div class="grid grid-3" style="margin-top: 1rem;">
                 <div class="form-field">

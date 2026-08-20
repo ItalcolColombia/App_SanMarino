@@ -546,10 +546,30 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         acá (a diferencia de producción, no tiene ítem fijo obligatorio) — solo hacía falta ocultar
         la UI y vaciar el array si el flag llega ON con un registro viejo ya hidratado
         - Validado: `yarn build` 0 errores
-- [ ] **F5 · Mortalidad, pesaje y ventas** (9h)
-  - [ ] F5.1 Retirar el concepto de error de sexaje del registro diario
-  - [ ] F5.2 Ocultar columna de machos en mortalidad, selección, peso y uniformidad
-  - [ ] F5.3 Campo machos sobre el total de aves en el registro de ventas
+- [~] **F5 · Mortalidad, pesaje y ventas** (9h) — F5.1+F5.2 hechos, F5.3 documentado sin implementar
+  - [x] F5.1 Retirar el concepto de error de sexaje del registro diario — fila «Error de sexaje»
+        (Hembras y Machos) retirada ENTERA de `modal-seguimiento-diario` (producción) y
+        `modal-create-edit` (levante), gateada por `ocultaMachosEnPostura` (F0.1, propagado recién
+        acá a `ActiveCompanyConfigService` — mismo gap que `consumoAlimentoSoloHembras` en F4)
+  - [x] F5.2 Ocultar columna de machos en mortalidad, selección, peso y uniformidad — columna
+        Machos (+ CV, misma tabla) oculta en los mismos 2 formularios; grid CSS con modificador
+        `.compare-grid--sin-machos` (2 columnas en vez de 3, ajusta bordes `nth-child`) en los 2
+        `.scss`. `mortalidadM`/`selM`/`errorSexajeMachos` tienen `Validators.required` pero
+        arrancan en `0` (valor válido, no "vacío" para Angular) — ocultar el input no bloquea el
+        guardado, confirmado por lectura de código, no hacía falta tocar validadores
+  - [!] F5.3 Campo machos sobre el total de aves en el registro de ventas — **sin implementar**,
+        requiere una decisión de UX que no voy a adivinar. Texto LITERAL del cliente (auditado
+        `~/Downloads/Requerimientos de Italapp.docx`, no solo la fila resumida del plan):
+        *"Desaparece el concepto de error de sexaje, y que en ventas aparezca campo machos sobre
+        el total de las aves"*. Vive en `movimientos-aves` (modal-movimiento-aves, tipo Venta),
+        un módulo COMPARTIDO con traslados y con historial de bugs de doble conteo
+        ([[aves-disponibles-venta-doble-descuento]]) — hoy tiene `cantidadHembras`/`cantidadMachos`
+        como campos independientes con su propio chequeo de disponibilidad; no está claro si
+        "machos sobre el total" pide (a) un campo Machos de solo-informe junto a un campo Total
+        único, o (b) otra cosa. Alto riesgo de regresión en un módulo multi-empresa si se adivina
+        mal — a definir con el cliente o el usuario antes de tocar código
+        - Validado (F5.1+F5.2): `yarn build` 0 errores; cruce manual del nombre de la propiedad
+          `ocultaMachosEnPostura` entre `.ts`/`.html` en los 2 formularios (11 usos cada uno)
 - [ ] **F6 · Tipos de inventario** (3h)
   - [ ] F6.1 Limitar tipos de ítem de inventario a Alimento y Aves
 - [ ] **F7 · Huevo sin clasificar y primera postura** (17h)

@@ -298,6 +298,14 @@
 }
 :host .compare-grid > *:nth-child(3n) { border-right: 0; }
 :host .compare-grid > *:nth-last-child(-n + 3) { border-bottom: 0; }
+/* Santa Reyes (ocultaMachosEnPostura): una sola columna de datos en vez de Hembras | Machos. */
+:host .compare-grid--sin-machos {
+  grid-template-columns: minmax(160px, 1.1fr) minmax(110px, 1fr);
+}
+:host .compare-grid--sin-machos > *:nth-child(3n) { border-right: 2px solid var(--ital-orange-100, #fde4cc); }
+:host .compare-grid--sin-machos > *:nth-child(2n) { border-right: 0; }
+:host .compare-grid--sin-machos > *:nth-last-child(-n + 3) { border-bottom: 2px solid var(--ital-orange-100, #fde4cc); }
+:host .compare-grid--sin-machos > *:nth-last-child(-n + 2) { border-bottom: 0; }
 :host .compare-grid__col-title {
   font-weight: 700;
   justify-content: center;

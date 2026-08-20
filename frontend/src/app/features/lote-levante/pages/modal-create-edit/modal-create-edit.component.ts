@@ -100,6 +100,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   etapaCicloLabel: string | null = null;
   /** Santa Reyes: el seguimiento no captura consumo de alimento de Machos (no se manejan en postura). */
   consumoAlimentoSoloHembras = false;
+  /** Santa Reyes: oculta Machos en mortalidad/selección/peso/uniformidad y retira error de sexaje. Solo UI. */
+  ocultaMachosEnPostura = false;
   /** Totales memoizados de la clasificadora (readonly en el formulario). */
   totalHuevos = 0;
   incubablesHuevos = 0;
@@ -323,6 +325,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
         }
       }
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
       if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
       this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;
       this.recalcularVisibilidadHuevos();

@@ -70,6 +70,12 @@ export interface CompanyFlags {
   semanasCicloPosturaPorRaza: boolean;
   /** Santa Reyes: el seguimiento diario no captura consumo de alimento de Machos (no se manejan en postura). */
   consumoAlimentoSoloHembras: boolean;
+  /**
+   * Santa Reyes: oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas
+   * y retira el error de sexaje del registro diario. Solo UI — el dato sigue existiendo en el modelo
+   * (lo consumen saldos e históricos de otras empresas).
+   */
+  ocultaMachosEnPostura: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -85,7 +91,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   manejaInventarioPorSilo: false,
   requiereValidacionSeguimientoDiario: false,
   semanasCicloPosturaPorRaza: false,
-  consumoAlimentoSoloHembras: false
+  consumoAlimentoSoloHembras: false,
+  ocultaMachosEnPostura: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -110,6 +117,7 @@ interface CompanyFlagsResponse {
   requiereValidacionSeguimientoDiario?: boolean | null;
   semanasCicloPosturaPorRaza?: boolean | null;
   consumoAlimentoSoloHembras?: boolean | null;
+  ocultaMachosEnPostura?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -181,6 +189,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa no captura consumo de alimento de Machos? */
   readonly consumoAlimentoSoloHembras$: Observable<boolean> = this.flags$.pipe(
     map(f => f.consumoAlimentoSoloHembras),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa oculta Machos en mortalidad/selección/peso/uniformidad/ventas? */
+  readonly ocultaMachosEnPostura$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.ocultaMachosEnPostura),
     distinctUntilChanged()
   );
 
@@ -295,7 +309,8 @@ export class ActiveCompanyConfigService {
       manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true,
       requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true,
       semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true,
-      consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true
+      consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true,
+      ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true
     };
   }
 
@@ -315,7 +330,8 @@ export class ActiveCompanyConfigService {
       actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo &&
       actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario &&
       actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza &&
-      actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras
+      actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras &&
+      actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura
     ) return;
     this.flagsSubject.next(flags);
   }

@@ -123,6 +123,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   semanasCicloPosturaPorRaza = false;
   /** Santa Reyes: el seguimiento no captura consumo de alimento de Machos (no se manejan en postura). */
   consumoAlimentoSoloHembras = false;
+  /** Santa Reyes: oculta Machos en mortalidad/selección/peso/uniformidad y retira error de sexaje. Solo UI. */
+  ocultaMachosEnPostura = false;
   /** Silos que el lote tiene asignados: de esos —y solo de esos— puede consumir. */
   silosDelLote: LoteSiloDto[] = [];
   private silosLoteLoadId = 0;
@@ -221,6 +223,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
           while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
         }
       }
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       if (!this.clasificacionHuevoPorItems) return;
