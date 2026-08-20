@@ -269,6 +269,20 @@
         /// </summary>
         public int? HuevoPrimeraPosturaHastaSemana { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = la etapa del ciclo de vida del ave (alistamiento/levante/levante en granja
+        /// de producción/postura) se calcula por semana de vida y por raza, en vez de los cortes
+        /// fijos 26-33/34-50/&gt;50. Alcanza el campo «Etapa» del seguimiento diario de producción
+        /// y agrega el mismo dato (solo lectura) al de levante.
+        /// <para>
+        /// Nace de Santa Reyes: 8 sem alistamiento + 16 sem levante (ambos grupos), luego 4 sem
+        /// levante en granja de producción + 74 sem postura (rojas/criollas) u 84 sem (blancas/Azur).
+        /// Ver <c>SemanasCicloPosturaCalculos</c>.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual, sin cambios.
+        /// </summary>
+        public bool SemanasCicloPosturaPorRaza { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

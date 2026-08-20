@@ -143,6 +143,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.HuevoPrimeraPosturaHastaSemana)
             .HasColumnName("huevo_primera_postura_hasta_semana");
 
+        // Flag tipado por comportamiento: la etapa del ciclo de vida (alistamiento/levante/levante
+        // en producción/postura) se calcula por semana y por raza en vez de los cortes fijos.
+        builder.Property(x => x.SemanasCicloPosturaPorRaza)
+            .HasColumnName("semanas_ciclo_postura_por_raza")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

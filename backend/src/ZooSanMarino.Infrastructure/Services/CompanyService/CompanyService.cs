@@ -58,6 +58,7 @@ public partial class CompanyService : ICompanyService
         c.ReporteCostosAlimentoDesdeFuentesReales,
         c.ConsumoAlimentoSoloHembras,
         c.OcultaMachosEnPostura,
-        c.HuevoPrimeraPosturaHastaSemana
+        c.HuevoPrimeraPosturaHastaSemana,
+        c.SemanasCicloPosturaPorRaza
     );
 }

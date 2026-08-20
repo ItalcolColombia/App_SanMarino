@@ -91,6 +91,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     descripcion: 'Oculta la columna Machos en mortalidad, selección, peso, uniformidad, traslados y ventas, y retira el error de sexaje del registro diario. Solo cambia la UI: el dato sigue existiendo en el modelo.',
     grupo: 'Postura'
   },
+  {
+    key: 'semanasCicloPosturaPorRaza',
+    titulo: 'Etapas del ciclo por raza',
+    descripcion: 'La etapa del seguimiento diario (alistamiento/levante/levante en producción/postura) se calcula por semana de vida y por raza, en vez de los cortes fijos. Apagado, sigue mostrando Etapa 1/2/3 como siempre.',
+    grupo: 'Postura'
+  },
 
   // ── Pollo engorde ────────────────────────────────────────────────────────
   {

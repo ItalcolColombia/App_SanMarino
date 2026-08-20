@@ -128,7 +128,8 @@ public class CompanyPaisService : ICompanyPaisService
             ReporteCostosAlimentoDesdeFuentesReales: cp.Company.ReporteCostosAlimentoDesdeFuentesReales,
             ConsumoAlimentoSoloHembras: cp.Company.ConsumoAlimentoSoloHembras,
             OcultaMachosEnPostura: cp.Company.OcultaMachosEnPostura,
-            HuevoPrimeraPosturaHastaSemana: cp.Company.HuevoPrimeraPosturaHastaSemana
+            HuevoPrimeraPosturaHastaSemana: cp.Company.HuevoPrimeraPosturaHastaSemana,
+            SemanasCicloPosturaPorRaza: cp.Company.SemanasCicloPosturaPorRaza
         )).ToList();
     }
 

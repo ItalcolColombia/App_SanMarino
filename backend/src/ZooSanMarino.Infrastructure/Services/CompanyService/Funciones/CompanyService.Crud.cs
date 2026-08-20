@@ -87,7 +87,8 @@ public partial class CompanyService
             ReporteCostosAlimentoDesdeFuentesReales = dto.ReporteCostosAlimentoDesdeFuentesReales,
             ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras,
             OcultaMachosEnPostura = dto.OcultaMachosEnPostura,
-            HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana
+            HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana,
+            SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza
         };
 
         _ctx.Companies.Add(c);
@@ -151,6 +152,7 @@ public partial class CompanyService
         c.ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras ?? c.ConsumoAlimentoSoloHembras;
         c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
         c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
+        c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
 
         await _ctx.SaveChangesAsync();
 

@@ -79,6 +79,9 @@
                 <div class="form-field">
                   <label for="f-fecha">Fecha</label>
                   <input id="f-fecha" type="date" formControlName="fechaRegistro" />
+                  @if (semanasCicloPosturaPorRaza && etapaCicloLabel) {
+                    <small class="ux-hint">Etapa: <strong>{{ etapaCicloLabel }}</strong></small>
+                  }
                 </div>
                 <div class="form-field">
                   <label for="f-lote">Lote</label>

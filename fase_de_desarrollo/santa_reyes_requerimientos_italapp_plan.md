@@ -118,3 +118,124 @@ decisión la toma el backend desde el flag.
   (CLAUDE.md §🏢.6).
 - **Orden de migraciones:** cualquier `UPDATE companies … WHERE name='Santa Reyes'` debe quedar
   **después** de `20260725190000_SeedEmpresaSantaReyes`.
+
+---
+
+## 6. F3 — Semanas de producción por raza (diseño técnico, 20-ago-2026)
+
+**Texto literal del requerimiento** (`~/Downloads/Requerimientos de Italapp.docx`, extraído con
+python-docx porque `pandoc`/`soffice` no están en PATH local — sección **"Consumo de alimento"**,
+justo antes del requerimiento de F4):
+
+> Se tienen que configurar las semanas de producción de la siguiente manera:
+> **Aves Rojas y criollas:** Levante: Desde la creación del Item, son 8 sem en alistamiento, y 16
+> semanas en etapa de levante. Producción: 4 semanas en etapa levante pero en granjas de producción
+> y 74 semanas en etapa de postura.
+> **Aves Blancas y Azur:** Levante: ídem (8+16). Producción: 4 semanas en etapa levante pero en
+> granjas de producción y **84** semanas en etapa de postura.
+
+**Por qué se auditó el .docx en vez de confiar en la fila de la tabla §2:** la fila comprimía el
+requisito a una línea y el caso de prueba #2 (§4) quedaba ambiguo (¿"semana 88" es edad global del
+ave o semana relativa a producción?). El documento fuente confirma **"desde la creación del Item"**
+→ **edad global del ave desde encasetamiento**, el mismo contador que ya usa TODO el sistema hoy
+(`FaseLoteCalculos`, la guía genética por `Edad`, y el propio `calcularEtapa` del modal). El caso de
+prueba #2 se reescribe con límites propios más abajo, verificados contra el texto fuente.
+
+### 6.1 Alcance real (auditado en código, no solo grep)
+
+Existen **dos conceptos distintos** que un grep por "hardcodeada 26-33" puede confundir:
+
+1. **`FaseLoteCalculos.SemanasParaProduccion = 26`** (backend) — umbral que sólo se usa para
+   clasificar la `Fase` (`Levante`/`Produccion`) de un lote **al crearlo/editarlo** (útil para carga
+   masiva con encaset viejo) y para filtrar reportes de levante. El paso REAL levante→producción es
+   una acción manual del operador (crea fila en `lote_postura_produccion`), no depende de este
+   cálculo en el día a día. **No se toca**: no está en el alcance literal del requerimiento (que
+   habla de "etapas" para consumo de alimento, no de cuándo migrar de tabla) y tocarlo arriesga un
+   cálculo compartido con Sanmarino/Panamá/Ecuador para un beneficio que el cliente no pidió.
+2. **El campo `Etapa` (1/2/3) del modal de producción** (`calcularEtapa`/`getEtapaLabel`,
+   `modal-seguimiento-diario.component.ts:1454-1487`, espejado en backend por
+   `MovimientoAvesCalculos.EtapaProduccion` sólo para migración de histórico) — **esto sí es el
+   mismo tipo de dato que pide el cliente**: una etapa por semana de vida del ave, hoy con cortes
+   26-33/34-50/>50 sin relación con raza. Se persiste tal cual en
+   `seguimiento_diario_produccion.etapa` como dato informativo/exportable («Fase / Etapa» en
+   `ExportacionExcelService`); ningún cálculo de saldo lo consume aritméticamente → cambiar su
+   semántica **por empresa** es seguro.
+3. **El módulo de levante NO tiene ningún campo "etapa" hoy** (grep sin resultados en
+   `features/lote-levante`). F3.1 (alistamiento/levante) es aditivo ahí, no un refactor.
+
+**Confirmado en código, no supuesto:**
+- `LotePosturaLevante.Raza` y `LotePosturaProduccion.Raza` existen como campo propio (denormalizado,
+  no requiere join a `LotePosturaBase`) — ya lo llenan con literal "BABCOK BROWN"/"LOHMANN LSL", etc.
+- `LoteDto.raza` (frontend, `lote.service.ts`) ya viaja al componente padre
+  (`lote-produccion-list.component.ts: selectedLote`) — el modal no lo recibe todavía (no está en la
+  lista de `@Input()`), pero el dato ya está un nivel arriba, sólo falta pasarlo.
+- Las 5 líneas sembradas en F2.1 (`guia_genetica_santa_reyes`) son exactamente las que el
+  requerimiento agrupa: **Rojas y criollas** = Babcock Brown, Hy Line Brown, Criolla · **Blancas y
+  Azur** = Lohmann LSL, Azur.
+- `Company.HuevoPrimeraPosturaHastaSemana` (F0.1) ya documenta el mismo contador ("última semana de
+  **vida del lote**") → refuerza que "semana" en todo Santa Reyes es edad global, consistente con
+  este diseño.
+
+### 6.2 Cálculo puro — límites (edad en semanas desde encasetamiento, iguales para ambos grupos
+salvo el final de postura)
+
+| Etapa | Semanas (edad) | Duración |
+|---|---|---|
+| Alistamiento | 1–8 | 8 |
+| Levante | 9–24 | 16 |
+| Levante en granja de producción | 25–28 | 4 |
+| Postura (rojas/criollas) | 29–102 | 74 |
+| Postura (blancas/Azur) | 29–112 | 84 |
+| Fuera de ciclo | >102 (rojas/criollas) / >112 (blancas/Azur) | — |
+
+`Application/Calculos/SemanasCicloPosturaCalculos.cs` (estático, puro, sin EF):
+- `EsGrupoBlancaAzur(string? raza)`: match case-insensitive contra los 5 literales conocidos de la
+  guía genética (`LOHMANN`, `AZUR` ⇒ true; `BABCOCK`/`BABCOK`, `HY LINE`, `CRIOLLA` ⇒ false).
+  Raza `null`/no reconocida ⇒ `null` (etapa indeterminada, **no** adivinar grupo — el caller muestra
+  «—» en vez de una etapa potencialmente incorrecta).
+- `ObtenerEtapa(string? raza, int semanasDesdeEncaset) → string?` (constantes tipo
+  `FaseLoteCalculos`: `Alistamiento`/`Levante`/`LevanteEnProduccion`/`Postura`/`FueraDeCiclo`), `null`
+  si raza no reconocida o semanas < 1.
+- Espejo TypeScript puro en `features/lote-produccion/funciones/semanas-ciclo-postura.funcion.ts`
+  (mismos cortes, literal) — igual patrón que el resto de `funciones/`: el modal ya calcula `etapa`
+  100% en el cliente antes de guardar (no hay round-trip al backend para esto), así que necesita su
+  propia copia igual que hoy tiene su propio `calcularEtapa`.
+
+**Gate flag OFF:** con `Company.SemanasCicloPosturaPorRaza = false` (default en TODAS las empresas
+incluida Santa Reyes hasta este commit), `calcularEtapa`/`getEtapaLabel`/`EtapaProduccion` quedan
+byte a byte iguales — el nuevo cálculo ni se llama.
+
+### 6.3 Flag nuevo
+
+`Company.SemanasCicloPosturaPorRaza` (bool, default `false`) — mismo patrón de 8 capas que
+`ConsumoAlimentoSoloHembras` (F0.1): entidad, `CompanyDto`/`CreateCompanyDto`/`UpdateCompanyDto`,
+`CompanyConfiguration`, `CompanyService.ToDto` + `.Crud`, `CompanyResolver` (x2), `CompanyPaisService`,
++ registrar en `flags-empresa.funcion.ts` (catálogo admin) y en
+`active-company-config.service.ts` (front, caché 5 min, fail-closed). Migración idempotente
+data-only para encenderlo en Santa Reyes, con timestamp posterior a
+`20260820093323_SeedGuiaGeneticaSantaReyes`.
+
+### 6.4 Dónde se usa
+
+- **Modal producción** (`modal-seguimiento-diario.component.ts`): nuevo `@Input() raza`, el padre
+  (`lote-produccion-list.component.html`) lo pasa como `[raza]="selectedLote?.raza || null"` (mismo
+  patrón que `fechaEncaset`). Con el flag ON y raza reconocida, `getEtapaLabel` muestra
+  "Levante en producción" / "Postura" / "Fuera de ciclo" en vez de "Etapa 1/2/3"; el valor numérico
+  persistido sigue 1/2/3 (Validators.max(3) sin tocar) mapeado 1=LevanteEnProduccion, 2=Postura,
+  3=FueraDeCiclo — dato de exportación informativo, no rompe nada al reinterpretarlo por empresa
+  (mismo criterio que `metadata jsonb` en CLAUDE.md §🏢.6).
+- **Form de levante** (`seguimiento-lote-levante-form.component.ts`): campo nuevo, sólo lectura,
+  visible con el flag ON — "Alistamiento" / "Levante", mismo cálculo. Aditivo: nada que migrar para
+  las demás empresas.
+
+### 6.5 Casos de prueba (xUnit, reemplazan al caso #2 ambiguo de §4)
+
+1. Flag OFF (o raza no reconocida) ⇒ `ObtenerEtapa` no se usa / devuelve `null`; `calcularEtapa`
+   sigue devolviendo exactamente 1/2/3 con los cortes 26-33/34-50/>50 de siempre.
+2. Roja/criolla: semana 8→Alistamiento, 9→Levante, 24→Levante, 25→LevanteEnProduccion,
+   28→LevanteEnProduccion, 29→Postura, **102→Postura, 103→FueraDeCiclo**.
+3. Blanca/Azur: igual hasta semana 28; 29→Postura, **112→Postura, 113→FueraDeCiclo**.
+4. `EsGrupoBlancaAzur`: las 5 razas sembradas en F2.1 devuelven el grupo correcto; raza desconocida
+   (`null`/string arbitrario) ⇒ `ObtenerEtapa` devuelve `null`, no asume un grupo.
+5. Equivalencia frontend↔backend: mismos 5 puntos de corte en `semanas-ciclo-postura.funcion.ts`
+   (test Karma o comparación manual documentada si el módulo no tiene harness de test unitario hoy).

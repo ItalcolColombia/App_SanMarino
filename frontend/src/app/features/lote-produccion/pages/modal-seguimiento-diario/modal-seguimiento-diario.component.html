@@ -44,11 +44,17 @@
               <div class="form-field">
                 <label for="f-etapa-general"><span class="label-icon">📊</span> Etapa de Producción</label>
                 <select id="f-etapa-general" formControlName="etapa" required>
-                  <option [value]="1">Etapa 1 (Semana 26-33)</option>
-                  <option [value]="2">Etapa 2 (Semana 34-50)</option>
-                  <option [value]="3">Etapa 3 (Semana >50)</option>
+                  @if (semanasCicloPosturaPorRaza) {
+                    <option [value]="1">Etapa 1 (antes de postura)</option>
+                    <option [value]="2">Etapa 2 (postura)</option>
+                    <option [value]="3">Etapa 3 (fuera de ciclo)</option>
+                  } @else {
+                    <option [value]="1">Etapa 1 (Semana 26-33)</option>
+                    <option [value]="2">Etapa 2 (Semana 34-50)</option>
+                    <option [value]="3">Etapa 3 (Semana >50)</option>
+                  }
                 </select>
-                <small class="ux-hint">Autocalculada — {{ getEtapaLabel(form.get('etapa')?.value || 1) }}</small>
+                <small class="ux-hint">Autocalculada — {{ getEtapaLabelActual() }}</small>
               </div>
               <div class="form-field">
                 <label for="f-ciclo"><span class="label-icon">🔄</span> Ciclo</label>

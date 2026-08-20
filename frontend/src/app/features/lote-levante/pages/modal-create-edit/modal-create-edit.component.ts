@@ -40,6 +40,7 @@ import {
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
 import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
+import { obtenerEtapaCicloPostura, etiquetaEtapaCicloPostura } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
 
 @Component({
   selector: 'app-modal-create-edit',
@@ -91,6 +92,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   mostrarTabHuevos = false;
   /** Semana de vida del lote en la fecha del registro (para el texto de ayuda del tab). */
   semanaVidaRegistro: number | null = null;
+
+  // ── Etapa del ciclo por raza (flag companies.semanas_ciclo_postura_por_raza, Santa Reyes) ──
+  /** Flag de empresa. Fail-closed: arranca apagado y sólo se prende si el backend lo confirma. */
+  semanasCicloPosturaPorRaza = false;
+  /** Etiqueta memoizada (Alistamiento/Levante/…) mostrada junto a la fecha. `null` = flag apagado o raza no reconocida. */
+  etapaCicloLabel: string | null = null;
   /** Totales memoizados de la clasificadora (readonly en el formulario). */
   totalHuevos = 0;
   incubablesHuevos = 0;
@@ -301,6 +308,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         this.manejaPorSilo = flags.manejaInventarioPorSilo;
         this.cargarSilosDelLote(this.loteIdSeleccionado());
       }
+      // Mismo motivo que el silo: se resuelve ANTES del corte de huevos, o queda sin recalcular en media empresa.
+      if (this.semanasCicloPosturaPorRaza !== flags.semanasCicloPosturaPorRaza) {
+        this.semanasCicloPosturaPorRaza = flags.semanasCicloPosturaPorRaza;
+        this.recalcularVisibilidadHuevos();
+      }
       if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
       this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;
       this.recalcularVisibilidadHuevos();
@@ -331,6 +343,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       this.capturaHuevosEnLevante && permiteHuevosEnLevante(this.fechaEncaset, fechaRegistro);
 
     if (!this.mostrarTabHuevos && this.levanteTab === 'huevos') this.levanteTab = 'general';
+
+    this.etapaCicloLabel = this.semanasCicloPosturaPorRaza
+      ? etiquetaEtapaCicloPostura(obtenerEtapaCicloPostura(this.razaLoteSeleccionado(), this.semanaVidaRegistro))
+      : null;
   }
 
   /** Totales de la clasificadora (memoizados; el template lee las propiedades, no un getter). */
@@ -784,6 +800,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const raw = this.form?.get('loteId')?.value ?? this.selectedLoteId;
     const id = Number(raw);
     return id > 0 ? id : null;
+  }
+
+  /** Raza del lote seleccionado (Santa Reyes: alimenta `etapaCicloLabel`). */
+  private razaLoteSeleccionado(): string | null {
+    const id = this.loteIdSeleccionado();
+    if (id == null) return null;
+    return this.lotes.find(l => String(l.loteId) === String(id))?.raza ?? null;
   }
 
   /**

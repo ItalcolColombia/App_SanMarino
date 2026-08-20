@@ -60,5 +60,7 @@ public record UpdateCompanyDto(
     /// <summary>Oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas y retira error de sexaje del registro diario.</summary>
     bool?    OcultaMachosEnPostura = null,
     /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. Null = la empresa no usa el concepto (omitir conserva el valor actual; para borrarlo explícitamente no hay bandera separada, hoy no hace falta).</summary>
-    int?     HuevoPrimeraPosturaHastaSemana = null
+    int?     HuevoPrimeraPosturaHastaSemana = null,
+    /// <summary>La etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/postura) se calcula por semana y por raza.</summary>
+    bool?    SemanasCicloPosturaPorRaza = null
 );
