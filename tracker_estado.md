@@ -2953,3 +2953,59 @@ esto no vuelva a descubrirse por casualidad.
       lote siguiente en silencio. La tabla `alimento_entrega_ciclo_engorde` (V27, 18-ago) existe
       justamente para persistir la entrega entre ciclos y **está INERTE**: nadie la lee. Activarla es
       el arreglo de fondo
+
+---
+
+# V50 · Nada aplica `backend/sql/` solo — la regla, con gate (20ago26)
+
+Pedido del usuario: *«lo que das en SQL ¿ya está en migraciones? si no, dejemos esa regla en el
+CLAUDE.md … no dejar el archivo ahí, sino que todo sea por despliegue»*. **Bloque propio.**
+
+## V50.0 — La respuesta a la pregunta, medida
+
+- [i] V50.0.1 **El script de V49 NO va por migración, y está bien**: `verificar_cuadre_alimento_engorde.sql`
+      es un **diagnóstico de solo lectura** —se corre a mano contra un dump para medir, no crea ni
+      modifica nada—. Migrarlo no tendría sentido. Es la misma categoría que los otros 16 `verificar_*`
+- [x] V50.0.2 **Para lo que SÍ es un objeto de BD, la práctica ya era correcta**: las **28 de 28**
+      `fn_*.sql` tienen una migración que las nombra, y **4 de 6** `vw_*.sql` también
+- [i] V50.0.3 🔴 **Pero era práctica, no regla — y ya se filtraron dos.** Nada aplica `backend/sql/`
+      solo: **ni el arranque de la app ni el deploy** (verificado: 0 runners de SQL en `Program.cs` /
+      `DatabaseExtensions.cs`). Lo único que corre en prod son las migraciones EF
+
+## V50.1 — Las dos que se filtraron, verificadas contra la copia de producción
+
+- [i] V50.1.1 **`vw_validacion_alimento_engorde`** (1-jun-2026): **no existe en la BD** y `grep` sobre
+      `backend/src` + `frontend/src` da **0 referencias**. Tres meses de un archivo que parece trabajo
+      entregado y no llegó a ningún lado
+- [i] V50.1.2 **`vw_seguimiento_pollo_engorde_add_company_id`** (16-abr-2026): tampoco existe como
+      vista, **pero sus columnas SÍ están vivas** (`company_id`, `saldo_aves_vivas_hembras`,
+      `saldo_aves_vivas_machos` están dentro de `vw_seguimiento_pollo_engorde`): alguien las plegó en la
+      migración de la vista principal. El archivo quedó como un **fragmento superado**
+- [i] V50.1.3 🔑 **Ninguna de las dos era un hueco funcional.** El daño es el otro: **hacen perder
+      tiempo y confunden el estado real del sistema** — es imposible saber si algo está desplegado
+      mirando el repo
+
+## V50.2 — Lo que entró
+
+- [x] V50.2.1 **CLAUDE.md §🗄️ — regla vinculante nueva: «El `.sql` es el ESPEJO; la migración es el
+      VEHÍCULO»**. Todo objeto de BD que la app consulte llega a producción **por migración**, y la
+      migración entra **en el mismo commit** que el `.sql`
+- [x] V50.2.2 **`backend/scripts/verificar-sql-llega-por-migracion.js`** (nuevo, **corta el CI**):
+      exige que cada `fn_*.sql` / `vw_*.sql` esté nombrado por al menos una migración. Excluye los
+      `.Designer.cs` a propósito — son el snapshot del modelo, no el DDL, y un nombre que aparece sólo
+      ahí no prueba que algo se aplique
+- [x] V50.2.3 **Válvula honesta**: un archivo que legítimamente no lleve migración se declara **en el
+      propio archivo** con `-- SIN-MIGRACION: <motivo>`. Declararlo es barato; el objetivo no es
+      prohibir, es que nadie se entere por casualidad
+- [x] V50.2.4 **Exentos por prefijo, y dicho por qué**: `verificar_*` (diagnósticos de solo lectura),
+      `migracion_*` y `backfill_*` (operativos de una sola vez que quedan como registro)
+- [x] V50.2.5 Cableado en `deploy-production.yml`, junto a los otros tres gates. Son **cuatro**
+
+## V50.3 — Validación
+
+- [x] V50.3.1 🔑 **Probado en las dos direcciones**: contra el estado previo **falla** nombrando las
+      dos vistas huérfanas; con las dos declaradas **pasa**. Un gate que no se probó fallando no es un
+      gate
+- [x] V50.3.2 Las dos huérfanas quedaron declaradas **con la evidencia medida dentro del archivo**, no
+      con una excusa: qué se verificó, contra qué, y qué pasa si alguien las quiere usar
+- [x] V50.3.3 Los **cuatro** gates del CI en verde

@@ -196,6 +196,22 @@ Infrastructure/Services/<Modulo>/
 
 **SQL crudo en `/backend/sql/`** solo para: funciones/triggers/vistas (ej. `fn_seguimiento_diario_engorde.sql`), backfills masivos (DDL+DML mezclados), seeds de catálogos. Para columnas/tablas/índices/constraints simples → **migración EF idempotente**.
 
+### 🔴 El `.sql` es el ESPEJO; la migración es el VEHÍCULO
+
+**Nada aplica `backend/sql/` solo: ni el arranque de la app, ni el deploy.** Lo único que corre en producción son las migraciones EF (`Database__RunMigrations=true` en la TaskDef). Un `fn_*.sql` o `vw_*.sql` que viva **sólo** como archivo **no existe en producción**, aunque el repo lo muestre como trabajo hecho.
+
+> **Regla vinculante:** todo objeto de BD que la app consulte —función, vista, trigger, índice, tabla, seed— llega a producción **por migración**. El `.sql` en `backend/sql/` se conserva como espejo legible del objeto, nunca como el medio para aplicarlo. Si escribís un `fn_`/`vw_` nuevo, la migración que lo crea entra **en el mismo commit**.
+
+**Gate de máquina** (corta el CI): `node backend/scripts/verificar-sql-llega-por-migracion.js` exige que cada `fn_*.sql` / `vw_*.sql` esté nombrado por al menos una migración. Si un archivo legítimamente no lleva una, se declara **en el propio archivo**:
+
+```sql
+-- SIN-MIGRACION: <motivo concreto>
+```
+
+**Exentos por prefijo, a propósito:** `verificar_*.sql` son diagnósticos de **solo lectura** —se corren a mano contra un dump para medir, no crean nada, migrarlos no tendría sentido—; `migracion_*.sql` y `backfill_*.sql` son operativos de una sola vez que quedan como registro de lo que se hizo.
+
+**Por qué existe la regla:** medido el 20-ago-2026 contra la copia de producción, dos vistas del repo **no existían en la BD** — `vw_validacion_alimento_engorde` (1-jun) sin un solo lector, y `vw_seguimiento_pollo_engorde_add_company_id` (16-abr), cuyo contenido alguien había plegado dentro de otra migración. Ninguna era un hueco funcional; el daño fue hacer perder tiempo y confundir el estado real del sistema.
+
 ---
 
 ## 🔍 Regla de schema — EL CÓDIGO MANDA

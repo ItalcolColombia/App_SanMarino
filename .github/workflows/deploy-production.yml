@@ -117,6 +117,12 @@ jobs:
         working-directory: frontend
         run: node scripts/verificar-front-no-descuenta-inventario.js
 
+      # Nada aplica `backend/sql/` solo: ni el arranque ni el deploy. Un fn_/vw_ que vive sólo como
+      # archivo parece trabajo entregado y producción nunca lo tiene.
+      - name: Gate — todo fn_/vw_ de SQL llega por migración
+        working-directory: backend
+        run: node scripts/verificar-sql-llega-por-migracion.js
+
       - name: Resumen
         if: success()
         run: echo "### Gate de tests superado" >> "$GITHUB_STEP_SUMMARY"
