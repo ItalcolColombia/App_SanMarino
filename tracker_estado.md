@@ -466,9 +466,33 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Verificado: 615/615 filas, round-trip Down→Up sin duplicar, `codigo_guia_genetica` calculado
         igual que `ExcelImportService.ComputeCodigo` (Raza+AnioGuia+Edad) para que una futura
         reimportación por Excel lo reconozca
-  - [ ] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes — pendiente:
-        service+endpoint que lea `guia_genetica_santa_reyes` (hoy nada la consume todavía) + wireo del
-        selector de raza en `modal-create-edit-lote`/`lote-list` para Santa Reyes
+  - [~] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
+        — **mayormente hecho**, un chokepoint + 6 sitios de consumo:
+        - `GuiaGeneticaService` (backend de `api/guia-genetica`, el que alimenta el selector de raza
+          en `modal-create-edit-lote`/`lote-list`): ahora mira primero `guia_genetica_santa_reyes` y
+          cae a la compartida si la empresa no tiene filas propias — cubre los 6 métodos públicos
+          (`ObtenerGuiaGeneticaAsync`, rango, existe, razas, años, producción)
+        - `LoteService` (Create/Update): el gate "raza/año obligatorios si la empresa tiene guía"
+          ahora mira las dos tablas vía `GuiaGeneticaLookup` (nuevo, compartido) — antes Santa Reyes
+          iba a quedar SIEMPRE en modo "sin guía" (raza libre) aunque F2.1 ya hubiera cargado la suya
+        - `LiquidacionCierreLoteLevanteService`, `LiquidacionTecnicaComparacionService`,
+          `ReporteTecnicoSemanal` (los 3 usan `GuiaGeneticaLookup.ObtenerFilasCompatiblesAsync`, que
+          arma filas `ProduccionAvicolaRaw` transitorias — no persistidas — con los 3 campos que la
+          tabla de Santa Reyes sí tiene; `peso_h`/`uniformidad`/`cons_ac_h` quedan `null`, igual que
+          ya pasa hoy con cualquier fila incompleta de la guía compartida)
+        - `LiquidacionTecnicaService`/`LiquidacionTecnicaComparacionService` (la parte reproductora)
+          **no se tocaron a propósito**: `LiquidacionTecnicaService` lee
+          `seguimiento_diario_levante_reproductoras` — es de REPRODUCTORA, Santa Reyes no cría
+          reproductoras (compra pollita de un día), no aplica
+        - ⚠️ **Gap conocido, no cerrado**: `ReporteTecnicoProduccionService` (3 sitios) y
+          `ReporteTecnicoService` (2 sitios) tienen consultas DIRECTAS a `ProduccionAvicolaRaw`
+          además de las que ya pasan por `IGuiaGeneticaService` — son archivos de 1000-2700 líneas
+          y al menos una de esas consultas (`ReporteTecnicoProduccionService.cs:~1107`) **no filtra
+          por `company_id`**, así que no es seguro tocarla sin antes entender si es a propósito o un
+          bug preexistente. Quedó sin tocar para no meter una regresión en un reporte financiero bajo
+          presión de tiempo — a retomar con más cuidado
+        - Validado: `dotnet build` 0 errores (21 warnings preexistentes) · `dotnet test` **2936/2936**
+          sin regresión
 - [ ] **F3 · Semanas de producción por raza** (10h)
   - [ ] F3.1 Levante por raza: 8 sem alistamiento + 16 sem levante
   - [ ] F3.2 Producción: 4 sem levante-en-granja-de-producción + 74 sem postura (rojas/criollas) u 84 (blancas/Azur)

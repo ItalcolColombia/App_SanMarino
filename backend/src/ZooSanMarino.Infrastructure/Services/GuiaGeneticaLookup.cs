@@ -1,0 +1,101 @@
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Domain.Entities;
+using ZooSanMarino.Infrastructure.Persistence;
+
+namespace ZooSanMarino.Infrastructure.Services;
+
+/// <summary>
+/// Chequeos de existencia de guía genética compartidos entre <see cref="GuiaGeneticaService"/> y
+/// <see cref="LoteService"/> (que valida raza/año al crear/editar un lote sin pasar por ese
+/// servicio). Misma regla en los dos lados: primero <c>guia_genetica_santa_reyes</c> (tabla
+/// dedicada); si la empresa no tiene filas ahí, cae a <c>guia_genetica_sanmarino_colombia</c>
+/// (<c>ProduccionAvicolaRaw</c>), el comportamiento de siempre.
+/// </summary>
+public static class GuiaGeneticaLookup
+{
+    /// <summary>¿La empresa tiene alguna fila de guía genética cargada, en cualquiera de las dos tablas?</summary>
+    public static async Task<bool> TieneGuiaAsync(ZooSanMarinoContext ctx, int companyId)
+    {
+        var enPropia = await ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .AnyAsync(g => g.CompanyId == companyId && g.DeletedAt == null);
+        if (enPropia) return true;
+
+        return await ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
+    }
+
+    /// <summary>¿Existe la combinación (raza, año) para la empresa, en cualquiera de las dos tablas?</summary>
+    public static async Task<bool> ExisteAsync(ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio)
+    {
+        var enPropia = await ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .AnyAsync(g =>
+                g.CompanyId == companyId &&
+                g.DeletedAt == null &&
+                g.Raza.Trim().ToLower() == razaNorm &&
+                g.AnioGuia.Trim() == anio);
+        if (enPropia) return true;
+
+        return await ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .AnyAsync(p =>
+                p.CompanyId == companyId &&
+                p.DeletedAt == null &&
+                p.Raza != null &&
+                p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == anio);
+    }
+
+    /// <summary>
+    /// Filas de guía de una raza+año, con la MISMA forma que devolvía siempre
+    /// <c>ProduccionAvicolaRaw</c> (para no tocar el resto de liquidaciones/reportes que ya
+    /// consumen esa forma). Si la empresa tiene la guía en la tabla dedicada, arma filas
+    /// transitorias (no se agregan al <see cref="ZooSanMarinoContext"/>, no se guardan) con los
+    /// campos que esa tabla SÍ tiene — <c>peso_h</c>, <c>uniformidad</c> y <c>cons_ac_h</c> quedan
+    /// <c>null</c> porque el Excel de origen no los trae, igual que ya pasa hoy con cualquier fila
+    /// incompleta de la guía compartida.
+    /// </summary>
+    public static async Task<List<ProduccionAvicolaRaw>> ObtenerFilasCompatiblesAsync(
+        ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio)
+    {
+        var propias = await ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .Where(g =>
+                g.CompanyId == companyId &&
+                g.DeletedAt == null &&
+                g.Raza.Trim().ToLower() == razaNorm &&
+                g.AnioGuia.Trim() == anio)
+            .ToListAsync();
+
+        if (propias.Count > 0)
+        {
+            return propias.Select(g => new ProduccionAvicolaRaw
+            {
+                Id = -g.Id, // negativo: nunca colisiona con un id real, y deja claro en un debug que es transitorio
+                CompanyId = g.CompanyId,
+                Raza = g.Raza,
+                AnioGuia = g.AnioGuia,
+                Edad = g.Edad.ToString(CultureInfo.InvariantCulture),
+                ProdPorcentaje = g.ProdPorcentaje?.ToString(CultureInfo.InvariantCulture),
+                RetiroAcH = g.RetiroAcH?.ToString(CultureInfo.InvariantCulture),
+                GrAveDiaH = g.GrAveDiaH?.ToString(CultureInfo.InvariantCulture),
+                CodigoGuiaGenetica = g.CodigoGuiaGenetica,
+                CreatedByUserId = g.CreatedByUserId,
+                CreatedAt = g.CreatedAt
+            }).ToList();
+        }
+
+        return await ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .Where(p =>
+                p.CompanyId == companyId &&
+                p.DeletedAt == null &&
+                p.Raza != null && p.Raza.Trim().ToLower() == razaNorm &&
+                p.AnioGuia != null && p.AnioGuia.Trim() == anio)
+            .ToListAsync();
+    }
+}

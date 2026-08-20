@@ -89,13 +89,9 @@ public partial class ReporteTecnicoSemanalService : IReporteTecnicoSemanalServic
         var razaNorm = raza.Trim().ToLower();
         var anioNorm = anioGuia.Value.ToString();
 
-        var filas = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(g => g.CompanyId == companyId
-                        && g.DeletedAt == null
-                        && g.Raza != null && g.Raza.Trim().ToLower() == razaNorm
-                        && g.AnioGuia != null && g.AnioGuia.Trim() == anioNorm)
-            .ToListAsync(ct);
+        // Prefiere la tabla dedicada (Santa Reyes u otra empresa con guía propia); si no tiene
+        // filas para esta raza+año, cae a la compartida — mismo criterio en toda la app.
+        var filas = await GuiaGeneticaLookup.ObtenerFilasCompatiblesAsync(_ctx, companyId, razaNorm, anioNorm);
 
         // El orden de la consulta NO está garantizado: sin este desempate la
         // fila que gana depende del plan y del orden físico de la tabla.

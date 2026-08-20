@@ -120,9 +120,30 @@ public class LiquidacionCierreLoteLevanteService : ILiquidacionCierreLoteLevante
     {
         if (string.IsNullOrEmpty(raza) || !ano.HasValue) return null;
 
+        var anoStr = ano.Value.ToString();
+
+        // Guía en la tabla dedicada (Santa Reyes u otra empresa con guía propia): sus razas no
+        // necesitan la normalización ROSS/COBB de abajo (esa es para engorde/reproductora), así que
+        // se busca por el nombre tal cual. Si no hay filas ahí, sigue el camino de siempre.
+        var propia = await GuiaGeneticaLookup.ObtenerFilasCompatiblesAsync(
+            _ctx, _current.CompanyId, raza.Trim().ToLower(), anoStr);
+        if (propia.Count > 0)
+        {
+            var filaPropia = propia.FirstOrDefault(p => p.Edad is "25" or "25.0" or "175")
+                ?? propia.OrderByDescending(p => p.Edad).FirstOrDefault();
+            if (filaPropia is not null)
+            {
+                return new GuiaLevante(
+                    ConsumoAcH: ParseDec(filaPropia.ConsAcH),
+                    GrAveDiaH: ParseDec(filaPropia.GrAveDiaH),
+                    RetiroAcH: ParseDec(filaPropia.RetiroAcH),
+                    PesoH: ParseDec(filaPropia.PesoH),
+                    Uniformidad: ParseDec(filaPropia.Uniformidad));
+            }
+        }
+
         // Construir lista de nombres alternativos para la raza
         var variantes = NormalizarRaza(raza);
-        var anoStr = ano.Value.ToString();
 
         // Formatos de Edad usados para semana 25
         var edades = new[] { "25", "25.0", "175" };
