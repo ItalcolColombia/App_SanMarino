@@ -493,9 +493,46 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           presión de tiempo — a retomar con más cuidado
         - Validado: `dotnet build` 0 errores (21 warnings preexistentes) · `dotnet test` **2936/2936**
           sin regresión
-- [ ] **F3 · Semanas de producción por raza** (10h)
-  - [ ] F3.1 Levante por raza: 8 sem alistamiento + 16 sem levante
-  - [ ] F3.2 Producción: 4 sem levante-en-granja-de-producción + 74 sem postura (rojas/criollas) u 84 (blancas/Azur)
+- [x] **F3 · Semanas de producción por raza** (10h) — commit `6df9a98`
+  - [x] F3.1 Levante por raza: 8 sem alistamiento + 16 sem levante
+  - [x] F3.2 Producción: 4 sem levante-en-granja-de-producción + 74 sem postura (rojas/criollas) u 84 (blancas/Azur)
+        — **auditado el `.docx` fuente** (`~/Downloads/Requerimientos de Italapp.docx`, sección
+        "Consumo de alimento"), no solo la fila resumida del plan §2: el caso de prueba original
+        quedaba ambiguo (¿edad global del ave o semana relativa a producción?). El texto confirma
+        "desde la creación del Item" ⇒ edad global, el mismo contador que ya usa toda la app
+        (`FaseLoteCalculos`, la guía genética por `Edad`). Diseño completo en §6 del plan
+        (`fase_de_desarrollo/santa_reyes_requerimientos_italapp_plan.md`).
+        - Flag nuevo `Company.SemanasCicloPosturaPorRaza` (8 capas, mismo patrón que
+          `ConsumoAlimentoSoloHembras` de F0.1), migración idempotente
+          `20260820102832_AddFlagSemanasCicloPosturaPorRaza`, ON solo en Santa Reyes (misma migración
+          que trae el cálculo que lo consume, no queda un toggle sin efecto).
+        - `SemanasCicloPosturaCalculos` (backend, puro) + espejo TS
+          `shared/utils/fecha/semanas-ciclo-postura.funcion.ts`: alistamiento sem 1-8, levante 9-24
+          (igual en los dos grupos de raza), levante en producción 25-28, postura 29-102
+          (rojas/criollas) o 29-112 (blancas/Azur). Raza no reconocida ⇒ `null`, no se adivina el
+          grupo — el caller muestra «—» o cae al comportamiento de siempre.
+        - **Dos conceptos "etapa" distintos, auditados para no confundirlos**: `FaseLoteCalculos`
+          (backend, umbral de 26 semanas) solo clasifica la `Fase` Levante/Producción al
+          crear/editar un lote y filtra reportes — el paso real de módulo es manual, así que **no se
+          tocó** (fuera del alcance literal del requerimiento). El campo `Etapa` 1/2/3 del modal de
+          producción (`calcularEtapa`/`getEtapaLabel`, dato informativo exportado, ningún saldo lo
+          consume aritméticamente) sí es el mismo tipo de dato que pide el cliente — ahí se conectó
+          el cálculo por raza.
+        - Modal de producción: nuevo `@Input() raza` (`selectedLote.raza`, ya viajaba un nivel
+          arriba, solo faltaba pasarlo); con flag ON y raza reconocida muestra "Levante en
+          producción"/"Postura"/"Fuera de ciclo" en vez de "Etapa 1/2/3"; con flag OFF o raza no
+          reconocida, byte a byte igual que siempre.
+        - Modal de levante: campo nuevo de solo lectura con la etapa — **el form real es
+          `modal-create-edit` (el que usan `tabs-principal`/`seguimiento-lote-levante-list`), NO
+          `seguimiento-lote-form`**, que resultó huérfano (solo enrutado en `/nuevo` y `/editar/:id`,
+          sin campo de consumo de machos ni flags de empresa) — mismo gotcha que ya advertía
+          CLAUDE.md para `lote-list` vs `modal-create-edit-lote`. Reusa `semanaVidaLevante` (la
+          fórmula ya documentada como canónica) en vez de sumar una tercera variante de cálculo de
+          semana al repo.
+        - Validado: `dotnet build` 0 errores (21 warnings preexistentes) · `dotnet test`
+          **2959/2959** (23 nuevos, sin regresión) · `dotnet ef database update` aplicado en local
+          sin error · `yarn build` 0 errores. Sin smoke visual en navegador (mismo bloqueo del
+          clasificador de seguridad que F0.1 — minteo de sesión).
 - [ ] **F4 · Consumo de alimento solo hembras** (8h)
   - [ ] F4.1 Retirar consumo de machos del seguimiento diario de producción
   - [ ] F4.2 Retirar consumo de machos del seguimiento diario de levante
