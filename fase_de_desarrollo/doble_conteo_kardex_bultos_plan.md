@@ -213,11 +213,12 @@ componente más allá del texto.
 
 ### 4.4 Lo que NO entró, medido y por decisión
 
-- **El recorte a 0 de `AcumularSaldos`.** Su doc dice que «el acumulador interno conserva el negativo»
-  y **no lo conserva**: el carry entre días contiguos relee el valor ya recortado. Es un contrato
-  incumplido. **No entra** porque con este arreglo el recorte deja de activarse en los lotes medidos
-  (`sin clamp == con clamp` en los 9) ⇒ arreglarlo no cambia nada acá y sí movería la rama vieja sin
-  medición que lo respalde.
+- ~~**El recorte a 0 de `AcumularSaldos`.**~~ — **ENTRÓ**, por decisión del usuario del 19-ago
+  (bloque **V44** del tracker). Su doc decía que «el acumulador interno conserva el negativo» y **no lo
+  conservaba**: el carry entre días contiguos releía el valor recortado, y encima era incoherente
+  —ante un hueco de fechas sí seguía crudo—. Radio medido: **0 de 1.865 filas diarias** y **0 de 460
+  encabezados**, en las dos ramas y las dos fases. Da cero porque V41 dejó el acumulado sin bajar de 0;
+  el defecto estaba **tapado**, no ausente.
 - ~~**`ObtenerSaldoAnteriorSemana` (V40.11).**~~ — **ENTRÓ**, por decisión del usuario del 19-ago con
   el radio sobre la mesa (bloque **V43** del tracker). El resumen semanal no arrastraba el saldo entre
   semanas vacías y se contradecía con su propio detalle diario (lote 114: encabezado 259,90 contra

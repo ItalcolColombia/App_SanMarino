@@ -412,16 +412,83 @@ public class ReporteContableBultosCalculosTests
     [Fact]
     public void ElSaldoPublicadoTienePisoCeroPeroElAcumuladorConservaElNegativo()
     {
+        // ⚠️ CAMBIO DE COMPORTAMIENTO DELIBERADO (19-ago-2026).
+        // Este test se llamaba así desde el principio, pero su assert afirmaba lo CONTRARIO de lo que
+        // dice su nombre: el acumulador NO conservaba el negativo, porque el carry entre días
+        // contiguos releía el valor ya recortado del mapa por fecha.
+        //   esperado ANTES:  { 0, 0, 40 }   (el -20 se perdonaba al día siguiente)
+        //   esperado AHORA:  { 0, 0, 20 }   (-20 + 40 = 20)
         var d1 = new DateTime(2026, 3, 1);
 
         var saldos = AcumularSaldos(new[]
         {
-            (d1,            Consumo(30m)),        // -30 → se publica 0
+            (d1,            Consumo(30m)),        // -30 → se publica 0, el acumulado sigue en -30
             (d1.AddDays(2), EntradaDelta(10m)),   // hueco: -30 + 10 = -20 → se publica 0
-            (d1.AddDays(3), EntradaDelta(40m)),   // día contiguo: retoma el 0 publicado → 40
+            (d1.AddDays(3), EntradaDelta(40m)),   // día contiguo: retoma el -20 CRUDO → 20
         });
 
-        Assert.Equal(new[] { 0m, 0m, 40m }, saldos.Select(s => s.Saldo).ToArray());
+        Assert.Equal(new[] { 0m, 0m, 20m }, saldos.Select(s => s.Saldo).ToArray());
+
+        // Lo publicado nunca es negativo: el piso en 0 es de presentación.
+        Assert.All(saldos, s => Assert.True(s.Saldo >= 0m));
+        Assert.All(saldos, s => Assert.True(s.SaldoAnterior >= 0m));
+    }
+
+    [Fact]
+    public void ElCarryEsIgualConHuecoYSinHueco()
+    {
+        // La incoherencia que esto cierra: ante un HUECO de fechas el acumulado ya seguía crudo, pero
+        // entre días CONTIGUOS se recortaba. Eran dos comportamientos para la misma integración según
+        // si el día anterior tenía filas. Ahora las dos series terminan igual.
+        var d1 = new DateTime(2026, 3, 1);
+
+        var contiguas = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(30m)),
+            (d1.AddDays(1), EntradaDelta(50m)),   // -30 + 50 = 20
+        });
+
+        var conHueco = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(30m)),
+            (d1.AddDays(5), EntradaDelta(50m)),   // -30 + 50 = 20
+        });
+
+        Assert.Equal(20m, contiguas[^1].Saldo);
+        Assert.Equal(20m, conHueco[^1].Saldo);
+    }
+
+    [Fact]
+    public void ElConsumoEnRojoNoSePerdonaAlDiaSiguiente()
+    {
+        // El caso que motiva el arreglo: el galpón consume mas de lo que recibió y al otro día llega
+        // una remisión. Antes el rojo se borraba contra el piso de 0 y la remisión entraba entera.
+        var d1 = new DateTime(2026, 3, 1);
+
+        var saldos = AcumularSaldos(new[]
+        {
+            (d1,            Consumo(100m)),        // -100
+            (d1.AddDays(1), Consumo(100m)),        // -200
+            (d1.AddDays(2), Consumo(100m)),        // -300
+            (d1.AddDays(3), EntradaDelta(1000m)),  // -300 + 1000 = 700, NO 1000
+        });
+
+        Assert.Equal(700m, saldos[^1].Saldo);
+    }
+
+    [Fact]
+    public void ConSaldoSiempreNoNegativo_LaSalidaEsIdenticaAlLegado()
+    {
+        // El seguro de no-regresión del cambio del carry: mientras el acumulado no baja de 0,
+        // Math.Max(0m, x) == x y el crudo y el recortado son el mismo número ⇒ byte a byte igual.
+        var filas = EscenarioSinSoloBultos();
+
+        var saldos = AcumularSaldos(filas);
+        var legado = AcumuladorLegado(filas);
+
+        Assert.Equal(legado.Select(l => l.Saldo).ToArray(), saldos.Select(s => s.Saldo).ToArray());
+        Assert.Equal(legado.Select(l => l.SaldoAnterior).ToArray(), saldos.Select(s => s.SaldoAnterior).ToArray());
+        Assert.All(saldos, s => Assert.True(s.Saldo >= 0m));
     }
 
     [Fact]

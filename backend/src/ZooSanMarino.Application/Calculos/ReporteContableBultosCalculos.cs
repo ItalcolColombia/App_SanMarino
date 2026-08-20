@@ -323,6 +323,28 @@ public static class ReporteContableBultosCalculos
     /// <item>cada fila suma entradas y resta traslados, retiros y consumos;</item>
     /// <item>el saldo se publica con piso en 0, pero el acumulador interno conserva el negativo.</item>
     /// </list>
+    ///
+    /// <para>
+    /// 🔑 <b>El último punto es el contrato, y hasta el 19-ago-2026 la implementación no lo cumplía.</b>
+    /// El acumulado se guardaba en el mapa por fecha <i>ya recortado</i> (<c>Math.Max(0m, …)</c>) y el
+    /// grupo siguiente lo releía de ahí, así que el negativo <b>no</b> sobrevivía al salto de día: se
+    /// perdía en cada carry entre días <b>contiguos</b>. Y era incoherente consigo mismo, porque ante
+    /// un <b>hueco</b> de fechas el acumulado sí seguía crudo — dos comportamientos para la misma
+    /// integración, según si el día anterior tenía filas o no.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Qué significaba en datos:</b> un día que cerraba en rojo se "perdonaba" al día siguiente, y
+    /// el alimento consumido de más desaparecía del acumulado. Ahora el mapa guarda el acumulado
+    /// <b>crudo</b> y el piso en 0 se aplica sólo a lo que se publica — que es lo que este doc decía
+    /// desde el principio.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Lo publicado nunca es negativo</b> (ni el saldo ni el saldo anterior): el piso en 0 es de
+    /// presentación. Y mientras el acumulado no baje de 0, <c>Math.Max(0m, x) == x</c> ⇒ la salida es
+    /// <b>byte a byte la misma</b> que antes. Sólo cambia donde el recorte estaba borrando consumo.
+    /// </para>
     /// La entrada debe venir agrupada por fecha y ordenada ascendentemente (es lo que produce el
     /// <c>GroupBy(fecha).OrderBy(key)</c> del reporte).
     /// </summary>
@@ -340,15 +362,17 @@ public static class ReporteContableBultosCalculos
         {
             if (fechaDelGrupo != fecha)
             {
+                // El mapa guarda el acumulado CRUDO: es el carry aritmético, no lo que se publica.
                 if (fechaDelGrupo.HasValue)
-                    saldoPorFecha[fechaDelGrupo.Value] = Math.Max(0m, acumulado);
+                    saldoPorFecha[fechaDelGrupo.Value] = acumulado;
 
                 fechaDelGrupo = fecha;
 
                 if (saldoPorFecha.TryGetValue(fecha.AddDays(-1), out var saldoDiaAnterior))
                 {
-                    saldoAnteriorDelGrupo = saldoDiaAnterior;
+                    // Se retoma el crudo; el piso en 0 es sólo de presentación.
                     acumulado = saldoDiaAnterior;
+                    saldoAnteriorDelGrupo = Math.Max(0m, saldoDiaAnterior);
                 }
                 else
                 {
@@ -367,7 +391,7 @@ public static class ReporteContableBultosCalculos
         }
 
         if (fechaDelGrupo.HasValue)
-            saldoPorFecha[fechaDelGrupo.Value] = Math.Max(0m, acumulado);
+            saldoPorFecha[fechaDelGrupo.Value] = acumulado;
 
         return salida;
     }

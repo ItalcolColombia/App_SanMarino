@@ -2525,3 +2525,63 @@ veredicto con su evidencia, y quien retome cada bloque decide.
       518,23 · 518,23 · 518,23 · 518,23 · 376,42 · 376,42 · 376,42 · 376,42 · 3.158,59. Antes se
       contradecían en 2 de los 9
 - [x] V43.3.4 Backend local **apagado**; `:5002` y `:4200` sin listener
+
+---
+
+# V44 · El recorte a 0 de `AcumularSaldos` — contrato incumplido (19ago26)
+
+**Plan:** [`fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md`](fase_de_desarrollo/doble_conteo_kardex_bultos_plan.md) §4.4
+**Cierra el tercer y último defecto** de la columna BULTO, después de V41 (doble conteo) y V43
+(arrastre semanal). **Decisión del usuario, 19-ago-2026.** **Bloque propio.**
+
+## V44.0 — El defecto: la función no hacía lo que su propio doc decía
+
+- [i] V44.0.1 El doc de `AcumularSaldos` dice, palabra por palabra: *«el saldo se publica con piso en
+      0, pero **el acumulador interno conserva el negativo**»*. **Y no lo conservaba.** El acumulado se
+      guardaba en el mapa por fecha **ya recortado** (`Math.Max(0m, …)`) y el grupo siguiente lo releía
+      de ahí ⇒ el negativo se perdía en cada carry entre días **contiguos**
+- [i] V44.0.2 🔑 **Y era incoherente consigo mismo**: ante un **hueco** de fechas el acumulado sí
+      seguía crudo (no hay entrada en el mapa para el día anterior, así que no se reinicia). Dos
+      comportamientos para la misma integración, según si el día previo tenía filas o no
+- [i] V44.0.3 **Qué significaba en datos**: un día que cerraba en rojo se «perdonaba» al día
+      siguiente, y el alimento consumido de más desaparecía del acumulado
+
+## V44.1 — Lo que entró
+
+- [x] V44.1.1 El mapa por fecha guarda el acumulado **crudo**; el piso en 0 se aplica **sólo a lo que
+      se publica** (`Saldo` y `SaldoAnterior`). Es exactamente el contrato que el doc ya declaraba
+- [x] V44.1.2 **Lo publicado nunca es negativo**, ni el saldo ni el saldo anterior — verificado en las
+      1.865 filas: **0 negativas**
+- [x] V44.1.3 El doc pasa de declarar una intención a explicar **por qué** la implementación no la
+      cumplía, con el caso concreto
+
+## V44.2 — El radio de impacto: **cero**, y medido
+
+- [i] V44.2.1 **0 de 1.865 filas diarias cambian.** Captura antes/después contra el endpoint real,
+      cubriendo las **dos ramas** (Sanmarino unificada · Demo legacy) y las **dos fases** (Levante y
+      Producción), 15 lotes padres
+- [i] V44.2.2 **0 de 460 encabezados semanales cambian**
+- [i] V44.2.3 **Por qué da cero, y no es casualidad**: con el doble conteo arreglado en V41 el
+      acumulado **ya no baja de 0** en ningún lote medido, y mientras eso pasa
+      `Math.Max(0m, x) == x` ⇒ el crudo y el recortado son el mismo número. Se había anticipado por SQL
+      (`sin clamp == con clamp` en los 9 lotes) y acá se confirmó empíricamente fila por fila
+- [i] V44.2.4 **Entonces ¿para qué entró?** Porque el defecto es real y sólo estaba **tapado** por el
+      doble conteo: cualquier lote que consuma más de lo que recibió —un cierre de ciclo, una remisión
+      cargada tarde— volvía a perdonar el rojo. Entra ahora que se puede probar que no mueve nada
+
+## V44.3 — Validación
+
+- [x] V44.3.1 `dotnet build` **0 errores**, 9 warnings (los mismos preexistentes)
+- [x] V44.3.2 `dotnet test` **2.905 pasan**, 0 fallos (+3)
+- [x] V44.3.3 El test `ElSaldoPublicadoTienePisoCeroPeroElAcumuladorConservaElNegativo` **afirmaba lo
+      contrario de lo que dice su nombre**: esperaba `{0, 0, 40}` (carry recortado). Ahora espera
+      `{0, 0, 20}`, con los dos números escritos en el propio test
+- [x] V44.3.4 Test nuevo `ElCarryEsIgualConHuecoYSinHueco`: cierra la incoherencia de V44.0.2
+- [x] V44.3.5 Backend local **apagado**; `:5002` y `:4200` sin listener
+
+## V44.4 — Con esto cierra la serie
+
+- [i] V44.4.1 Los **tres** defectos de la columna BULTO quedan cerrados: **V41** el doble conteo (en las
+      dos ramas), **V43** el arrastre semanal, **V44** el recorte del acumulador. Los tres estaban
+      encadenados: el doble conteo tapaba a los otros dos, y arreglarlo primero fue lo que permitió
+      medir a los otros con radio real en vez de heredado
