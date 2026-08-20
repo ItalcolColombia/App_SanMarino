@@ -203,6 +203,7 @@
                 </div>
 
                 <!-- 🐓 Machos -->
+                @if (!consumoAlimentoSoloHembras) {
                 <div class="modal-lev-genero-block" style="margin-top: 1rem;">
                   <h4 class="data-group-subtitle">🐓 Machos</h4>
                   <p class="ux-hint" style="margin: 0 0 0.5rem 0;">Opcional. Si los machos usan el mismo alimento que las hembras, elija el mismo ítem: el consumo se suma.</p>
@@ -285,6 +286,7 @@
                   }
                   <button type="button" class="btn btn--ghost btn--sm" (click)="agregarItemMachos()">+ Agregar alimento (machos)</button>
                 </div>
+                }
               </div>
             </section>
             <!-- Ítems generales (lote completo) — solo si existen al editar -->

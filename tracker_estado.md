@@ -533,9 +533,19 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           **2959/2959** (23 nuevos, sin regresión) · `dotnet ef database update` aplicado en local
           sin error · `yarn build` 0 errores. Sin smoke visual en navegador (mismo bloqueo del
           clasificador de seguridad que F0.1 — minteo de sesión).
-- [ ] **F4 · Consumo de alimento solo hembras** (8h)
-  - [ ] F4.1 Retirar consumo de machos del seguimiento diario de producción
-  - [ ] F4.2 Retirar consumo de machos del seguimiento diario de levante
+- [x] **F4 · Consumo de alimento solo hembras** (8h)
+  - [x] F4.1 Retirar consumo de machos del seguimiento diario de producción — `modal-seguimiento-diario`
+        (lote-produccion): bloque «Machos» (ítems dinámicos, sin botón «+ agregar» visible — código
+        ya huérfano de UI) envuelto en `@if (!consumoAlimentoSoloHembras)`. Flag propagado a
+        `ActiveCompanyConfigService` (faltaba: F0.1 solo lo había llevado a la pantalla de admin de
+        empresas, no al servicio de flags en runtime que consumen los formularios — gap real,
+        corregido acá)
+  - [x] F4.2 Retirar consumo de machos del seguimiento diario de levante — `modal-create-edit`
+        (lote-levante, el form real, no `seguimiento-lote-form` que es huérfano): bloque «🐓 Machos»
+        (con su «+ Agregar alimento (machos)») envuelto igual. El array `itemsMachos` ya nacía vacío
+        acá (a diferencia de producción, no tiene ítem fijo obligatorio) — solo hacía falta ocultar
+        la UI y vaciar el array si el flag llega ON con un registro viejo ya hidratado
+        - Validado: `yarn build` 0 errores
 - [ ] **F5 · Mortalidad, pesaje y ventas** (9h)
   - [ ] F5.1 Retirar el concepto de error de sexaje del registro diario
   - [ ] F5.2 Ocultar columna de machos en mortalidad, selección, peso y uniformidad

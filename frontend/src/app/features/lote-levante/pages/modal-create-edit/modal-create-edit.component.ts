@@ -98,6 +98,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   semanasCicloPosturaPorRaza = false;
   /** Etiqueta memoizada (Alistamiento/Levante/…) mostrada junto a la fecha. `null` = flag apagado o raza no reconocida. */
   etapaCicloLabel: string | null = null;
+  /** Santa Reyes: el seguimiento no captura consumo de alimento de Machos (no se manejan en postura). */
+  consumoAlimentoSoloHembras = false;
   /** Totales memoizados de la clasificadora (readonly en el formulario). */
   totalHuevos = 0;
   incubablesHuevos = 0;
@@ -312,6 +314,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       if (this.semanasCicloPosturaPorRaza !== flags.semanasCicloPosturaPorRaza) {
         this.semanasCicloPosturaPorRaza = flags.semanasCicloPosturaPorRaza;
         this.recalcularVisibilidadHuevos();
+      }
+      if (this.consumoAlimentoSoloHembras !== flags.consumoAlimentoSoloHembras) {
+        this.consumoAlimentoSoloHembras = flags.consumoAlimentoSoloHembras;
+        // El flag llega async: si se estaba editando un registro con consumo de Machos ya
+        // hidratado (guía vieja, previa al flag), se vacía — Santa Reyes no tiene ninguno.
+        if (this.consumoAlimentoSoloHembras) {
+          while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+        }
       }
       if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
       this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;

@@ -121,6 +121,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   manejaPorSilo = false;
   /** Santa Reyes: la etapa se calcula por semana de vida y por raza (ver `semanas-ciclo-postura.funcion`). */
   semanasCicloPosturaPorRaza = false;
+  /** Santa Reyes: el seguimiento no captura consumo de alimento de Machos (no se manejan en postura). */
+  consumoAlimentoSoloHembras = false;
   /** Silos que el lote tiene asignados: de esos —y solo de esos— puede consumir. */
   silosDelLote: LoteSiloDto[] = [];
   private silosLoteLoadId = 0;
@@ -209,6 +211,15 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         this.semanasCicloPosturaPorRaza = flags.semanasCicloPosturaPorRaza;
         // El flag llega async: si el modal ya estaba abierto con fecha cargada, recalcular.
         this.calcularYActualizarEtapa();
+      }
+      if (this.consumoAlimentoSoloHembras !== flags.consumoAlimentoSoloHembras) {
+        this.consumoAlimentoSoloHembras = flags.consumoAlimentoSoloHembras;
+        // El flag llega async: `initializeForm`/`populateForm` ya corrieron y pudieron dejar el
+        // ítem fijo de Machos cargado — si el flag resultó ON, se vacía el array entero (también
+        // borra un eventual ítem histórico rehidratado al editar; Santa Reyes no tiene ninguno).
+        if (this.consumoAlimentoSoloHembras) {
+          while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+        }
       }
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;

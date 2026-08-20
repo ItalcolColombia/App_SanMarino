@@ -68,6 +68,8 @@ export interface CompanyFlags {
    * postura) se calcula por semana de vida y por raza, en vez de los cortes fijos 26-33/34-50/&gt;50.
    */
   semanasCicloPosturaPorRaza: boolean;
+  /** Santa Reyes: el seguimiento diario no captura consumo de alimento de Machos (no se manejan en postura). */
+  consumoAlimentoSoloHembras: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -82,7 +84,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   nombreLoteIncluyeCorrida: false,
   manejaInventarioPorSilo: false,
   requiereValidacionSeguimientoDiario: false,
-  semanasCicloPosturaPorRaza: false
+  semanasCicloPosturaPorRaza: false,
+  consumoAlimentoSoloHembras: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -106,6 +109,7 @@ interface CompanyFlagsResponse {
   manejaInventarioPorSilo?: boolean | null;
   requiereValidacionSeguimientoDiario?: boolean | null;
   semanasCicloPosturaPorRaza?: boolean | null;
+  consumoAlimentoSoloHembras?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -171,6 +175,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa calcula la etapa del ciclo de vida por semana y por raza? */
   readonly semanasCicloPosturaPorRaza$: Observable<boolean> = this.flags$.pipe(
     map(f => f.semanasCicloPosturaPorRaza),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa no captura consumo de alimento de Machos? */
+  readonly consumoAlimentoSoloHembras$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.consumoAlimentoSoloHembras),
     distinctUntilChanged()
   );
 
@@ -284,7 +294,8 @@ export class ActiveCompanyConfigService {
       nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true,
       manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true,
       requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true,
-      semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true
+      semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true,
+      consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true
     };
   }
 
@@ -303,7 +314,8 @@ export class ActiveCompanyConfigService {
       actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida &&
       actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo &&
       actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario &&
-      actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza
+      actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza &&
+      actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras
     ) return;
     this.flagsSubject.next(flags);
   }
