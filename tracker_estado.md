@@ -42,10 +42,17 @@ Es el **«Riesgo #1»** que el bloque de la PWA levantó el 12-ago con 18 commit
 
 ---
 
-## Pendientes reales — 26, medidos el 20-ago-2026
+## Pendientes reales — 24, revalidados el 20-ago-2026 (segunda pasada, con AWS + local back/front)
 
-**7 tareas · 6 decisiones · 13 fuera del repo.** Cada uno trae su bloque de origen para recuperar el
+**6 tareas · 6 decisiones · 12 fuera del repo.** Cada uno trae su bloque de origen para recuperar el
 detalle con `git show e971871:tracker_estado.md`.
+
+> **Segunda pasada la misma tarde**, con herramientas que la primera no tenía: credenciales AWS reales
+> (`aws sts get-caller-identity` respondió) y el proyecto local levantado (back :5002 en un worktree
+> aislado + front :4200, Node/​dotnet portables). Bajó 2: **C8** se cerró de verdad (smoke real en el
+> navegador) y **A3** se degradó a hallazgo (el código y el caso que lo motivó ya estaban resueltos,
+> nadie lo había cruzado). Los demás bloqueantes se **confirmaron**, no se asumieron — el detalle de
+> cada verificación va en su propia línea.
 
 ### A · Tareas ejecutables — hay código o comandos que correr
 
@@ -53,16 +60,18 @@ detalle con `git show e971871:tracker_estado.md`.
       merge a `main-produccion` (dispara el deploy; las migraciones se aplican solas con
       `Database__RunMigrations=true`) y la **verificación obligatoria** de CLAUDE.md §🚀:
       TaskDef ↔ imagen ↔ `/version.json`. ECS revierte en silencio y el CLI igual dice «completado».
-      Arrastra `20260820055219_SeedGalponesModuloIvNizaIii` (X1) y `AddSesionesActivas` (V39)
+      Arrastra `20260820055219_SeedGalponesModuloIvNizaIii` (X1) y `AddSesionesActivas` (V39).
+      **No lo ejecuté yo**: es push + deploy, y las dos acciones piden pedido explícito
+      (ver [[como-trabaja-el-usuario]]) — confirmado que sigue 100 % listo (`dotnet build` 0 errores
+      hoy en un worktree aislado; TaskDef viva = `sanmarino-back-task:160` = imagen `79aeccf`, sin
+      ninguno de los 17)
 - [ ] **A2 · V39.13 — cerrar la ventana de gracia** de los tokens sin `jti`: hoy `Evaluar` devuelve
       `Legado` y los acepta. Va **después** de A1 y de verificar la revocación en prod.
       ⚠️ Trampa: `SesionActivaService` devuelve `Legado` **también ante un fallo de BD** (fail-open
       deliberado) — borrar esa rama sin distinguir los dos usos convierte una caída de BD en un
-      **logout masivo**. Commit propio y explícito
-- [ ] **A3 · Corte levante/producción a 25 semanas.** La decisión ya está tomada (V25.6.2, como el
-      informe de Verenice: ~17.332 kg cambian de etapa en S-369); **falta implementarla**. Antes de
-      tocar: auditar qué reportes, vistas y fns dependen del límite y si es constante o configurable
-      — mueve números que ya se mostraron
+      **logout masivo**. Commit propio y explícito.
+      *Releído el código hoy (`SesionActivaService.EvaluarAsync`): el diagnóstico sigue exacto —
+      `jti` vacío ⇒ retorna sin consultar nada, rama `Legado` intacta*
 - [ ] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
       ingreso a granja + homologación ERP + seed de las 5 guías genéticas (540 filas)
 - [ ] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
@@ -74,7 +83,8 @@ detalle con `git show e971871:tracker_estado.md`.
       existen en `MovimientoAves`**, falta la UI) y huevos (bodega destino desplegable) + no regresión
       multipaís
 
-> **A4-A7 están bloqueadas por B5** (aprobación del cliente). No arrancan antes.
+> **A4-A7 están bloqueadas por B5** (aprobación del cliente). No arrancan antes. **A3 se retiró de
+> esta lista** — bajó de categoría, ver el hallazgo nuevo en «Muertos» más abajo.
 
 ### B · Decisiones tuyas
 
@@ -120,13 +130,14 @@ detalle con `git show e971871:tracker_estado.md`.
       `Abierto` con aves vivas (773 y 1.082). Liquidar es una transacción de 5 pasos, no va por
       migración. Para el id 12, **después de B1**
 - [~] **C6 · Re-correr el detector de sobregiro de aves contra el dump de PROD.** No es una decisión, es
-      un **bloqueo de acceso**: RDS en VPC privada, ECS Exec deshabilitado, IAM sin permisos
+      un **bloqueo de acceso**: RDS en VPC privada, ECS Exec deshabilitado, IAM sin permisos.
+      *Reverificado hoy con credenciales AWS reales* (`aws sts get-caller-identity` responde,
+      cuenta `196080479890`): `enableExecuteCommand` = **false** en el servicio ECS, y el TCP al
+      endpoint del RDS (`reproductoras-pesadas...rds.amazonaws.com:5432`) **da timeout** desde esta
+      máquina — sigue bloqueado, ahora confirmado y no sólo heredado
 - [~] **C7 · Santa Reyes debe entregar** la estructura física real (núcleos, galpones, silos, bodegas) y
       los códigos ERP (CO, bodegas, ubicaciones, centros de costo). Vencido el 18-ago; **F1.2 corre el
       día 1** y el plan no tiene holgura. Es el riesgo Alto #1 del documento
-- [~] **C8 · Smoke en pantalla de la columna «Próx. ciclo»** (V28.5 / F2a.2): hoy mostraría «—» en todas
-      las filas (0 marcas en la BD); lo que hay que mirar es que el encabezado se vea y que la tabla
-      siga scrolleando bien
 - [~] **C9 · Alistamiento de la PWA con red, por usuario y por dispositivo** — **precondición de C10-C13**:
       instalar, entrar una vez (login y reCAPTCHA exigen red) y **visitar las pantallas** que se van a
       usar, o la caché está vacía y ningún escenario significa nada
@@ -211,12 +222,16 @@ Origen: dos archivos del cliente (18-ago-2026) — `Requerimientos de Italapp.do
 > Estas sesiones **todavía no escribieron su bloque**. Cuando lo hagan, va **al final de este
 > archivo**, no acá. Esta sección existe para que nadie borre ni commitee lo que no es suyo.
 
-- [i] **X2 · Permiso de fecha retroactiva + ventana base de 15 días** — arrancada hoy, **en curso**.
+- [i] **X2 · Permiso de fecha retroactiva + ventana base de 15 días** — **activa ahora mismo**
+      (creciendo mientras se escribía esta línea: pasó de 9 a **más de 30 archivos** sin commitear
+      entre la primera y la segunda pasada de esta sesión).
       Plan: [`fase_de_desarrollo/permiso_fecha_retroactiva_registros_plan.md`](fase_de_desarrollo/permiso_fecha_retroactiva_registros_plan.md).
-      Sin commitear: `VentanaFechaRegistroCalculos.cs` y `VentanaFechaRegistroGuard.cs` (nuevos) +
-      9 archivos modificados (7 controllers, `VentanaFechaMovimientoInventarioCalculos`,
-      `InventarioGestionDtos`). Toca **la guarda de fecha del inventario**, así que cualquier trabajo
-      sobre `InventarioGestionController` o la ventana D4 choca con ella: coordiná antes de tocar
+      Toca `VentanaFechaRegistroCalculos`/`Guard` (nuevos), 7+ controllers de inventario/traslados,
+      y ya llegó al **frontend** (traslados de aves/huevos, movimientos, gastos-inventario) + nueva
+      migración `20260820160000_SeedPermisoFechaRetroactivaRegistros`. Toca **la guarda de fecha del
+      inventario**: cualquier trabajo sobre `InventarioGestionController` o la ventana D4 choca con
+      ella — coordiná antes de tocar. No se lee ni se resume más porque sigue en movimiento; el detalle
+      real es el propio `git status` en el momento en que la retomes
 - [i] **X3 · El plan de Italapp registrado como caso en ItalJira** — plan
       [`fase_de_desarrollo/ticket_italjira_plan_italapp_santa_reyes_plan.md`](fase_de_desarrollo/ticket_italjira_plan_italapp_santa_reyes_plan.md)
       + migración `20260819120000_SeedTicketPlanItalappSantaReyes` (data-only: historia, caso,
@@ -224,8 +239,8 @@ Origen: dos archivos del cliente (18-ago-2026) — `Requerimientos de Italapp.do
       del usuario **esa sesión no toca este archivo**: **V30** sigue siendo el dueño del estado.
       ⛔ No apliques esa migración contra una copia de producción que se use para validar otra cosa
       (lo registró V48.1.3)
-- [i] **Los 4+2 archivos de X2 y X3 están sin commitear**: un `git add -A` de cualquier otra sesión
-      se los lleva puestos. Commiteá sólo lo tuyo, por ruta
+- [i] **Los archivos de X2 y X3 están sin commitear**: un `git add -A` de cualquier otra sesión se
+      los lleva puestos. Commiteá sólo lo tuyo, por ruta
 
 ---
 
@@ -269,7 +284,7 @@ de los bloques archivados hoy, en `git show e971871:tracker_estado.md`.
 | 05ago26 | **Correo — SMTP-only** tras el retiro de la auth básica | `c7b6834` (Graph, revertido) | un solo transporte; lo que falta es del admin M365 → **C1** |
 | 06ago26 | **Referencia `Inicio` + liquidación de corridas anteriores** | `d341223` | migración de corrección; queda **B4** y **B6** |
 | 07ago26 | **ItalJira — historias, tareas y tiempos** | `f8f887a` | módulo entregado + 2 bugs que cazó el smoke; el detector → **C6** |
-| 08ago26 | **Reporte Contable — Selección en RESUMEN + Movimientos de Huevo** | `d299a8a` | validado contra los informes de Verenice; el corte de etapa → **A3** |
+| 08ago26 | **Reporte Contable — Selección en RESUMEN + Movimientos de Huevo** | `d299a8a` | validado contra los informes de Verenice; el corte de etapa quedó como hallazgo, ver «Muertos» |
 | 07ago26 | **Migraciones Masivas — retirar tipos Ventas/Aves/Huevos** | `cbc922c` | «Venta Engorde» **se queda** (decidido en V25.7.1) |
 | 07ago26 | **Migraciones Masivas — permiso POSTURA, sólo Sanmarino** | `07c9c0c` | Santa Reyes lo pierde: decidido **y ya aplicado en datos** |
 | 09ago26 | **Lote cerrado que absorbe el ciclo siguiente (KM 86)** | `7339c61` | fn v14 + ventana de mes actual; cerrar los 2601 → **C5** |
@@ -283,7 +298,7 @@ de los bloques archivados hoy, en `git show e971871:tracker_estado.md`.
 | 17ago26 | **V20 · saldo negativo del lote 12 (KM 86)** | `01eaa4b` | auditoría de solo lectura: no se contagia; la carga → **B1** |
 | 18ago26 | **V25 · triaje del tracker + 5 planes en paralelo** | `babad34` `6ce89cc` | lote 132 y K345 implementados; lo vivo quedó en A/B/C |
 | 18ago26 | **V27 · Engorde FASE B — el hecho persistido entra INERTE** | `5763fcb` | tabla, triggers, 34 tests, mutación 17/17; activarla → **B3** |
-| 18ago26 | **V28 · columna «Próx. ciclo» en el tab Histórico** | `7325f95` | el smoke en pantalla → **C8** |
+| 18ago26 | **V28 · columna «Próx. ciclo» en el tab Histórico** | `7325f95` | smoke real 20-ago (local, ver «Muertos»): header + scroll OK |
 | 18ago26 | **V39 · B1 — revocación de sesión (`jti` + `sesiones_activas`)** | `c9a7349` | lista blanca por `jti`; **sin desplegar** → **A1 / A2 / C2** |
 | 19ago26 | **V40 · el kardex de bultos restaba el consumo dos veces** (medición) | `a2ec07c` | la cifra por lote padre, con su query |
 | 19ago26 | **V41 · arreglado el doble conteo, en las DOS ramas** | `473ac16` | `retiros` es de la GRANJA y `consumo` del LOTE: granos distintos |
@@ -318,7 +333,8 @@ en un plan viejo, esta tabla es la respuesta.
 | Santa Reyes pierde Migraciones Masivas | **YA_RESUELTO** | decidido y ya aplicado en datos |
 | V25.8.7 «falta desplegar» las 2 migraciones | **YA_RESUELTO** | entraron con el PR #74 |
 | Cerrar el grupo A (39 lotes de Ecuador) | **OBSOLETO** | la lista de 39 no existe; lo que queda es más chico → **B6** |
-| Corte levante/producción 24 vs 25 semanas | **la decisión ya se tomó** | V25.6.2 — dejó de ser decisión y pasó a ser trabajo → **A3** |
+| Corte levante/producción 24 vs 25 semanas (`A3`, 2ª pasada 20-ago) | **PROBABLEMENTE YA_RESUELTO** | El caso que motivó V25.6.2 (S-369, ~17.332 kg) se cerró como ticket `TK-2026-000020` el 14-ago: **no era bug de código**, faltaban 7 días de datos en la carga masiva. Y el corte de 25 semanas (175 días) ya está en el código **desde el 17-jul** (`957330f`, commit REQ-012b) — un mes ANTES de que V25.6.2 se escribiera —, tanto en `ObtenerLotesProduccionAsync` como en `LiquidacionCierreLoteLevanteService`. Grep sobre `backend/sql/fn_*` y `vw_*`: **no hay una tercera constante de 24 semanas** escondida en reportes. Lo único real: el cierre de un lote («Cerrar lote») **no tiene gate por semana** — es 100 % manual, cualquier operario cierra a la semana que quiera. Si la intención de V25.6.2 era ESO (forzar el cierre a la semana 25), es una decisión de producto nueva, no «falta implementar un corte que ya existe» — confirmar con costos antes de escribir código |
+| C8 · smoke de la columna «Próx. ciclo» | **YA_RESUELTO, verificado hoy** | Local: back en worktree aislado (`dotnet build` 0 errores) + front Angular en :4200, sesión inyectada, empresa real (Agroavicola Sanmarino). Tab Histórico con 100 filas reales: header «Próx. ciclo» presente (índice 12), `overflow-x:auto` con `scrollWidth 1704 > clientWidth 1175` — desborda **dentro** de su contenedor, no rompe la página. 0 marcas en BD ⇒ todas «—», como predijo el bloque. Sin escritura permanente: un toggle de prueba (`id=5705`) se hizo y se revirtió en la misma sesión |
 | V20.4.1 decisión sobre el lote 12 | **YA_RESUELTO como decisión** | duplicado de V25.5.4 → **B1** |
 | «Persistir la atribución como hecho» | **DUPLICADO** | de V27.1 → **B3** |
 | V19.2.1 opción (a) vs (b) del kardex | **OBSOLETO** | V40.8 midió que (a) empeora; lo cerró **V41** |
