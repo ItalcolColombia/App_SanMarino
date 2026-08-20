@@ -383,6 +383,12 @@ export interface TrasladoAvesDesdeSegDiarioDto {
   tipoDestino: string;           // "Levante" | "Produccion"
   granjaDestinoId?: number | null;
   observaciones?: string | null;
+  /** Placa del vehículo de transporte. Opcional (postura, Santa Reyes). */
+  placa?: string | null;
+  /** Nombre del conductor. Opcional (postura, Santa Reyes). */
+  conductor?: string | null;
+  /** Precinto/sellos de seguridad del transporte. Opcional (postura, Santa Reyes). */
+  sellos?: string | null;
 }
 
 export interface TrasladoAvesResultSegDto {

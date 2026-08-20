@@ -201,6 +201,7 @@
                     </p>
                   }
                 </div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="form-field">
                   <label class="field-label">Machos</label>
                   <div class="field-input-wrap">
@@ -219,6 +220,24 @@
                       </p>
                     }
                   </div>
+                }
+                </div>
+              }
+              <!-- Transporte (opcional; postura) -->
+              @if (granjaDestinoId) {
+                <div class="cantidades-grid">
+                  <div class="form-field">
+                    <label class="field-label">Placa (opcional)</label>
+                    <input type="text" [(ngModel)]="placa" class="field-input" maxlength="20" placeholder="ABC-1234">
+                  </div>
+                  <div class="form-field">
+                    <label class="field-label">Conductor (opcional)</label>
+                    <input type="text" [(ngModel)]="conductor" class="field-input" maxlength="120" placeholder="Nombre del conductor">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="field-label">Precinto / Sellos (opcional)</label>
+                  <input type="text" [(ngModel)]="sellos" class="field-input" maxlength="120" placeholder="N.º de sello o precinto">
                 </div>
               }
               <!-- Observaciones -->

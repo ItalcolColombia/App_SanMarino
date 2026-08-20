@@ -600,9 +600,37 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara
   - [ ] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción
   - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja
-- [ ] **F9 · Traslado de aves** (5h)
-  - [ ] F9.1 Ocultar machos en el traslado de aves
-  - [ ] F9.2 Campos de transporte: placa, precinto, conductor — en listado y comprobante
+- [~] **F9 · Traslado de aves** (5h) — captura hecha, listado/comprobante sin tocar
+  - [x] F9.1 Ocultar machos en el traslado de aves — el traslado real de postura NO es
+        `traslado-form`/`trasladoRapido` (roto, ver hallazgo abajo): es
+        `modal-traslado-aves-seguimiento` → `TrasladosAvesService.ejecutarTrasladoDesdeSegDiario` →
+        `POST api/Traslados/aves-desde-seguimiento`. Campo Machos envuelto en
+        `@if (!ocultaMachosEnPostura)`, gateado igual que F4/F5
+  - [x] F9.2 Campos de transporte: placa, precinto, conductor — **capturados**, agregados a
+        `TrasladoAvesDesdeSegDiarioDto` (front+back), y a la construcción del `MovimientoAves` en
+        `TrasladoAvesDesdeSegService.Traslado.cs` (la entidad ya tenía `Placa`/`Conductor`/`Sellos`
+        desde antes). **Falta la mitad "reflejo en el listado y en el comprobante"**: no hay pantalla
+        de comprobante, y `movimientos-list.component` (la tabla de aves, 8 columnas) no muestra
+        estos 3 campos todavía — agregar columnas ahí implica una decisión de diseño (columnas nuevas
+        vs. fila de detalle expandible en una tabla ya angosta), no lo resolví bajo presión de tiempo
+  - [i] **Hallazgo de paso, fuera de Santa Reyes**: `POST api/MovimientoAves/traslado-rapido`
+        (usado por `traslado-form.component`, ruta `/traslados-aves/traslados`) tiene el DTO del
+        frontend completamente desalineado del que espera el backend (`loteOrigenId`/`loteDestinoId`
+        vs. `LoteId`+`GranjaOrigenId`/`GranjaDestinoId` — ni los nombres ni el modelo de datos
+        coinciden). `int.Parse(request.LoteId)` con `LoteId` sin bindear debería tirar excepción en
+        cualquier uso real — la pantalla probablemente nunca completa un traslado hoy. **No es un bug
+        de Santa Reyes**, afecta a cualquier empresa que use esa pantalla. Flagueado aparte
+        (`task_88856448`), no tocado acá
+  - [i] **Nota metodológica**: esta fue la tarea más cara de la sesión en tiempo — 3 intentos fallidos
+        de envolver el campo Machos en `@if` antes de dar con el error real. La causa: el `</div>`
+        que cierra el campo Machos está PEGADO al `</div>` que cierra el `cantidades-grid` que lo
+        contiene (misma indentación, visualmente indistinguibles), y las primeras 2 veces incluí el
+        segundo por error dentro de mi nuevo `@if`, cerrando el div padre ANTES de que su propio
+        `@if` cerrara — Angular exige que todo lo abierto dentro de un `@if`/`@for` cierre DENTRO del
+        mismo bloque. `ng build` (NG5002) es la única fuente de verdad confiable acá — el conteo
+        manual de llaves/divs por lectura visual falló 3 veces seguidas en un archivo con muchos
+        bloques `@if (mismaCondición)` hermanos y anidados mezclados. La próxima vez: cambio mínimo,
+        `yarn build` después de CADA paso, no acumular varios cambios de estructura antes de compilar
 - [ ] **F10 · Traslado de huevos** (5h)
   - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre)
   - [ ] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo

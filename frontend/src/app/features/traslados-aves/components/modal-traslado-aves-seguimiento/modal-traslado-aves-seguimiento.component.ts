@@ -111,6 +111,12 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
   trasladoHembras = 0;
   trasladoMachos  = 0;
   observaciones   = '';
+  /** Transporte (postura, Santa Reyes). Opcionales — nunca se piden como requeridos. */
+  placa      = '';
+  conductor  = '';
+  sellos     = '';
+  /** Santa Reyes: oculta el campo Machos (no se manejan en postura). */
+  ocultaMachosEnPostura = false;
 
   /** Fecha REAL del evento de traslado (editable; default = fecha sugerida por el caller, o vacía). REQ-009a. */
   fechaEvento = '';
@@ -149,6 +155,8 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
       this.permiteCrossEtapa = flags.permiteTrasladoAvesCrossEtapa;
       // Si el flag llega después de abrir el modal, el destino sigue en la etapa del origen
       // (default) — el selector simplemente aparece.
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
+      if (this.ocultaMachosEnPostura) this.trasladoMachos = 0;
     });
   }
 
@@ -349,7 +357,10 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
       loteDestinoId:   Number(this.loteDestinoId),
       tipoDestino:     this.tipoDestino,
       granjaDestinoId: this.granjaDestinoId ?? undefined,
-      observaciones:   this.observaciones.trim() || null
+      observaciones:   this.observaciones.trim() || null,
+      placa:           this.placa.trim() || null,
+      conductor:       this.conductor.trim() || null,
+      sellos:          this.sellos.trim() || null
     };
 
     this.trasladoSvc.ejecutarTrasladoDesdeSegDiario(dto).subscribe({
@@ -394,6 +405,9 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
     this.trasladoHembras = 0;
     this.trasladoMachos  = 0;
     this.observaciones   = '';
+    this.placa           = '';
+    this.conductor       = '';
+    this.sellos          = '';
     this.nucleos         = [];
     this.galpones        = [];
     this.lotesDestino    = [];
