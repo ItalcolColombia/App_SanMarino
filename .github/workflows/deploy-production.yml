@@ -102,8 +102,9 @@ jobs:
           CHROME_BIN: /usr/bin/google-chrome
         run: yarn test --watch=false --browsers=ChromeHeadless
 
-      # Dos defectos que compilan, pasan los tests y solo se ven abriendo la pantalla (o abriéndola
-      # sin red). Por eso son gates de máquina y no una convención escrita.
+      # Tres defectos que compilan, pasan los tests y solo se ven abriendo la pantalla (o abriéndola
+      # sin red, o meses después como un saldo que no cuadra). Por eso son gates de máquina y no una
+      # convención escrita.
       - name: Gate — changeDetection explícito en cada @Component
         working-directory: frontend
         run: node scripts/verificar-change-detection.js
@@ -111,6 +112,10 @@ jobs:
       - name: Gate — lista cacheable sincronizada con el código
         working-directory: frontend
         run: node scripts/verificar-lista-cacheable.js
+
+      - name: Gate — ninguna pantalla de seguimiento descuenta inventario
+        working-directory: frontend
+        run: node scripts/verificar-front-no-descuenta-inventario.js
 
       - name: Resumen
         if: success()

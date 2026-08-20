@@ -1800,93 +1800,25 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       return;
     }
 
-    // Edición: consumo/alimento no cambia en UI (engorde); no repetir salidas de inventario legacy en Colombia.
-    if (isEdit) {
-      this.save.emit({ data, isEdit: true });
-      return;
-    }
-
-    // Hacer resta al inventario antes de guardar (solo creación Colombia; inventario legacy por catalog_items)
-    const restas: Promise<void>[] = [];
-
-    // Procesar alimentos de hembras
-    alimentosHembras.forEach(item => {
-      const cantidad = item.cantidad;
-      const unidad = item.unidad || 'kg';
-      let cantidadKg = cantidad;
-
-      // Convertir a kg si viene en gramos
-      if (unidad === 'g' || unidad === 'gramos') {
-        cantidadKg = cantidad / 1000;
-      }
-
-      if (cantidadKg > 0) {
-        // Consultar inventario para obtener la unidad exacta
-        this.consultarInventario('hembras', item.catalogItemId);
-        const unidadInventario = this.inventarioUnidadHembras || 'kg';
-
-        restas.push(
-          this.inventarioSvc.postExit(lote.granjaId, {
-            catalogItemId: item.catalogItemId,
-            quantity: cantidadKg,
-            unit: unidadInventario,
-            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-            reason: 'Consumo diario',
-            destination: 'Consumo'
-          }).toPromise().then(() => {
-            
-          }).catch(err => {
-            console.error('Error al restar inventario hembras:', err);
-            throw new Error('Error al registrar consumo en inventario (hembras)');
-          })
-        );
-      }
-    });
-
-    // Procesar alimentos de machos
-    alimentosMachos.forEach(item => {
-      const cantidad = item.cantidad;
-      const unidad = item.unidad || 'kg';
-      let cantidadKg = cantidad;
-
-      // Convertir a kg si viene en gramos
-      if (unidad === 'g' || unidad === 'gramos') {
-        cantidadKg = cantidad / 1000;
-      }
-
-      if (cantidadKg > 0) {
-        // Consultar inventario para obtener la unidad exacta
-        this.consultarInventario('machos', item.catalogItemId);
-        const unidadInventario = this.inventarioUnidadMachos || 'kg';
-
-        restas.push(
-          this.inventarioSvc.postExit(lote.granjaId, {
-            catalogItemId: item.catalogItemId,
-            quantity: cantidadKg,
-            unit: unidadInventario,
-            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-            reason: 'Consumo diario',
-            destination: 'Consumo'
-          }).toPromise().then(() => {
-            
-          }).catch(err => {
-            console.error('Error al restar inventario machos:', err);
-            throw new Error('Error al registrar consumo en inventario (machos)');
-          })
-        );
-      }
-    });
-
-    // Esperar a que se completen las restas antes de emitir el save
-    if (restas.length > 0) {
-      Promise.all(restas).then(() => {
-        this.save.emit({ data, isEdit });
-      }).catch(err => {
-        this.toast.error(err.message || 'Error al registrar consumo en inventario');
-      });
-    } else {
-      this.save.emit({ data, isEdit });
-    }
+    // El descuento de inventario lo aplica el BACKEND, no esta pantalla.
+    //
+    // Acá vivía un doble descuento: para Colombia el modal posteaba `Exit` al inventario LEGACY
+    // (`farm_inventory_movements`, por `catalogItemId`) por los mismos kg que el backend ya descuenta
+    // al guardar el seguimiento. Es el mismo defecto que el commit `8e9bbc1` (10-jul-2026) quitó del
+    // modal de LEVANTE —«duplicaba el descuento que el backend ya aplicaba»— y que sobrevivió acá
+    // porque los dos modales se unificaron después; la referencia que escribía todavía decía
+    // «Consumo diario levante».
+    //
+    // Por qué el backend alcanza, y es mejor: `InventarioConsumoGate.ResolverModelo` manda Colombia a
+    // `ModeloBNivelGranja` (el inventario unificado, resolviendo el ítem por código A→B), y
+    // `SeguimientoAvesEngordeService.Crud` lo aplica con BLOQUEO ATÓMICO — valida el stock de todos
+    // los ítems ANTES de commitear y descuenta dentro de la misma transacción, así que si falta stock
+    // no se guarda el seguimiento. Eso es exactamente lo que esta pantalla intentaba garantizar
+    // esperando las promesas, sólo que del lado del servidor y sin poder saltearse.
+    //
+    // El propio `InventarioConsumoGate` documenta que el modelo A —la tabla a la que apuntaba este
+    // código— «quedó sin uso» para Colombia.
+    this.save.emit({ data, isEdit });
   }
 
 }

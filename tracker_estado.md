@@ -2585,3 +2585,88 @@ veredicto con su evidencia, y quien retome cada bloque decide.
       dos ramas), **V43** el arrastre semanal, **V44** el recorte del acumulador. Los tres estaban
       encadenados: el doble conteo tapaba a los otros dos, y arreglarlo primero fue lo que permitió
       medir a los otros con radio real en vez de heredado
+
+---
+
+# V45 · El escritor de inventario del front — dead code que era un doble descuento (19ago26)
+
+**Cierra V41.4.3.** El último pendiente de la serie del kardex de bultos.
+**Bloque propio.**
+
+## V45.0 — Qué era
+
+- [i] V45.0.1 En `modal-seguimiento-engorde.component.ts` (`onSave`), **sólo para Colombia** —Ecuador y
+      Panamá retornan antes—, el modal posteaba `Exit` al inventario **LEGACY**
+      (`farm_inventory_movements`, por `catalogItemId`) por los mismos kg que el backend ya descuenta
+      al guardar el seguimiento
+- [i] V45.0.2 **Es el mismo defecto que `8e9bbc1` (10-jul-2026) quitó del modal de LEVANTE**
+      —*«duplicaba el descuento que el backend ya aplicaba sobre el inventario nuevo»*— y que
+      sobrevivió acá porque los dos modales **se unificaron después**. La huella: la referencia que
+      escribía decía «Consumo diario **levante**» desde el modal de **engorde**
+
+## V45.1 — La medición que decidió el arreglo
+
+- [i] V45.1.1 🔑 **Nunca escribió una fila.** Los 252 movimientos con esa firma son de los lotes
+      **A374A, K345A, K345B** — todos de **postura/levante**, ninguno de pollo engorde — y el último es
+      del **01-jul-2026**, justo antes de `8e9bbc1`. O sea: los escribió el modal de levante, no éste
+- [i] V45.1.2 **Y no podía escribirlas**: el modal sólo se monta desde `seguimiento-aves-engorde-list`
+      (pollo engorde), y **Sanmarino tiene 0 lotes de pollo engorde** (Ecuador 130, Panamá 82 — y esos
+      dos retornan antes). Era código inalcanzable
+- [i] V45.1.3 ⚠️ **Pero no inofensivo**: `isEcuadorOrPanama` se resuelve por el país de la **sesión**,
+      no del lote, así que el día que Colombia tuviera un lote de engorde el bloque **sí** corría — y
+      habría sacado los mismos kg de **dos** inventarios distintos
+
+## V45.2 — Por qué borrarlo NO deja a Colombia sin descuento (validado, no asumido)
+
+- [x] V45.2.1 **El backend ya lo cubre, y desde antes**: `InventarioConsumoGate.ResolverModelo` manda
+      Colombia (país 1) a **`ModeloBNivelGranja`** → `ColombiaInventarioConsumoService.AplicarConsumoAsync`
+      → `RegistrarConsumoNivelGranjaAsync`, sobre el inventario **unificado**. Vigente desde el
+      **03-jul-2026** en levante (`b33ca80`) y el **10-jul-2026** en pollo engorde (`7f077ac`)
+- [x] V45.2.2 🔑 **Y lo hace mejor de lo que lo hacía el front**: `SeguimientoAvesEngordeService.Crud.cs:208-229`
+      tiene **BLOQUEO ATÓMICO** — `ValidarStockConsumoAsync` lanza **antes** de persistir si falta
+      stock, y el guardado + el descuento van en **una sola transacción**. Lo que el modal intentaba
+      garantizar esperando promesas, del lado del servidor y sin poder saltearse
+- [x] V45.2.3 El propio `InventarioConsumoGate` documenta que el **modelo A** —la tabla a la que
+      apuntaba este código— *«quedó sin uso»* para Colombia
+- [x] V45.2.4 **El módulo viejo es un ciclo cerrado para la empresa 1**: con
+      `reportes_alimento_desde_inventario_unificado = true`, los **dos** únicos reportes que leían
+      `farm_inventory_movements` (Contable `:836-837` y Técnico `:1476,:1505`) están desviados a la
+      rama unificada
+
+## V45.3 — Colombia no queda descuadrada: el invariante, medido
+
+- [x] V45.3.1 **Módulo viejo, empresa 1: cuadra exacto** — 20 filas, 671.080,700 kg de stock contra
+      671.080,700 de movimientos. **0 descuadres**
+- [x] V45.3.2 **Módulo unificado, empresa 1: cuadra exacto** — 24 claves (granja × ítem),
+      695.256,300 contra 695.256,300. **0 descuadres, 0,0 kg**. Sanmarino sólo usa
+      `Consumo · Ingreso · TrasladoEntrada · TrasladoSalida`, sin ajustes ⇒ la comprobación es completa
+- [i] V45.3.3 Ecuador y Panamá **no son comparables por esta vía**: usan `AjusteStock`, que guarda la
+      cantidad en **valor absoluto sin el signo del delta** (limitación ya documentada en
+      `TipoEventoInventarioCalculos`). No es un hallazgo nuevo
+- [x] V45.3.4 **No hay doble descuento en el stock.** Los 252 movimientos existen en las **dos** tablas
+      con cifras idénticas (252 movs · 131.278,3 kg · 2026-04-04 → 2026-07-01) porque la **migración**
+      `migracion_inventario_colombia_03_movimientos.sql` los copió mapeando `Exit → Consumo`
+      conservando la referencia. Son las mismas salidas migradas, no dos descuentos
+- [i] V45.3.5 **El cambio no toca ni un dato**: no borra ni altera movimientos. Sólo deja de crear
+      nuevos desde el front — que además no se estaban creando
+
+## V45.4 — El gate, para que no vuelva una tercera vez
+
+- [x] V45.4.1 **`frontend/scripts/verificar-front-no-descuenta-inventario.js`** (nuevo): ninguna
+      pantalla fuera de `features/inventario/` puede llamar `postExit`/`postEntry` ni pegarle a
+      `inventory/movements/in|out`. Los formularios del propio módulo siguen permitidos: ahí registrar
+      un movimiento **es** lo que el usuario pidió, no un efecto colateral
+- [x] V45.4.2 Cableado en `.github/workflows/deploy-production.yml`, junto a los otros dos gates que
+      **cortan** el build
+- [x] V45.4.3 🔑 **Probado en las dos direcciones**: contra el código viejo **falla** señalando las dos
+      líneas (`:1553` y `:1582`); contra el nuevo **pasa**. Un gate que no se probó fallando no es un gate
+- [i] V45.4.4 **Por qué hacía falta un gate y no una convención escrita**: el defecto compila, pasa los
+      tests y sólo se ve meses después como un saldo que no cuadra. Ya se copió **dos veces**
+
+## V45.5 — Validación
+
+- [x] V45.5.1 `yarn build` **OK** (bundle generado; el único warning es el de budget preexistente)
+- [x] V45.5.2 Los **tres** gates del CI en verde
+- [i] V45.5.3 **Sin smoke de pantalla, y se dice por qué**: el bloque borrado era inalcanzable
+      —Sanmarino no tiene lotes de pollo engorde— así que no hay flujo que ejercitarlo. Lo que sustituye
+      al smoke es la prueba del gate en las dos direcciones (V45.4.3) y el invariante de stock (V45.3)
