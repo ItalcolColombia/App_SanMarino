@@ -284,6 +284,24 @@ cerrados de saldo 0 a negativo** sin mejorar el cuadre: eran alimento real ya co
 (`saldo del ciclo activo == stock − movimientos posteriores`). Si un cambio lo mueve de **0
 descuadrados**, es una regresión.
 
+⚠️ **No lo consultes con `WHERE abs(descuadre_kg) > 1 OR filas_negativas > 0`: esa condición mezcla
+dos problemas distintos** y devuelve un número que asusta sin decir nada. `descuadre_kg` son KILOS
+que faltan o sobran; `filas_negativas` son DÍAS que cerraron en rojo con el total perfecto (está mal
+el orden o la fecha de los ingresos). Medido el 20-ago-2026 en Panamá: esa consulta daba **23
+galpones** cuando los que tenían kilos eran **8** — los otros 15 entraban con un `descuadre_kg` de
+~1e-11, o sea cero.
+
+Usá el reporte canónico, que separa las dos señales, **atribuye la causa de cada descuadre** y trae
+línea base para comparar antes/después:
+
+```bash
+psql ... -f backend/sql/verificar_cuadre_alimento_engorde.sql   # 1ª vez congela; 2ª compara
+```
+
+**Un descuadre NO se resuelve cerrando el lote: se HEREDA al ciclo siguiente**, porque el stock es
+del GALPÓN y el saldo es del CICLO ACTIVO. Medido: el galpón G0483 arrastró 23.300,0 kg del lote 187
+al 190. Por eso el reporte dice cuántos ciclos pasaron por cada galpón.
+
 ---
 
 ## 🧪 Testing & ciclo de vida de servicios

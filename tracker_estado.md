@@ -2851,3 +2851,95 @@ arreglos del kardex de bultos (V41 · V43 · V44) más el del front (V45) contra
       escribió **ni una fila** de negocio, y Ecuador —que comparte esas fns— quedó en **0**
 - [i] V48.4.3 **Es territorio del bloque V8**, reservado para otra sesión. Se deja medido acá porque el
       cuadre es el termómetro y hoy está más rojo que cuando se anotó
+
+---
+
+# V49 · El descuadre de Panamá: eran 8, no 23 — y se hereda entre ciclos (20ago26)
+
+Validación y diagnóstico del hallazgo **V48.4**, por pedido del usuario. **Bloque propio.**
+⚠️ **Los DATOS de los 8 galpones no se tocaron**: corregir alimento real es decisión de negocio y
+territorio del bloque **V8**. Acá está el diagnóstico con su aritmética y la herramienta para que
+esto no vuelva a descubrirse por casualidad.
+
+## 🔴 V49.0 — El número estaba mal contado, y el error era de la receta
+
+- [i] V49.0.1 La consulta que V8 dejó documentada —`WHERE abs(descuadre_kg)>1 OR filas_negativas>0`—
+      **mezcla dos problemas distintos**. Devolvía **23 galpones**; los que tienen kilos son **8**
+- [i] V49.0.2 Los otros **15 entran sólo por `filas_negativas>0`**, con un `descuadre_kg` del orden de
+      **1e-11** — ruido de coma flotante, o sea **cero**. Su total cuadra: lo que está mal es el
+      **orden o la fecha** de los ingresos (el «Patrón B» que el propio V8 describía)
+- [i] V49.0.3 **Los 69.620,5 kg salen enteros de los 8.** La cifra nunca fue de 23 galpones
+
+## V49.1 — Contra el baseline de V8 (16-ago): 3 iguales, 2 resueltos, 1 rotó, 4 nuevos
+
+| galpón | V8 (16-ago) | ahora (20-ago) |
+|---|---|---|
+| G0483 | lote 187 «33-1» **+23.300,0** | lote **190** «33-2» **+24.500,0** — rotó de ciclo |
+| G0475 | lote 165 «94-2» +18.650,4 | **igual** |
+| G0481 | lote 199 «33-1» −9.805,0 | **desapareció** ✔ |
+| G0476 | lote 202 «86-3» +2.496,0 | **igual** |
+| G0477 | lote 182 «86-1» +544,0 | **igual** |
+| G0490 | lote 168 «60-3» +250,0 | **desapareció** ✔ |
+| — | — | **NUEVO** G0471 lote 215 «14-1» **−14.042,9** |
+| — | — | **NUEVO** G0495 lote 173 «06-1» +4.987,2 |
+| — | — | **NUEVO** G0496 lote 172 «06-1» −3.629,0 |
+| — | — | **NUEVO** G0492 lote 177 «06-1» +771,0 |
+
+## 🔑 V49.2 — El hallazgo grande: **el descuadre se HEREDA al ciclo siguiente**
+
+- [i] V49.2.1 🔴 **G0483 rotó del lote 187 al 190, y el descuadre se fue con el galpón.** Su parte «sin
+      explicar» hoy es **23.300,0 kg** — **exactamente** la cifra que V8 anotó para ESE MISMO galpón
+      cuatro días antes, cuando el lote era otro. Lo nuevo es sólo la eliminación de 1.200 kg
+- [i] V49.2.2 **Por qué se hereda**: el **stock es del GALPÓN** y el **saldo es del CICLO ACTIVO**.
+      Cerrar el lote no devuelve nada: lo que sobraba o faltaba sigue en el galpón y aparece como
+      descuadre del ciclo que entra. **Un descuadre no caduca, se acumula**
+- [i] V49.2.3 Es el mismo defecto de GRANO que V41 encontró en el Reporte Contable (`retiros` de
+      GRANJA contra `consumo` de LOTE). Dos módulos, la misma clase de error
+
+## V49.3 — La causa, probada con aritmética exacta
+
+- [x] V49.3.1 **Causa #1 — ajuste de stock posterior al último seguimiento.** `AjusteStock` /
+      `EliminacionStock` son `INV_OTRO`: **excluidos a propósito** del saldo
+      (`AfectaSaldoAlimentoEngorde`) y de `mov_post`. Mueven el stock del galpón; la tabla diaria no
+      se entera; y el saldo guardado **sólo se reescribe al guardar un seguimiento** ⇒ queda
+      desalineado para siempre. **G0475: descuadre 18.650,4 = eliminación 18.650,4, exacto**
+- [i] V49.3.2 **Y la fn no puede compensarlo aunque quisiera**: `AjusteStock` guarda la cantidad en
+      **valor absoluto, sin el signo del delta** (documentado en `TipoEventoInventarioCalculos`). No
+      hay forma de saber si sumó o restó ⇒ excluirlo es lo correcto, no un olvido
+- [x] V49.3.3 **La fn está bien, se verificó**: para G0475 descarta el `INV_INGRESO` de 6.350 kg porque
+      su referencia es `«Seguimiento aves engorde #10983 (devolución…)»` —una devolución, no alimento
+      nuevo— y descarta el `INV_OTRO` porque no está en su lista. `mov_post = 0` es **correcto**
+- [x] V49.3.4 🔑 **El modelo NO está roto — Ecuador es la prueba**: **35 galpones con ciclos
+      encadenados y 0 descuadrados**, contra 25 encadenados / 5 descuadrados en Panamá. Encadenar
+      ciclos no rompe la fn ⇒ **es un problema de DATO de Panamá**, no del cálculo
+
+## V49.4 — Lo que entró para que no vuelva a pasar
+
+- [x] V49.4.1 **`backend/sql/verificar_cuadre_alimento_engorde.sql`** (nuevo). Reporta el cuadre de
+      **todas** las empresas **separando las dos señales**, **atribuye la causa de cada descuadre**
+      (`ajuste posterior` · `herencia entre ciclos` · `sin explicar` · `solo días en rojo`) y trae
+      **línea base**: la 1ª corrida congela, la 2ª compara. Solo lectura sobre datos de negocio
+- [x] V49.4.2 **CLAUDE.md §«El cuadre se mira, no se espera»**: se agrega la advertencia de no usar la
+      consulta que mezcla las señales, el comando del reporte canónico, y el hecho de que el descuadre
+      se hereda entre ciclos. Es donde alguien lo va a buscar
+- [i] V49.4.3 **Por qué un script y no un gate de CI**: esto vigila **datos de producción**, y el CI no
+      tiene conexión a esa BD. El gate correcto es correrlo contra el dump antes y después de cada
+      cambio que toque alimento, igual que `verificar_paridad_saldo_engorde.sql`
+
+## V49.5 — Validación
+
+- [x] V49.5.1 **Gate de paridad multipaís corrido ANTES y DESPUÉS**: `6466 == 6466` filas, **0 lotes
+      con saldo cambiado**. Esta sesión no movió ningún saldo — como corresponde, porque no tocó
+      ninguna fn
+- [x] V49.5.2 El reporte nuevo, en su 2ª corrida, da **0 filas de diff** contra su propia línea base
+- [x] V49.5.3 **Cero escrituras de negocio**: el script sólo crea su tabla de línea base
+
+## V49.6 — Lo que queda, y es decisión tuya
+
+- [!] V49.6.1 **Los 8 galpones con 69.620,5 kg.** 1 está explicado (G0475, ajuste posterior); **7 no**.
+      Corregirlos es alimento real: exige decidir si el stock o la tabla diaria tiene razón, simularlo
+      en transacción y revertir antes de aplicar. Es el bloque **V8**, y no se toca sin tu OK
+- [!] V49.6.2 **La herencia entre ciclos pide una decisión de producto**: hoy el descuadre pasa al
+      lote siguiente en silencio. La tabla `alimento_entrega_ciclo_engorde` (V27, 18-ago) existe
+      justamente para persistir la entrega entre ciclos y **está INERTE**: nadie la lee. Activarla es
+      el arreglo de fondo
