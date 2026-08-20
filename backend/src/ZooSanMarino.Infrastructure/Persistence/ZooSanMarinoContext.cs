@@ -302,79 +302,27 @@ namespace ZooSanMarino.Infrastructure.Persistence
                 }
             }
 
-            // 2) Si se modifican relaciones de User, "tocar" UpdatedAt del User
-            foreach (var entry in ChangeTracker.Entries())
-            {
-                if (entry.State != EntityState.Added &&
-                    entry.State != EntityState.Modified &&
-                    entry.State != EntityState.Deleted)
-                {
-                    continue;
-                }
-
-                switch (entry.Entity)
-                {
-                    case UserRole ur:
-                        TouchUserUpdatedAt(ur.UserId, nowDto, nowDt);
-                        break;
-
-                    case UserCompany uc:
-                        TouchUserUpdatedAt(uc.UserId, nowDto, nowDt);
-                        break;
-
-                    case UserLogin ul:
-                        TouchUserUpdatedAt(ul.UserId, nowDto, nowDt);
-                        break;
-
-                    case UserFarm uf:
-                        TouchUserUpdatedAt(uf.UserId, nowDto, nowDt);
-                        break;
-                }
-            }
-        }
-
-        private void TouchUserUpdatedAt(Guid userId, DateTimeOffset nowDto, DateTime nowDt)
-        {
-            // 1) si el User ya está trackeado
-            var trackedUserEntry = ChangeTracker.Entries<User>()
-                .FirstOrDefault(e => e.Entity.Id == userId);
-
-            if (trackedUserEntry is not null)
-            {
-                var meta = trackedUserEntry.Metadata.FindProperty("UpdatedAt");
-                if (meta is not null)
-                {
-                    var p = trackedUserEntry.Property("UpdatedAt");
-                    var clr = meta.ClrType;
-
-                    if (clr == typeof(DateTimeOffset) || clr == typeof(DateTimeOffset?))
-                        p.CurrentValue = nowDto;
-                    else if (clr == typeof(DateTime) || clr == typeof(DateTime?))
-                        p.CurrentValue = nowDt;
-
-                    p.IsModified = true; // marca solo la propiedad
-                }
-                return;
-            }
-
-            // 2) Adjuntar proxy ligero si no está trackeado
-            var proxy = new User { Id = userId };
-            Attach(proxy);
-
-            var entry = Entry(proxy);
-            var meta2 = entry.Metadata.FindProperty("UpdatedAt");
-            if (meta2 is not null)
-            {
-                var p = entry.Property("UpdatedAt");
-                var clr = meta2.ClrType;
-
-                if (clr == typeof(DateTimeOffset) || clr == typeof(DateTimeOffset?))
-                    p.CurrentValue = nowDto;
-                else if (clr == typeof(DateTime) || clr == typeof(DateTime?))
-                    p.CurrentValue = nowDt;
-
-                p.IsModified = true;
-            }
+            // NOTA: acá vivía un bloque «2)» que, al modificar UserRole/UserCompany/UserLogin/UserFarm,
+            // llamaba a un TouchUserUpdatedAt para "tocar" users.updated_at. Se eliminó el 19-ago-2026
+            // porque era código muerto que además dejaba basura en el identity map:
+            //
+            //  · La sombra `UpdatedAt` de `users` está declarada `ValueGeneratedOnAddOrUpdate()` en
+            //    `UserConfiguration`, así que EF DESCARTA el valor asignado y nunca emitió un
+            //    `UPDATE users`. Medido en la BD local: de 57 filas, 55 tienen `updated_at` a menos de
+            //    un segundo de `created_at` y los 2 outliers son un desfase de zona horaria de seeds
+            //    (18.000 s = 5 h exactas) ⇒ la columna jamás se actualizó, pese a años de cambios en
+            //    `user_farms` y `user_roles`.
+            //  · Cuando el User no estaba trackeado hacía `Attach(new User { Id = userId })`, dejando
+            //    un proxy HUECO en el identity map: un `Find`/`Include` posterior en el mismo request
+            //    podía devolver ese usuario con todos los campos vacíos.
+            //
+            // Auditoría que lo respalda (repetible): 0 lectores de `EF.Property<…>(u,"UpdatedAt")`,
+            // 0 referencias a `users.updated_at` en `backend/sql/` y en el front, 0 triggers sobre
+            // `users`.
+            //
+            // ⛔ La sombra `UpdatedAt` SE CONSERVA mapeada en `UserConfiguration`: la columna existe en
+            // local y en prod, y desmapearla haría que la próxima migración de cualquier feature emita
+            // un `DropColumn` destructivo.
         }
     }
     

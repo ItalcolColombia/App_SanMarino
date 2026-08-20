@@ -2670,3 +2670,54 @@ veredicto con su evidencia, y quien retome cada bloque decide.
 - [i] V45.5.3 **Sin smoke de pantalla, y se dice por qué**: el bloque borrado era inalcanzable
       —Sanmarino no tiene lotes de pollo engorde— así que no hay flujo que ejercitarlo. Lo que sustituye
       al smoke es la prueba del gate en las dos direcciones (V45.4.3) y el invariante de stock (V45.3)
+
+---
+
+# V46 · `TouchUserUpdatedAt`: la decisión estaba tomada y validada, y el commit se perdió (19ago26)
+
+Sale del barrido de ramas `claude/*` sin mergear que pidió **V42.3.2** — el mismo patrón que ya
+había destapado `b853e95`. **Bloque propio.**
+
+## V46.0 — El caso
+
+- [i] V46.0.1 🔴 **Hay una memoria del 26-jul-2026 que declara este método ELIMINADO, con su validación
+      completa** (build 0/0, 751 tests, `has-pending-model-changes` limpio, smoke 9/9). **Y el método
+      seguía en `main`**: `ZooSanMarinoContext.cs:318,322,326,330` (llamadas) y `:336` (declaración).
+      El trabajo vivió en un working tree y nunca se commiteó
+- [i] V46.0.2 `git log --all -S "TouchUserUpdatedAt"` sobre el archivo devuelve **sólo** el commit
+      inicial y uno que lo *modifica* (`f68e8b9`): **ningún commit lo elimina**. La nota decía una cosa
+      y el repo otra
+
+## V46.1 — Re-verificado antes de borrar (no se le creyó a la nota)
+
+- [x] V46.1.1 **La columna jamás se actualizó**: de **57** filas de `users`, **55** tienen
+      `updated_at` a menos de **1 segundo** de `created_at`; los 2 outliers son **18.000 s = 5 h
+      exactas**, el desfase de zona horaria de unos seeds. Y eso pese a años de cambios en
+      `user_farms` / `user_roles`
+- [x] V46.1.2 **Por qué nunca se actualizó**: la sombra es `ValueGeneratedOnAddOrUpdate()`, así que EF
+      **descarta** el valor asignado y nunca emitió un `UPDATE users`. El método corría en cada
+      `SaveChanges` para nada
+- [x] V46.1.3 **0 triggers** sobre `users` · **0** lectores de `EF.Property<…>(u,"UpdatedAt")` · **0**
+      referencias a `users.updated_at` en `backend/sql/` y en el front
+- [i] V46.1.4 **Y sacaba un defecto latente**: cuando el `User` no estaba trackeado hacía
+      `Attach(new User { Id = userId })`, dejando un **proxy HUECO** en el identity map — un
+      `Find`/`Include` posterior en el mismo request podía devolver ese usuario con los campos vacíos
+
+## V46.2 — Lo que entró
+
+- [x] V46.2.1 Eliminado el bloque «2)» de `SetAuditFields` (los 4 `case`) y el método
+      `TouchUserUpdatedAt` completo. En su lugar queda la nota con la medición, para que no se
+      reintroduzca
+- [x] V46.2.2 ⛔ **La sombra `UpdatedAt` SE CONSERVA mapeada** en `UserConfiguration.cs:66`. La columna
+      existe en local y en prod: desmapearla haría que la próxima migración de cualquier feature emita
+      un **`DropColumn` destructivo**. Su comentario decía *«si la usas desde SaveChanges para
+      setearla»* y ahora explica por qué nadie la escribe y por qué igual se queda
+
+## V46.3 — Validación
+
+- [x] V46.3.1 `dotnet build` **0 errores**
+- [x] V46.3.2 🔑 **`dotnet ef migrations has-pending-model-changes` → «No changes have been made to the
+      model since the last migration»**. Es LA comprobación de este cambio: confirma que el modelo no
+      se movió y que no hay `DropColumn` acechando
+- [x] V46.3.3 `dotnet test` **completo**, no por módulo —esto toca el `SaveChanges` de TODO el
+      contexto—: **2.905 + 1 pasan**, 0 fallos

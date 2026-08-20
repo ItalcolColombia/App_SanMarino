@@ -63,7 +63,15 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
             e.Property(u => u.CreatedAt)
              .HasDefaultValueSql("now()");
 
-            // Sombra UpdatedAt (si la usas desde SaveChanges para setearla)
+            // Sombra UpdatedAt. NADIE la escribe desde `SaveChanges`, y no es un olvido: es
+            // `ValueGeneratedOnAddOrUpdate()`, así que EF descarta cualquier valor que se le asigne y
+            // nunca emite un `UPDATE users`. Hasta el 19-ago-2026 `ZooSanMarinoContext` intentaba
+            // "tocarla" al cambiar roles/empresas/granjas del usuario; se eliminó por vestigial —el
+            // detalle y la medición están en ese archivo—.
+            //
+            // ⛔ NO desmapear. La columna `users.updated_at` existe en local y en prod: quitarla del
+            // modelo haría que la próxima migración de cualquier feature emita un `DropColumn`
+            // destructivo. Se conserva mapeada a propósito, aunque no la escriba nadie.
             e.Property<DateTime>("UpdatedAt")
              .IsRequired()
              .HasDefaultValueSql("now()")
