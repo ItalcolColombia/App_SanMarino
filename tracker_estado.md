@@ -683,3 +683,44 @@ coincide, `LoteId` queda sin bindear.
       front pero son consistentes puertas adentro; fusionarlos con `Lote/trasladar` (mismo
       concepto: reubicar un lote) es una decisión aparte, no bloquea este fix
 - [x] **X4 cerrado.**
+
+---
+
+## X5 — Limpieza dead code backend: `TrasladoRapido*` + `ITrasladoAvesService` (20-ago-2026)
+
+Follow-up directo de X4 (arriba). Plan:
+[`fase_de_desarrollo/limpieza_traslado_rapido_backend_dead_code_plan.md`](fase_de_desarrollo/limpieza_traslado_rapido_backend_dead_code_plan.md).
+
+- [x] X5.1 **Verificado que esta rama NO tenía el fix de X4** (`bd5e712` no es ancestro de `main`/
+      `HEAD` — vive solo en el worktree `claude/reverent-saha-d10a85`, sin mergear). Hasta este
+      punto, `traslado-form.component.ts` en esta rama seguía llamando `trasladoRapido()`: la
+      cadena backend todavía tenía un caller (roto, pero caller), borrarla habría sido regresión
+- [x] X5.2 Merge de `claude/reverent-saha-d10a85` a esta rama (commit `9207b78`; worktree de esa
+      rama estaba limpio, nada en progreso). Sin conflictos de código — un conflicto trivial en
+      `.devpilot/events.jsonl` (log de telemetría append-only), resuelto concatenando ambos lados
+      (commit `c9c6583`)
+- [x] X5.3 Verificación post-merge: `grep -rn "TrasladoRapido" frontend/src` → 0 resultados,
+      `pages/traslado-form/` ya no existe. Recién acá la cadena backend es dead code real
+- [ ] X5.4 Borrado en backend: acción `TrasladoRapido` + clase `TrasladoRapidoRequest`
+      (`MovimientoAvesController.cs`), firma `TrasladoRapidoAsync` (`IMovimientoAvesService.cs`),
+      implementación (`MovimientoAvesService.Traslados.cs` — sin tocar los 4 stubs
+      `NotImplementedException` que comparten archivo, fuera de alcance), `TrasladoRapidoDto`
+      (`MovimientoAvesDto.cs`)
+- [ ] X5.5 Borrado `ITrasladoAvesService.cs` completo — interfaz sin implementación, sin registro
+      DI (`Program.cs` solo registra `ITrasladoAvesDesdeSegService`, servicio distinto), sin
+      ningún consumidor (`TrasladosController.CrearTrasladoAves` ya construye el DTO inline)
+- [x] X5.6 Opción elegida: **borrar, no fusionar con `Lote/trasladar`** — cero callers reales,
+      fusionar habría sido preservar capacidad que nadie usa (contra la regla de no diseñar para
+      hipotéticos de CLAUDE.md), y arriesgar equivalencia de comportamiento entre dos
+      implementaciones que ya divergieron en semántica
+- [ ] X5.7 Validar: `dotnet build` (0 errores) + `dotnet test` (gate CI)
+- [i] Deuda flagueada, no resuelta acá: 5 documentos en `backend/documentacion/` (análisis/diseño
+      históricos, no specs activas ni Postman) describen `traslado-rapido` como contrato vigente;
+      quedan desactualizados. Cero impacto en runtime/CI — fuera del pedido explícito de limpieza
+      backend, spawneado aparte (`task_df96f56e`)
+- [i] **Nota operativa:** un primer intento de esta limpieza escribió sus cambios (plan, este
+      bloque y los 6 borrados de código) en el checkout principal
+      (`C:\Users\SAN MARINO\Desktop\App_SanMarino\`) en vez de este worktree — un path sin el
+      segmento `.claude\worktrees\awesome-goodall-4a90a7\` resuelve al checkout principal, que
+      además otra sesión tenía en uso. Revertido con permiso explícito del usuario antes de
+      reintentar acá, en el path correcto
