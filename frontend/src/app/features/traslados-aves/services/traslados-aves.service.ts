@@ -191,30 +191,6 @@ export interface ResumenPorGranjaDto {
   fechaUltimaActualizacion: Date;
 }
 
-export interface TrasladoRapidoRequest {
-  loteOrigenId: string;
-  loteDestinoId: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  observaciones?: string;
-}
-
-export interface TrasladoRapidoResponse {
-  success: boolean;
-  message: string;
-  movimientoId?: number;
-  inventarioOrigenActualizado?: {
-    loteId: string;
-    cantidadHembras: number;
-    cantidadMachos: number;
-  };
-  inventarioDestinoActualizado?: {
-    loteId: string;
-    cantidadHembras: number;
-    cantidadMachos: number;
-  };
-}
-
 export interface EventoTrazabilidadDto {
   fecha: Date;
   tipoEvento: string;
@@ -525,12 +501,6 @@ export class TrasladosAvesService {
   // Búsqueda de movimientos
   searchMovimientos(request: MovimientoAvesSearchRequest): Observable<PagedResult<MovimientoAvesDto>> {
     return this.http.post<PagedResult<MovimientoAvesDto>>(`${this.movimientoUrl}/search`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Traslado rápido
-  trasladoRapido(request: TrasladoRapidoRequest): Observable<TrasladoRapidoResponse> {
-    return this.http.post<TrasladoRapidoResponse>(`${this.movimientoUrl}/traslado-rapido`, request)
       .pipe(catchError(this.handleError));
   }
 

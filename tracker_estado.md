@@ -652,14 +652,34 @@ general que afecta a cualquier empresa. Plan:
 `traslado-form.component` (ruta `/traslados-aves/traslados`) arma un request con
 `loteOrigenId`/`loteDestinoId` pero `POST api/MovimientoAves/traslado-rapido` bindea
 `TrasladoRapidoRequest` (`LoteId` único + granja/núcleo/galpón origen-destino) — ningún nombre
-coincide, `request.LoteId` queda `null`, `int.Parse(null)` explota → 500 en cualquier uso real.
+coincide, `LoteId` queda sin bindear.
 
-- [ ] X4.1 Smoke "antes": request real a `traslado-rapido` con el payload del front → confirmar 500
-- [ ] X4.2 Redirigir ruta `traslados-aves/traslados` → `traslados-aves/nuevo` (pantalla que ya
-      funciona, mismo DTO en las 2 puntas) en `app.config.ts`
-- [ ] X4.3 Borrar `pages/traslado-form/` + `trasladoRapido()`/`TrasladoRapidoRequest`/`TrasladoRapidoResponse` de `traslados-aves.service.ts`
-- [ ] X4.4 Borrar `traslados-aves.module.ts` + `traslados-aves-routing.module.ts` (huérfanos, ya sin nada que los importe tras X4.3)
-- [ ] X4.5 `yarn build` 0 errores · smoke "después" en navegador: `/traslados-aves/traslados` redirige y la pantalla destino carga
+- [x] X4.1 Smoke "antes" — HECHO: POST real a `traslado-rapido` con el payload exacto del front
+      (JWT+SECRET_UP de dev minteados a mano contra el backend local) → **400
+      `LoteId field is required`**, no el 500 esperado por lectura estática (`[ApiController]`
+      rechaza el modelo por nullable-reference-types antes de llegar al `int.Parse` de la línea
+      469). Conclusión de fondo intacta: la pantalla nunca completa un traslado
+- [x] X4.2 Redirigido `traslados-aves/traslados` → `traslados-aves/nuevo` (pantalla que ya
+      funciona, mismo DTO en las 2 puntas) en `app.config.ts`, con comentario explicando el porqué
+- [x] X4.3 Borrado `pages/traslado-form/` (`.ts`/`.html`/`.scss`) + `trasladoRapido()` /
+      `TrasladoRapidoRequest` / `TrasladoRapidoResponse` de `traslados-aves.service.ts` — grep
+      posterior confirma 0 referencias colgantes (fuera de comentarios propios y de un
+      `traslado-form` homónimo sin relación en `features/inventario/`, no tocado)
+- [x] X4.4 Borrado `traslados-aves.module.ts` + `traslados-aves-routing.module.ts` (huérfanos —
+      `app.config.ts` es el routing real standalone; nada más los importaba)
+- [x] X4.5 Validado de punta a punta:
+      - `yarn build` (prod) → **0 errores**, 121s, sin warnings nuevos (solo el preexistente de
+        `package.json` sin `license`)
+      - Smoke "después" real en navegador (backend :5002 + front :4200 en el worktree, sesión JWT
+        de dev minteada e inyectada en `localStorage`): navegar a `/traslados-aves/traslados`
+        redirige a `/traslados-aves/nuevo` (título "Nuevo Traslado de Aves"), la pantalla carga
+        **datos reales** de la BD local (14 lotes: K345A/B, A374A/B, S369A/B, A402A/B; ~28
+        granjas) sin errores de consola — confirma que el destino del redirect es una pantalla
+        viva, no solo "no crashea"
+      - Backend: sin cambios de código → no hace falta `dotnet build`/`dotnet test` (el backend sí
+        se levantó limpio para el smoke "antes": 0 errores, migraciones al día)
+      - `netstat` confirma :5002 y :4200 libres al terminar (servers detenidos)
 - [i] Backend `TrasladoRapidoAsync`/`TrasladoRapidoDto` **no se tocan**: quedan sin caller en el
       front pero son consistentes puertas adentro; fusionarlos con `Lote/trasladar` (mismo
       concepto: reubicar un lote) es una decisión aparte, no bloquea este fix
+- [x] **X4 cerrado.**

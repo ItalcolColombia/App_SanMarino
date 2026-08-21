@@ -4,7 +4,7 @@
 > exponia Placa/Conductor/Sellos en el traslado real de postura. Flagueado como `task_88856448`,
 > sin tocar en esa sesion. Este plan es el fix, sin relacion con Santa Reyes.
 
-## 1. El bug (confirmado por lectura de codigo, a validar con smoke)
+## 1. El bug (confirmado con smoke HTTP real contra el backend local, no solo lectura)
 
 `frontend/.../traslado-form/traslado-form.component.ts` arma un `TrasladoRapidoRequest`
 (`traslados-aves.service.ts:194-200`): `loteOrigenId`, `loteDestinoId`, `cantidadHembras`,
@@ -14,10 +14,24 @@
 bindea `[FromBody] TrasladoRapidoRequest` — pero esa clase (linea 654, mismo archivo) es:
 `LoteId` (uno solo), `GranjaOrigenId/NucleoOrigenId/GalponOrigenId`,
 `GranjaDestinoId/NucleoDestinoId/GalponDestinoId`, `CantidadHembras/Machos/Mixtas`, `Motivo`,
-`Observaciones`, `ProcesarInmediatamente`. Ningun nombre coincide con lo que manda el front —
-`request.LoteId` bindea `null`, y la linea 469 hace `int.Parse(request.LoteId)` →
-`ArgumentNullException`, atrapada por el `catch (Exception ex)` generico → 500. La pantalla no
-completa un traslado nunca.
+`Observaciones`, `ProcesarInmediatamente`. Ningun nombre coincide con lo que manda el front.
+
+**Smoke real** (backend local :5002, POST con el payload EXACTO que arma el front, JWT+SECRET_UP
+de desarrollo minteados a mano — ver §5): la respuesta fue **400**, no el 500 que la lectura
+estatica del codigo hacia esperar —
+
+```json
+{"status":400,"errors":{"LoteId":["The LoteId field is required."]}}
+```
+
+Motivo real: `[ApiController]` valida el modelo ANTES de que la accion corra (nullable reference
+types → `string LoteId` no-nulo se infiere `[Required]`), y el controller ya chequea
+`if (!ModelState.IsValid) return BadRequest(...)` (linea 464) — el request nunca llega a la linea
+469 (`int.Parse(request.LoteId)`). El diagnostico original (crash 500 por
+`ArgumentNullException`) era la lectura correcta del *codigo* pero no el comportamiento real en
+runtime; la conclusion de fondo no cambia: **el mismatch es real, confirmado en vivo, y la
+pantalla nunca completa un traslado** — solo cambia el mensaje que ve el usuario (400 "LoteId es
+requerido" en vez de un 500 generico).
 
 ## 2. Por que no es un simple rename — son dos operaciones de negocio distintas
 
@@ -81,10 +95,12 @@ tablas.
 
 ## 5. Casos de prueba / verificacion
 
-- **Smoke "antes"** (confirma el bug real, no solo lectura de codigo): request HTTP real a
+- **Smoke "antes" — HECHO** (confirma el bug real, no solo lectura de codigo): request HTTP real a
   `POST api/MovimientoAves/traslado-rapido` con el payload exacto que arma el front
-  (`loteOrigenId`/`loteDestinoId`/`cantidadHembras`/`cantidadMachos`) → esperado: 500. Es seguro
-  con cualquier id (real o inventado): `int.Parse(null)` explota antes de tocar la BD.
+  (`loteOrigenId`/`loteDestinoId`/`cantidadHembras`/`cantidadMachos`) → **400,
+  `LoteId field is required`** (no el 500 que la lectura estatica sugeria — el `[ApiController]`
+  rechaza el modelo antes de llegar al `int.Parse`; ver §1). Seguro con cualquier id (real o
+  inventado): la validacion de ASP.NET corre antes de tocar la BD.
 - **Build:** `dotnet build` (0 errores, sin warnings nuevos) — no hay tests de backend que tocar
   (ninguno referencia `TrasladoRapido*`). `yarn build` (0 errores) — no hay tests de frontend que
   tocar (ninguno referencia `traslado-form`/`TrasladoRapido`).

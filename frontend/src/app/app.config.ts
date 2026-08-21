@@ -662,10 +662,14 @@ export const appConfig: ApplicationConfig = {
             title: 'Inventario de Aves - Dashboard'
           },
           {
+            // La pantalla vieja (traslado-form / TrasladoRapidoRequest) tenia el DTO del front
+            // desalineado del backend (loteOrigenId/loteDestinoId vs LoteId+granja/nucleo/galpon
+            // origen-destino: son dos operaciones de negocio distintas, no un rename). Confirmado
+            // con smoke real: 400 "LoteId field is required" en cualquier uso. Redirige a la
+            // pantalla que ya hace lo mismo y funciona (mismo DTO en las 2 puntas, ver
+            // TrasladosController.CrearTrasladoAves).
             path: 'traslados',
-            loadComponent: () => import('./features/traslados-aves/pages/traslado-form/traslado-form.component')
-              .then(m => m.TrasladoFormComponent),
-            title: 'Traslado de Aves'
+            redirectTo: 'nuevo'
           },
           {
             path: 'movimientos',
