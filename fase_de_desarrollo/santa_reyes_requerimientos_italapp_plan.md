@@ -484,6 +484,25 @@ cerraba el div original ADEMÁS del nuevo. El chequeo de grep los encontró en s
 `ng build` los habría marcado igual (NG5002), pero después de un ciclo de espera de varios minutos —
 la misma lección de F9 (cambio mínimo, verificar antes de acumular), aplicada más rápido acá.
 
+### 9.5 Cuarto lugar con el mismo bug, encontrado pero NO tocado (21-ago-2026)
+
+Barriendo `cantidadLimpio` en todo el frontend para confirmar que no quedaba ningún otro lugar con
+el mismo patrón, apareció un **cuarto** sitio: `traslados-aves/pages/inventario-dashboard` (~1800
+líneas, la pantalla de aterrizaje real de `/traslados-aves` — `redirectTo: 'dashboard'`) tiene su
+propio modal de traslado con tabs aves/huevos que reimplementa el mismo formulario de traslado de
+huevos de forma independiente (`tiposHuevo`, `initTrasladoHuevosForm`, `procesarTrasladoHuevos`),
+sin el selector de ítems. Mismo síntoma: `disponible: 0` en las 11 categorías para Santa Reyes,
+probablemente bloqueando la carga de cantidades desde esa pantalla puntual (aunque los otros 2
+formularios "oficiales" del módulo `traslados-huevos` ya quedaron arreglados y sí funcionan).
+
+**No se tocó a propósito**: es un componente grande y sin auditar a fondo (solo se identificó el
+patrón por grep, no se leyó completo), y el riesgo de un error estructural ahí (como los 2 `</div>`
+de más que dejé en los otros 2 formularios esta misma sesión, atajados por el chequeo de balance)
+es mayor en un archivo de ese tamaño sin dominarlo. Spawneado aparte (`task_b8e26e02`) con la
+sugerencia de evaluar si conviene que ese modal reuse `ModalTrasladoHuevosComponent` en vez de
+mantener una 4ª copia del mismo formulario — la duplicación en sí ya es una deuda real
+(3-4 implementaciones independientes del mismo concepto "crear traslado de huevos").
+
 **No regresión multipaís (F11.2) — razonada, no solo corrida.** `EspejoHuevoProduccionSyncService`
 es compartido por TODAS las empresas que usan el flujo LPP de postura (no solo Santa Reyes), así que
 el cambio de `movTot` amerita el mismo cuidado que el gate de `*SaldoAlimento*` aunque no sea

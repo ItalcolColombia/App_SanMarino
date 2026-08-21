@@ -680,8 +680,13 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         bloques `@if (mismaCondición)` hermanos y anidados mezclados. La próxima vez: cambio mínimo,
         `yarn build` después de CADA paso, no acumular varios cambios de estructura antes de compilar
 - [~] **F10 · Traslado de huevos** (5h) — bug real encontrado y cerrado (21-ago-2026, sesión de
-      continuación), F10.1 (UX de bodega de salida) sigue sin resolver. Diseño técnico completo en
-      §9 del plan (`santa_reyes_requerimientos_italapp_plan.md`)
+      continuación) en los 2 formularios oficiales + el listado, F10.1 (UX de bodega de salida) sigue
+      sin resolver. Diseño técnico completo en §9 del plan (`santa_reyes_requerimientos_italapp_plan.md`)
+  - [!] **4º lugar con el mismo bug, encontrado pero NO tocado**: `traslados-aves/pages/inventario-
+        dashboard` (~1800 líneas, pantalla de aterrizaje real de `/traslados-aves`) tiene su propia
+        reimplementación del formulario de traslado de huevos (sin selector de ítems) — mismo síntoma
+        de disponible 0 para Santa Reyes. Componente grande, sin auditar a fondo; spawneado aparte
+        (`task_b8e26e02`) en vez de arriesgar un edit grande sin dominarlo. Detalle en §9.5 del plan
   - [x] **Bug encontrado auditando F10.1, no era la pregunta de UX que parecía**: la disponibilidad
         de huevos para traslado/venta se calculaba SOLO desde las 11 columnas legacy
         (`espejo_huevo_produccion.huevo_*_dinamico`), que F0.2/F7 dejan en `0` para Santa Reyes
