@@ -115,32 +115,46 @@
               <div class="traslados-resumen__block">
                 <h3 class="traslados-resumen__title">Inventario disponible (espejo · dinámico)</h3>
                 <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevos) }}</strong>
-                · Incubables <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevosIncubables) }}</strong>
+                @if (!clasificacionHuevoPorItems) {
+                  · Incubables <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevosIncubables) }}</strong>
+                }
                 @if (disponibilidad.huevos.diasEnProduccion != null) {
                   <span> · {{ disponibilidad.huevos.diasEnProduccion }} días en producción</span>
                 }
               </p>
-              <div class="traslados-resumen__grid-eggs">
-                <span>Limpio {{ formatearNumero(disponibilidad.huevos.limpio) }}</span>
-                <span>Tratado {{ formatearNumero(disponibilidad.huevos.tratado) }}</span>
-                <span>Sucio {{ formatearNumero(disponibilidad.huevos.sucio) }}</span>
-                <span>Deforme {{ formatearNumero(disponibilidad.huevos.deforme) }}</span>
-                <span>Blanco {{ formatearNumero(disponibilidad.huevos.blanco) }}</span>
-                <span>D. yema {{ formatearNumero(disponibilidad.huevos.dobleYema) }}</span>
-                <span>Piso {{ formatearNumero(disponibilidad.huevos.piso) }}</span>
-                <span>Peq. {{ formatearNumero(disponibilidad.huevos.pequeno) }}</span>
-                <span>Roto {{ formatearNumero(disponibilidad.huevos.roto) }}</span>
-                <span>Desecho {{ formatearNumero(disponibilidad.huevos.desecho) }}</span>
-                <span>Otro {{ formatearNumero(disponibilidad.huevos.otro) }}</span>
-              </div>
+              @if (!clasificacionHuevoPorItems) {
+                <div class="traslados-resumen__grid-eggs">
+                  <span>Limpio {{ formatearNumero(disponibilidad.huevos.limpio) }}</span>
+                  <span>Tratado {{ formatearNumero(disponibilidad.huevos.tratado) }}</span>
+                  <span>Sucio {{ formatearNumero(disponibilidad.huevos.sucio) }}</span>
+                  <span>Deforme {{ formatearNumero(disponibilidad.huevos.deforme) }}</span>
+                  <span>Blanco {{ formatearNumero(disponibilidad.huevos.blanco) }}</span>
+                  <span>D. yema {{ formatearNumero(disponibilidad.huevos.dobleYema) }}</span>
+                  <span>Piso {{ formatearNumero(disponibilidad.huevos.piso) }}</span>
+                  <span>Peq. {{ formatearNumero(disponibilidad.huevos.pequeno) }}</span>
+                  <span>Roto {{ formatearNumero(disponibilidad.huevos.roto) }}</span>
+                  <span>Desecho {{ formatearNumero(disponibilidad.huevos.desecho) }}</span>
+                  <span>Otro {{ formatearNumero(disponibilidad.huevos.otro) }}</span>
+                </div>
+              }
+              @if (clasificacionHuevoPorItems) {
+                <div class="traslados-resumen__grid-eggs">
+                  @for (item of disponibilidad.huevoItemsDisponibles; track item.catalogItemId) {
+                    <span>{{ item.nombre || item.codigo }} {{ formatearNumero(item.cantidad) }}</span>
+                  }
+                </div>
+              }
             </div>
           }
           @if (disponibilidad.huevosHistoricoEspejo) {
             <div class="traslados-resumen__block">
               <h3 class="traslados-resumen__title">Producción acumulada (espejo · histórico)</h3>
               <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevos) }}</strong>
-              · Incubables <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevosIncubables) }}</strong>
+              @if (!clasificacionHuevoPorItems) {
+                · Incubables <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevosIncubables) }}</strong>
+              }
             </p>
+            @if (!clasificacionHuevoPorItems) {
             <div class="traslados-resumen__grid-eggs traslados-resumen__grid-eggs--compact">
               <span>L {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.limpio) }}</span>
               <span>T {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.tratado) }}</span>
@@ -154,6 +168,7 @@
               <span>Des {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.desecho) }}</span>
               <span>O {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.otro) }}</span>
             </div>
+            }
           </div>
         }
         <div class="traslados-resumen__block">
@@ -282,6 +297,7 @@
                     <th>Roto</th>
                     <th>Desecho</th>
                     <th>Otro</th>
+                    <th>Clasif. por ítems</th>
                     <th>Total huevos</th>
                     <th>Estado</th>
                     <th>Usuario ID</th>
@@ -350,6 +366,15 @@
                       <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto) }}</td>
                       <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho) }}</td>
                       <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro) }}</td>
+                      <td class="cell-wrap text-sm">
+                        @if (traslado.huevoItems && traslado.huevoItems.length > 0) {
+                          @for (item of traslado.huevoItems; track item.catalogItemId) {
+                            <span>{{ item.nombre || item.codigo }}: {{ formatearNumero(item.cantidad) }}</span>
+                          }
+                        } @else {
+                          <span>—</span>
+                        }
+                      </td>
                       <td class="number-cell"><strong>{{ formatearNumero(getTotalHuevos(traslado)) }}</strong></td>
                       <td>
                         <span class="badge"

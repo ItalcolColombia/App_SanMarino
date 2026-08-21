@@ -725,6 +725,28 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         de esa lista — no se adivina, a confirmar con el cliente
   - [x] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo — cerrado como parte del fix
         de arriba (mismo selector de ítems de F7, reusado en los 2 formularios)
+  - [x] **Lado de lectura, mismo bug (21-ago-2026, misma sesión, tras "seguí con lo que se pueda"):**
+        auditando el LISTADO de traslados (`traslados-huevos-list`, la pantalla real detrás de
+        `/traslados-huevos` → `redirectTo: 'lista'`) encontré que sufría el mismo problema que el
+        fix de arriba, ya con datos reales de por medio:
+        - `getTotalHuevos()` re-sumaba las 11 columnas legacy (todas en 0 para Santa Reyes) en vez
+          de usar la columna `totalHuevos` ya correcta que el backend ahora persiste — esto rompía
+          la columna "Total huevos" de la tabla Y los resúmenes "Ventas completadas"/"Traslados
+          completados" del panel superior, que hubieran mostrado 0 aunque el traslado sí movió
+          huevos reales. Corregido: usa `traslado.totalHuevos` directo
+        - Panel "Inventario disponible"/"Producción acumulada" (espejo dinámico/histórico): mismo
+          patrón "Incubables" + grid de 11 categorías en 0 — gateado por `clasificacionHuevoPorItems`
+          igual que en el resto de F7/F10; el dinámico muestra el desglose por ítem
+          (`disponibilidad.huevoItemsDisponibles`, ya expuesto por el backend), el histórico no tiene
+          equivalente por ítem construido todavía así que solo oculta lo que mentía (queda el Total,
+          que sí es correcto)
+        - Tabla: nueva columna "Clasif. por ítems" (compacta, mismo patrón que "Transporte" de F9)
+          para no dejar 11 columnas en 0 sin ningún indicio de que el dato real vive en otro lado
+        - **Detalle ("Ver" en la tabla) no necesitó cambios**: ya abre `modal-traslado-huevos` en
+          modo solo lectura, que el fix de arriba ya dejó mostrando `huevoItems` correctamente
+        - Validado: `yarn build` 0 errores; balance de `<div>`/`@if` verificado con grep contra
+          `git show HEAD:...` antes de compilar (mismo chequeo que atajó los 2 `</div>` de más de la
+          tanda anterior)
 - [ ] **F11 · Pruebas** (8h)
   - [ ] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas
   - [ ] F11.2 No regresión sobre empresas productivas (Sanmarino, Panamá, Ecuador) — gate multipaís si toca `*SaldoAlimento*`/`fn_seguimiento_diario_*`
