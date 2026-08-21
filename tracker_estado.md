@@ -701,19 +701,23 @@ Follow-up directo de X4 (arriba). Plan:
       (commit `c9c6583`)
 - [x] X5.3 Verificación post-merge: `grep -rn "TrasladoRapido" frontend/src` → 0 resultados,
       `pages/traslado-form/` ya no existe. Recién acá la cadena backend es dead code real
-- [ ] X5.4 Borrado en backend: acción `TrasladoRapido` + clase `TrasladoRapidoRequest`
+- [x] X5.4 Borrado en backend: acción `TrasladoRapido` + clase `TrasladoRapidoRequest`
       (`MovimientoAvesController.cs`), firma `TrasladoRapidoAsync` (`IMovimientoAvesService.cs`),
       implementación (`MovimientoAvesService.Traslados.cs` — sin tocar los 4 stubs
       `NotImplementedException` que comparten archivo, fuera de alcance), `TrasladoRapidoDto`
-      (`MovimientoAvesDto.cs`)
-- [ ] X5.5 Borrado `ITrasladoAvesService.cs` completo — interfaz sin implementación, sin registro
+      (`MovimientoAvesDto.cs`) — commit `ae40e72`
+- [x] X5.5 Borrado `ITrasladoAvesService.cs` completo — interfaz sin implementación, sin registro
       DI (`Program.cs` solo registra `ITrasladoAvesDesdeSegService`, servicio distinto), sin
-      ningún consumidor (`TrasladosController.CrearTrasladoAves` ya construye el DTO inline)
+      ningún consumidor (`TrasladosController.CrearTrasladoAves` ya construye el DTO inline) —
+      mismo commit `ae40e72`
 - [x] X5.6 Opción elegida: **borrar, no fusionar con `Lote/trasladar`** — cero callers reales,
       fusionar habría sido preservar capacidad que nadie usa (contra la regla de no diseñar para
       hipotéticos de CLAUDE.md), y arriesgar equivalencia de comportamiento entre dos
       implementaciones que ya divergieron en semántica
-- [ ] X5.7 Validar: `dotnet build` (0 errores) + `dotnet test` (gate CI)
+- [x] X5.7 Validado: `dotnet build` (portable SDK 10.0.301) → **0 errores**, 21 warnings (todos
+      preexistentes, ninguno en los archivos tocados). `dotnet test` → **2960/2960 passed** (1
+      `ZooSanMarino.Domain.Tests` + 2959 `ZooSanMarino.Application.Tests`), 0 fallos — ninguna
+      prueba referenciaba `TrasladoRapido*`/`ITrasladoAvesService`
 - [i] Deuda flagueada, no resuelta acá: 5 documentos en `backend/documentacion/` (análisis/diseño
       históricos, no specs activas ni Postman) describen `traslado-rapido` como contrato vigente;
       quedan desactualizados. Cero impacto en runtime/CI — fuera del pedido explícito de limpieza
@@ -724,3 +728,4 @@ Follow-up directo de X4 (arriba). Plan:
       segmento `.claude\worktrees\awesome-goodall-4a90a7\` resuelve al checkout principal, que
       además otra sesión tenía en uso. Revertido con permiso explícito del usuario antes de
       reintentar acá, en el path correcto
+- [x] **X5 cerrado.**
