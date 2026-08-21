@@ -1107,6 +1107,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             guiasCompletas = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
                 .Where(p =>
+                    p.CompanyId == _currentUser.CompanyId &&
                     p.Raza != null && p.AnioGuia != null &&
                     EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                     p.AnioGuia.Trim() == ano)
@@ -1373,6 +1374,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                     guiasCompletas = await _ctx.ProduccionAvicolaRaw
                         .AsNoTracking()
                         .Where(p =>
+                            p.CompanyId == _currentUser.CompanyId &&
                             p.Raza != null && p.AnioGuia != null &&
                             EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                             p.AnioGuia.Trim() == ano)
@@ -1715,7 +1717,8 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             var ano      = lppConRaza.AnoTablaGenetica!.Value.ToString();
             guiasCompletas = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
-                .Where(p => p.Raza != null && p.AnioGuia != null &&
+                .Where(p => p.CompanyId == _currentUser.CompanyId &&
+                            p.Raza != null && p.AnioGuia != null &&
                             EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                             p.AnioGuia.Trim() == ano)
                 .ToListAsync(ct);
