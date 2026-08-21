@@ -1015,3 +1015,50 @@ correccion llega a **levante Y produccion**.
       **68 galpones / 11 con kilos / 19 con dias rojos, identico con y sin el cambio** (deuda
       preexistente, no se movio)
 - [x] **X8 cerrado.**
+
+---
+
+## X9 — Las grillas mostraban el SALDO bajo el rotulo «aves encasetadas» (21-ago-2026)
+
+Reporte del usuario: en Gestion de lotes y en el detalle del lote, las columnas de hembras y machos
+"se estan moviendo" con el seguimiento diario y ya no suman las aves encasetadas — «hay unos que
+dicen 19.100 y algo, pero si uno suma los dos dan menos». El encasetamiento es historico del lote y
+no se puede tocar. Continuacion de X8; mismo plan:
+[`fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md`](fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md).
+
+- [x] X9.1 **Reproducido con datos reales.** Engorde: la grilla pintaba `hembrasL`/`machosL` (el
+      SALDO) junto a `avesEncasetadas` (la BASE) ⇒ **123 de 124 lotes de Ecuador se veian mal**. El
+      caso que el usuario nombro es el lote 24: la columna decia **19.120** y las de al lado
+      mostraban 1.103 + 2.552 = **3.655**; el encasetamiento real es 9.061 + 10.059 = 19.120. Peor
+      caso, lote 19: encaset 51.438 contra 2.832 mostrados
+- [x] X9.2 Engorde arreglado: grilla y panel de detalle pasan a mostrar el **encasetamiento**
+      (`inicialHembras/Machos/Mixtas`, que X8 ya expone en el DTO), rotulos explicitos «Hembras
+      encaset.» / «Machos encaset.», y el saldo **no se pierde**: el detalle gana la fila «Aves vivas
+      hoy (saldo)» con su desglose H/M/X. Accesores en el componente que devuelven **numeros**, no
+      objetos, para no romper la deteccion de cambios; total via
+      `totalEncasetadoDelLote` en `funciones/`
+- [x] X9.3 Postura: los tabs **Levante** y **Produccion** tenian el mismo defecto
+      (`avesHActual ?? ...` bajo el rotulo «encaset.»). Corregidos a `hembrasL ?? avesHInicial ...`
+      ⚠️ **el orden importa**: `avesHInicial` en produccion NO es el encasetamiento sino las aves que
+      sobrevivieron al levante — medido en P-K345B, encaset 12.587 (10.991+1.596) contra un inicio de
+      produccion de 11.526 ⇒ con `avesHInicial` primero, la columna no cuadraba con el total. En
+      levante los dos coinciden por construccion (trigger; 21 de 21 lotes verificados)
+- [i] X9.4 **Los tabs Levante y Produccion de postura estan COMENTADOS en el HTML desde el commit
+      `cd9b1a7` (25-may-2026)** — no hay forma de llegar a ellos desde la UI. El tab vivo («Lotes
+      Seguimientos») usa `hembrasL`, que en postura SI es el encasetamiento, y **ya estaba
+      correcto**. O sea: en postura el fix deja el codigo bien para cuando se reactiven, pero **hoy
+      no cambia nada visible**. El defecto que el usuario ve es solo de engorde
+- [x] X9.5 Barrido del resto del front: los otros 3 sitios que derivan `hembrasL + machosL`
+      (`tabla-registro-list`, `lote-produccion/tabs-principal`, `shared/hierarchical-filter`) son
+      todos `LoteDto` de **postura**, donde esa columna es la base ⇒ correctos, no se tocan
+- [x] X9.6 **Verificado en pantalla** (build de produccion servido en :4310 con proxy al backend de
+      smoke en :5501 contra un clon de la BD; sesion inyectada en `localStorage`): la grilla de
+      engorde pinta «HEMBRAS ENCASET. / MACHOS ENCASET. / AVES ENCASET.» y las **6 primeras filas
+      suman exacto** (lote 24 → 9.061 + 10.059 = 19.120). El detalle del lote 24 muestra
+      encasetamiento 9.061 / 10.059 / 19.120 **y** «Aves vivas hoy (saldo) 3.655 · H: 1.103 · M:
+      2.552 · X: 0». Sin spinner colgado; los 2 errores de consola son NG05604 (Service Worker de la
+      PWA, que el servidor de prueba no sirve), ajenos al cambio
+- [x] X9.7 Contraste por HTTP sobre los mismos endpoints que alimentan las grillas: engorde
+      **124 lotes / 0 columnas que no suman**, levante **16 / 0**, produccion **2 / 0** (antes 2 de 2
+      no cuadraban). `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
+- [x] **X9 cerrado.**

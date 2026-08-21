@@ -36,7 +36,8 @@ import {
   AvesPorSexo,
   avesInicialesDelLote,
   avesSaldoDelLote,
-  totalAvesEncasetadas
+  totalAvesEncasetadas,
+  totalEncasetadoDelLote
 } from '../../funciones/aves-encasetadas.funcion';
 
 @Component({
@@ -1075,6 +1076,28 @@ export class LoteEngordeListComponent implements OnInit {
 
   /** Total de aves vivas hoy. Solo informativo: el formulario edita el encasetamiento. */
   saldoActualTotal = 0;
+
+  // ─── Encasetamiento para la grilla y el panel de detalle ────────────────────
+  // Las columnas «Hembras encaset.» / «Machos encaset.» mostraban `hembrasL`/`machosL`, que en
+  // engorde son el SALDO VIVO: bajaban solas a medida que se cargaba el seguimiento diario y
+  // sumaban MENOS que la columna «Aves encaset.» de al lado. El encasetamiento es histórico del
+  // lote y no se mueve nunca; el saldo tiene su propia fila en el detalle.
+  // Devuelven números (no objetos) para no romper la detección de cambios desde el template.
+
+  /** Hembras con que se encasetó el lote. */
+  encasetHembras(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).hembras; }
+
+  /** Machos con que se encasetó el lote. */
+  encasetMachos(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).machos; }
+
+  /** Mixtas con que se encasetó el lote (Panamá lleva ahí toda su población). */
+  encasetMixtas(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).mixtas; }
+
+  /** Total encasetado. Coincide siempre con la suma de las tres columnas anteriores. */
+  encasetTotal(l: LoteAveEngordeDto): number { return totalEncasetadoDelLote(l); }
+
+  /** Aves vivas hoy: encasetamiento menos las bajas del seguimiento y lo despachado. */
+  saldoTotal(l: LoteAveEngordeDto): number { return totalAvesEncasetadas(avesSaldoDelLote(l)); }
 
   private normalize(s: string): string {
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

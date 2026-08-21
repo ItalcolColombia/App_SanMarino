@@ -244,8 +244,8 @@
                 <th scope="col">Galpón</th>
                 <th scope="col">Raza</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -263,8 +263,8 @@
                 <th scope="col">Galpón</th>
                 <th scope="col">Raza</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -282,8 +282,8 @@
                 <th scope="col">Raza</th>
                 <th scope="col">Fase/Etapa</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -331,9 +331,9 @@
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
-                  <td>{{ formatOrDash(l.avesHActual ?? l.hembrasL) }}</td>
-                  <td>{{ formatOrDash(l.avesMActual ?? l.machosL) }}</td>
-                  <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
+                  <td>{{ formatNumber(encasetHembrasLevante(l)) }}</td>
+                  <td>{{ formatNumber(encasetMachosLevante(l)) }}</td>
+                  <td>{{ formatNumber(encasetTotal(l.avesEncasetadas, encasetHembrasLevante(l), encasetMachosLevante(l))) }}</td>
                   <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="text-center">
@@ -374,9 +374,9 @@
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
-                  <td>{{ formatOrDash(l.avesHActual ?? l.hembrasInicialesProd ?? l.hembrasL) }}</td>
-                  <td>{{ formatOrDash(l.avesMActual ?? l.machosInicialesProd ?? l.machosL) }}</td>
-                  <td>{{ formatNumber(l.avesEncasetadas ?? (l.avesHActual ?? l.hembrasL ?? 0) + (l.avesMActual ?? l.machosL ?? 0)) }}</td>
+                  <td>{{ formatNumber(encasetHembrasProduccion(l)) }}</td>
+                  <td>{{ formatNumber(encasetMachosProduccion(l)) }}</td>
+                  <td>{{ formatNumber(encasetTotal(l.avesEncasetadas, encasetHembrasProduccion(l), encasetMachosProduccion(l))) }}</td>
                   <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="text-center">

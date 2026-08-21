@@ -79,3 +79,18 @@ export function totalAvesEncasetadas(aves: AvesPorSexo): number {
 export function deltaAvesEncasetadas(vigente: AvesPorSexo, propuesto: AvesPorSexo): number {
   return totalAvesEncasetadas(propuesto) - totalAvesEncasetadas(vigente);
 }
+
+/**
+ * Total encasetado de un lote, para las tablas y los paneles de solo lectura.
+ *
+ * Prefiere `avesEncasetadas`, que es la columna que el backend mantiene alineada con el registro
+ * `Inicio` (invariante de `fn_cuadre_aves_engorde`); si faltara, reconstruye desde el desglose
+ * inicial. **El fallback nunca usa el saldo vivo**: sumar `hembrasL + machosL` daba un total ya
+ * descontado, más chico que las aves encasetadas de la columna de al lado, y era justo la
+ * incoherencia que se ve en pantalla.
+ */
+export function totalEncasetadoDelLote(lote: AvesDelLote | null | undefined): number {
+  if (!lote) return 0;
+  const declarado = num(lote.avesEncasetadas);
+  return declarado > 0 ? declarado : totalAvesEncasetadas(avesInicialesDelLote(lote));
+}
