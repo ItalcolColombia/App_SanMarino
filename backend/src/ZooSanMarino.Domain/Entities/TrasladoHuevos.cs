@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Domain/Entities/TrasladoHuevos.cs
+using System.Text.Json;
+
 namespace ZooSanMarino.Domain.Entities;
 
 /// <summary>
@@ -39,13 +41,24 @@ public class TrasladoHuevos : AuditableEntity
     public int CantidadRoto { get; set; }
     public int CantidadDesecho { get; set; }
     public int CantidadOtro { get; set; }
-    
-    // Total calculado
-    public int TotalHuevos => CantidadLimpio + CantidadTratado + CantidadSucio + 
-                              CantidadDeforme + CantidadBlanco + CantidadDobleYema + 
-                              CantidadPiso + CantidadPequeno + CantidadRoto + 
-                              CantidadDesecho + CantidadOtro;
-    
+
+    /// <summary>
+    /// Total de huevos del traslado. Antes era una propiedad calculada (suma de las 11
+    /// <c>Cantidad*</c>, nunca mapeada por EF); pasó a columna real porque un traslado por ÍTEMS del
+    /// catálogo (<see cref="Metadata"/>, Santa Reyes) deja las 11 en 0 — el SERVICE la fija
+    /// explícitamente en los dos casos (legacy: misma suma de siempre; por ítems:
+    /// <c>HuevoItemsCalculos.SumarTotal</c>).
+    /// </summary>
+    public int TotalHuevos { get; set; }
+
+    /// <summary>
+    /// Desglose por ÍTEM del catálogo (<c>huevoItems</c>, empresas con
+    /// <c>companies.clasificacion_huevo_por_items = true</c>) — mismo patrón que
+    /// <c>SeguimientoProduccion.Metadata</c>. <c>null</c> para traslados del flujo legacy (11
+    /// columnas fijas).
+    /// </summary>
+    public JsonDocument? Metadata { get; set; }
+
     // Estado
     public string Estado { get; set; } = "Pendiente"; // Pendiente, Completado, Cancelado
     

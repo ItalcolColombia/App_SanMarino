@@ -403,6 +403,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("clasificacion_huevo_por_items");
 
+                    b.Property<bool>("ConsumoAlimentoSoloHembras")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("consumo_alimento_solo_hembras");
+
                     b.Property<string>("Country")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -425,11 +431,21 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("email");
 
+                    b.Property<int?>("HuevoPrimeraPosturaHastaSemana")
+                        .HasColumnType("integer")
+                        .HasColumnName("huevo_primera_postura_hasta_semana");
+
                     b.Property<string>("Identifier")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("identifier");
+
+                    b.Property<bool>("LimitaTiposInventarioAlimentoYAves")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("limita_tipos_inventario_alimento_y_aves");
 
                     b.Property<bool>("ManejaAlimentoPorGalpon")
                         .HasColumnType("boolean")
@@ -464,6 +480,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("nombre_lote_incluye_corrida");
+
+                    b.Property<bool>("OcultaMachosEnPostura")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("oculta_machos_en_postura");
 
                     b.Property<bool>("PermiteTrasladoAvesCrossEtapa")
                         .ValueGeneratedOnAdd()
@@ -511,6 +533,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("seguimiento_engorde_mixto");
+
+                    b.Property<bool>("SemanasCicloPosturaPorRaza")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("semanas_ciclo_postura_por_raza");
 
                     b.Property<string>("State")
                         .HasMaxLength(80)
@@ -1893,6 +1921,89 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ix_guia_genetica_ecuador_header_company_id_pais_id_raza_anio_g");
 
                     b.ToTable("guia_genetica_ecuador_header", (string)null);
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaSantaReyes", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnioGuia")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("anio_guia");
+
+                    b.Property<string>("CodigoGuiaGenetica")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("codigo_guia_genetica");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<int>("Edad")
+                        .HasColumnType("integer")
+                        .HasColumnName("edad");
+
+                    b.Property<decimal?>("GrAveDiaH")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("gr_ave_dia_h");
+
+                    b.Property<decimal?>("ProdPorcentaje")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)")
+                        .HasColumnName("prod_porcentaje");
+
+                    b.Property<string>("Raza")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("raza");
+
+                    b.Property<decimal?>("RetiroAcH")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)")
+                        .HasColumnName("retiro_ac_h");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_guia_genetica_santa_reyes");
+
+                    b.HasIndex("CompanyId", "CodigoGuiaGenetica")
+                        .IsUnique()
+                        .HasDatabaseName("ux_guia_genetica_santa_reyes_codigo")
+                        .HasFilter("deleted_at IS NULL AND codigo_guia_genetica IS NOT NULL");
+
+                    b.HasIndex("CompanyId", "Raza", "AnioGuia")
+                        .HasDatabaseName("ix_guia_genetica_santa_reyes_raza_anio");
+
+                    b.ToTable("guia_genetica_santa_reyes", "public");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Historia", b =>
@@ -11176,6 +11287,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("lote_postura_produccion_id");
 
+                    b.Property<JsonDocument>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
                     b.Property<string>("Motivo")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -11201,6 +11316,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("tipo_operacion");
+
+                    b.Property<int>("TotalHuevos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_huevos");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -46,6 +47,19 @@ public class TrasladoHuevosService : ITrasladoHuevosService
 
     public async Task<TrasladoHuevosDto> CrearTrasladoHuevosAsync(CrearTrasladoHuevosDto dto, int usuarioId)
     {
+        // Clasificación por ítems (Santa Reyes): sin flujo legacy equivalente — exige LPP porque es
+        // el único flujo que produce huevoItems (F7, modal-seguimiento-diario de producción).
+        var usaHuevoItems = dto.HuevoItems is { Count: > 0 };
+        if (usaHuevoItems && dto.LotePosturaProduccionId is null)
+            throw new InvalidOperationException("La clasificación de huevos por ítems requiere lotePosturaProduccionId.");
+
+        if (usaHuevoItems)
+        {
+            var errorValidacion = HuevoItemsCalculos.Validar(dto.HuevoItems);
+            if (errorValidacion != null)
+                throw new InvalidOperationException(errorValidacion);
+        }
+
         var cantidadesPorTipo = new Dictionary<string, int>
         {
             { "Limpio", dto.CantidadLimpio },
@@ -67,8 +81,10 @@ public class TrasladoHuevosService : ITrasladoHuevosService
 
         if (lotePosturaProduccionId.HasValue)
         {
-            // Flujo LPP: validar desde espejo
-            var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosLPPAsync(lotePosturaProduccionId.Value, cantidadesPorTipo);
+            // Flujo LPP: validar desde espejo (legacy) o desde disponible por ítem (Santa Reyes).
+            var hayDisponibilidad = usaHuevoItems
+                ? await _disponibilidadService.ValidarDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId.Value, dto.HuevoItems!)
+                : await _disponibilidadService.ValidarDisponibilidadHuevosLPPAsync(lotePosturaProduccionId.Value, cantidadesPorTipo);
             if (!hayDisponibilidad)
                 throw new InvalidOperationException("No hay suficientes huevos disponibles para este traslado");
 
@@ -119,17 +135,21 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             TipoDestino = dto.TipoDestino,
             Motivo = dto.Motivo,
             Descripcion = dto.Descripcion,
-            CantidadLimpio = dto.CantidadLimpio,
-            CantidadTratado = dto.CantidadTratado,
-            CantidadSucio = dto.CantidadSucio,
-            CantidadDeforme = dto.CantidadDeforme,
-            CantidadBlanco = dto.CantidadBlanco,
-            CantidadDobleYema = dto.CantidadDobleYema,
-            CantidadPiso = dto.CantidadPiso,
-            CantidadPequeno = dto.CantidadPequeno,
-            CantidadRoto = dto.CantidadRoto,
-            CantidadDesecho = dto.CantidadDesecho,
-            CantidadOtro = dto.CantidadOtro,
+            // Clasificación por ítems: las 11 quedan en 0 (mismo criterio que producción, F7) y el
+            // desglose real viaja en Metadata. Flujo legacy: byte a byte igual que siempre.
+            CantidadLimpio = usaHuevoItems ? 0 : dto.CantidadLimpio,
+            CantidadTratado = usaHuevoItems ? 0 : dto.CantidadTratado,
+            CantidadSucio = usaHuevoItems ? 0 : dto.CantidadSucio,
+            CantidadDeforme = usaHuevoItems ? 0 : dto.CantidadDeforme,
+            CantidadBlanco = usaHuevoItems ? 0 : dto.CantidadBlanco,
+            CantidadDobleYema = usaHuevoItems ? 0 : dto.CantidadDobleYema,
+            CantidadPiso = usaHuevoItems ? 0 : dto.CantidadPiso,
+            CantidadPequeno = usaHuevoItems ? 0 : dto.CantidadPequeno,
+            CantidadRoto = usaHuevoItems ? 0 : dto.CantidadRoto,
+            CantidadDesecho = usaHuevoItems ? 0 : dto.CantidadDesecho,
+            CantidadOtro = usaHuevoItems ? 0 : dto.CantidadOtro,
+            TotalHuevos = usaHuevoItems ? HuevoItemsCalculos.SumarTotal(dto.HuevoItems) : dto.TotalHuevos,
+            Metadata = usaHuevoItems ? HuevoItemsCalculos.EscribirEnMetadata(null, dto.HuevoItems) : null,
             Estado = "Pendiente",
             UsuarioTrasladoId = usuarioId,
             UsuarioNombre = ResolverNombreUsuarioDesdeClaims(_httpContextAccessor),
@@ -864,6 +884,7 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             CantidadDesecho = traslado.CantidadDesecho,
             CantidadOtro = traslado.CantidadOtro,
             TotalHuevos = traslado.TotalHuevos,
+            HuevoItems = traslado.Metadata != null ? HuevoItemsCalculos.LeerDeMetadata(traslado.Metadata.RootElement) : null,
             Estado = traslado.Estado,
             UsuarioTrasladoId = traslado.UsuarioTrasladoId,
             UsuarioNombre = traslado.UsuarioNombre,
@@ -924,6 +945,7 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             CantidadDesecho = traslado.CantidadDesecho,
             CantidadOtro = traslado.CantidadOtro,
             TotalHuevos = traslado.TotalHuevos,
+            HuevoItems = traslado.Metadata != null ? HuevoItemsCalculos.LeerDeMetadata(traslado.Metadata.RootElement) : null,
             Estado = traslado.Estado,
             UsuarioTrasladoId = traslado.UsuarioTrasladoId,
             UsuarioNombre = traslado.UsuarioNombre,

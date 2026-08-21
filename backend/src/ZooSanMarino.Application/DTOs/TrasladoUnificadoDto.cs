@@ -62,7 +62,12 @@ public record TrasladoUnificadoDto(
     
     // Información del lote (fase)
     string? FaseLote, // "Levante" o "Produccion"
-    bool TieneSeguimientoProduccion
+    bool TieneSeguimientoProduccion,
+
+    // Transporte (solo aves, opcional — postura Santa Reyes)
+    string? Placa = null,
+    string? Conductor = null,
+    string? Sellos = null
 );
 
 

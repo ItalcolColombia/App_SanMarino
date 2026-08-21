@@ -191,30 +191,6 @@ export interface ResumenPorGranjaDto {
   fechaUltimaActualizacion: Date;
 }
 
-export interface TrasladoRapidoRequest {
-  loteOrigenId: string;
-  loteDestinoId: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  observaciones?: string;
-}
-
-export interface TrasladoRapidoResponse {
-  success: boolean;
-  message: string;
-  movimientoId?: number;
-  inventarioOrigenActualizado?: {
-    loteId: string;
-    cantidadHembras: number;
-    cantidadMachos: number;
-  };
-  inventarioDestinoActualizado?: {
-    loteId: string;
-    cantidadHembras: number;
-    cantidadMachos: number;
-  };
-}
-
 export interface EventoTrazabilidadDto {
   fecha: Date;
   tipoEvento: string;
@@ -383,6 +359,12 @@ export interface TrasladoAvesDesdeSegDiarioDto {
   tipoDestino: string;           // "Levante" | "Produccion"
   granjaDestinoId?: number | null;
   observaciones?: string | null;
+  /** Placa del vehículo de transporte. Opcional (postura, Santa Reyes). */
+  placa?: string | null;
+  /** Nombre del conductor. Opcional (postura, Santa Reyes). */
+  conductor?: string | null;
+  /** Precinto/sellos de seguridad del transporte. Opcional (postura, Santa Reyes). */
+  sellos?: string | null;
 }
 
 export interface TrasladoAvesResultSegDto {
@@ -519,12 +501,6 @@ export class TrasladosAvesService {
   // Búsqueda de movimientos
   searchMovimientos(request: MovimientoAvesSearchRequest): Observable<PagedResult<MovimientoAvesDto>> {
     return this.http.post<PagedResult<MovimientoAvesDto>>(`${this.movimientoUrl}/search`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Traslado rápido
-  trasladoRapido(request: TrasladoRapidoRequest): Observable<TrasladoRapidoResponse> {
-    return this.http.post<TrasladoRapidoResponse>(`${this.movimientoUrl}/traslado-rapido`, request)
       .pipe(catchError(this.handleError));
   }
 

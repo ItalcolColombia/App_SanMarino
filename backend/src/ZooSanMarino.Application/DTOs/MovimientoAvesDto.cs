@@ -195,33 +195,6 @@ public sealed record MovimientoAvesSearchRequest(
 );
 
 /// <summary>
-/// DTO para traslado rápido entre ubicaciones
-/// </summary>
-public sealed class TrasladoRapidoDto
-{
-    public int LoteId { get; set; }  // Changed from string to int
-    
-    // Origen (opcional si se detecta automáticamente)
-    public int? GranjaOrigenId { get; set; }
-    public string? NucleoOrigenId { get; set; }
-    public string? GalponOrigenId { get; set; }
-    
-    // Destino (requerido)
-    public int GranjaDestinoId { get; set; }
-    public string? NucleoDestinoId { get; set; }
-    public string? GalponDestinoId { get; set; }
-    
-    // Cantidades (opcional, por defecto todas las aves)
-    public int? CantidadHembras { get; set; }
-    public int? CantidadMachos { get; set; }
-    public int? CantidadMixtas { get; set; }
-    
-    public string? MotivoTraslado { get; set; }
-    public string? Observaciones { get; set; }
-    public bool ProcesarInmediatamente { get; set; } = true;
-}
-
-/// <summary>
 /// DTO para resultado de operaciones de movimiento
 /// </summary>
 public record ResultadoMovimientoDto(

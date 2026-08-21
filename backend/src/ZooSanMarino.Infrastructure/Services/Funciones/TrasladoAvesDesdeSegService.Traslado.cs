@@ -108,7 +108,10 @@ public partial class TrasladoAvesDesdeSegService
                 LoteDestinoId = destino.LoteBaseId,
                 // Origen del movimiento: el lote base y la granja del espejo ya cargado.
                 LoteOrigenId = origen.LoteBaseId,
-                GranjaOrigenId = origen.GranjaId
+                GranjaOrigenId = origen.GranjaId,
+                Placa = dto.Placa,
+                Conductor = dto.Conductor,
+                Sellos = dto.Sellos
             };
 
             _ctx.MovimientoAves.Add(movimiento);

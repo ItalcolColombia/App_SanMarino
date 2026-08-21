@@ -184,6 +184,13 @@ public class LiquidacionTecnicaComparacionService : ILiquidacionTecnicaComparaci
         if (string.IsNullOrEmpty(raza) || !anoTablaGenetica.HasValue)
             return null;
 
+        // Guía en la tabla dedicada (Santa Reyes u otra empresa con guía propia): no necesita la
+        // normalización ROSS/COBB de abajo (esa es para engorde/reproductora). Si no hay filas ahí
+        // para esta raza+año, sigue el camino de siempre contra la tabla compartida.
+        var propia = await GuiaGeneticaLookup.ObtenerFilasCompatiblesAsync(
+            _context, _currentUser.CompanyId, raza.Trim().ToLower(), anoTablaGenetica.Value.ToString());
+        if (propia.Count > 0) return propia.First();
+
         // Normalizar el nombre de la raza para buscar en ProduccionAvicolaRaw
         var razasParaBuscar = new List<string> { raza };
         

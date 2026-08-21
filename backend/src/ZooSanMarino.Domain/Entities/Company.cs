@@ -228,6 +228,71 @@
         /// </summary>
         public bool RequiereValidacionSeguimientoDiario { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = el seguimiento diario de esta empresa NO registra consumo de alimento de
+        /// MACHOS en producción ni en levante: el bloque «Machos» del formulario se retira y el
+        /// consumo se captura únicamente para hembras.
+        /// <para>
+        /// Nace de Santa Reyes: la empresa no maneja machos en postura, así que exigir su consumo
+        /// es un campo que nunca tiene dato real y una fuente de error de captura.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual: el formulario sigue pidiendo consumo de
+        /// hembras y machos por separado.
+        /// </summary>
+        public bool ConsumoAlimentoSoloHembras { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = esta empresa oculta la columna «Machos» en mortalidad, selección, peso y
+        /// uniformidad, retira el concepto de error de sexaje del registro diario, y en traslados y
+        /// ventas de aves el campo Machos deja de pedirse como discriminado (el total de aves ya
+        /// asume que son hembras).
+        /// <para>
+        /// Nace de Santa Reyes: mismo motivo que <see cref="ConsumoAlimentoSoloHembras"/> pero para
+        /// el resto de los registros que distinguen sexo, no solo el consumo de alimento.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual, sin cambios de UI.
+        /// <para>
+        /// ⚠️ Solo oculta en UI. <c>ErrorSexaje</c> sigue existiendo en el modelo y en los cálculos
+        /// de saldo (<c>SaldoAvesLevanteCalculos</c>, históricos de otras empresas): no se borra.
+        /// </para>
+        /// </summary>
+        public bool OcultaMachosEnPostura { get; set; }
+
+        /// <summary>
+        /// Última semana de vida del lote en la que el huevo de primera postura sigue habilitado
+        /// para capturarse; desde la primera semana siguiente queda deshabilitado. <c>null</c>
+        /// (default) = la empresa no usa el concepto de «primera postura» y no aplica ningún corte.
+        /// <para>
+        /// Nace de Santa Reyes con valor 22: habilitado hasta el último día de la semana 22,
+        /// deshabilitado desde el primer día de la semana 23.
+        /// </para>
+        /// </summary>
+        public int? HuevoPrimeraPosturaHastaSemana { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = la etapa del ciclo de vida del ave (alistamiento/levante/levante en granja
+        /// de producción/postura) se calcula por semana de vida y por raza, en vez de los cortes
+        /// fijos 26-33/34-50/&gt;50. Alcanza el campo «Etapa» del seguimiento diario de producción
+        /// y agrega el mismo dato (solo lectura) al de levante.
+        /// <para>
+        /// Nace de Santa Reyes: 8 sem alistamiento + 16 sem levante (ambos grupos), luego 4 sem
+        /// levante en granja de producción + 74 sem postura (rojas/criollas) u 84 sem (blancas/Azur).
+        /// Ver <c>SemanasCicloPosturaCalculos</c>.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual, sin cambios.
+        /// </summary>
+        public bool SemanasCicloPosturaPorRaza { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = el catálogo de ítems de inventario (<c>CatalogItem.ItemType</c>) sólo
+        /// ofrece «Alimento» y «Aves» al crear/editar/filtrar, en vez de los 6 tipos de siempre
+        /// (alimento/medicamento/accesorio/biologico/consumible/otro).
+        /// <para>Nace de Santa Reyes. Solo acota las opciones de la UI: no valida ni migra ítems
+        /// existentes de otros tipos.</para>
+        /// <c>false</c> (default) = comportamiento actual, los 6 tipos de siempre.
+        /// </summary>
+        public bool LimitaTiposInventarioAlimentoYAves { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

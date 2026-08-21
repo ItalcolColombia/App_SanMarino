@@ -23,8 +23,9 @@ import {
   CatalogItemUpdateRequest,
   PagedResult
 } from '../../services/catalogo-alimentos.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
-type CatalogItemType = 'alimento'|'medicamento'|'accesorio'|'biologico'|'consumible'|'otro';
+type CatalogItemType = 'alimento'|'medicamento'|'accesorio'|'biologico'|'consumible'|'aves'|'otro';
 type Genero = 'Hembra'|'Macho'|'Mixto';
 
 @Component({
@@ -58,10 +59,19 @@ export class CatalogoAlimentosListComponent implements OnInit {
   items: CatalogItemDto[] = [];
 
   // opciones para metadata estructurada
-  tiposItem: CatalogItemType[] = ['alimento','medicamento','accesorio','biologico','consumible','otro'];
+  /** Los 6 tipos de siempre. Con `limitaTiposInventarioAlimentoYAves` ON, ver getter `tiposItem`. */
+  private readonly TIPOS_ITEM_TODOS: CatalogItemType[] = ['alimento','medicamento','accesorio','biologico','consumible','aves','otro'];
+  private readonly TIPOS_ITEM_ALIMENTO_Y_AVES: CatalogItemType[] = ['alimento','aves'];
+  /** Santa Reyes: el catálogo de ítems solo ofrece Alimento y Aves. */
+  limitaTiposInventarioAlimentoYAves = false;
   especies = ['pollo', 'pavo', 'pato', 'ganso', 'codorniz', 'otro'];
   razas = ['Ross', 'Cobb', 'Hubbard', 'Lohmann'];
   generos: Genero[] = ['Hembra', 'Macho', 'Mixto'];
+
+  /** Opciones del select de tipo (filtro + modal alta/edición): las 2 de Santa Reyes o los 6 de siempre. */
+  get tiposItem(): CatalogItemType[] {
+    return this.limitaTiposInventarioAlimentoYAves ? this.TIPOS_ITEM_ALIMENTO_Y_AVES : this.TIPOS_ITEM_TODOS;
+  }
 
   // Campos dinámicos por tipo de item
   camposPorTipo: Record<CatalogItemType, string[]> = {
@@ -70,6 +80,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
     'biologico': ['tipo_biologico', 'via_aplicacion', 'temperatura_almacenamiento'],
     'accesorio': ['tipo_accesorio', 'material', 'dimensiones'],
     'consumible': ['tipo_consumible', 'unidad_medida'],
+    'aves': [],
     'otro': []
   };
 
@@ -79,12 +90,17 @@ export class CatalogoAlimentosListComponent implements OnInit {
   // Form
   form!: FormGroup;
 
-  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService,
     private fb: FormBuilder,
-    private svc: CatalogoAlimentosService
+    private svc: CatalogoAlimentosService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.limitaTiposInventarioAlimentoYAves = flags.limitaTiposInventarioAlimentoYAves;
+    });
+
     this.form = this.fb.group({
       codigo: ['', [Validators.required, Validators.maxLength(10)]],
       nombre: ['', [Validators.required, Validators.maxLength(150)]],

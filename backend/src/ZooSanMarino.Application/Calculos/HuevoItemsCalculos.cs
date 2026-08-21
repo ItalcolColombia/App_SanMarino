@@ -3,6 +3,7 @@
 // en seguimiento_diario_produccion.metadata → huevoItems.
 using System.Text.Json;
 using ZooSanMarino.Application.DTOs.Produccion;
+using System.Linq;
 
 namespace ZooSanMarino.Application.Calculos;
 
@@ -146,4 +147,52 @@ public static class HuevoItemsCalculos
 
     private static string? LeerString(JsonElement e, string prop) =>
         e.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    /// <summary>
+    /// Disponibilidad por ítem = producido (suma de <paramref name="producidos"/> por
+    /// <c>CatalogItemId</c>) menos ya transferido (suma de <paramref name="transferidos"/>, típicamente
+    /// traslados de huevos ya <c>Completado</c>), sin bajar de 0. Ítems presentes solo en
+    /// <paramref name="transferidos"/> (catálogo desactivado tras el traslado) también se incluyen,
+    /// con disponible 0 — nunca negativo, nunca se inventa un producido que no existió.
+    /// <para>
+    /// Código/nombre/tipo/UM del resultado: se toman del primer <paramref name="producidos"/> que
+    /// tenga ese <c>CatalogItemId</c>; si el ítem sólo aparece en <paramref name="transferidos"/>, de
+    /// ahí. Puramente informativo (igual que en <see cref="HuevoItemSeguimientoDto"/>).
+    /// </para>
+    /// </summary>
+    public static List<HuevoItemSeguimientoDto> CalcularDisponibilidad(
+        IEnumerable<HuevoItemSeguimientoDto> producidos,
+        IEnumerable<HuevoItemSeguimientoDto> transferidos)
+    {
+        var producidoPorItem = new Dictionary<int, int>();
+        var infoPorItem = new Dictionary<int, HuevoItemSeguimientoDto>();
+        foreach (var p in producidos ?? Enumerable.Empty<HuevoItemSeguimientoDto>())
+        {
+            if (p.CatalogItemId <= 0) continue;
+            producidoPorItem[p.CatalogItemId] = producidoPorItem.GetValueOrDefault(p.CatalogItemId) + p.Cantidad;
+            infoPorItem.TryAdd(p.CatalogItemId, p);
+        }
+
+        var transferidoPorItem = new Dictionary<int, int>();
+        foreach (var t in transferidos ?? Enumerable.Empty<HuevoItemSeguimientoDto>())
+        {
+            if (t.CatalogItemId <= 0) continue;
+            transferidoPorItem[t.CatalogItemId] = transferidoPorItem.GetValueOrDefault(t.CatalogItemId) + t.Cantidad;
+            infoPorItem.TryAdd(t.CatalogItemId, t);
+        }
+
+        var idsOrdenados = producidoPorItem.Keys.Union(transferidoPorItem.Keys).OrderBy(id => id);
+
+        var resultado = new List<HuevoItemSeguimientoDto>();
+        foreach (var id in idsOrdenados)
+        {
+            var producido = producidoPorItem.GetValueOrDefault(id);
+            var transferido = transferidoPorItem.GetValueOrDefault(id);
+            var disponible = Math.Max(0, producido - transferido);
+            var info = infoPorItem[id];
+            resultado.Add(info with { Cantidad = disponible });
+        }
+
+        return resultado;
+    }
 }

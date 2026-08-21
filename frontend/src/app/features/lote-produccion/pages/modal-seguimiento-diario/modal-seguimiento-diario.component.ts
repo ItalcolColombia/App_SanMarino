@@ -22,10 +22,19 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 import { HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
 import {
   agruparItemsHuevoPorTipo,
+  esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
   mapearItemsHuevoACatalogo,
   sumarCantidadesHuevo
 } from '../../funciones/items-huevo-catalogo.funcion';
+import {
+  calcularEtapaCicloPostura,
+  etiquetaEtapaCicloPostura,
+  ETAPA_CICLO_POSTURA,
+  ETAPA_CICLO_FUERA_DE_CICLO,
+  EtapaCicloPostura
+} from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
+import { semanaVidaLevante } from '../../../lote-levante/funciones/semana-vida-levante.funcion';
 
 // Interfaz extendida localmente para incluir tipoItem y unidad
 interface CatalogItemExtended extends CatalogItemDto {
@@ -79,6 +88,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   @Input() editingSeguimiento: SeguimientoItemDto | null = null;
   @Input() loading: boolean = false;
   @Input() fechaEncaset: string | Date | null = null; // Fecha de encaset para calcular etapa
+  /** Raza del lote (`lote.raza`) — solo se usa con el flag `semanasCicloPosturaPorRaza` (Santa Reyes). */
+  @Input() raza: string | null = null;
   @Input() granjaId: number | null = null; // ID de la granja para cargar inventario
   /** Lote maestro (`lotes.lote_id`): de él cuelgan los silos de consumo (`lote_silos`). */
   @Input() loteId: number | null = null;
@@ -110,6 +121,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private stockPorItemSilo = new Map<string, SaldoItem>();
   /** Empresa que ubica el inventario por silo. Fail-closed: false hasta que el flag responda. */
   manejaPorSilo = false;
+  /** Santa Reyes: la etapa se calcula por semana de vida y por raza (ver `semanas-ciclo-postura.funcion`). */
+  semanasCicloPosturaPorRaza = false;
+  /** Santa Reyes: el seguimiento no captura consumo de alimento de Machos (no se manejan en postura). */
+  consumoAlimentoSoloHembras = false;
+  /** Santa Reyes: oculta Machos en mortalidad/selección/peso/uniformidad y retira error de sexaje. Solo UI. */
+  ocultaMachosEnPostura = false;
   /** Silos que el lote tiene asignados: de esos —y solo de esos— puede consumir. */
   silosDelLote: LoteSiloDto[] = [];
   private silosLoteLoadId = 0;
@@ -149,6 +166,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   /** Total de huevos clasificados (memoizado; NO getter, para no alocar en cada ciclo de CD). */
   totalHuevosClasificados = 0;
   cargandoItemsHuevo = false;
+  /**
+   * Santa Reyes: última semana de vida con «Huevo de primera postura» vigente (`Company
+   * .huevoPrimeraPosturaHastaSemana`). `null` = sin límite, no se oculta ningún ítem.
+   */
+  huevoPrimeraPosturaHastaSemana: number | null = null;
   /** Ítems del catálogo por id (para completar código/nombre/tipoHuevo/um en el payload). */
   private huevoItemsById = new Map<number, HuevoCatalogOption>();
   /** Ítems que ya venían en `metadata.huevoItems` (fallback si salieron del catálogo). */
@@ -194,6 +216,22 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         this.manejaPorSilo = flags.manejaInventarioPorSilo;
         this.cargarSilosDelLote();
       }
+      if (this.semanasCicloPosturaPorRaza !== flags.semanasCicloPosturaPorRaza) {
+        this.semanasCicloPosturaPorRaza = flags.semanasCicloPosturaPorRaza;
+        // El flag llega async: si el modal ya estaba abierto con fecha cargada, recalcular.
+        this.calcularYActualizarEtapa();
+      }
+      if (this.consumoAlimentoSoloHembras !== flags.consumoAlimentoSoloHembras) {
+        this.consumoAlimentoSoloHembras = flags.consumoAlimentoSoloHembras;
+        // El flag llega async: `initializeForm`/`populateForm` ya corrieron y pudieron dejar el
+        // ítem fijo de Machos cargado — si el flag resultó ON, se vacía el array entero (también
+        // borra un eventual ítem histórico rehidratado al editar; Santa Reyes no tiene ninguno).
+        if (this.consumoAlimentoSoloHembras) {
+          while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+        }
+      }
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
+      this.huevoPrimeraPosturaHastaSemana = flags.huevoPrimeraPosturaHastaSemana;
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       if (!this.clasificacionHuevoPorItems) return;
@@ -763,6 +801,18 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return true;
     }
     return false;
+  }
+
+  /**
+   * Template: ¿sigue vigente este ítem de huevo? Solo aplica a los tagueados «primera postura»
+   * (`Company.huevoPrimeraPosturaHastaSemana`, hoy semana 22 en Santa Reyes) — el resto de los
+   * ítems (Primera común / Pnc) no tiene vigencia y siempre devuelve `true`.
+   */
+  itemHuevoVigente(op: HuevoCatalogOption): boolean {
+    if (!op.primeraPostura) return true;
+    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
+    const semanaVida = semanaVidaLevante(this.fechaEncaset, fechaRegistro);
+    return esVigentePrimeraPostura(this.huevoPrimeraPosturaHastaSemana, semanaVida);
   }
 
   /** Registro nuevo con el flag activo: arranca con una fila lista para cargar. */
@@ -1459,9 +1509,18 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
   }
 
-  /** REQ-012c: rango alineado a la hoja de fórmulas (26-33 / 34-50 / >50, no 25-33). */
+  /**
+   * REQ-012c: rango alineado a la hoja de fórmulas (26-33 / 34-50 / >50, no 25-33) — se conserva
+   * BYTE A BYTE con el flag `semanasCicloPosturaPorRaza` apagado o con raza no reconocida (Santa
+   * Reyes: ver `semanas-ciclo-postura.funcion.ts`, no se adivina el grupo por raza).
+   */
   calcularEtapa(fechaRegistro: string | Date | null): number {
     if (!fechaRegistro || !this.fechaEncaset) return 1;
+
+    if (this.semanasCicloPosturaPorRaza) {
+      const etapaRaza = calcularEtapaCicloPostura(this.raza, this.fechaEncaset, fechaRegistro);
+      if (etapaRaza) return this.etapaCicloANumero(etapaRaza);
+    }
 
     const fechaEncaset = new Date(this.fechaEncaset);
     const fechaReg = new Date(fechaRegistro);
@@ -1477,6 +1536,13 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return 3;
   }
 
+  /** Colapsa la etapa por raza al mismo rango 1/2/3 que persiste `form.etapa` (dato exportable, no aritmético). */
+  private etapaCicloANumero(etapa: EtapaCicloPostura): number {
+    if (etapa === ETAPA_CICLO_POSTURA) return 2;
+    if (etapa === ETAPA_CICLO_FUERA_DE_CICLO) return 3;
+    return 1; // Alistamiento / Levante / LevanteEnProduccion — no debería verse en este modal, pero no revienta
+  }
+
   getEtapaLabel(etapa: number): string {
     const labels: { [key: number]: string } = {
       1: 'Etapa 1 (Semana 26-33)',
@@ -1484,6 +1550,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       3: 'Etapa 3 (Semana >50)'
     };
     return labels[etapa] || `Etapa ${etapa}`;
+  }
+
+  /**
+   * Etiqueta mostrada en el hint del formulario. Con el flag ON recalcula la etapa completa
+   * (Alistamiento/Levante/Levante en producción/Postura/Fuera de ciclo) desde raza+fecha en vez de
+   * reconstruirla del número 1/2/3 ya colapsado por `etapaCicloANumero`.
+   */
+  getEtapaLabelActual(): string {
+    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
+    if (this.semanasCicloPosturaPorRaza) {
+      const etapaRaza = calcularEtapaCicloPostura(this.raza, this.fechaEncaset, fechaRegistro);
+      if (etapaRaza) return etiquetaEtapaCicloPostura(etapaRaza);
+    }
+    return this.getEtapaLabel(Number(this.form?.get('etapa')?.value) || 1);
   }
 
   /** Hoy en formato YYYY-MM-DD (local, sin zona) para <input type="date"> */

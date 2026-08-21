@@ -181,6 +181,11 @@ export interface TrasladoUnificado {
   // Información del lote
   faseLote?: string; // "Levante" o "Produccion"
   tieneSeguimientoProduccion: boolean;
+
+  // Transporte (solo aves, opcional — postura Santa Reyes)
+  placa?: string | null;
+  conductor?: string | null;
+  sellos?: string | null;
 }
 
 @Injectable({

@@ -263,12 +263,11 @@ namespace ZooSanMarino.Infrastructure.Services
             // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja+galpón, entre lotes activos)
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, dto.GalponId, excludeLoteId: null);
 
-            // Guía genética CONDICIONAL: si la empresa todavía no cargó su guía (0 filas vivas en
-            // produccion_avicola_raw) Raza/Año son opcionales — raza de texto libre — y no se
-            // verifica existencia; apenas carga la guía vuelve a regir la validación de siempre.
-            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
-                .AsNoTracking()
-                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
+            // Guía genética CONDICIONAL: si la empresa todavía no cargó su guía (0 filas vivas, en
+            // guia_genetica_santa_reyes O en produccion_avicola_raw) Raza/Año son opcionales — raza
+            // de texto libre — y no se verifica existencia; apenas carga la guía vuelve a regir la
+            // validación de siempre. GuiaGeneticaLookup mira las dos tablas (ver su doc-comment).
+            var companyTieneGuia = await GuiaGeneticaLookup.TieneGuiaAsync(_ctx, companyId);
 
             var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
             if (errorGuia is not null)
@@ -276,18 +275,10 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
             {
-                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                // Validar que (Raza, Año tabla) exista en la guía genética de la compañía actual
                 var razaNorm = dto.Raza!.Trim().ToLower();
                 var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var existeGuia = await _ctx.ProduccionAvicolaRaw
-                    .AsNoTracking()
-                    .AnyAsync(p =>
-                        p.CompanyId == companyId &&
-                        p.DeletedAt == null &&
-                        p.Raza != null &&
-                        p.AnioGuia != null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                        p.AnioGuia.Trim() == anio);
+                var existeGuia = await GuiaGeneticaLookup.ExisteAsync(_ctx, companyId, razaNorm, anio);
 
                 if (!existeGuia)
                     throw new InvalidOperationException(
@@ -549,10 +540,9 @@ namespace ZooSanMarino.Infrastructure.Services
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, dto.GalponId, excludeLoteId: dto.LoteId);
 
             // Guía genética CONDICIONAL (mismo criterio que CreateAsync): sin guía cargada en la
-            // empresa, Raza/Año son opcionales (raza libre) y no se verifica existencia.
-            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
-                .AsNoTracking()
-                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
+            // empresa (en ninguna de las dos tablas), Raza/Año son opcionales (raza libre) y no se
+            // verifica existencia.
+            var companyTieneGuia = await GuiaGeneticaLookup.TieneGuiaAsync(_ctx, companyId);
 
             var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
             if (errorGuia is not null)
@@ -560,18 +550,10 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
             {
-                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                // Validar que (Raza, Año tabla) exista en la guía genética de la compañía actual
                 var razaNorm = dto.Raza!.Trim().ToLower();
                 var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var existeGuia = await _ctx.ProduccionAvicolaRaw
-                    .AsNoTracking()
-                    .AnyAsync(p =>
-                        p.CompanyId == companyId &&
-                        p.DeletedAt == null &&
-                        p.Raza != null &&
-                        p.AnioGuia != null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                        p.AnioGuia.Trim() == anio);
+                var existeGuia = await GuiaGeneticaLookup.ExisteAsync(_ctx, companyId, razaNorm, anio);
 
                 if (!existeGuia)
                     throw new InvalidOperationException(

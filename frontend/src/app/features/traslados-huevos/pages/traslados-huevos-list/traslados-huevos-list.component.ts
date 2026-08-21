@@ -18,6 +18,7 @@ import {
   ListaSeguimientoResponse
 } from '../../../lote-produccion/services/produccion.service';
 import { environment } from '../../../../../environments/environment';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-traslados-huevos-list',
@@ -50,7 +51,7 @@ export class TrasladosHuevosListComponent implements OnInit {
   /** Resumen espejo LPP + ubicación (desde API disponibilidad). */
   disponibilidad: DisponibilidadLoteDto | null = null;
   /** Columnas de datos + columna acciones (para colspan en estados vacíos). */
-  readonly tablaColumnasCount = 36;
+  readonly tablaColumnasCount = 37;
   /** Lote LPP seleccionado (para fechaEncaset, etc.) */
   selectedLoteInfo: { loteNombre: string; fechaEncaset?: string | null } | null = null;
 
@@ -88,14 +89,21 @@ export class TrasladosHuevosListComponent implements OnInit {
     return l?.loteNombre ?? this.selectedLoteInfo?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
   }
 
-  constructor(private confirmDialog: ConfirmDialogService, 
+  /** Santa Reyes: los huevos se clasifican por ítem del catálogo en vez de las 11 columnas fijas. */
+  clasificacionHuevoPorItems = false;
+
+  constructor(private confirmDialog: ConfirmDialogService,
     private trasladosService: TrasladosHuevosService,
-    private produccionService: ProduccionService
+    private produccionService: ProduccionService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   // ================== INIT ==================
   ngOnInit(): void {
     this.filteredTraslados = [];
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+    });
   }
 
   onFilterDataLoaded(data: FilterDataResponse): void {
@@ -341,11 +349,13 @@ export class TrasladosHuevosListComponent implements OnInit {
     return fmtNumero(num);
   }
 
+  /**
+   * Total real del traslado — usa `totalHuevos` (columna persistida por el backend, ver F10 §9 del
+   * plan de Santa Reyes) en vez de resumar las 11 `cantidad*` legacy: para un traslado por ÍTEMS del
+   * catálogo esas 11 quedan en 0, así que resumarlas mostraría 0 aunque el traslado sí movió huevos.
+   */
   getTotalHuevos(traslado: TrasladoHuevosDto): number {
-    return traslado.cantidadLimpio + traslado.cantidadTratado + traslado.cantidadSucio +
-           traslado.cantidadDeforme + traslado.cantidadBlanco + traslado.cantidadDobleYema +
-           traslado.cantidadPiso + traslado.cantidadPequeno + traslado.cantidadRoto +
-           traslado.cantidadDesecho + traslado.cantidadOtro;
+    return traslado.totalHuevos;
   }
 
   /** Suma de huevos en ventas completadas (inventario retirado por venta). */

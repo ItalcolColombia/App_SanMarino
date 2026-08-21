@@ -63,6 +63,27 @@ export interface CompanyFlags {
    * pendientes al entrar al lote.
    */
   requiereValidacionSeguimientoDiario: boolean;
+  /**
+   * Santa Reyes: la etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/
+   * postura) se calcula por semana de vida y por raza, en vez de los cortes fijos 26-33/34-50/&gt;50.
+   */
+  semanasCicloPosturaPorRaza: boolean;
+  /** Santa Reyes: el seguimiento diario no captura consumo de alimento de Machos (no se manejan en postura). */
+  consumoAlimentoSoloHembras: boolean;
+  /**
+   * Santa Reyes: oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas
+   * y retira el error de sexaje del registro diario. Solo UI — el dato sigue existiendo en el modelo
+   * (lo consumen saldos e históricos de otras empresas).
+   */
+  ocultaMachosEnPostura: boolean;
+  /** Santa Reyes: el catálogo de ítems de inventario sólo ofrece Alimento y Aves (en vez de los 6 tipos de siempre). */
+  limitaTiposInventarioAlimentoYAves: boolean;
+  /**
+   * Santa Reyes: última semana de vida del lote (edad global desde encasetamiento) en la que el
+   * ítem «Huevo de primera postura» sigue disponible en la clasificación por ítems. `null` = sin
+   * límite configurado (todas las empresas salvo Santa Reyes) — no se oculta nada.
+   */
+  huevoPrimeraPosturaHastaSemana: number | null;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -76,7 +97,12 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   programacionLotesEngorde: false,
   nombreLoteIncluyeCorrida: false,
   manejaInventarioPorSilo: false,
-  requiereValidacionSeguimientoDiario: false
+  requiereValidacionSeguimientoDiario: false,
+  semanasCicloPosturaPorRaza: false,
+  consumoAlimentoSoloHembras: false,
+  ocultaMachosEnPostura: false,
+  limitaTiposInventarioAlimentoYAves: false,
+  huevoPrimeraPosturaHastaSemana: null
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -99,6 +125,11 @@ interface CompanyFlagsResponse {
   nombreLoteIncluyeCorrida?: boolean | null;
   manejaInventarioPorSilo?: boolean | null;
   requiereValidacionSeguimientoDiario?: boolean | null;
+  semanasCicloPosturaPorRaza?: boolean | null;
+  consumoAlimentoSoloHembras?: boolean | null;
+  ocultaMachosEnPostura?: boolean | null;
+  limitaTiposInventarioAlimentoYAves?: boolean | null;
+  huevoPrimeraPosturaHastaSemana?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -158,6 +189,36 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿los seguimientos diarios de la empresa activa exigen doble validación? */
   readonly requiereValidacionSeguimientoDiario$: Observable<boolean> = this.flags$.pipe(
     map(f => f.requiereValidacionSeguimientoDiario),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa calcula la etapa del ciclo de vida por semana y por raza? */
+  readonly semanasCicloPosturaPorRaza$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.semanasCicloPosturaPorRaza),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa no captura consumo de alimento de Machos? */
+  readonly consumoAlimentoSoloHembras$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.consumoAlimentoSoloHembras),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa oculta Machos en mortalidad/selección/peso/uniformidad/ventas? */
+  readonly ocultaMachosEnPostura$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.ocultaMachosEnPostura),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿el catálogo de ítems de inventario de la empresa activa se limita a Alimento y Aves? */
+  readonly limitaTiposInventarioAlimentoYAves$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.limitaTiposInventarioAlimentoYAves),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: última semana de vida con «Huevo de primera postura» vigente (`null` = sin límite). */
+  readonly huevoPrimeraPosturaHastaSemana$: Observable<number | null> = this.flags$.pipe(
+    map(f => f.huevoPrimeraPosturaHastaSemana),
     distinctUntilChanged()
   );
 
@@ -270,7 +331,14 @@ export class ActiveCompanyConfigService {
       programacionLotesEngorde: dto?.programacionLotesEngorde === true,
       nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true,
       manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true,
-      requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true
+      requiereValidacionSeguimientoDiario: dto?.requiereValidacionSeguimientoDiario === true,
+      semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true,
+      consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true,
+      ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true,
+      limitaTiposInventarioAlimentoYAves: dto?.limitaTiposInventarioAlimentoYAves === true,
+      huevoPrimeraPosturaHastaSemana: typeof dto?.huevoPrimeraPosturaHastaSemana === 'number'
+        ? dto.huevoPrimeraPosturaHastaSemana
+        : null
     };
   }
 
@@ -288,7 +356,12 @@ export class ActiveCompanyConfigService {
       actual.programacionLotesEngorde === flags.programacionLotesEngorde &&
       actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida &&
       actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo &&
-      actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario
+      actual.requiereValidacionSeguimientoDiario === flags.requiereValidacionSeguimientoDiario &&
+      actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza &&
+      actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras &&
+      actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura &&
+      actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves &&
+      actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana
     ) return;
     this.flagsSubject.next(flags);
   }

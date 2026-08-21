@@ -76,6 +76,11 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
             .GroupBy(_ => 1)
             .Select(g => new
             {
+                // Total: SIEMPRE desde TotalHuevos (columna real que el service fija en los dos
+                // flujos — legacy y por ítems, ver F10 §9). Las 11 de abajo solo alimentan el
+                // desglose legacy (*Dinamico por tipo); un traslado por ítems las deja en 0 a
+                // propósito, así que NO deben usarse para el total o el descuento quedaría corto.
+                Total = g.Sum(t => (long)t.TotalHuevos),
                 Limpio = g.Sum(t => (long)t.CantidadLimpio),
                 Trat = g.Sum(t => (long)t.CantidadTratado),
                 Sucio = g.Sum(t => (long)t.CantidadSucio),
@@ -118,7 +123,7 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
         var tOtro = mov?.Otro ?? 0L;
 
         var tInc = tLimpio + tTrat;
-        var movTot = tLimpio + tTrat + tSucio + tDef + tBlanco + tDy + tPiso + tPeq + tRoto + tDes + tOtro;
+        var movTot = mov?.Total ?? 0L;
 
         static int H(long historico, long mov)
         {

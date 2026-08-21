@@ -104,7 +104,15 @@ public class TrasladoHuevosConfiguration : IEntityTypeConfiguration<TrasladoHuev
         builder.Property(t => t.CantidadOtro)
             .HasColumnName("cantidad_otro")
             .HasDefaultValue(0);
-        
+
+        builder.Property(t => t.TotalHuevos)
+            .HasColumnName("total_huevos")
+            .HasDefaultValue(0);
+
+        builder.Property(t => t.Metadata)
+            .HasColumnName("metadata")
+            .HasColumnType("jsonb");
+
         builder.Property(t => t.Estado)
             .HasColumnName("estado")
             .HasMaxLength(20)

@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/Traslados/TrasladoHuevosDto.cs
+using ZooSanMarino.Application.DTOs.Produccion;
+
 namespace ZooSanMarino.Application.DTOs.Traslados;
 
 /// <summary>
@@ -37,7 +39,10 @@ public record TrasladoHuevosDto
     public int CantidadDesecho { get; init; }
     public int CantidadOtro { get; init; }
     public int TotalHuevos { get; init; }
-    
+
+    /// <summary>Clasificación por ítem del catálogo (Santa Reyes). <c>null</c> = flujo legacy.</summary>
+    public IReadOnlyList<HuevoItemSeguimientoDto>? HuevoItems { get; init; }
+
     public string Estado { get; init; } = string.Empty;
     public int UsuarioTrasladoId { get; init; }
     public string? UsuarioNombre { get; init; }

@@ -80,7 +80,12 @@ public class CompanyResolver : ICompanyResolver
                 c.ReportesAlimentoDesdeInventarioUnificado,
                 c.RequiereValidacionSeguimientoDiario,
                 c.SeguimientoEngordeMixto,
-                c.ReporteCostosAlimentoDesdeFuentesReales
+                c.ReporteCostosAlimentoDesdeFuentesReales,
+                c.ConsumoAlimentoSoloHembras,
+                c.OcultaMachosEnPostura,
+                c.HuevoPrimeraPosturaHastaSemana,
+                c.SemanasCicloPosturaPorRaza,
+                c.LimitaTiposInventarioAlimentoYAves
             ))
             .FirstOrDefaultAsync();
 
@@ -133,7 +138,12 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.ReportesAlimentoDesdeInventarioUnificado,
                 uc.Company.RequiereValidacionSeguimientoDiario,
                 uc.Company.SeguimientoEngordeMixto,
-                uc.Company.ReporteCostosAlimentoDesdeFuentesReales
+                uc.Company.ReporteCostosAlimentoDesdeFuentesReales,
+                uc.Company.ConsumoAlimentoSoloHembras,
+                uc.Company.OcultaMachosEnPostura,
+                uc.Company.HuevoPrimeraPosturaHastaSemana,
+                uc.Company.SemanasCicloPosturaPorRaza,
+                uc.Company.LimitaTiposInventarioAlimentoYAves
             ))
             .ToListAsync();
 

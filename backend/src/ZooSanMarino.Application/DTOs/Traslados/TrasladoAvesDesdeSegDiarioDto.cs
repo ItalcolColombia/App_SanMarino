@@ -23,4 +23,11 @@ public class TrasladoAvesDesdeSegDiarioDto
 
     public int? GranjaDestinoId { get; set; }
     public string? Observaciones { get; set; }
+
+    /// <summary>Placa del vehículo de transporte. Opcional (postura, Santa Reyes).</summary>
+    public string? Placa { get; set; }
+    /// <summary>Nombre del conductor. Opcional (postura, Santa Reyes).</summary>
+    public string? Conductor { get; set; }
+    /// <summary>Precinto/sellos de seguridad del transporte. Opcional (postura, Santa Reyes).</summary>
+    public string? Sellos { get; set; }
 }

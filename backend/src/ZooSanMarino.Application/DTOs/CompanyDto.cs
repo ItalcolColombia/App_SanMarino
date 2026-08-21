@@ -68,5 +68,15 @@ public record CompanyDto(
     /// <summary>Pollo engorde en modo MIXTO: una sola columna en vez de hembras/machos.</summary>
     bool SeguimientoEngordeMixto = false,
     /// <summary>El reporte de costos toma el alimento de las fuentes reales de inventario.</summary>
-    bool ReporteCostosAlimentoDesdeFuentesReales = false
+    bool ReporteCostosAlimentoDesdeFuentesReales = false,
+    /// <summary>El seguimiento diario no captura consumo de alimento de machos (producción ni levante).</summary>
+    bool ConsumoAlimentoSoloHembras = false,
+    /// <summary>Oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas y retira error de sexaje del registro diario.</summary>
+    bool OcultaMachosEnPostura = false,
+    /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. Null = la empresa no usa el concepto.</summary>
+    int? HuevoPrimeraPosturaHastaSemana = null,
+    /// <summary>La etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/postura) se calcula por semana y por raza.</summary>
+    bool SemanasCicloPosturaPorRaza = false,
+    /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
+    bool LimitaTiposInventarioAlimentoYAves = false
 );

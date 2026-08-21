@@ -1,7 +1,8 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProduccionService, SeguimientoItemDto } from '../../services/produccion.service';
+import { HuevoItemSeguimiento, ProduccionService, SeguimientoItemDto, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-modal-detalle-seguimiento',
@@ -19,14 +20,25 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
   loading: boolean = false;
   seguimiento: SeguimientoItemDto | null = null;
   isEcuadorOrPanama: boolean = false;
+  /** Santa Reyes: los huevos se clasifican por ítem del catálogo (Primera/Pnc) en vez de las 11 columnas fijas. */
+  clasificacionHuevoPorItems: boolean = false;
 
   constructor(
     private produccionService: ProduccionService,
-    private countryFilter: CountryFilterService
+    private countryFilter: CountryFilterService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   ngOnInit(): void {
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+    });
+  }
+
+  /** Desglose por ítem guardado en `metadata.huevoItems` (empresas con clasificación por ítems). */
+  get huevoItemsGuardados(): HuevoItemSeguimiento[] {
+    return leerHuevoItemsDeMetadata(this.seguimiento?.metadata);
   }
 
   ngOnChanges(changes: SimpleChanges): void {

@@ -124,6 +124,39 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el seguimiento diario no captura consumo de alimento de
+        // machos (producción ni levante). Nace de Santa Reyes.
+        builder.Property(x => x.ConsumoAlimentoSoloHembras)
+            .HasColumnName("consumo_alimento_solo_hembras")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: oculta la columna Machos en mortalidad/selección/peso/
+        // uniformidad/traslados/ventas y retira error de sexaje del registro diario (solo UI).
+        builder.Property(x => x.OcultaMachosEnPostura)
+            .HasColumnName("oculta_machos_en_postura")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Parámetro operativo: última semana con huevo de primera postura habilitado. Null = la
+        // empresa no usa el concepto.
+        builder.Property(x => x.HuevoPrimeraPosturaHastaSemana)
+            .HasColumnName("huevo_primera_postura_hasta_semana");
+
+        // Flag tipado por comportamiento: la etapa del ciclo de vida (alistamiento/levante/levante
+        // en producción/postura) se calcula por semana y por raza en vez de los cortes fijos.
+        builder.Property(x => x.SemanasCicloPosturaPorRaza)
+            .HasColumnName("semanas_ciclo_postura_por_raza")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: el catálogo de ítems de inventario sólo ofrece Alimento
+        // y Aves. Nace de Santa Reyes.
+        builder.Property(x => x.LimitaTiposInventarioAlimentoYAves)
+            .HasColumnName("limita_tipos_inventario_alimento_y_aves")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

@@ -222,7 +222,10 @@ public class TrasladoNavigationController : ControllerBase
                     CreatedAt: mov.CreatedAt,
                     UpdatedAt: mov.UpdatedAt,
                     FaseLote: faseLote,
-                    TieneSeguimientoProduccion: await TieneSeguimientoProduccionAsync(loteId)
+                    TieneSeguimientoProduccion: await TieneSeguimientoProduccionAsync(loteId),
+                    Placa: mov.Placa,
+                    Conductor: mov.Conductor,
+                    Sellos: mov.Sellos
                 ));
             }
 

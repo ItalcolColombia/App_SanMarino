@@ -17,6 +17,7 @@ export type CatalogItemType =
   | 'accesorio'
   | 'biologico'
   | 'consumible'
+  | 'aves'
   | 'otro';
 
 export interface CatalogItemDto {

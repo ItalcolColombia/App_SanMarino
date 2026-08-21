@@ -30,6 +30,16 @@ function leerMeta(metadata: unknown, ...claves: string[]): string | null {
   return null;
 }
 
+/** Lee una clave booleana de la metadata del catálogo (tolerando camelCase / snake_case). */
+function leerMetaBool(metadata: unknown, ...claves: string[]): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  const obj = metadata as Record<string, unknown>;
+  for (const clave of claves) {
+    if (obj[clave] === true) return true;
+  }
+  return false;
+}
+
 /**
  * Convierte los ítems del catálogo (respuesta de `GET /api/catalogo-alimentos/filter?typeItem=huevo`)
  * en opciones del select. Descarta los que no tengan id.
@@ -47,6 +57,7 @@ export function mapearItemsHuevoACatalogo(items: readonly CatalogItemDto[]): Hue
       nombre,
       tipoHuevo: leerMeta(item.metadata, 'tipoHuevo', 'tipo_huevo'),
       um: leerMeta(item.metadata, 'um', 'UM', 'unidadMedida'),
+      primeraPostura: leerMetaBool(item.metadata, 'primeraPostura', 'primera_postura'),
       label: codigo && nombre ? `${codigo} — ${nombre}` : (nombre || codigo || `Ítem ${id}`)
     });
   }
@@ -75,10 +86,24 @@ export function fusionarItemsHuevoGuardados(
       nombre,
       tipoHuevo: g.tipoHuevo?.trim() || null,
       um: g.um?.trim() || null,
+      // El desglose guardado no persiste `primeraPostura`: un ítem ya elegido y guardado se
+      // mantiene editable siempre, la vigencia solo decide qué se OFRECE como opción nueva.
+      primeraPostura: false,
       label: codigo && nombre ? `${codigo} — ${nombre}` : (nombre || codigo || `Ítem ${id}`)
     });
   }
   return resultado;
+}
+
+/**
+ * ¿Sigue vigente el ítem «Huevo de primera postura» a esta semana de vida del lote?
+ * Espejo de `HuevoPrimeraPosturaCalculos.EsVigente` (backend) — mismo criterio fail-open: sin
+ * límite configurado o sin semana de vida calculable, no se oculta nada.
+ */
+export function esVigentePrimeraPostura(hastaSemana: number | null, semanaVida: number | null): boolean {
+  if (hastaSemana == null) return true;
+  if (semanaVida == null) return true;
+  return semanaVida <= hastaSemana;
 }
 
 /**

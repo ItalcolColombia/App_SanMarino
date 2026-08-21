@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
-using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -34,6 +33,113 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     }
 
     /// <summary>
+    /// Fila de guía genética normalizada a texto, sea cual sea la tabla de origen. Preserva el
+    /// contrato que ya consumen <see cref="ParseDouble"/>/<see cref="TryParseEdadNumerica"/>, así
+    /// que agregar una fuente nueva no cambia un byte del parseo existente.
+    /// </summary>
+    private sealed record GuiaGeneticaFila(
+        string Raza, string AnioGuia, string? Edad,
+        string? GrAveDiaH, string? GrAveDiaM,
+        string? RetiroAcH, string? RetiroAcM,
+        string? PesoH, string? PesoM,
+        string? MortSemH, string? MortSemM,
+        string? Uniformidad, string? Valor1000);
+
+    /// <summary>
+    /// Candidatos de una raza+año, por empresa. Primero mira <c>guia_genetica_santa_reyes</c> (tabla
+    /// dedicada, liviana, nace con Santa Reyes pero no está atada a esa empresa por nombre); si no
+    /// tiene filas para esta empresa+raza+año, cae al comportamiento de siempre contra
+    /// <c>ProduccionAvicolaRaw</c> (guia_genetica_sanmarino_colombia). Una empresa nunca tiene datos
+    /// en las dos tablas para la misma raza, así que esto no mezcla ni prioriza por lógica de
+    /// negocio — es puramente "¿dónde vive el dato de esta empresa?".
+    /// </summary>
+    private async Task<List<GuiaGeneticaFila>> ObtenerCandidatosAsync(int companyId, string razaNorm, string anio)
+    {
+        var propios = await _ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .Where(g =>
+                g.CompanyId == companyId &&
+                g.DeletedAt == null &&
+                g.Raza.Trim().ToLower() == razaNorm &&
+                g.AnioGuia.Trim() == anio)
+            .Select(g => new GuiaGeneticaFila(
+                g.Raza, g.AnioGuia, g.Edad.ToString(),
+                g.GrAveDiaH.HasValue ? g.GrAveDiaH.Value.ToString(CultureInfo.InvariantCulture) : null, null,
+                g.RetiroAcH.HasValue ? g.RetiroAcH.Value.ToString(CultureInfo.InvariantCulture) : null, null,
+                null, null, null, null, null, null))
+            .ToListAsync();
+
+        if (propios.Count > 0) return propios;
+
+        var compartidos = await _ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .Where(p =>
+                p.CompanyId == companyId &&
+                p.DeletedAt == null &&
+                p.Raza != null && p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == anio)
+            .Select(p => new GuiaGeneticaFila(
+                p.Raza!, p.AnioGuia!, p.Edad,
+                p.GrAveDiaH, p.GrAveDiaM,
+                p.RetiroAcH, p.RetiroAcM,
+                p.PesoH, p.PesoM,
+                p.MortSemH, p.MortSemM,
+                p.Uniformidad, p.Valor1000))
+            .ToListAsync();
+
+        return compartidos;
+    }
+
+    /// <summary>
+    /// Razas disponibles para la empresa: primero la tabla dedicada, y si está vacía para esta
+    /// empresa, la compartida — mismo criterio de <see cref="ObtenerCandidatosAsync"/>.
+    /// </summary>
+    private async Task<List<string>> ObtenerRazasCrudoAsync(int companyId)
+    {
+        var propias = await _ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .Where(g => g.CompanyId == companyId && g.DeletedAt == null)
+            .Select(g => g.Raza)
+            .Distinct()
+            .ToListAsync();
+
+        if (propias.Count > 0) return propias;
+
+        return await _ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.DeletedAt == null && !string.IsNullOrWhiteSpace(p.Raza))
+            .Select(p => p.Raza!)
+            .Distinct()
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Años (crudos, como texto) disponibles para una raza de la empresa — mismo criterio de
+    /// <see cref="ObtenerCandidatosAsync"/>.
+    /// </summary>
+    private async Task<List<string>> ObtenerAniosCrudoAsync(int companyId, string razaNorm)
+    {
+        var propios = await _ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .Where(g => g.CompanyId == companyId && g.DeletedAt == null && g.Raza.Trim().ToLower() == razaNorm)
+            .Select(g => g.AnioGuia)
+            .Distinct()
+            .ToListAsync();
+
+        if (propios.Count > 0) return propios;
+
+        return await _ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .Where(p => p.Raza != null && p.AnioGuia != null &&
+                        p.CompanyId == companyId && p.DeletedAt == null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm))
+            .Select(p => p.AnioGuia!)
+            .Distinct()
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Obtiene los datos de guía genética para una raza, año y edad específicos
     /// </summary>
     public async Task<GuiaGeneticaResponse> ObtenerGuiaGeneticaAsync(GuiaGeneticaRequest request)
@@ -46,16 +152,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
             var edadObjetivo = request.Edad;
 
             // 1) Traer posibles candidatos por raza/año ignorando mayúsculas y espacios
-            var candidatos = await _ctx.ProduccionAvicolaRaw
-                .AsNoTracking()
-                .Where(p =>
-                    p.CompanyId == effectiveCompanyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null && p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), raza.ToLower()) &&
-                    p.AnioGuia.Trim() == anio
-                )
-                .ToListAsync();
+            var candidatos = await ObtenerCandidatosAsync(effectiveCompanyId, raza.ToLower(), anio);
 
             if (candidatos.Count == 0)
             {
@@ -106,7 +203,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
                 MortalidadHembras: ParseDouble(fila.MortSemH), // mort_sem_h
                 MortalidadMachos: ParseDouble(fila.MortSemM),  // mort_sem_m
                 Uniformidad: ParseDouble(fila.Uniformidad),  // uniformidad
-                PisoTermicoRequerido: DeterminarPisoTermico(edadObjetivo, fila),
+                PisoTermicoRequerido: DeterminarPisoTermico(edadObjetivo, fila.Valor1000),
                 Observaciones: $"Guía: {fila.Raza} {fila.AnioGuia}"
             );
 
@@ -135,16 +232,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
-        var guias = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(p =>
-                p.CompanyId == effectiveCompanyId &&
-                p.DeletedAt == null &&
-                p.Raza != null && p.AnioGuia != null &&
-                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                p.AnioGuia.Trim() == ano
-            )
-            .ToListAsync();
+        var guias = await ObtenerCandidatosAsync(effectiveCompanyId, razaNorm, ano);
 
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
@@ -161,7 +249,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
                 MortalidadHembras: ParseDouble(x.g.MortSemH),
                 MortalidadMachos: ParseDouble(x.g.MortSemM),
                 Uniformidad: ParseDouble(x.g.Uniformidad),
-                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g),
+                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g.Valor1000),
                 Observaciones: $"Guía: {x.g.Raza} {x.g.AnioGuia}"
             ));
     }
@@ -175,15 +263,8 @@ public class GuiaGeneticaService : IGuiaGeneticaService
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
-        return await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .AnyAsync(p =>
-                p.CompanyId == effectiveCompanyId &&
-                p.DeletedAt == null &&
-                p.Raza != null && p.AnioGuia != null &&
-                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                p.AnioGuia.Trim() == ano
-            );
+        var candidatos = await ObtenerCandidatosAsync(effectiveCompanyId, razaNorm, ano);
+        return candidatos.Count > 0;
     }
 
     /// <summary>
@@ -192,15 +273,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     public async Task<IEnumerable<string>> ObtenerRazasDisponiblesAsync()
     {
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
-        var razas = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(p =>
-                p.CompanyId == effectiveCompanyId &&
-                p.DeletedAt == null &&
-                !string.IsNullOrWhiteSpace(p.Raza))
-            .Select(p => p.Raza!)
-            .Distinct()
-            .ToListAsync();
+        var razas = await ObtenerRazasCrudoAsync(effectiveCompanyId);
 
         return razas
             .Select(r => r.Trim())
@@ -216,16 +289,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
 
-        var anos = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(p => p.Raza != null &&
-                        p.AnioGuia != null &&
-                        p.CompanyId == effectiveCompanyId &&
-                        p.DeletedAt == null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm))
-            .Select(p => p.AnioGuia!)
-            .Distinct()
-            .ToListAsync();
+        var anos = await ObtenerAniosCrudoAsync(effectiveCompanyId, razaNorm);
 
         return anos
             .Where(ano => int.TryParse(ano, out _))
@@ -289,13 +353,15 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     }
 
     /// <summary>
-    /// Determina si se requiere piso térmico basado en edad y campos descriptivos.
+    /// Determina si se requiere piso térmico basado en edad y el campo descriptivo libre
+    /// (<c>valor_1000</c> en la tabla compartida; la tabla dedicada de Santa Reyes no lo tiene,
+    /// así que para sus filas siempre llega <c>null</c> y solo pesa la edad).
     /// </summary>
-    private static bool DeterminarPisoTermico(int edad, ProduccionAvicolaRaw guia)
+    private static bool DeterminarPisoTermico(int edad, string? valor1000)
     {
         if (edad <= 3) return true;
 
-        var extra = (guia.Valor1000 ?? string.Empty).ToLowerInvariant();
+        var extra = (valor1000 ?? string.Empty).ToLowerInvariant();
         if (extra.Contains("termico") || extra.Contains("calor") || extra.Contains("temperatura"))
             return true;
 
@@ -312,16 +378,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
-        var guias = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(p =>
-                p.CompanyId == effectiveCompanyId &&
-                p.DeletedAt == null &&
-                p.Raza != null && p.AnioGuia != null &&
-                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                p.AnioGuia.Trim() == ano
-            )
-            .ToListAsync();
+        var guias = await ObtenerCandidatosAsync(effectiveCompanyId, razaNorm, ano);
 
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
@@ -338,7 +395,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
                 MortalidadHembras: ParseDouble(x.g.MortSemH),
                 MortalidadMachos: ParseDouble(x.g.MortSemM),
                 Uniformidad: ParseDouble(x.g.Uniformidad),
-                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g),
+                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g.Valor1000),
                 Observaciones: $"Guía: {x.g.Raza} {x.g.AnioGuia}"
             ));
     }

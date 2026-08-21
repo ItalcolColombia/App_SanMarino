@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
+import { HuevoItemSeguimiento } from '../../lote-produccion/services/produccion.service';
 
 // =====================================================
 // INTERFACES PARA TRASLADOS DE HUEVOS
@@ -30,6 +31,12 @@ export interface CrearTrasladoHuevosDto {
   motivo?: string;
   descripcion?: string;
   observaciones?: string;
+  /**
+   * Clasificación por ítem del catálogo (Santa Reyes, `clasificacionHuevoPorItems`). Si viene con
+   * filas, reemplaza a las 11 `cantidad*` de arriba (que deben mandarse en 0) y requiere
+   * `lotePosturaProduccionId` — no hay flujo legacy por ítems.
+   */
+  huevoItems?: HuevoItemSeguimiento[] | null;
 }
 
 export interface ActualizarTrasladoHuevosDto {
@@ -82,6 +89,8 @@ export interface TrasladoHuevosDto {
   cantidadDesecho: number;
   cantidadOtro: number;
   totalHuevos: number;
+  /** Clasificación por ítem del catálogo (Santa Reyes). `null`/ausente = flujo legacy. */
+  huevoItems?: HuevoItemSeguimiento[] | null;
   estado: string;
   usuarioTrasladoId: number;
   usuarioNombre?: string;
@@ -110,6 +119,11 @@ export interface DisponibilidadLoteDto {
   huevos?: HuevosDisponiblesDto;
   /** LPP: producción acumulada en espejo (*_historico). */
   huevosHistoricoEspejo?: HuevosDisponiblesDto;
+  /**
+   * LPP + empresa con clasificación por ítems (Santa Reyes): disponible por ítem del catálogo
+   * (`cantidad` = disponible), producido menos ya transferido. Ausente para el resto de empresas.
+   */
+  huevoItemsDisponibles?: HuevoItemSeguimiento[];
   granjaId: number;
   granjaNombre: string;
   nucleoId?: string;
