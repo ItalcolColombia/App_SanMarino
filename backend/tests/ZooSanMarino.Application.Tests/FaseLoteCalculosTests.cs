@@ -139,4 +139,46 @@ public class FaseLoteCalculosTests
             Assert.Equal(FaseLoteCalculos.EsRegistroLevante(fase, padre), expr(lote));
         }
     }
+
+    // ── Fase VISIBLE: por estado real, no por edad ───────────────────────────
+
+    [Theory]
+    [InlineData(false, false, "Levante")]    // recien encasetado
+    [InlineData(false, true,  "Levante")]    // produccion a medio cargar, levante todavia abierto
+    [InlineData(true,  false, "Levante")]    // levante cerrado pero sin produccion: sigue siendo levante
+    [InlineData(true,  true,  "Produccion")] // las DOS condiciones
+    public void ResolverFaseVisible_exige_las_dos_condiciones(bool cerrado, bool tieneProd, string esperada) =>
+        Assert.Equal(esperada, FaseLoteCalculos.ResolverFaseVisible(cerrado, tieneProd));
+
+    [Fact]
+    public void ResolverFaseVisible_no_depende_de_la_edad_del_lote()
+    {
+        // El caso que motivo el cambio: lote cargado con historia (encaset viejo) que la pantalla
+        // mostraba en «Produccion» por tener mas de 26 semanas. Medido: 8 de los 16 lotes de
+        // Sanmarino, todos con el levante abierto y cero filas de produccion.
+        Assert.Equal(FaseLoteCalculos.Produccion, FaseLoteCalculos.DerivarPorEdad(51));
+        Assert.Equal(FaseLoteCalculos.Levante,
+            FaseLoteCalculos.ResolverFaseVisible(levanteCerrado: false, tieneProduccion: false));
+    }
+
+    [Theory]
+    [InlineData("Cerrado", true)]
+    [InlineData("cerrado", true)]
+    [InlineData("  CERRADO  ", true)]
+    [InlineData("Abierto", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void EsCierreCerrado_tolera_mayusculas_espacios_y_nulos(string? crudo, bool esperado) =>
+        Assert.Equal(esperado, FaseLoteCalculos.EsCierreCerrado(crudo));
+
+    [Fact]
+    public void ResolverFaseVisible_por_texto_es_la_misma_regla_que_por_bool()
+    {
+        // Una sola formula: la sobrecarga que recibe el texto crudo no puede divergir de la de bool.
+        foreach (var crudo in new string?[] { null, "", "Abierto", "Cerrado", "cerrado", " CERRADO " })
+        foreach (var prod in new[] { false, true })
+            Assert.Equal(
+                FaseLoteCalculos.ResolverFaseVisible(FaseLoteCalculos.EsCierreCerrado(crudo), prod),
+                FaseLoteCalculos.ResolverFaseVisible(crudo, prod));
+    }
 }

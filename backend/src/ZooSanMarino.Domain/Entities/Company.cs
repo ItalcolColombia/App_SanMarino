@@ -293,6 +293,19 @@
         /// </summary>
         public bool LimitaTiposInventarioAlimentoYAves { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = el listado de lotes de postura suma las pestañas <b>Levante</b> y
+        /// <b>Producción</b>, cada una con los lotes de esa etapa, además de la lista completa.
+        /// <para>
+        /// La etapa de cada lote la decide su ESTADO —levante cerrado + lote de producción creado
+        /// (<c>FaseLoteCalculos.ResolverFaseVisible</c>)—, nunca su edad: derivarla de las semanas
+        /// desde el encasetamiento mandaba a «Producción» a todo lote cargado con historia.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual: una sola lista, con la etapa visible en
+        /// la columna Fase/Etapa.
+        /// </summary>
+        public bool SeparaLotesPosturaPorEtapa { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

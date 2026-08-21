@@ -50,6 +50,19 @@ export interface LotePosturaLevanteDto {
   etapa?: string | null;
   edad?: number | null;
   estadoCierre?: string | null; // Abierto | Cerrado
+
+  /** Existe el lote de produccion del lote (fila viva en `lote_postura_produccion`). */
+  tieneProduccion?: boolean;
+
+  /**
+   * Fase REAL del registro, resuelta por el backend: `Produccion` cuando el levante esta cerrado Y
+   * existe el lote de produccion; `Levante` en cualquier otro caso.
+   *
+   * El registro de levante sobrevive al paso a produccion —es la historia de esa etapa—, asi que la
+   * pestana «Lotes en Levante» filtra por este campo para mostrar solo los que estan HOY en levante.
+   * Misma regla que la columna Fase/Etapa del listado: nunca la edad del lote.
+   */
+  faseActual?: string | null;
   farm?: {
     id: number;
     name: string;

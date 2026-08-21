@@ -320,7 +320,10 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                 l.LevanteTrasladoIngresoHembras,
                 l.LevanteTrasladoIngresoMachos,
                 l.LevanteTrasladoSalidaHembras,
-                l.LevanteTrasladoSalidaMachos
+                l.LevanteTrasladoSalidaMachos,
+                // Subconsulta correlacionada ESCRITA EN LINEA: EF Core no traduce una llamada a
+                // metodo propio dentro del arbol de expresion. `FaseActual` la traduce en el DTO.
+                _ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId && p.DeletedAt == null)
             ));
     }
 

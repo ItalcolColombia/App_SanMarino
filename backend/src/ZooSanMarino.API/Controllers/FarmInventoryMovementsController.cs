@@ -42,7 +42,7 @@ public class FarmInventoryMovementsController : ControllerBase
         // a propósito (carga masiva, devoluciones, anulaciones).
         if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
 
-        var mov = await _service.PostEntryAsync(farmId, req, ct);
+        var mov = await _service.PostEntryAsync(farmId, req!, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }
 
@@ -60,7 +60,7 @@ public class FarmInventoryMovementsController : ControllerBase
         // a propósito (carga masiva, devoluciones, anulaciones).
         if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
 
-        var mov = await _service.PostExitAsync(farmId, req, ct);
+        var mov = await _service.PostExitAsync(farmId, req!, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }
 
@@ -78,7 +78,7 @@ public class FarmInventoryMovementsController : ControllerBase
         // a propósito (carga masiva, devoluciones, anulaciones).
         if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
 
-        var (outMov, inMov) = await _service.PostTransferAsync(farmId, req, ct);
+        var (outMov, inMov) = await _service.PostTransferAsync(farmId, req!, ct);
         // Devolvemos { "out": ..., "In": ... } tal como espera el front
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = outMov.Id }, new TransferResponse(outMov, inMov));
     }
@@ -97,7 +97,7 @@ public class FarmInventoryMovementsController : ControllerBase
         // a propósito (carga masiva, devoluciones, anulaciones).
         if (this.ValidarVentanaFechaRegistro(req?.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
 
-        var mov = await _service.PostAdjustAsync(farmId, req, ct);
+        var mov = await _service.PostAdjustAsync(farmId, req!, ct);
         return CreatedAtAction(nameof(GetById), new { farmId, movementId = mov.Id }, mov);
     }
 

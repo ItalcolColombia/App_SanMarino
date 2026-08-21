@@ -47,28 +47,32 @@
           (click)="setTab('lote')">
           Lotes Seguimientos
         </button>
-        <!--  <button
-        type="button"
-        class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-        [class.bg-primary]="activeTab === 'levante'"
-        [class.text-white]="activeTab === 'levante'"
-        [class.bg-gray-100]="activeTab !== 'levante'"
-        [class.text-gray-700]="activeTab !== 'levante'"
-        [class.hover:bg-gray-200]="activeTab !== 'levante'"
-        (click)="setTab('levante')">
-        Lotes en  Levante
-      </button>
-      <button
-        type="button"
-        class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-        [class.bg-primary]="activeTab === 'produccion'"
-        [class.text-white]="activeTab === 'produccion'"
-        [class.bg-gray-100]="activeTab !== 'produccion'"
-        [class.text-gray-700]="activeTab !== 'produccion'"
-        [class.hover:bg-gray-200]="activeTab !== 'produccion'"
-        (click)="setTab('produccion')">
-        Lotes en Producción
-      </button>-->
+        <!-- Pestanas por etapa: opcionales por empresa (flag separa_lotes_postura_por_etapa).
+             Apagado (default) se ve una sola lista, con la etapa en la columna Fase/Etapa. -->
+        @if (separaLotesPorEtapa) {
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+            [class.bg-primary]="activeTab === 'levante'"
+            [class.text-white]="activeTab === 'levante'"
+            [class.bg-gray-100]="activeTab !== 'levante'"
+            [class.text-gray-700]="activeTab !== 'levante'"
+            [class.hover:bg-gray-200]="activeTab !== 'levante'"
+            (click)="setTab('levante')">
+            Lotes en Levante
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+            [class.bg-primary]="activeTab === 'produccion'"
+            [class.text-white]="activeTab === 'produccion'"
+            [class.bg-gray-100]="activeTab !== 'produccion'"
+            [class.text-gray-700]="activeTab !== 'produccion'"
+            [class.hover:bg-gray-200]="activeTab !== 'produccion'"
+            (click)="setTab('produccion')">
+            Lotes en Producción
+          </button>
+        }
     </div>
   </div>
 
@@ -244,8 +248,8 @@
                 <th scope="col">Galpón</th>
                 <th scope="col">Raza</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -263,8 +267,8 @@
                 <th scope="col">Galpón</th>
                 <th scope="col">Raza</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -282,8 +286,8 @@
                 <th scope="col">Raza</th>
                 <th scope="col">Fase/Etapa</th>
                 <th scope="col">Edad (sem.)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -331,9 +335,9 @@
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
-                  <td>{{ formatOrDash(l.avesHActual ?? l.hembrasL) }}</td>
-                  <td>{{ formatOrDash(l.avesMActual ?? l.machosL) }}</td>
-                  <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
+                  <td>{{ formatNumber(encasetHembrasLevante(l)) }}</td>
+                  <td>{{ formatNumber(encasetMachosLevante(l)) }}</td>
+                  <td>{{ formatNumber(encasetTotal(l.avesEncasetadas, encasetHembrasLevante(l), encasetMachosLevante(l))) }}</td>
                   <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="text-center">
@@ -374,9 +378,9 @@
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
-                  <td>{{ formatOrDash(l.avesHActual ?? l.hembrasInicialesProd ?? l.hembrasL) }}</td>
-                  <td>{{ formatOrDash(l.avesMActual ?? l.machosInicialesProd ?? l.machosL) }}</td>
-                  <td>{{ formatNumber(l.avesEncasetadas ?? (l.avesHActual ?? l.hembrasL ?? 0) + (l.avesMActual ?? l.machosL ?? 0)) }}</td>
+                  <td>{{ formatNumber(encasetHembrasProduccion(l)) }}</td>
+                  <td>{{ formatNumber(encasetMachosProduccion(l)) }}</td>
+                  <td>{{ formatNumber(encasetTotal(l.avesEncasetadas, encasetHembrasProduccion(l), encasetMachosProduccion(l))) }}</td>
                   <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="text-center">
@@ -455,7 +459,7 @@
                   <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
-                  <td><span class="ux-badge">{{ calcularFase(l.fechaEncaset) }}</span></td>
+                  <td><span class="ux-badge">{{ calcularFase(l) }}</span></td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
                   <td>{{ formatOrDash(l.hembrasL) }}</td>
                   <td>{{ formatOrDash(l.machosL) }}</td>
@@ -903,6 +907,14 @@
                         </div>
                       }
                       <!-- ======= AVES: enteros con separador ======= -->
+                      @if (editing) {
+                        <div class="ux-hint ux-hint--encaset">
+                          Estas cantidades son el <strong>encasetamiento</strong> del lote. Corregirlas
+                          recalcula la serie del seguimiento diario y arrastra la misma diferencia al
+                          saldo de levante y, si el lote ya pasó, a producción. Las bajas ya
+                          registradas se conservan.
+                        </div>
+                      }
                       <div>
                         <label class="ux-label">🐔 # Aves Hembra</label>
                         <input
@@ -1167,7 +1179,7 @@
                               <div><strong class="text-warm-gray-800">🏠 Granja:</strong> {{ selectedLote.farm?.name ?? '—' }}</div>
                               <div><strong class="text-warm-gray-800">📍 Núcleo:</strong> {{ selectedLote.nucleo?.nucleoNombre ?? '—' }}</div>
                               <div><strong class="text-warm-gray-800">📅 Fecha encaset:</strong> {{ selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</div>
-                              <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote.fechaEncaset) }}</div>
+                              <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote) }}</div>
                               <div><strong class="text-warm-gray-800">⏳ Edad:</strong> {{ calcularEdadSemanas(selectedLote.fechaEncaset) }} sem.</div>
                               <div><strong class="text-warm-gray-800">🧩 Lote base:</strong> {{ getBaseLoteNombre(selectedLote.lotePosturaBaseId) }}</div>
                               <div><strong class="text-warm-gray-800">📄 Lote ERP:</strong> {{ selectedLote.loteErp || '—' }}</div>

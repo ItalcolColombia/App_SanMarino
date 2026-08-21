@@ -1,5 +1,7 @@
 namespace ZooSanMarino.Application.DTOs.Lotes;
 
+using ZooSanMarino.Application.Calculos;
+
 using FarmLiteDto   = ZooSanMarino.Application.DTOs.Farms.FarmLiteDto;
 using NucleoLiteDto = ZooSanMarino.Application.DTOs.Shared.NucleoLiteDto;
 using GalponLiteDto = ZooSanMarino.Application.DTOs.Shared.GalponLiteDto;
@@ -65,5 +67,23 @@ public sealed record LotePosturaLevanteDetailDto(
     int       LevanteTrasladoIngresoHembras = 0,
     int       LevanteTrasladoIngresoMachos  = 0,
     int       LevanteTrasladoSalidaHembras  = 0,
-    int       LevanteTrasladoSalidaMachos   = 0
-);
+    int       LevanteTrasladoSalidaMachos   = 0,
+    /// <summary>
+    /// Existe el lote de producción del lote: una fila viva en <c>lote_postura_produccion</c>.
+    /// Junto con <see cref="EstadoCierre"/> decide <see cref="FaseActual"/>.
+    /// </summary>
+    bool      TieneProduccion = false
+)
+{
+    /// <summary>
+    /// Fase real del registro — <c>Levante</c> o <c>Produccion</c>.
+    ///
+    /// <para>
+    /// Un registro de levante sigue existiendo después de que el lote pasa a producción (es su
+    /// historia), así que la pestaña «Lotes en Levante» necesita esto para mostrar sólo los que
+    /// están HOY en levante. Es la misma regla y la misma función que usa el listado de lotes:
+    /// <see cref="FaseLoteCalculos.ResolverFaseVisible"/>, nunca la edad del lote.
+    /// </para>
+    /// </summary>
+    public string FaseActual => FaseLoteCalculos.ResolverFaseVisible(EstadoCierre, TieneProduccion);
+}

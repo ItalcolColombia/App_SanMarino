@@ -15,9 +15,20 @@ export interface LoteAveEngordeDto {
    *  pasa al día siguiente del encasetamiento. No mueve la fecha ni la edad. */
   horaEncasetamiento?: string | null;
   fechaAlistamiento?: string | null;
+  /** SALDO VIVO de hembras: el seguimiento diario y las ventas lo van descontando.
+   *  Para el encasetamiento (la base histórica) usar `inicialHembras`. */
   hembrasL?: number;
+  /** SALDO VIVO de machos. Ver `hembrasL`. */
   machosL?: number;
+  /** SALDO VIVO de mixtas. Ver `hembrasL`. */
   mixtas?: number | null;
+  /** Hembras con que ARRANCÓ el lote (registro `Inicio` del historial). Es lo que edita el
+   *  formulario: corregirlo aplica el delta al saldo vivo sin borrar las bajas ya descontadas. */
+  inicialHembras?: number | null;
+  /** Machos con que arrancó el lote. Ver `inicialHembras`. */
+  inicialMachos?: number | null;
+  /** Mixtas con que arrancó el lote. Ver `inicialHembras`. */
+  inicialMixtas?: number | null;
   pesoInicialH?: number;
   pesoInicialM?: number;
   pesoMixto?: number | null;

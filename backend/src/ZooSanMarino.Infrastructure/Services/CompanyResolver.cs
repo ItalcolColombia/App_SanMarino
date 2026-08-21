@@ -85,7 +85,8 @@ public class CompanyResolver : ICompanyResolver
                 c.OcultaMachosEnPostura,
                 c.HuevoPrimeraPosturaHastaSemana,
                 c.SemanasCicloPosturaPorRaza,
-                c.LimitaTiposInventarioAlimentoYAves
+                c.LimitaTiposInventarioAlimentoYAves,
+                c.SeparaLotesPosturaPorEtapa
             ))
             .FirstOrDefaultAsync();
 
@@ -143,7 +144,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.OcultaMachosEnPostura,
                 uc.Company.HuevoPrimeraPosturaHastaSemana,
                 uc.Company.SemanasCicloPosturaPorRaza,
-                uc.Company.LimitaTiposInventarioAlimentoYAves
+                uc.Company.LimitaTiposInventarioAlimentoYAves,
+                uc.Company.SeparaLotesPosturaPorEtapa
             ))
             .ToListAsync();
 

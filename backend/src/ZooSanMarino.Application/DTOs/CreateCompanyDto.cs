@@ -54,5 +54,6 @@ public record CreateCompanyDto(
     /// <summary>La etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/postura) se calcula por semana y por raza.</summary>
     bool     SemanasCicloPosturaPorRaza = false,
     /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
-    bool     LimitaTiposInventarioAlimentoYAves = false
+    bool     LimitaTiposInventarioAlimentoYAves = false,
+    bool     SeparaLotesPosturaPorEtapa         = false
 );

@@ -32,6 +32,13 @@ import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
+import {
+  AvesPorSexo,
+  avesInicialesDelLote,
+  avesSaldoDelLote,
+  totalAvesEncasetadas,
+  totalEncasetadoDelLote
+} from '../../funciones/aves-encasetadas.funcion';
 
 @Component({
   selector: 'app-lote-engorde-list',
@@ -272,6 +279,9 @@ export class LoteEngordeListComponent implements OnInit {
 
     this.form.get('hembrasL')!.valueChanges.subscribe(() => this.actualizarEncasetadas());
     this.form.get('machosL')!.valueChanges.subscribe(() => this.actualizarEncasetadas());
+    // Las mixtas también suman al encasetamiento: sin esto, un lote mixto (Panamá lleva toda su
+    // población en ese bucket) quedaba con el total en cero.
+    this.form.get('mixtas')!.valueChanges.subscribe(() => this.actualizarEncasetadas());
 
     this.form.get('raza')!.valueChanges.subscribe(raza => {
       this.selectedRaza = raza ?? '';
@@ -778,6 +788,12 @@ export class LoteEngordeListComponent implements OnInit {
     const l = this.editing;
     if (l) {
       this.selectedRaza = l.raza ?? '';
+      // El formulario edita el ENCASETAMIENTO, no el saldo vivo: `hembrasL`/`machosL`/`mixtas` del
+      // DTO ya traen descontadas las bajas del seguimiento y las ventas, así que precargarlos con
+      // ellos hacía que guardar reescribiera la base del lote con un número ya consumido.
+      const inicial = avesInicialesDelLote(l);
+      this.saldoActual = avesSaldoDelLote(l);
+      this.saldoActualTotal = totalAvesEncasetadas(this.saldoActual);
       this.form.patchValue({
         loteAveEngordeId: l.loteAveEngordeId,
         loteNombre: l.loteNombre ?? '',
@@ -788,8 +804,8 @@ export class LoteEngordeListComponent implements OnInit {
         fechaEncaset: ymdSinTz(l.fechaEncaset),
         horaEncasetamiento: l.horaEncasetamiento ?? null,
         fechaAlistamiento: ymdSinTz(l.fechaAlistamiento),
-        hembrasL: l.hembrasL ?? null,
-        machosL: l.machosL ?? null,
+        hembrasL: inicial.hembras,
+        machosL: inicial.machos,
         pesoInicialH: l.pesoInicialH ?? null,
         pesoInicialM: l.pesoInicialM ?? null,
         unifH: l.unifH ?? null,
@@ -802,9 +818,9 @@ export class LoteEngordeListComponent implements OnInit {
         tipoLinea: l.tipoLinea ?? '',
         codigoGuiaGenetica: l.codigoGuiaGenetica ?? '',
         tecnico: l.tecnico ?? '',
-        mixtas: l.mixtas ?? null,
+        mixtas: inicial.mixtas,
         pesoMixto: l.pesoMixto ?? null,
-        avesEncasetadas: l.avesEncasetadas ?? null,
+        avesEncasetadas: totalAvesEncasetadas(inicial),
         loteErp: l.loteErp ?? '',
         loteBaseEngordeId: l.loteBaseEngordeId ?? null,
       });
@@ -816,6 +832,9 @@ export class LoteEngordeListComponent implements OnInit {
     } else {
       this.selectedRaza = '';
       this.anosDisponibles = [];
+      // Alta: no hay saldo todavía; el aviso de recálculo solo aplica a un lote que ya arrancó.
+      this.saldoActual = null;
+      this.saldoActualTotal = 0;
       this.form.reset({
         loteAveEngordeId: null,
         loteNombre: '',
@@ -949,7 +968,15 @@ export class LoteEngordeListComponent implements OnInit {
         this.loadLotes();
       },
       error: (err) => {
-        const msg = err?.error?.message || err?.message || 'Error al guardar el lote de engorde.';
+        // El controller responde `BadRequest(ex.Message)`, o sea un string plano — no `{ message }`.
+        // Sin esta rama, el rechazo del ajuste de encasetamiento (que dice el día y las aves que
+        // faltan) se perdía detrás del mensaje genérico de HttpErrorResponse.
+        const msg =
+          (typeof err?.error === 'string' && err.error.trim() ? err.error : null) ??
+          err?.error?.message ??
+          err?.error?.detail ??
+          err?.message ??
+          'Error al guardar el lote de engorde.';
         this.toastService.error(msg, 'Error');
       }
     });
@@ -1027,11 +1054,50 @@ export class LoteEngordeListComponent implements OnInit {
   }
   getGalponName(id?: string | null): string { return id ? (this.galponMap[id] || '–') : '–'; }
 
+  /**
+   * Total encasetado del formulario. Los campos que suma son el **encasetamiento** (la base del
+   * lote), no el saldo vivo — ver `funciones/aves-encasetadas.funcion.ts`.
+   */
   actualizarEncasetadas(): void {
-    const h = +this.form.get('hembrasL')?.value || 0;
-    const m = +this.form.get('machosL')?.value || 0;
-    this.form.get('avesEncasetadas')?.setValue(h + m);
+    const total = totalAvesEncasetadas({
+      hembras: +this.form.get('hembrasL')?.value || 0,
+      machos: +this.form.get('machosL')?.value || 0,
+      mixtas: +this.form.get('mixtas')?.value || 0
+    });
+    this.form.get('avesEncasetadas')?.setValue(total);
   }
+
+  /**
+   * Saldo vivo del lote en edición: lo que queda hoy tras las bajas del seguimiento y las ventas.
+   * Es un campo y no un getter porque el template lo lee: un getter que devuelve un objeto nuevo
+   * en cada ciclo rompe la detección de cambios.
+   */
+  saldoActual: AvesPorSexo | null = null;
+
+  /** Total de aves vivas hoy. Solo informativo: el formulario edita el encasetamiento. */
+  saldoActualTotal = 0;
+
+  // ─── Encasetamiento para la grilla y el panel de detalle ────────────────────
+  // Las columnas «Hembras encaset.» / «Machos encaset.» mostraban `hembrasL`/`machosL`, que en
+  // engorde son el SALDO VIVO: bajaban solas a medida que se cargaba el seguimiento diario y
+  // sumaban MENOS que la columna «Aves encaset.» de al lado. El encasetamiento es histórico del
+  // lote y no se mueve nunca; el saldo tiene su propia fila en el detalle.
+  // Devuelven números (no objetos) para no romper la detección de cambios desde el template.
+
+  /** Hembras con que se encasetó el lote. */
+  encasetHembras(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).hembras; }
+
+  /** Machos con que se encasetó el lote. */
+  encasetMachos(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).machos; }
+
+  /** Mixtas con que se encasetó el lote (Panamá lleva ahí toda su población). */
+  encasetMixtas(l: LoteAveEngordeDto): number { return avesInicialesDelLote(l).mixtas; }
+
+  /** Total encasetado. Coincide siempre con la suma de las tres columnas anteriores. */
+  encasetTotal(l: LoteAveEngordeDto): number { return totalEncasetadoDelLote(l); }
+
+  /** Aves vivas hoy: encasetamiento menos las bajas del seguimiento y lo despachado. */
+  saldoTotal(l: LoteAveEngordeDto): number { return totalAvesEncasetadas(avesSaldoDelLote(l)); }
 
   private normalize(s: string): string {
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

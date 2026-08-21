@@ -99,7 +99,7 @@ public class TrasladosController : ControllerBase
         {
             // Validar disponibilidad
             var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadAvesAsync(
-                dto.LoteId, 
+                dto!.LoteId,
                 dto.CantidadHembras, 
                 dto.CantidadMachos);
 
@@ -159,7 +159,7 @@ public class TrasladosController : ControllerBase
 
         try
         {
-            var traslado = await _trasladoHuevosService.CrearTrasladoHuevosAsync(dto, _currentUser.UserId);
+            var traslado = await _trasladoHuevosService.CrearTrasladoHuevosAsync(dto!, _currentUser.UserId);
             return CreatedAtAction(nameof(GetTrasladoHuevos), new { id = traslado.Id }, traslado);
         }
         catch (InvalidOperationException ex)
@@ -340,7 +340,7 @@ public class TrasladosController : ControllerBase
 
         try
         {
-            var traslado = await _trasladoHuevosService.ActualizarTrasladoHuevosAsync(id, dto, _currentUser.UserId);
+            var traslado = await _trasladoHuevosService.ActualizarTrasladoHuevosAsync(id, dto!, _currentUser.UserId);
             return Ok(traslado);
         }
         catch (InvalidOperationException ex)

@@ -68,6 +68,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
 
   // ── Postura ──────────────────────────────────────────────────────────────
   {
+    key: 'separaLotesPosturaPorEtapa',
+    titulo: 'Separar los lotes de postura por etapa',
+    descripcion: 'El listado suma las pestañas «Lotes en Levante» y «Lotes en Producción», cada una con los lotes de esa etapa. Un lote pasa a Producción cuando su levante se cierra y ya existe el lote de producción. Apagado, se ve una sola lista con la etapa en la columna Fase/Etapa.',
+    grupo: 'Postura'
+  },
+  {
     key: 'clasificacionHuevoPorItems',
     titulo: 'Clasificar el huevo por ítems del catálogo',
     descripcion: 'El desglose se captura con ítems (Primera, Pnc…) en vez de las 11 columnas fijas. El total sigue guardándose igual, así que no se rompen espejos ni indicadores.',

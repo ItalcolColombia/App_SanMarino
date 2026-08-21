@@ -229,8 +229,8 @@
                 <th scope="col">Galpón</th>
                 <th scope="col">Raza</th>
                 <th scope="col">Edad (días)</th>
-                <th scope="col">Hembras</th>
-                <th scope="col">Machos</th>
+                <th scope="col">Hembras encaset.</th>
+                <th scope="col">Machos encaset.</th>
                 <th scope="col">Aves encaset.</th>
                 <th scope="col">Fecha encaset</th>
                 <th scope="col">Fecha registro</th>
@@ -248,9 +248,9 @@
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
                   <td>{{ l.fechaEncaset ? calcularEdadDias(l.fechaEncaset) : '—' }}</td>
-                  <td>{{ formatOrDash(l.hembrasL) }}</td>
-                  <td>{{ formatOrDash(l.machosL) }}</td>
-                  <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
+                  <td>{{ formatNumber(encasetHembras(l)) }}</td>
+                  <td>{{ formatNumber(encasetMachos(l)) }}</td>
+                  <td>{{ formatNumber(encasetTotal(l)) }}</td>
                   <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="le-table__actions-cell">
@@ -518,13 +518,28 @@
                 <!-- Sección: Aves y pesos -->
                 <div class="le-form-section">
                   <h3 class="le-form-section__title">Aves y pesos (gramos)</h3>
+
+                  @if (editing) {
+                    <div class="le-form-note">
+                      <strong>Estas cantidades son el encasetamiento del lote</strong>, no las aves que
+                      quedan hoy. Corregirlas recalcula toda la serie del seguimiento diario; el saldo
+                      actual se mueve por la misma diferencia y las bajas ya registradas se conservan.
+                      @if (saldoActual) {
+                        <span class="le-form-note__saldo">
+                          Saldo actual: <b>{{ formatNumber(saldoActualTotal) }}</b> aves vivas
+                          ({{ formatNumber(saldoActual.hembras) }} H · {{ formatNumber(saldoActual.machos) }} M · {{ formatNumber(saldoActual.mixtas) }} X).
+                        </span>
+                      }
+                    </div>
+                  }
+
                   <div class="le-form-grid le-form-grid--wide">
                     <div class="le-field">
-                      <label class="le-label"># Hembras</label>
+                      <label class="le-label">Hembras encasetadas</label>
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="hembrasL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
-                      <label class="le-label"># Machos</label>
+                      <label class="le-label">Machos encasetados</label>
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="machosL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
@@ -532,8 +547,8 @@
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="avesEncasetadas" readonly class="le-input le-input--readonly" placeholder="0"/>
                     </div>
                     <div class="le-field">
-                      <label class="le-label">Mixtas</label>
-                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" class="le-input" placeholder="0"/>
+                      <label class="le-label">Mixtas encasetadas</label>
+                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
                       <label class="le-label">Peso mixto (g)</label>
@@ -795,16 +810,28 @@
                     <h3 class="le-detail-section__title">Aves y pesos</h3>
                     <div class="le-detail-fields">
                       <div class="le-detail-field">
-                        <label class="le-detail-label">Hembras</label>
-                        <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.hembrasL || 0)" readonly disabled>
+                        <label class="le-detail-label">Hembras encasetadas</label>
+                        <input type="text" class="le-detail-input" [value]="formatNumber(encasetHembras(selectedLote))" readonly disabled>
                       </div>
                       <div class="le-detail-field">
-                        <label class="le-detail-label">Machos</label>
-                        <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.machosL || 0)" readonly disabled>
+                        <label class="le-detail-label">Machos encasetados</label>
+                        <input type="text" class="le-detail-input" [value]="formatNumber(encasetMachos(selectedLote))" readonly disabled>
                       </div>
+                      @if (encasetMixtas(selectedLote) > 0) {
+                        <div class="le-detail-field">
+                          <label class="le-detail-label">Mixtas encasetadas</label>
+                          <input type="text" class="le-detail-input" [value]="formatNumber(encasetMixtas(selectedLote))" readonly disabled>
+                        </div>
+                      }
                       <div class="le-detail-field">
                         <label class="le-detail-label">Aves encasetadas</label>
-                        <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.avesEncasetadas || 0)" readonly disabled>
+                        <input type="text" class="le-detail-input" [value]="formatNumber(encasetTotal(selectedLote))" readonly disabled>
+                      </div>
+                      <div class="le-detail-field le-detail-field--full">
+                        <label class="le-detail-label">Aves vivas hoy (saldo)</label>
+                        <input type="text" class="le-detail-input"
+                               [value]="formatNumber(saldoTotal(selectedLote)) + '  ·  H: ' + formatNumber(selectedLote.hembrasL || 0) + ' · M: ' + formatNumber(selectedLote.machosL || 0) + ' · X: ' + formatNumber(selectedLote.mixtas || 0)"
+                               readonly disabled>
                       </div>
                       @if ((selectedLote.avesSobrante ?? 0) > 0) {
                         <div class="le-detail-field">

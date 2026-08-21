@@ -114,6 +114,23 @@ export interface LoteDto {
   /** Fase del lote: "Levante" o "Produccion". */
   fase?: string | null;
 
+  /**
+   * Fase REAL del lote, resuelta por el backend con su estado y no con su edad: pasa a
+   * `Produccion` solo cuando el levante esta cerrado Y existe el lote de produccion.
+   *
+   * ⚠️ No confundir con `fase`, que solo guarda la derivacion por edad del momento en que se creo
+   * el lote y **no se actualiza** en la transicion a produccion. Derivarla de la fecha de
+   * encasetamiento —lo que hacia la pantalla— manda a "Produccion" a todo lote cargado con
+   * historia. Para mostrar la fase, usar SIEMPRE este campo.
+   */
+  faseActual?: string | null;
+
+  /** El levante del lote esta cerrado. Es una de las dos senales de `faseActual`. */
+  levanteCerrado?: boolean;
+
+  /** Existe el lote de produccion. Es la otra senal de `faseActual`. */
+  tieneProduccion?: boolean;
+
   /** ID y nombre del país en sesión al crear; nombre de la empresa en sesión. */
   paisId?: number | null;
   paisNombre?: string | null;

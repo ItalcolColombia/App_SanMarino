@@ -79,6 +79,12 @@ export interface CompanyFlags {
   /** Santa Reyes: el catálogo de ítems de inventario sólo ofrece Alimento y Aves (en vez de los 6 tipos de siempre). */
   limitaTiposInventarioAlimentoYAves: boolean;
   /**
+   * El listado de lotes de postura se separa en pestanas por etapa: ademas de la lista completa
+   * aparecen «Lotes en Levante» y «Lotes en Produccion», cada una con los lotes de esa etapa.
+   * Apagado, se ve una sola lista con la etapa en la columna Fase/Etapa.
+   */
+  separaLotesPosturaPorEtapa: boolean;
+  /**
    * Santa Reyes: última semana de vida del lote (edad global desde encasetamiento) en la que el
    * ítem «Huevo de primera postura» sigue disponible en la clasificación por ítems. `null` = sin
    * límite configurado (todas las empresas salvo Santa Reyes) — no se oculta nada.
@@ -102,6 +108,7 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   consumoAlimentoSoloHembras: false,
   ocultaMachosEnPostura: false,
   limitaTiposInventarioAlimentoYAves: false,
+  separaLotesPosturaPorEtapa: false,
   huevoPrimeraPosturaHastaSemana: null
 });
 
@@ -129,6 +136,7 @@ interface CompanyFlagsResponse {
   consumoAlimentoSoloHembras?: boolean | null;
   ocultaMachosEnPostura?: boolean | null;
   limitaTiposInventarioAlimentoYAves?: boolean | null;
+  separaLotesPosturaPorEtapa?: boolean | null;
   huevoPrimeraPosturaHastaSemana?: number | null;
 }
 
@@ -213,6 +221,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿el catálogo de ítems de inventario de la empresa activa se limita a Alimento y Aves? */
   readonly limitaTiposInventarioAlimentoYAves$: Observable<boolean> = this.flags$.pipe(
     map(f => f.limitaTiposInventarioAlimentoYAves),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿el listado de lotes de postura se separa en pestanas por etapa? */
+  readonly separaLotesPosturaPorEtapa$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.separaLotesPosturaPorEtapa),
     distinctUntilChanged()
   );
 
@@ -336,6 +350,7 @@ export class ActiveCompanyConfigService {
       consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true,
       ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true,
       limitaTiposInventarioAlimentoYAves: dto?.limitaTiposInventarioAlimentoYAves === true,
+      separaLotesPosturaPorEtapa: dto?.separaLotesPosturaPorEtapa === true,
       huevoPrimeraPosturaHastaSemana: typeof dto?.huevoPrimeraPosturaHastaSemana === 'number'
         ? dto.huevoPrimeraPosturaHastaSemana
         : null
@@ -361,6 +376,7 @@ export class ActiveCompanyConfigService {
       actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras &&
       actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura &&
       actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves &&
+      actual.separaLotesPosturaPorEtapa === flags.separaLotesPosturaPorEtapa &&
       actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana
     ) return;
     this.flagsSubject.next(flags);

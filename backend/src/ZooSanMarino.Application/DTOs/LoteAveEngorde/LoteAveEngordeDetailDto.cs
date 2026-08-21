@@ -64,5 +64,15 @@ public sealed record LoteAveEngordeDetailDto(
     int? NumeroCorrida = null,
     /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de seguimiento pasa al
     /// día siguiente del encasetamiento (ver EncasetamientoCalculos). No mueve la fecha ni la edad.</summary>
-    TimeOnly? HoraEncasetamiento = null
+    TimeOnly? HoraEncasetamiento = null,
+    // ─── Aves con que ARRANCÓ el lote (historial_lote_pollo_engorde, registro "Inicio") ───
+    // No confundir con HembrasL/MachosL/Mixtas, que son el SALDO VIVO que el seguimiento diario y
+    // las ventas van descontando. Estos tres son la base del encasetamiento y sólo se mueven con un
+    // ajuste explícito (AjusteEncasetamientoCalculos). Null en un lote sin registro Inicio.
+    /// <summary>Hembras con que se encasetó el lote (base histórica, no el saldo).</summary>
+    int? InicialHembras = null,
+    /// <summary>Machos con que se encasetó el lote (base histórica, no el saldo).</summary>
+    int? InicialMachos = null,
+    /// <summary>Mixtas con que se encasetó el lote (base histórica, no el saldo).</summary>
+    int? InicialMixtas = null
 );

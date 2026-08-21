@@ -16,6 +16,27 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
 {
+    /// <summary>Discriminador de <c>historial_lote_pollo_engorde</c> para los lotes de engorde.</summary>
+    private const string TipoLoteEngorde = "LoteAveEngorde";
+
+    /// <summary>Registro que guarda las aves con que ARRANCÓ el lote. Es la base del encasetamiento.</summary>
+    private const string TipoRegistroInicio = "Inicio";
+
+    /// <summary>
+    /// Auditoría de una corrección del encasetamiento (el operario digitó mal las aves al crear el
+    /// lote y las ajusta después). Guarda el DELTA aplicado, con signo.
+    /// <para>
+    /// <b>NO participa en la conservación</b>, igual que <c>AjusteResync</c>: el ajuste ya quedó
+    /// dentro del registro <c>Inicio</c> corregido, así que volver a restarlo lo contaría dos veces.
+    /// <c>CorreccionAvesDisponiblesEngordeService</c> y <c>fn_cuadre_aves_engorde</c> solo suman
+    /// <c>Ajuste</c> (fantasma) ⇒ este tipo les es invisible por construcción.
+    /// </para>
+    /// </summary>
+    private const string TipoRegistroAjusteEncaset = "AjusteEncaset";
+
+    /// <summary>Evento del histórico unificado que descuenta aves por despacho (venta/retiro).</summary>
+    private const string TipoEventoVentaAves = "VENTA_AVES";
+
     private readonly ZooSanMarinoContext _ctx;
     private readonly AppInterfaces.ICurrentUser _current;
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
@@ -107,7 +128,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
         q = q.OrderBy(l => l.LoteAveEngordeId);
-        return await ProjectToDetail(q).ToListAsync();
+        return await ProjectToDetail(_ctx, q).ToListAsync();
     }
 
     public async Task<CommonDtos.PagedResult<LoteAveEngordeDetailDto>> SearchAsync(LoteAveEngordeSearchRequest req)
@@ -169,7 +190,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
         var total = await q.LongCountAsync();
-        var items = await ProjectToDetail(q)
+        var items = await ProjectToDetail(_ctx, q)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -199,7 +220,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         // Alcance granular: acceso directo también respeta el scope (fail-closed → null/404)
         q = await AplicarScopeUbicacionAsync(q);
 
-        return await ProjectToDetail(q).SingleOrDefaultAsync();
+        return await ProjectToDetail(_ctx, q).SingleOrDefaultAsync();
     }
 
     public async Task<LoteAveEngordeDetailDto> CreateAsync(CreateLoteAveEngordeDto dto)
@@ -352,10 +373,10 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         _ctx.HistorialLotePolloEngorde.Add(new HistorialLotePolloEngorde
         {
             CompanyId = companyId,
-            TipoLote = "LoteAveEngorde",
+            TipoLote = TipoLoteEngorde,
             LoteAveEngordeId = id,
             LoteReproductoraAveEngordeId = null,
-            TipoRegistro = "Inicio",
+            TipoRegistro = TipoRegistroInicio,
             AvesHembras = avesH,
             AvesMachos = avesM,
             AvesMixtas = avesX,
@@ -403,6 +424,180 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             .ExecuteUpdateAsync(set => set
                 .SetProperty(g => g.LoteAveEngordeId, loteId)
                 .SetProperty(g => g.LoteBaseEngordeId, (int?)null));
+    }
+
+    /// <summary>
+    /// Aves con que arrancó el lote. La fuente es el registro <c>Inicio</c> del historial; sin él
+    /// (lotes anteriores a esa tabla) se cae a <c>aves_encasetadas</c>, repartiéndolo con la misma
+    /// convención que usó el alta: si el lote no declara sexos, el total vive en <c>mixtas</c>.
+    /// </summary>
+    private static RetiroAvesEngordeCalculos.MaestroAves InicialVigente(
+        HistorialLotePolloEngorde? inicio, LoteAveEngorde lote)
+    {
+        if (inicio is not null)
+            return new RetiroAvesEngordeCalculos.MaestroAves(
+                inicio.AvesHembras, inicio.AvesMachos, inicio.AvesMixtas);
+
+        var encaset = lote.AvesEncasetadas ?? 0;
+        return encaset > 0
+            ? new RetiroAvesEngordeCalculos.MaestroAves(0, 0, encaset)
+            : new RetiroAvesEngordeCalculos.MaestroAves(0, 0, 0);
+    }
+
+    /// <summary>
+    /// Serie diaria del lote tal como la ve <c>fn_seguimiento_diario_engorde</c>: bajas del
+    /// seguimiento (mortalidad + selección + error de sexaje, los dos sexos) y ventas
+    /// <c>VENTA_AVES</c> vivas del histórico unificado, agrupadas por fecha.
+    /// <para>
+    /// Las bajas se leen del seguimiento y NO del histórico: la fila <c>BAJA_SEGUIMIENTO</c> es el
+    /// espejo de lo aplicado al maestro, y sumar las dos contaría cada día dos veces.
+    /// </para>
+    /// </summary>
+    private async Task<List<AjusteEncasetamientoCalculos.MovimientoDia>> CargarSerieAsync(int loteId)
+    {
+        var bajas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .GroupBy(s => s.Fecha.Date)
+            .Select(g => new
+            {
+                Fecha = g.Key,
+                Total = g.Sum(s => (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0)
+                                 + (s.SelH ?? 0) + (s.SelM ?? 0)
+                                 + (s.ErrorSexajeHembras ?? 0) + (s.ErrorSexajeMachos ?? 0))
+            })
+            .ToListAsync();
+
+        var ventas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteId
+                     && h.TipoEvento == TipoEventoVentaAves
+                     && !h.Anulado)
+            .GroupBy(h => h.FechaOperacion.Date)
+            .Select(g => new
+            {
+                Fecha = g.Key,
+                Total = g.Sum(h => (h.CantidadHembras ?? 0) + (h.CantidadMachos ?? 0) + (h.CantidadMixtas ?? 0))
+            })
+            .ToListAsync();
+
+        return bajas.Select(b => (b.Fecha, Perdidas: b.Total, Ventas: 0))
+            .Concat(ventas.Select(v => (v.Fecha, Perdidas: 0, Ventas: v.Total)))
+            .GroupBy(x => x.Fecha)
+            .Select(g => new AjusteEncasetamientoCalculos.MovimientoDia(
+                g.Key, g.Sum(x => x.Perdidas), g.Sum(x => x.Ventas)))
+            .OrderBy(m => m.Fecha)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Corrige las aves con que arrancó el lote — el caso del operario que digitó mal el
+    /// encasetamiento y lo descubre semanas después, con el seguimiento diario ya cargado.
+    ///
+    /// <para>
+    /// <b>Por qué no es una asignación.</b> <c>hembras_l</c>/<c>machos_l</c>/<c>mixtas</c> son el
+    /// SALDO VIVO: <see cref="RetiroAvesEngordeAplicador"/> les descuenta las bajas de cada día y las
+    /// ventas les descuentan lo despachado. <c>aves_encasetadas</c> y el registro <c>Inicio</c> del
+    /// historial son la BASE. Escribir el número nuevo sobre los dos —lo que hacía este método antes—
+    /// borraba todo lo descontado y dejaba que <c>fn_seguimiento_diario_engorde</c> volviera a restar
+    /// las mismas bajas sobre una base ya rebajada. Acá la base se reemplaza y el saldo se corre por
+    /// el <b>delta</b>, que es el mismo criterio del trigger de postura y del aplicador de bajas.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Las tres copias se mueven juntas.</b> <c>aves_encasetadas</c>, el registro <c>Inicio</c> y el
+    /// maestro se escriben en la misma unidad de trabajo para no romper el invariante que vigila
+    /// <c>fn_cuadre_aves_engorde</c> (<c>aves_encasetadas == Inicio.total</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Gate al restar.</b> Solo se diagnostica cuando el ajuste QUITA aves: sumar nunca puede
+    /// empeorar la serie, y exigir el diagnóstico también para las sumas dejaría sin arreglo posible
+    /// justamente a los lotes que ya cerraron en negativo por otra causa.
+    /// </para>
+    ///
+    /// <para>
+    /// Delta cero ⇒ no escribe nada: editar el técnico o la regional no mueve un solo número de aves.
+    /// </para>
+    /// </summary>
+    private async Task AplicarAjusteEncasetamientoAsync(LoteAveEngorde ent, UpdateLoteAveEngordeDto dto)
+    {
+        var loteId = ent.LoteAveEngordeId ?? 0;
+
+        var inicioHist = loteId <= 0 ? null : await _ctx.HistorialLotePolloEngorde
+            .Where(h => h.LoteAveEngordeId == loteId
+                     && h.TipoLote == TipoLoteEngorde
+                     && h.TipoRegistro == TipoRegistroInicio)
+            .OrderBy(h => h.FechaRegistro).ThenBy(h => h.Id)
+            .FirstOrDefaultAsync();
+
+        var inicialVigente = InicialVigente(inicioHist, ent);
+        var propuesto = new RetiroAvesEngordeCalculos.MaestroAves(
+            dto.HembrasL ?? 0, dto.MachosL ?? 0, dto.Mixtas ?? 0);
+
+        var delta = AjusteEncasetamientoCalculos.Calcular(inicialVigente, propuesto);
+        if (AjusteEncasetamientoCalculos.SinCambio(delta)) return;
+
+        var inicialNuevo = AjusteEncasetamientoCalculos.Normalizar(inicialVigente, propuesto);
+
+        if (delta.Total < 0 && loteId > 0)
+        {
+            var diagnostico = AjusteEncasetamientoCalculos.Diagnosticar(
+                inicialNuevo.Total,
+                (ent.MortCajaH ?? 0) + (ent.MortCajaM ?? 0),
+                await CargarSerieAsync(loteId));
+
+            if (!diagnostico.Compatible)
+                throw new InvalidOperationException(
+                    AjusteEncasetamientoCalculos.MensajeIncompatible(diagnostico, inicialNuevo.Total));
+        }
+
+        var maestro = AjusteEncasetamientoCalculos.AplicarDelta(
+            new RetiroAvesEngordeCalculos.MaestroAves(ent.HembrasL ?? 0, ent.MachosL ?? 0, ent.Mixtas ?? 0),
+            delta);
+
+        ent.HembrasL = maestro.Hembras;
+        ent.MachosL = maestro.Machos;
+        ent.Mixtas = maestro.Mixtas;
+        ent.AvesEncasetadas = inicialNuevo.Total;
+
+        if (inicioHist is not null)
+        {
+            inicioHist.AvesHembras = inicialNuevo.Hembras;
+            inicioHist.AvesMachos = inicialNuevo.Machos;
+            inicioHist.AvesMixtas = inicialNuevo.Mixtas;
+        }
+        else if (loteId > 0)
+        {
+            // Lote sin registro Inicio (cohorte anterior a la tabla): el ajuste lo crea, así el lote
+            // queda con referencia confiable para las auditorías de conservación.
+            _ctx.HistorialLotePolloEngorde.Add(new HistorialLotePolloEngorde
+            {
+                CompanyId = ent.CompanyId,
+                TipoLote = TipoLoteEngorde,
+                LoteAveEngordeId = loteId,
+                TipoRegistro = TipoRegistroInicio,
+                AvesHembras = inicialNuevo.Hembras,
+                AvesMachos = inicialNuevo.Machos,
+                AvesMixtas = inicialNuevo.Mixtas,
+                FechaRegistro = ent.FechaEncaset ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (loteId > 0)
+        {
+            _ctx.HistorialLotePolloEngorde.Add(new HistorialLotePolloEngorde
+            {
+                CompanyId = ent.CompanyId,
+                TipoLote = TipoLoteEngorde,
+                LoteAveEngordeId = loteId,
+                TipoRegistro = TipoRegistroAjusteEncaset,
+                AvesHembras = delta.Hembras,
+                AvesMachos = delta.Machos,
+                AvesMixtas = delta.Mixtas,
+                FechaRegistro = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
     }
 
     public async Task<LoteAveEngordeDetailDto?> UpdateAsync(UpdateLoteAveEngordeDto dto)
@@ -505,8 +700,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.FechaEncaset = nuevaFechaEncaset;
         ent.HoraEncasetamiento = dto.HoraEncasetamiento;
         ent.FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento);
-        ent.HembrasL = dto.HembrasL;
-        ent.MachosL = dto.MachosL;
+        await AplicarAjusteEncasetamientoAsync(ent, dto);
         ent.PesoInicialH = dto.PesoInicialH;
         ent.PesoInicialM = dto.PesoInicialM;
         ent.UnifH = dto.UnifH;
@@ -520,9 +714,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.CodigoGuiaGenetica = dto.CodigoGuiaGenetica;
         ent.LineaGeneticaId = dto.LineaGeneticaId;
         ent.Tecnico = dto.Tecnico;
-        ent.Mixtas = dto.Mixtas;
+        // Mixtas y AvesEncasetadas ya los resolvió AplicarAjusteEncasetamientoAsync (por delta, no
+        // por sobreescritura): pisarlos acá con el DTO desharía el ajuste.
         ent.PesoMixto = dto.PesoMixto;
-        ent.AvesEncasetadas = dto.AvesEncasetadas;
         ent.EdadInicial = dto.EdadInicial;
         // Panamá: si la granja tiene código ERP configurado y el lote ya capturó uno, se conserva
         // el almacenado (histórico del ciclo; no se re-estampa ni se deja pisar desde el DTO).
@@ -875,7 +1069,20 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         return loteBaseEngordeId;
     }
 
-    private static IQueryable<LoteAveEngordeDetailDto> ProjectToDetail(IQueryable<LoteAveEngorde> q)
+    /// <summary>
+    /// Proyección al DTO de detalle.
+    /// <para>
+    /// Las tres subconsultas del registro <c>Inicio</c> van <b>escritas en línea</b>, sin extraerlas
+    /// a un helper: EF Core no traduce una llamada a método propio dentro del árbol de expresión y la
+    /// consulta revienta en runtime con <c>The LINQ expression could not be translated</c> — un error
+    /// que el compilador no ve y los tests del cálculo puro tampoco. Son subconsultas correlacionadas
+    /// (índice <c>ix_hlpe_lote_ave_engorde_id</c>) y no un join, porque un lote sin registro
+    /// <c>Inicio</c> quedaría fuera del listado. Desempate por la fila más antigua, igual que
+    /// <c>CorreccionAvesDisponiblesEngordeService</c>.
+    /// </para>
+    /// </summary>
+    private static IQueryable<LoteAveEngordeDetailDto> ProjectToDetail(
+        ZooSanMarinoContext ctx, IQueryable<LoteAveEngorde> q)
     {
         return q
             .Include(l => l.Farm)
@@ -947,7 +1154,22 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.LoteBaseEngordeId,
                 l.LoteBaseEngorde == null ? null : l.LoteBaseEngorde.Nombre,
                 l.NumeroCorrida,
-                l.HoraEncasetamiento
+                l.HoraEncasetamiento,
+                ctx.HistorialLotePolloEngorde
+                    .Where(h => h.LoteAveEngordeId == l.LoteAveEngordeId
+                             && h.TipoLote == TipoLoteEngorde && h.TipoRegistro == TipoRegistroInicio)
+                    .OrderBy(h => h.FechaRegistro).ThenBy(h => h.Id)
+                    .Select(h => (int?)h.AvesHembras).FirstOrDefault(),
+                ctx.HistorialLotePolloEngorde
+                    .Where(h => h.LoteAveEngordeId == l.LoteAveEngordeId
+                             && h.TipoLote == TipoLoteEngorde && h.TipoRegistro == TipoRegistroInicio)
+                    .OrderBy(h => h.FechaRegistro).ThenBy(h => h.Id)
+                    .Select(h => (int?)h.AvesMachos).FirstOrDefault(),
+                ctx.HistorialLotePolloEngorde
+                    .Where(h => h.LoteAveEngordeId == l.LoteAveEngordeId
+                             && h.TipoLote == TipoLoteEngorde && h.TipoRegistro == TipoRegistroInicio)
+                    .OrderBy(h => h.FechaRegistro).ThenBy(h => h.Id)
+                    .Select(h => (int?)h.AvesMixtas).FirstOrDefault()
             ));
     }
 

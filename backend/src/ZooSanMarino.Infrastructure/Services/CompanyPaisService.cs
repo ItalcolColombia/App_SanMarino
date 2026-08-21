@@ -130,7 +130,8 @@ public class CompanyPaisService : ICompanyPaisService
             OcultaMachosEnPostura: cp.Company.OcultaMachosEnPostura,
             HuevoPrimeraPosturaHastaSemana: cp.Company.HuevoPrimeraPosturaHastaSemana,
             SemanasCicloPosturaPorRaza: cp.Company.SemanasCicloPosturaPorRaza,
-            LimitaTiposInventarioAlimentoYAves: cp.Company.LimitaTiposInventarioAlimentoYAves
+            LimitaTiposInventarioAlimentoYAves: cp.Company.LimitaTiposInventarioAlimentoYAves,
+            SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa
         )).ToList();
     }
 

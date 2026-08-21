@@ -648,6 +648,26 @@ select.le-input {
   border-bottom: 1px solid var(--le-warm-200);
 }
 
+// Aviso del formulario: aclara que las cantidades editables son el ENCASETAMIENTO y no el saldo
+// vivo, y muestra el saldo del lote para que el operario no confunda los dos números.
+.le-form-note {
+  margin: 0 0 1.25rem 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--le-radius-sm);
+  border: 1px solid var(--le-warm-200);
+  border-left: 3px solid var(--le-yellow);
+  background: var(--le-warm-50);
+  color: var(--le-slate);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.le-form-note__saldo {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--le-warm-600);
+}
+
 .le-form-grid {
   display: grid;
   grid-template-columns: 1fr;

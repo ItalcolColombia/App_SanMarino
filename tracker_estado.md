@@ -929,3 +929,287 @@ Demo a propósito, tienen algo encendido — Sanmarino/Panamá/Ecuador en `false
       desde antes) y verificado en la BD real: ambos tickets `CERRADO`, `company_id=6`,
       `cerrado_ok=true` (commit `78f4366`)
 - [x] **X7 cerrado.**
+
+---
+
+## X8 — Ajuste de encasetamiento: editar las aves de un lote que ya tiene seguimiento (21-ago-2026)
+
+Ticket: crearon un lote de pollo engorde con la cantidad de aves equivocada y siguieron cargando el
+seguimiento diario; ahora necesitan **editar el lote y sumarle** (o restarle) aves y que la
+correccion baje en cascada a seguimientos, reportes, consumo, disponibilidad y ventas. Aplica
+tambien a **postura**. Plan:
+[`fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md`](fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md).
+
+Decisiones del usuario: restar por debajo de lo consumido => **bloquear con detalle**; en postura la
+correccion llega a **levante Y produccion**.
+
+### Diagnostico (cerrado)
+
+- [x] X8.1 En engorde el form edita el **saldo vivo**, no el encasetamiento: `lote_ave_engorde.hembras_l/
+      machos_l/mixtas` los descuenta `RetiroAvesEngordeAplicador` + ventas, mientras `aves_encasetadas`
+      es el inicial historico. Medido en BD local: lote id 5 => `aves_encasetadas=25.542` contra
+      `maestro=1.840`
+- [x] X8.2 `actualizarEncasetadas()` (lote-engorde-list.component.ts:1031) hace
+      `avesEncasetadas = hembrasL + machosL` y esta enganchado por `valueChanges` (273-274) **y** por
+      `(input)` en el HTML (524, 528) => tocar `# Hembras` **pisa el inicial con el saldo** y la fn
+      vuelve a restar las bajas ya descontadas. No hay hoy ningun camino correcto para sumar/restar
+- [x] X8.3 Linea base del invariante congelada: `fn_cuadre_aves_engorde(NULL)` => **191 lotes,
+      0 descuadrados, 0 sin referencia**. Los 191 tienen fila `Inicio` en `historial_lote_pollo_engorde`
+- [x] X8.4 En postura la semantica es la OPUESTA (`lotes.hembras_l` **si** es el inicial) y el trigger
+      `trg_lotes_sync_lote_postura_levante` ya corre el delta sobre `lote_postura_levante.aves_h_actual`
+      (migracion `20260806074742`). Quedan fuera `lote_etapa_levante.aves_inicio_*` — que **gana** sobre
+      `lotes.hembras_l` en `GetMortalidadResumenAsync` — y todo `lote_postura_produccion`
+
+### Ejecucion
+
+- [x] X8.5 `AjusteEncasetamientoCalculos` (puro) + `AjusteEncasetamientoCalculosTests`: delta por
+      sexo, aplicacion con clamp y bucket mixto (Panama), diagnostico del primer dia negativo,
+      reversibilidad, no-op. **24 casos, todos verdes**
+- [x] X8.6 Engorde backend: `LoteAveEngordeService.UpdateAsync` aplica **delta** en vez de pisar;
+      escribe `aves_encasetadas` + fila `Inicio` + maestro en la misma unidad de trabajo (preserva el
+      invariante de `fn_cuadre_aves_engorde`) y audita con `TipoRegistro=AjusteEncaset`, invisible
+      para la conservacion igual que `AjusteResync`. El `DetailDto` expone `inicialHembras/Machos/
+      Mixtas` por subconsulta correlacionada
+- [x] X8.7 Engorde frontend: el form edita el **inicial** (no el saldo), bloque de aviso con el saldo
+      vivo, `mixtas` suma al total encasetado (antes quedaba en 0 en lotes mixtos de Panama), helpers
+      puros en `funciones/aves-encasetadas.funcion.ts` + README, y el 400 del gate llega al
+      `ToastService` (el controller responde string plano, no `{message}`)
+- [x] X8.8 Postura backend: partial `Funciones/LoteService.AjusteEncasetamiento.cs` propaga el delta a
+      `lote_etapa_levante` y a `lote_postura_produccion` (`aves_h_inicial`/`hembras_iniciales_prod`/
+      `aves_h_actual`) **preservando los NULL** (materializarlos cambiaria cual columna gana el
+      `COALESCE` de la fn). `lote_postura_levante` se deja al trigger: no se duplica la formula
+- [x] X8.9 Postura frontend: aviso en el form de edicion + mismo manejo del 400
+- [x] X8.10 **Validado**: `dotnet build` 0 errores / 0 warnings · `dotnet test` **2999/2999** ·
+      `yarn build` 0 errores
+
+### Verificacion contra datos reales (smoke aislado)
+
+> Clon `sanmarino_smoke_x8` (`TEMPLATE sanmarinoapplocal`) + content root propio + backend en :5501.
+> `pg_stat_activity` confirmo 1 sola conexion, al clon. Al terminar: puerto libre, clon borrado.
+
+- [x] X8.11 **Engorde, lote 107 (Ecuador, 42 seguimientos)**: PUT sin tocar aves ⇒ **cero cambios** y
+      cero filas de auditoria. Sumar 500 H ⇒ inicial 10.917→11.417, encaset 24.374→24.874, saldo
+      10.775→**11.275** (las bajas se conservan) y **toda la serie diaria +500** (dia 1:
+      24.345→24.845; dia 42: 3.967→4.467). Restar 200 ⇒ los tres bajan 200. Testigo
+      `fn_cuadre_aves_engorde` en **0 descuadrados / 0 sin referencia** despues de cada ajuste
+- [x] X8.12 **Gate al restar**: bajar el lote 107 a 200 aves ⇒ **400** con dia y faltante
+      («el 17/07/2026 ... por 10 ave(s) ... lleva 20407 aves consumidas») y **nada escrito**: ni el
+      lote, ni el historial
+- [x] X8.13 **Postura, lote 13 (K345A, Sanmarino, 168 dias de levante + 301 de produccion)**: sumar
+      500 H ⇒ las **6 copias** corregidas — `lotes` 7.999→8.499, `lote_etapa_levante` 7.999→8.499,
+      `lote_postura_levante` inicial y actual →8.499, `lote_postura_produccion` inicial 7.597→8.097,
+      `hembras_iniciales_prod` →8.097 y `aves_h_actual` 5.315→**5.815** (conserva las bajas de
+      produccion). `fn_seguimiento_diario_produccion` +500 en los 301 dias, 0 negativos
+- [x] X8.14 🔴 **El smoke encontro 2 defectos que ni el compilador ni los tests unitarios veian**:
+      (a) EF no traduce una llamada a metodo propio dentro del arbol de expresion — la subconsulta del
+      `Inicio` reventaba en runtime con *The LINQ expression could not be translated* y dejaba el GET
+      del modulo en 500; se escribio en linea. (b) el gate de postura media **solo la serie de
+      levante**: en el lote 13 (levante 739 aves, produccion 2.492) bajar la base a 1.232 pasaba el
+      filtro y hundia `lpp.aves_h_inicial` de 7.597 a 0 por clamp, en silencio. Corregido a la serie
+      del **ciclo completo** y fijado con el test `Medir_solo_una_etapa_del_ciclo_deja_pasar_...`
+- [x] X8.15 **Gate multipais (CLAUDE.md §Invariantes)** sobre el clon, linea base congelada antes y
+      comparada despues: `dif_saldo_alimento`, `dif_ingreso`, `dif_consumo`, `dif_documento`,
+      `filas_nuevas` y `filas_que_desaparecen` = **0 en las dos empresas**. Unico diff:
+      `dif_saldo_aves = 42` en ItalcolEcuador, **atribuido lote por lote**: las 42 filas son todas del
+      lote 107 y todas cambian exactamente +500 — Panama en 0. `fn_cuadre_alimento_engorde` da
+      **68 galpones / 11 con kilos / 19 con dias rojos, identico con y sin el cambio** (deuda
+      preexistente, no se movio)
+- [x] **X8 cerrado.**
+
+---
+
+## X9 — Las grillas mostraban el SALDO bajo el rotulo «aves encasetadas» (21-ago-2026)
+
+Reporte del usuario: en Gestion de lotes y en el detalle del lote, las columnas de hembras y machos
+"se estan moviendo" con el seguimiento diario y ya no suman las aves encasetadas — «hay unos que
+dicen 19.100 y algo, pero si uno suma los dos dan menos». El encasetamiento es historico del lote y
+no se puede tocar. Continuacion de X8; mismo plan:
+[`fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md`](fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md).
+
+- [x] X9.1 **Reproducido con datos reales.** Engorde: la grilla pintaba `hembrasL`/`machosL` (el
+      SALDO) junto a `avesEncasetadas` (la BASE) ⇒ **123 de 124 lotes de Ecuador se veian mal**. El
+      caso que el usuario nombro es el lote 24: la columna decia **19.120** y las de al lado
+      mostraban 1.103 + 2.552 = **3.655**; el encasetamiento real es 9.061 + 10.059 = 19.120. Peor
+      caso, lote 19: encaset 51.438 contra 2.832 mostrados
+- [x] X9.2 Engorde arreglado: grilla y panel de detalle pasan a mostrar el **encasetamiento**
+      (`inicialHembras/Machos/Mixtas`, que X8 ya expone en el DTO), rotulos explicitos «Hembras
+      encaset.» / «Machos encaset.», y el saldo **no se pierde**: el detalle gana la fila «Aves vivas
+      hoy (saldo)» con su desglose H/M/X. Accesores en el componente que devuelven **numeros**, no
+      objetos, para no romper la deteccion de cambios; total via
+      `totalEncasetadoDelLote` en `funciones/`
+- [x] X9.3 Postura: los tabs **Levante** y **Produccion** tenian el mismo defecto
+      (`avesHActual ?? ...` bajo el rotulo «encaset.»). Corregidos a `hembrasL ?? avesHInicial ...`
+      ⚠️ **el orden importa**: `avesHInicial` en produccion NO es el encasetamiento sino las aves que
+      sobrevivieron al levante — medido en P-K345B, encaset 12.587 (10.991+1.596) contra un inicio de
+      produccion de 11.526 ⇒ con `avesHInicial` primero, la columna no cuadraba con el total. En
+      levante los dos coinciden por construccion (trigger; 21 de 21 lotes verificados)
+- [i] X9.4 **Los tabs Levante y Produccion de postura estan COMENTADOS en el HTML desde el commit
+      `cd9b1a7` (25-may-2026)** — no hay forma de llegar a ellos desde la UI. El tab vivo («Lotes
+      Seguimientos») usa `hembrasL`, que en postura SI es el encasetamiento, y **ya estaba
+      correcto**. O sea: en postura el fix deja el codigo bien para cuando se reactiven, pero **hoy
+      no cambia nada visible**. El defecto que el usuario ve es solo de engorde
+- [x] X9.5 Barrido del resto del front: los otros 3 sitios que derivan `hembrasL + machosL`
+      (`tabla-registro-list`, `lote-produccion/tabs-principal`, `shared/hierarchical-filter`) son
+      todos `LoteDto` de **postura**, donde esa columna es la base ⇒ correctos, no se tocan
+- [x] X9.6 **Verificado en pantalla** (build de produccion servido en :4310 con proxy al backend de
+      smoke en :5501 contra un clon de la BD; sesion inyectada en `localStorage`): la grilla de
+      engorde pinta «HEMBRAS ENCASET. / MACHOS ENCASET. / AVES ENCASET.» y las **6 primeras filas
+      suman exacto** (lote 24 → 9.061 + 10.059 = 19.120). El detalle del lote 24 muestra
+      encasetamiento 9.061 / 10.059 / 19.120 **y** «Aves vivas hoy (saldo) 3.655 · H: 1.103 · M:
+      2.552 · X: 0». Sin spinner colgado; los 2 errores de consola son NG05604 (Service Worker de la
+      PWA, que el servidor de prueba no sirve), ajenos al cambio
+- [x] X9.7 Contraste por HTTP sobre los mismos endpoints que alimentan las grillas: engorde
+      **124 lotes / 0 columnas que no suman**, levante **16 / 0**, produccion **2 / 0** (antes 2 de 2
+      no cuadraban). `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
+- [x] **X9 cerrado.**
+
+---
+
+## X10 — Tickets de X8 y X9 en ItalJira (21-ago-2026)
+
+Pedido del usuario: registrar en ItalJira los dos casos ya resueltos, para dejar el tablero alineado
+con el codigo.
+
+- [x] X10.1 Migracion data-only `20260821160000_SeedTicketsAjusteEncasetamientoLote` (patron
+      `SeedTicketsFixesAuditoriaSantaReyes`: Designer clonado del ModelSnapshot actual, sin cambio de
+      schema; el SQL vive en el partial `.Seed.cs`). Siembra **2 casos, ya CERRADOS**, a nombre de
+      **ItalcolEcuador** (resuelta por nombre, no por id) — es donde los dos se reportaron y se
+      midieron. Creador, asignado y cerrador: `moiesbbuga@gmail.com`, resuelto **por email**.
+      Fail-open si falta el usuario o la empresa; idempotente por `titulo`
+- [x] X10.2 **TK-2026-000178** (CRITICA) — «Lote engorde: editar las aves de un lote con seguimiento
+      reescribia el encasetamiento con el saldo». Causa, medicion (lote 5: 25.542 contra 1.840),
+      solucion y la validacion completa del smoke; commit `a9fd721`
+- [x] X10.3 **TK-2026-000179** (ALTA) — «Gestion de lotes: las columnas de hembras y machos mostraban
+      el saldo, no las aves encasetadas». Incluye el caso que nombro operacion (lote 24: 19.120
+      contra 3.655), el alcance real en postura y **la trampa del fallback de produccion**
+      (`aves_h_inicial` NO es el encasetamiento); commit `299c816`
+- [x] X10.4 SQL validado **dos veces dentro de `BEGIN; ... ROLLBACK;`** antes de aplicar: la 2da
+      pasada reusa los mismos ids y no duplica ⇒ idempotente. Confirmado que el ROLLBACK no dejo
+      rastro (0 filas, 175 tickets totales, igual que antes)
+- [x] X10.5 Aplicado de verdad sobre la BD local: **TK-2026-000178 y TK-2026-000179**, ambos
+      `CERRADO`, `company_id=3`, con `fecha_solucion`, `fecha_cierre_solicitante` y
+      `cerrado_por_user_id` poblados. `notificado_correo=false` (es SQL, no pasa por la cola de
+      correo). Migracion registrada en `__EFMigrationsHistory` **en la misma transaccion que el
+      seed** — el efecto esta realmente en la base, que es la condicion que exige CLAUDE.md §🗄️
+      *(se aplico por psql y no por `dotnet ef` porque el backend de otra sesion tiene tomado el
+      `bin/`; `UseArtifactsOutput` rompe `GetEFProjectMetadata`)*
+- [x] X10.6 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **2999/2999**
+- [!] X10.7 **Decision pendiente del usuario:** reactivar los tabs «Lotes en Levante» y «Lotes en
+      Produccion» de postura, comentados en el HTML desde `cd9b1a7` (25-may-2026). Su codigo quedo
+      corregido en X9.3, pero descomentarlos es una decision de producto — se comentaron a proposito
+      y este trabajo no los toca. Queda anotado en el propio TK-2026-000179
+- [x] **X10 cerrado** (salvo X10.7, que espera decision).
+
+---
+
+## X11 — La fase del lote sale del CIERRE, no de la fecha de encasetamiento (21-ago-2026)
+
+Pedido del usuario: la columna Fase/Etapa del listado de lotes de postura se calculaba por edad
+(>= 26 semanas desde el encaset => Produccion), asi que **un lote viejo que apenas se carga aparece
+en Produccion sin haber pasado nunca a produccion**. Debe salir del estado real: levante mientras no
+este cerrado, y produccion solo cuando el levante cerro Y existe el lote de produccion — «si no
+tiene produccion no muestre la palabra produccion hasta que este en esa etapa».
+
+- [x] X11.1 **Reproducido y medido.** `calcularFase(fechaEncaset)` (lote-list.component.ts:1513) hacia
+      `edad < 26 ? Levante : Produccion`. En la base: **Sanmarino 10 de 16 lotes decian Produccion,
+      solo 2 lo estaban**; los 8 falsos son justo los cargados con historia (A374, S369), todos con
+      el levante ABIERTO y cero filas de produccion. Es el mismo defecto que
+      `FaseLoteCalculos.EsRegistroLevante` ya habia corregido del lado de los reportes
+      ([[etapa-lpl-nunca-cambia-en-la-transicion]])
+- [x] X11.2 **La senal correcta se eligio con datos, no por intuicion.** Los criterios de
+      `ExisteProduccionLoteAsync` (lote hijo en fase Produccion / mismo lote en Produccion, ambos con
+      datos de registro inicial) dan **0 en los 21 lotes de la base** — la fase no se actualiza en la
+      transicion. La unica prueba que funciona es **la fila viva en `lote_postura_produccion`**,
+      exactamente lo que dice la memoria
+- [x] X11.3 `FaseLoteCalculos.ResolverFaseVisible(levanteCerrado, tieneProduccion)` + sobrecarga que
+      tolera el texto crudo del cierre (mayusculas, espacios, null) + `EsCierreCerrado`. **11 casos
+      nuevos**, incluido el que fija que la regla NO depende de la edad y el que prueba que las dos
+      sobrecargas son la misma formula
+- [x] X11.4 Backend: `LoteDetailDto` gana `LevanteCerrado` y `TieneProduccion` (subconsultas
+      correlacionadas **escritas en linea** — la leccion de X8.14: EF no traduce una llamada a metodo
+      propio en el arbol de expresion) y **`FaseActual` como propiedad DERIVADA del record**, que las
+      traduce con la formula unica. Escribir el ternario dentro del `Select` habria duplicado la regla
+- [x] X11.5 Frontend: `calcularFase(l)` pasa a leer `faseActual`; sin ese campo devuelve `—`, no
+      vuelve a adivinar por la fecha. Corregidos sus 2 usos vivos (grilla y panel de detalle).
+      ⚠️ El `calcularFase` de `tabla-registro-list` NO se toca: es otro concepto
+      (Inicio/Crecimiento/Engorde/Finalizacion por dias de engorde), sin este defecto
+- [x] X11.6 **Verificado en pantalla** (build de produccion en :4310 contra backend propio sobre un
+      clon): de los 16 lotes de Sanmarino, **solo K345A y K345B muestran «Produccion»** — los unicos
+      con levante cerrado y produccion creada — y los otros 14 «Levante». El detalle de S369A dice
+      **«Fase: Levante» con 51 semanas de edad**, que es exactamente el caso reportado. `GET /api/Lote`
+      200; los 2 errores de consola son NG05604 (Service Worker) y un 403 de vacunacion por los
+      permisos del JWT sintetico, ambos ajenos
+- [x] X11.7 **Corrige en las DOS direcciones**, medido sobre todas las empresas: Sanmarino 10 => 2
+      (8 falsos positivos eliminados) y **Demo 0 => 1 (un falso NEGATIVO**: LOTE 235A esta cerrado y
+      con produccion pero mostraba «Levante» por tener menos de 26 semanas). Los 3 lotes con
+      produccion de la base estan los 3 en `Cerrado` — consistencia total
+- [x] X11.8 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
+- [x] **X11 cerrado.**
+
+---
+
+## X12 — Flag por empresa: separar los lotes de postura por etapa (21-ago-2026)
+
+Pedido del usuario: poder decidir **desde el modulo Empresa, como los otros flags**, si se ven o no
+las pestanas de Levante y Produccion. Reactiva las dos vistas comentadas desde `cd9b1a7`
+(25-may-2026) — el pendiente X10.7 —, ahora que X11 hace confiable la etapa de cada lote.
+
+- [x] X12.1 Flag `companies.separa_lotes_postura_por_etapa`, **nombrado por el comportamiento** y no
+      por el tenant, `NOT NULL DEFAULT false` (fail-closed: nace apagado en TODAS las empresas y la
+      migracion no lo enciende para nadie). Patron §🏢 del CLAUDE.md
+- [x] X12.2 Backend, las **9 posiciones** del patron: `Company` + `CompanyConfiguration`, los 3 DTOs
+      (`CompanyDto` / `Create` / `Update`) y las **4 proyecciones** (`CompanyService.ToDto`,
+      `CompanyService.Crud` ×2 —alta y edicion—, `CompanyResolver` ×2, `CompanyPaisService`)
+- [x] X12.3 Migracion `20260821170000_AddFlagSeparaLotesPosturaPorEtapa` idempotente
+      (`ADD COLUMN IF NOT EXISTS`). Cambia schema ⇒ Designer clonado del ModelSnapshot **y**
+      property agregada al propio ModelSnapshot, en orden alfabetico (hecho a mano: el backend de
+      otra sesion tiene tomado el `bin/` y `dotnet ef` no puede correr)
+- [x] X12.4 Frontend: `CompanyFlags` gana el campo en sus **6 posiciones** (interfaz,
+      `FLAGS_APAGADOS`, forma de la respuesta, mapeo fail-closed, comparacion de igualdad y atajo
+      `separaLotesPosturaPorEtapa$`) y **una linea** en el catalogo `FLAGS_EMPRESA`, que es todo lo
+      que hace falta para que aparezca en la pantalla de Empresas
+- [x] X12.5 Los dos tabs vuelven al HTML dentro de `@if (separaLotesPorEtapa)`. Si el flag se apaga
+      con el usuario parado en una de esas pestanas, `loadCompanyFlags` lo devuelve a la lista
+      completa — si no, se quedaria mirando una pestana que ya no existe
+- [x] X12.6 **Verificado en pantalla, los dos estados**: con el flag APAGADO se ven solo «Lote Base»
+      y «Lotes Seguimientos» (identico a hoy); ENCENDIDO aparecen ademas «Lotes en Levante»
+      (16 lotes) y «Lotes en Produccion» (2), **todas las filas sumando** — el tab de produccion, que
+      antes mostraba 21 y 26 aves, ahora muestra 10.991 + 1.596 = 12.587 gracias a X9
+- [x] X12.7 **Aislamiento multi-tenant probado**: encendido solo en Sanmarino, la sesion de
+      ItalcolEcuador NO ve las pestanas. El listado `GET /api/Company` devuelve `separa=true` solo
+      para Sanmarino y `false` en las otras 4 empresas
+- [x] X12.8 **Ciclo de escritura completo** por la API: PUT apagando => `false` (y los demas flags
+      intactos), PUT encendiendo => `true`, y **PUT omitiendo el campo => conserva el valor**
+      (patron `?? c.X` del Crud: un cliente viejo no puede borrar la configuracion)
+- [x] X12.9 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno cerrado: puertos libres, clon borrado
+- [i] X12.10 La columna **no se aplico en la BD local**: la migracion corre sola en el proximo
+      arranque del backend (`RunMigrations=true`), que es el flujo normal. En el clon de prueba se
+      aplico asi y quedo con `default false`
+- [x] **X12 cerrado** — con esto se cierra tambien el pendiente **X10.7**.
+
+---
+
+## X13 — La pestana «Lotes en Levante» muestra solo los que estan HOY en levante (21-ago-2026)
+
+Cierre del pendiente que quedo abierto al reactivar los tabs (X12): la pestana listaba los 16
+registros de `lote_postura_levante`, incluidos los lotes que ya pasaron a produccion — el registro
+de levante sobrevive a la transicion porque es la historia de esa etapa.
+
+- [x] X13.1 `LotePosturaLevanteDetailDto` gana `TieneProduccion` (subconsulta correlacionada
+      **escrita en linea**, misma leccion de X8.14) y `FaseActual` como **propiedad derivada**, que la
+      traduce con `FaseLoteCalculos.ResolverFaseVisible` — la MISMA funcion que usa la columna
+      Fase/Etapa del listado, asi que las dos vistas no pueden contradecirse
+- [x] X13.2 El front filtra la pestana por `faseActual !== 'Produccion'`. Es un filtro de
+      presentacion, no un recalculo: la regla vive en el backend
+- [x] X13.3 **Verificado en pantalla, con las tres vistas cruzadas**: pestana Levante **14 lotes**
+      (antes 16; K345A y K345B ya no aparecen), pestana Produccion **2** (P-K345A, P-K345B) y la
+      lista completa **14 «Levante» + 2 «Produccion» = 16**. Los tres numeros coinciden por
+      construccion
+- [x] X13.4 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno cerrado: puertos libres, clon borrado
+- [i] X13.5 Un lote de levante **cerrado pero SIN produccion** sigue apareciendo en la pestana
+      Levante, coherente con lo que dice su columna Fase/Etapa. Solo sale de la lista cuando la
+      produccion existe de verdad
+- [x] **X13 cerrado.**

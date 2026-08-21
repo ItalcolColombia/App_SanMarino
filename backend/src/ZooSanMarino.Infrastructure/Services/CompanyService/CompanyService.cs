@@ -60,6 +60,7 @@ public partial class CompanyService : ICompanyService
         c.OcultaMachosEnPostura,
         c.HuevoPrimeraPosturaHastaSemana,
         c.SemanasCicloPosturaPorRaza,
-        c.LimitaTiposInventarioAlimentoYAves
+        c.LimitaTiposInventarioAlimentoYAves,
+        c.SeparaLotesPosturaPorEtapa
     );
 }

@@ -181,7 +181,7 @@ public class LadoDelMovimientoTests
     public void Un_tipo_desconocido_no_clasifica()
     {
         Assert.Null(Lado("Ajuste", A, B, null, A));
-        Assert.Null(Lado(null, A, B, null, A));
+        Assert.Null(Lado(null!, A, B, null, A));
     }
 
     [Fact]
