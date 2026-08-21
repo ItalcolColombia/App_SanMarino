@@ -90,6 +90,7 @@ export class IndicadoresDiariosEngordeComputeService {
 
     let acumMix = 0;
     let ultimoPesoMedido = pesoIni;
+    let ultimoPesoDia = 0;
 
     const out: IndicadorDiarioFilaEngorde[] = [];
 
@@ -122,9 +123,14 @@ export class IndicadoresDiariosEngordeComputeService {
       const caTabla = g?.ca ?? 0;
       const mortTablaPct = g?.mortalidadSeleccionDiaria ?? 0;
 
+      // Ganancia diaria = delta contra el ULTIMO peso realmente registrado (no el dia calendario
+      // anterior), dividido entre los dias transcurridos desde ese pesaje: la 1ra semana se pesa
+      // a diario (divisor 1, sin cambio) pero luego el pesaje es cada 4 dias y sin dividir el
+      // delta acumulado de 4 dias se mostraba como si fuera de uno solo (TK ganancia diaria).
       let gananciaReal: number | null = null;
       if (pesoReal > 0) {
-        gananciaReal = pesoReal - ultimoPesoMedido;
+        const diasTranscurridos = Math.max(1, dia - ultimoPesoDia);
+        gananciaReal = (pesoReal - ultimoPesoMedido) / diasTranscurridos;
       }
 
       const pesoParaCa = pesoReal > 0 ? pesoReal : 0;
@@ -183,6 +189,7 @@ export class IndicadoresDiariosEngordeComputeService {
 
       if (pesoReal > 0) {
         ultimoPesoMedido = pesoReal;
+        ultimoPesoDia = dia;
       }
     }
 

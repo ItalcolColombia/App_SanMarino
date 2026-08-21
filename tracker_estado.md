@@ -847,3 +847,42 @@ Follow-up directo de X4 (arriba). Plan:
       además otra sesión tenía en uso. Revertido con permiso explícito del usuario antes de
       reintentar acá, en el path correcto
 - [x] **X5 cerrado.**
+
+---
+
+## X6 — Ganancia diaria (g) engorde: dividir por los días reales entre pesajes (21-ago-2026)
+
+Ticket de Lady Malave (validación de indicadores del seguimiento diario de pollo engorde): peso
+corporal, alimento diario, alimento acumulado, conversión y mortalidad+selección están OK; ganancia
+diaria no dividía por los días transcurridos cuando el pesaje deja de ser diario (1ª semana a
+diario, luego cada 4 días). Plan:
+[`fase_de_desarrollo/ganancia_diaria_engorde_intervalo_pesaje_plan.md`](fase_de_desarrollo/ganancia_diaria_engorde_intervalo_pesaje_plan.md).
+
+- [x] X6.1 Confirmado que la tabla del ticket (columnas Peso corporal / Ganancia diaria / Alimento
+      diario / Alimento acum. / Conversión / Mortalidad+selección, Registro vs Guía) sale de un
+      único cálculo real: `engorde-comun/services/indicadores-diarios-engorde-compute.service.ts`
+      (`aves-engorde/services/indicadores-diarios-engorde-compute.service.ts` es un shim
+      `export *` hacia el mismo archivo, no una segunda implementación a duplicar el fix)
+- [x] X6.2 Fix: `gananciaDiariaRealG` ya comparaba contra el último peso REALMENTE registrado
+      (`ultimoPesoMedido`, según la recomendación de Moises de no comparar contra el día calendario
+      anterior) pero no dividía el delta entre los días transcurridos desde ese pesaje. Se agrega
+      `ultimoPesoDia` y se divide entre `Math.max(1, dia - ultimoPesoDia)` — generaliza a cualquier
+      intervalo real, no asume 4 días fijos. Pesaje diario (divisor 1) queda sin cambios
+- [x] X6.3 Tests nuevos:
+      `engorde-comun/services/indicadores-diarios-engorde-compute.service.spec.ts` — pesaje diario
+      (sin cambio), pesaje cada 4 días (delta/4), intervalo distinto de 4, día sin peso (`null`,
+      no mueve el acumulador), primer pesaje contra `pesoIni` en el día 0
+- [x] X6.4 Migración data-only `20260821040000_SeedTicketGananciaDiariaEngordeLadyMalave`
+      (módulo Tickets, patrón `SeedTicketPlanItalappSantaReyes` — Designer clonado del
+      ModelSnapshot actual, sin cambio de schema): siembra el caso creado por Lady Malave
+      (`ladymalave@ecuitalcol.com`), auto-asignado a `moiesbbuga@gmail.com`, ya en estado
+      SOLUCIONADO con `solucion_descripcion` explicando el fix — lista para que ella la confirme y
+      cierre desde la pantalla. Fail-open si falta cualquiera de los dos usuarios; idempotente por
+      `titulo`
+- [x] X6.5 Validado: `dotnet build` backend (0 errores, 21 warnings preexistentes) + `yarn build`
+      frontend (0 errores) + spec nuevo (`ng test --include=...`, ChromeHeadless): **5/5 SUCCESS**.
+      SQL de la migración corrido dos veces contra la BD local dentro de `BEGIN;...ROLLBACK;`:
+      resuelve a Lady Malave (empresa 3) y al administrador (`assigned_to_user_id 496236603`,
+      coincide con el valor ya conocido de sus propios casos), inserta 1 sola fila y la 2da pasada
+      la encuentra sin duplicar — 0 filas persistidas en la BD real tras el `ROLLBACK`
+- [x] **X6 cerrado.**
