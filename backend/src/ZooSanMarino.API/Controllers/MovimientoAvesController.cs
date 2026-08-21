@@ -452,50 +452,6 @@ public class MovimientoAvesController : ControllerBase
     }
 
     /// <summary>
-    /// Realiza un traslado rápido entre ubicaciones
-    /// </summary>
-    [HttpPost("traslado-rapido")]
-    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(ResultadoMovimientoDto))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> TrasladoRapido([FromBody] TrasladoRapidoRequest request)
-    {
-        try
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var trasladoDto = new TrasladoRapidoDto
-            {
-                LoteId = int.Parse(request.LoteId),  // Convert string to int
-                GranjaOrigenId = request.GranjaOrigenId,
-                NucleoOrigenId = request.NucleoOrigenId,
-                GalponOrigenId = request.GalponOrigenId,
-                GranjaDestinoId = request.GranjaDestinoId,
-                NucleoDestinoId = request.NucleoDestinoId,
-                GalponDestinoId = request.GalponDestinoId,
-                CantidadHembras = request.CantidadHembras,
-                CantidadMachos = request.CantidadMachos,
-                CantidadMixtas = request.CantidadMixtas,
-                MotivoTraslado = request.Motivo,
-                Observaciones = request.Observaciones,
-                ProcesarInmediatamente = request.ProcesarInmediatamente
-            };
-
-            var resultado = await _movimientoService.TrasladoRapidoAsync(trasladoDto);
-
-            if (!resultado.Success)
-                return BadRequest(resultado);
-
-            return CreatedAtAction(nameof(GetById), new { id = resultado.MovimientoId }, resultado);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error en traslado rápido");
-            return StatusCode(500, new { error = "Error interno del servidor" });
-        }
-    }
-
-    /// <summary>
     /// Valida si un movimiento es posible
     /// </summary>
     [HttpPost("validar")]
@@ -646,26 +602,6 @@ public sealed class CancelarMovimientoRequest
     public string? Motivo { get; set; }
 
     public string MotivoEfectivo => MotivoCancelacion?.Trim() ?? Motivo?.Trim() ?? "Cancelado por usuario";
-}
-
-/// <summary>
-/// Request para traslado rápido
-/// </summary>
-public sealed class TrasladoRapidoRequest
-{
-    public string LoteId { get; set; } = null!;
-    public int? GranjaOrigenId { get; set; }
-    public string? NucleoOrigenId { get; set; }
-    public string? GalponOrigenId { get; set; }
-    public int GranjaDestinoId { get; set; }
-    public string? NucleoDestinoId { get; set; }
-    public string? GalponDestinoId { get; set; }
-    public int? CantidadHembras { get; set; }
-    public int? CantidadMachos { get; set; }
-    public int? CantidadMixtas { get; set; }
-    public string? Motivo { get; set; }
-    public string? Observaciones { get; set; }
-    public bool ProcesarInmediatamente { get; set; } = true;
 }
 
 /// <summary>

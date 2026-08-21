@@ -31,7 +31,6 @@ public interface IMovimientoAvesService
     Task<ResultadoMovimientoDto> ProcesarMovimientoAsync(ProcesarMovimientoDto dto);
     Task<ResultadoMovimientoDto> CancelarMovimientoAsync(CancelarMovimientoDto dto);
     Task<ResultadoMovimientoDto> EliminarMovimientoAsync(int id);
-    Task<ResultadoMovimientoDto> TrasladoRapidoAsync(TrasladoRapidoDto dto);
     
     // Traslados específicos
     Task<ResultadoMovimientoDto> TrasladarEntreGranjasAsync(int loteId, int granjaOrigenId, int granjaDestinoId, int hembras, int machos, int mixtas, string? motivo = null);  // Changed from string to int
