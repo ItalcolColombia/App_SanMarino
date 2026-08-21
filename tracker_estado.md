@@ -591,16 +591,52 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         - Validado: `dotnet build` 0 errores (20-21 warnings preexistentes) · `dotnet test`
           **2959/2959** · `yarn build` 0 errores · migración aplicada y verificada en BD local
           (Santa Reyes `true`, Sanmarino/Demo `false`)
-- [ ] **F7 · Huevo sin clasificar y primera postura** (17h)
-  - [ ] F7.1 Renombrar huevos incubables → huevos sin clasificar (formularios, tablas, reportes)
-  - [ ] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula
-  - [ ] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote
-  - [ ] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día de semana 23
+- [~] **F7 · Huevo sin clasificar y primera postura** (17h) — diseño técnico en §8 del plan
+      (20-ago-2026, sesión de continuación). **Hallazgo central: la mecánica ya existía** — con
+      `clasificacionHuevoPorItems` (Santa Reyes, encendido desde F0.2) el bloque entero de
+      "Huevos Incubables" queda oculto (`@if (!clasificacionHuevoPorItems)`) y se reemplaza por el
+      selector de ítems del catálogo; la palabra "Incubables" no aparece en el flujo de Santa Reyes
+      hoy. El gap real era más chico: nombres, vigencia y 2 campos sin gatear (ver F7.1/F7.4 y F8.2)
+  - [x] F7.1 Renombrar huevos incubables → huevos sin clasificar — reinterpretado tras auditar
+        `modal-seguimiento-diario`: el rename que faltaba era el de los ÍTEMS del catálogo, no un
+        label de formulario (ese ya estaba oculto). 6 de los 7 ítems "Primera" de Santa Reyes
+        (Rojo/Blanco/Criollo/Gallina Feliz/Bonegg/Libre de Jaula Certificado) se llamaban sin el
+        prefijo "SIN CLASIFICAR" — solo Azur ya lo traía (prueba de que el patrón correcto ya
+        existía). Migración data-only pendiente de aplicar (ver nota de migración abajo) renombra
+        los 6 a `HUEVO SIN CLASIFICAR <RAZA>`
+  - [x] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula — **ya
+        existían los 7** en `catalogo_items` (verificado F0.2, re-confirmado acá), no había nada que
+        crear
+  - [ ] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote — **sin
+        construir, ambigüedad real** (ver §8.3 del plan): el texto ("especificar los huevos que va a
+        producir" al crear el lote) no deja claro si pide una UI nueva en el alta de lote o si la
+        clasificación por ítems que ya existe en el seguimiento diario alcanza. No se adivina
+  - [x] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día
+        de semana 23 — `HuevoPrimeraPosturaCalculos.EsVigente` (backend, con tests xUnit) + espejo
+        `esVigentePrimeraPostura` (`items-huevo-catalogo.funcion.ts`); ítems marcados
+        `metadata.primeraPostura=true` (los 3 que existen: Rojo/Blanco/Criollo) se deshabilitan en el
+        `<select>` fuera de vigencia. `Company.HuevoPrimeraPosturaHastaSemana` existía desde F0.1 sin
+        un solo consumidor (grep confirmó 0 usos) — este commit lo cablea y lo pone en 22 para Santa
+        Reyes vía migración. **Alcance deliberado: solo UI** (no rechaza en el guardado) — mismo
+        criterio "solo UI" que el resto de la familia de flags; extender a validación de guardado
+        queda documentado en §8.2 del plan para cuando se confirme que hace falta
 - [ ] **F8 · Productos no conformes y panel de eficiencia** (7h)
-  - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara
-  - [ ] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción
-  - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja
-- [~] **F9 · Traslado de aves** (5h) — captura hecha, listado/comprobante sin tocar
+  - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara — sin construir. Catálogo
+        actual (11 ítems `Pnc`) no cubre las 5 categorías por raza: falta "Enyemado" completo (0
+        ítems, hallazgo ya conocido desde F0.2) y "Decolorado" solo existe para Rojo. No se inventan
+        cantidades/nombres sin confirmar con el cliente
+  - [x] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción —
+        `huevoTratado` ya estaba oculto (vive dentro del bloque `!clasificacionHuevoPorItems`);
+        `pesoHuevo`/`tipoAlimento` **no tenían ningún gate** (gap real, encontrado auditando el
+        template junto con F7) — envueltos en `@if (!clasificacionHuevoPorItems)` acá. Los controles
+        conservan su valor por defecto (`0`/`'Standard'`), siguen siendo válidos para
+        `Validators.required` y se guardan igual — cambio de UI, no de contrato
+  - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja — sin
+        construir. El texto fuente (párrafo 68 del .docx) es contradictorio con F7.1 tal como está
+        escrito y no hay pantalla "Panel de eficiencia" en el repo hoy — ver §8.3 del plan. A
+        confirmar con el cliente si es pantalla nueva o ajuste de nomenclatura sobre un reporte
+        existente antes de tocar nada (son reportes financieros)
+- [~] **F9 · Traslado de aves** (5h) — captura + listado hechos (20-ago-2026), comprobante sin tocar
   - [x] F9.1 Ocultar machos en el traslado de aves — el traslado real de postura NO es
         `traslado-form`/`trasladoRapido` (roto, ver hallazgo abajo): es
         `modal-traslado-aves-seguimiento` → `TrasladosAvesService.ejecutarTrasladoDesdeSegDiario` →
@@ -609,10 +645,22 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [x] F9.2 Campos de transporte: placa, precinto, conductor — **capturados**, agregados a
         `TrasladoAvesDesdeSegDiarioDto` (front+back), y a la construcción del `MovimientoAves` en
         `TrasladoAvesDesdeSegService.Traslado.cs` (la entidad ya tenía `Placa`/`Conductor`/`Sellos`
-        desde antes). **Falta la mitad "reflejo en el listado y en el comprobante"**: no hay pantalla
-        de comprobante, y `movimientos-list.component` (la tabla de aves, 8 columnas) no muestra
-        estos 3 campos todavía — agregar columnas ahí implica una decisión de diseño (columnas nuevas
-        vs. fila de detalle expandible en una tabla ya angosta), no lo resolví bajo presión de tiempo
+        desde antes).
+  - [x] F9.2b **Reflejo en el listado (20-ago-2026, sesión de continuación).** `movimientosAves`/
+        `TrasladoUnificadoDto` (`TrasladoNavigationController.GetByLote` → `MovimientoAvesCompletoDto`,
+        que ya construye `MovimientoAvesService.Mapeo.cs` desde la entidad) no traían Placa/
+        Conductor/Sellos — se agregaron los 3 campos como parámetros **opcionales al final** de los 2
+        records (no rompe ningún otro caller posicional) y se propagan en la única fábrica de cada
+        uno. Frontend: `TrasladoUnificado` (interfaz) + columna nueva "Transporte" en la tabla de
+        Aves de `movimientos-list.component` — **una sola columna compacta** ("Placa: … · Cond.: … ·
+        Precinto: …", solo los valores presentes), mismo patrón ya usado en esa tabla para
+        Cantidad (H:/M:) y en la de Huevos para Detalle (L:/T:/S:) — se descartó agregar 3 columnas
+        sueltas a una tabla que ya tenía 8 (quedaría muy ancha) y una fila expandible (más estado,
+        sin necesidad real todavía)
+  - [ ] F9.2c **Comprobante — sin construir.** No existe una pantalla/printable de comprobante de
+        traslado hoy (ninguna ruta ni componente con ese nombre); no está claro si el pedido es un
+        PDF descargable, una vista de detalle imprimible, o el mismo listado alcanza. A definir antes
+        de construir algo — mismo criterio que F5.3/F7.3/F8.3 (no adivinar UX)
   - [i] **Hallazgo de paso, fuera de Santa Reyes**: `POST api/MovimientoAves/traslado-rapido`
         (usado por `traslado-form.component`, ruta `/traslados-aves/traslados`) tiene el DTO del
         frontend completamente desalineado del que espera el backend (`loteOrigenId`/`loteDestinoId`

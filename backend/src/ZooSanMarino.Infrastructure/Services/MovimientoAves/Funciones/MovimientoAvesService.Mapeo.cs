@@ -155,6 +155,10 @@ public partial class MovimientoAvesService
             m.TipoMovimiento == "Traslado" ? "Traslado de Aves" :
             m.TipoMovimiento == "Ajuste" ? "Ajuste de Inventario" :
             m.TipoMovimiento == "Liquidacion" ? "Liquidación de Lote" :
-            m.TipoMovimiento
+            m.TipoMovimiento,
+            // Transporte (postura Santa Reyes)
+            m.Placa,
+            m.Conductor,
+            m.Sellos
         );
 }

@@ -26,6 +26,12 @@ export interface HuevoCatalogOption {
   tipoHuevo: string | null;
   /** `metadata.um` del catálogo: 'UND' | 'KIL' | null. */
   um: string | null;
+  /**
+   * `metadata.primeraPostura` del catálogo: ítem que representa «Huevo de primera postura» de
+   * alguna raza — sujeto a la vigencia de `Company.huevoPrimeraPosturaHastaSemana` (ver
+   * `esVigentePrimeraPostura`). `false` para el resto (Primera común / Pnc).
+   */
+  primeraPostura: boolean;
   /** Texto mostrado en el `<option>`: "codigo — nombre". */
   label: string;
 }

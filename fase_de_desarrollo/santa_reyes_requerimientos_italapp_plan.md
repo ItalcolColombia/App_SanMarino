@@ -279,3 +279,113 @@ hay dato existente que reclasificar.
 
 **Validación:** `dotnet build`/`dotnet test` (flag nuevo, sin lógica de cálculo — no hace falta test
 xUnit dedicado) + `yarn build` + cruce manual de los dos `@for` del template contra `tiposItem`.
+
+---
+
+## 8. F7 — Huevo sin clasificar y primera postura (diseño técnico, 20-ago-2026)
+
+**Texto literal** (`~/Downloads/Requerimientos de Italapp.docx`, sección «Producción de huevos»,
+extraído con python-docx — párrafos 48-58):
+
+> Lo que se llama huevos incubables, cambiarlo por huevos sin clasificar. Y se deben tener 4 campos
+> o lista desplegable para: Huevo sin clasificar rojo / Blanco / criollo / gallina feliz / Azur /
+> Boneg / Libre de Jaula. Huevo de primera postura (este sí debe tener lista desplegable por raza).
+> Se necesita que cuando se cree un lote poder especificar los huevos que va a producir en la etapa
+> de producción "mostrar primera postura hasta el último día de la semana 22, desde el primer día
+> de la semana 23 no usa más el ítem de primera postura". No se usa el campo de huevo tratado, y
+> tampoco es necesita la parte de peso promedio ni de tipo de alimento.
+
+### 8.1 Hallazgo central: la mecánica de F7 YA EXISTE — el gap real es más chico de lo que dice §2
+
+Auditando `modal-seguimiento-diario.component.html`/`.ts` (no solo el grep de "incubable" del plan
+comercial): con `clasificacionHuevoPorItems = true` (Santa Reyes, encendido desde antes de este
+commit) el bloque entero de "Huevos Incubables"/"Clasificadora de Huevos" — incluida la tarjeta
+"Eficiencia de Producción" con el stat "Incubables" — está envuelto en `@if (!clasificacionHuevoPorItems)`
+y **NUNCA se renderiza para Santa Reyes**. En su lugar se muestra el selector por ítems del catálogo
+(`gruposHuevoItems`, agrupado por `metadata.tipoHuevo` = `Primera`/`Pnc`) construido en F0.2. La
+palabra "Incubables" no aparece en ningún punto del flujo de Santa Reyes hoy. Verificado en BD
+local: los 7 ítems "Primera" (Rojo/Blanco/Criollo/Gallina Feliz/Bonegg/Libre de Jaula
+Certificado/Azur) YA existen en `catalogo_items` para `company_id` de Santa Reyes.
+
+**Lo que faltaba de verdad, y es lo que agrega este commit:**
+
+1. **Nombre literal de los 6 ítems.** Solo `HUEVO SIN CLASIFICAR AZUR` ya seguía la nomenclatura
+   pedida; los otros 6 (Rojo/Blanco/Criollo/Gallina Feliz/Bonegg/Libre de Jaula) se llamaban
+   `HUEVO ROJO`, etc. — sin el prefijo. El propio catálogo ya probaba el patrón correcto (Azur):
+   renombrado por migración data-only a `HUEVO SIN CLASIFICAR <RAZA>` (Libre de Jaula conserva
+   "CERTIFICADO", es un dato del ítem, no parte del rename).
+2. **Vigencia del ítem "Huevo de primera postura" (semana 22).** `Company.HuevoPrimeraPosturaHastaSemana`
+   existe desde F0.1 pero **nada lo consumía** (grep confirma cero usos fuera de las 8 capas de
+   exposición) y estaba `NULL` incluso en Santa Reyes. Cierre real de este commit — ver §8.2.
+3. **F8.2 "no se usa peso promedio ni tipo de alimento"** — auditado junto con F7 porque el .docx lo
+   trae en el mismo párrafo, sin separador. `pesoHuevo`/`tipoAlimento` **no estaban gateados por
+   ningún flag** (a diferencia de `huevoTratado`, que sí queda oculto dentro del bloque
+   `!clasificacionHuevoPorItems`) — gap real, cerrado acá reusando `clasificacionHuevoPorItems`
+   (mismo párrafo del requerimiento, no amerita un flag nuevo). Los controles conservan su valor por
+   defecto (`0` / `'Standard'`) — siguen siendo válidos para `Validators.required` y se guardan
+   igual que siempre; es un cambio de UI, no de contrato.
+
+### 8.2 Vigencia de "Huevo de primera postura" — diseño
+
+- **Marcador de catálogo:** los ítems que representan "primera postura" (hoy 3: Rojo/Blanco/Criollo
+  — únicos con esa variante ya cargada, ver §8.4) se tagean `metadata.primeraPostura = true` (migración
+  data-only, `metadata || '{"primeraPostura": true}'`). El resto de "Primera"/"Pnc" no lleva la clave
+  (`leerMetaBool` → `false`).
+- **Cálculo puro** `HuevoPrimeraPosturaCalculos.EsVigente(hastaSemana, semanaVida)` (backend) +
+  espejo `esVigentePrimeraPostura` (`items-huevo-catalogo.funcion.ts`): `semanaVida <= hastaSemana`;
+  fail-open (vigente) si falta el límite (toda empresa salvo Santa Reyes) o la semana de vida
+  (sin fecha de encaset todavía) — mismo criterio "no ocultar por falta de dato" que el resto de la
+  familia F0-F6.
+- **Semana de vida:** se reusa `semanaVidaLevante(fechaEncaset, fechaRegistro)` (ya existe, la usa
+  F3) — no se duplica el cálculo de fecha una cuarta vez en el repo.
+- **Alcance: solo UI (oferta del selector), no rechazo al guardar.** El ítem fuera de vigencia
+  aparece `disabled` en el `<option>` con el sufijo "(fuera de vigencia)", mismo patrón que
+  `itemHuevoUsadoEnOtraFila`. **Decisión explícita de no bloquear en el backend**: el requerimiento
+  describe un comportamiento de formulario ("no usa más el ítem"), no una regla de integridad de
+  datos: es la misma familia que `OcultaMachosEnPostura` (solo UI, el dato sigue existiendo en el
+  modelo). Si el cliente confirma que además debe RECHAZARSE en el guardado (defensa ante un POST
+  directo o una pestaña vieja), es un cambio pequeño y aislado: extender
+  `HuevoItemsCalculos.Validar` con el mismo `EsVigente` — pendiente hasta que se pida.
+- **Flag de valor** `Company.HuevoPrimeraPosturaHastaSemana = 22` para Santa Reyes (migración
+  data-only, ya existía la columna desde F0.1 — solo faltaba poblarla).
+
+### 8.3 Lo que se deja SIN construir en este commit — ambigüedad real, no se adivina
+
+- **"4 campos o lista desplegable" vs. 7 ítems listados.** El texto dice "4 campos" pero enumera 7
+  razas — se interpreta como imprecisión de redacción del cliente (7 líneas genéticas/colores ya
+  sembradas coinciden 1:1 con la lista), no como una reducción real a 4. Si el cliente insiste en 4,
+  hay que preguntar cuáles 4.
+- **Contradicción textual en "eficiencia" (párrafo 68, sección PNC):** *"En la eficiencia, deben
+  cambiarse por incubables la palabra huevo sin clasificar"* — literalmente pide el rename EN
+  SENTIDO CONTRARIO al de §8.1 (huevo sin clasificar → incubables), pero solo en un "panel de
+  eficiencia" que **no existe como pantalla propia** (no hay componente ni ruta con ese nombre en el
+  repo). La lectura más consistente con el resto del documento es que se refiere a los reportes
+  YA EXISTENTES y multi-empresa (`IndicadoresProduccionCalculos`, Reporte Técnico) que siguen
+  diciendo "incubables" desde antes de Santa Reyes — es decir, "no toques esos reportes", que es
+  exactamente lo que este commit hace (cero cambios ahí). **No se construye un "Panel de eficiencia"
+  nuevo** (F8.3, "cuadre suma huevos = total granja") porque no está claro si es una pantalla nueva o
+  un ajuste de nomenclatura sobre una existente — a confirmar con el cliente antes de tocar reportes
+  financieros.
+- **4 primera-postura faltantes.** Solo Rojo/Blanco/Criollo tienen variante "primera postura" en el
+  catálogo; Gallina Feliz/Bonegg/Libre de Jaula/Azur no. No se inventan los 4 ítems que faltan
+  (cantidad/nombre exacto no está especificado) — mismo criterio que el "Enyemado" faltante de F8.1
+  (hallazgo de F0.2, aún sin cerrar). Con el flag de vigencia ya wireado, agregarlos después es solo
+  una migración de datos más.
+- **F8 completo** (PNC → Manchado/Decolorado/Enyemado/Picado/Fárfara, panel de eficiencia) y **F7.3**
+  ("especificar los huevos que va a producir" al CREAR el lote — ¿selección de qué ítems ofrece ese
+  lote, o algo distinto de la clasificación por ítems que ya existe?) quedan fuera de este commit:
+  necesitan la misma conversación con el cliente que gatilla el punto anterior.
+
+### 8.4 Validación
+
+`dotnet build` (solución completa, SDK 10 portable) → **0 errores**, 21 warnings preexistentes
+(ninguno en archivos tocados) · `dotnet test` → **2968/2968** (incluye los 9 casos nuevos de
+`HuevoPrimeraPosturaCalculosTests`, sin regresión) · `yarn build` (Node portable) → **0 errores**,
+solo el warning preexistente de `package.json` sin `license` · migración
+`20260821020826_SantaReyesF7HuevoSinClasificarYVigenciaPrimeraPostura` aplicada en local y
+re-verificada por consulta directa (los 6 nombres, `metadata.primeraPostura` en los 3 ítems,
+`huevo_primera_postura_hasta_semana = 22`). **Sin smoke visual en navegador**: mismo bloqueo que
+F0.1/F3 (minteo de sesión rechazado por el clasificador de seguridad de Auto Mode) — el entorno local
+SÍ es nativo (no Docker: Postgres 17 en :5433, back :5002, front :4200 con toolchain portable),
+confirmado en esta sesión, pero entrar con credenciales reales para el smoke sigue fuera de lo que
+puedo hacer solo. Pendiente que alguien lo abra una vez en pantalla.

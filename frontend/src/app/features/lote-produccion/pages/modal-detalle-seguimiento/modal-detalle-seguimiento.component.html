@@ -52,10 +52,12 @@
                     <label>Etapa de Producción</label>
                     <div class="detail-value">{{ getEtapaLabel(seguimiento.etapa) }}</div>
                   </div>
-                  <div class="detail-field">
-                    <label>Tipo de Alimento</label>
-                    <div class="detail-value">{{ seguimiento.tipoAlimento || '—' }}</div>
-                  </div>
+                  @if (!clasificacionHuevoPorItems) {
+                    <div class="detail-field">
+                      <label>Tipo de Alimento</label>
+                      <div class="detail-value">{{ seguimiento.tipoAlimento || '—' }}</div>
+                    </div>
+                  }
                   <div class="detail-field detail-field--full">
                     <label>Observaciones</label>
                     <div class="detail-value">{{ seguimiento.observaciones || '—' }}</div>
@@ -125,75 +127,97 @@
                     <label>Huevos Totales</label>
                     <div class="detail-value highlight">{{ seguimiento.huevosTotales }}</div>
                   </div>
-                  <div class="detail-field">
-                    <label>Huevos Incubables</label>
-                    <div class="detail-value highlight">{{ seguimiento.huevosIncubables }}</div>
-                  </div>
-                  <div class="detail-field">
-                    <label>Peso Promedio (g)</label>
-                    <div class="detail-value highlight">{{ seguimiento.pesoHuevo | number:'1.0-2' }} g</div>
-                  </div>
-                  <div class="detail-field">
-                    <label>Eficiencia</label>
-                    <div class="detail-value highlight">
-                      {{ seguimiento.huevosTotales > 0 ? ((seguimiento.huevosIncubables / seguimiento.huevosTotales) * 100 | number:'1.0-2') : 0 }}%
+                  @if (!clasificacionHuevoPorItems) {
+                    <div class="detail-field">
+                      <label>Huevos Incubables</label>
+                      <div class="detail-value highlight">{{ seguimiento.huevosIncubables }}</div>
                     </div>
-                  </div>
+                    <div class="detail-field">
+                      <label>Peso Promedio (g)</label>
+                      <div class="detail-value highlight">{{ seguimiento.pesoHuevo | number:'1.0-2' }} g</div>
+                    </div>
+                    <div class="detail-field">
+                      <label>Eficiencia</label>
+                      <div class="detail-value highlight">
+                        {{ seguimiento.huevosTotales > 0 ? ((seguimiento.huevosIncubables / seguimiento.huevosTotales) * 100 | number:'1.0-2') : 0 }}%
+                      </div>
+                    </div>
+                  }
                 </div>
-                <div class="data-group">
-                  <h4 class="data-group-title">✅ Clasificadora - Incubables (Limpio, Tratado)</h4>
-                  <div class="detail-grid grid-2">
-                    <div class="detail-field">
-                      <label>Limpio</label>
-                      <div class="detail-value">{{ seguimiento.huevoLimpio ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Tratado</label>
-                      <div class="detail-value">{{ seguimiento.huevoTratado ?? 0 }}</div>
+                @if (clasificacionHuevoPorItems) {
+                  <div class="data-group">
+                    <h4 class="data-group-title">🥚 Clasificación por ítem del catálogo</h4>
+                    @if (huevoItemsGuardados.length === 0) {
+                      <p class="detail-value">Sin clasificación por ítems cargada.</p>
+                    }
+                    @if (huevoItemsGuardados.length > 0) {
+                      <div class="detail-grid grid-2">
+                        @for (item of huevoItemsGuardados; track item.catalogItemId) {
+                          <div class="detail-field">
+                            <label>{{ item.nombre || item.codigo || ('Ítem ' + item.catalogItemId) }}</label>
+                            <div class="detail-value">{{ item.cantidad }}</div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+                @if (!clasificacionHuevoPorItems) {
+                  <div class="data-group">
+                    <h4 class="data-group-title">✅ Clasificadora - Incubables (Limpio, Tratado)</h4>
+                    <div class="detail-grid grid-2">
+                      <div class="detail-field">
+                        <label>Limpio</label>
+                        <div class="detail-value">{{ seguimiento.huevoLimpio ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Tratado</label>
+                        <div class="detail-value">{{ seguimiento.huevoTratado ?? 0 }}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div class="data-group">
-                  <h4 class="data-group-title">📋 Clasificadora - No Incubables</h4>
-                  <div class="detail-grid grid-4">
-                    <div class="detail-field">
-                      <label>Sucio</label>
-                      <div class="detail-value">{{ seguimiento.huevoSucio ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Deforme</label>
-                      <div class="detail-value">{{ seguimiento.huevoDeforme ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Blanco</label>
-                      <div class="detail-value">{{ seguimiento.huevoBlanco ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Doble Yema</label>
-                      <div class="detail-value">{{ seguimiento.huevoDobleYema ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Piso</label>
-                      <div class="detail-value">{{ seguimiento.huevoPiso ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Pequeño</label>
-                      <div class="detail-value">{{ seguimiento.huevoPequeno ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Roto</label>
-                      <div class="detail-value">{{ seguimiento.huevoRoto ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Desecho</label>
-                      <div class="detail-value">{{ seguimiento.huevoDesecho ?? 0 }}</div>
-                    </div>
-                    <div class="detail-field">
-                      <label>Otro</label>
-                      <div class="detail-value">{{ seguimiento.huevoOtro ?? 0 }}</div>
+                  <div class="data-group">
+                    <h4 class="data-group-title">📋 Clasificadora - No Incubables</h4>
+                    <div class="detail-grid grid-4">
+                      <div class="detail-field">
+                        <label>Sucio</label>
+                        <div class="detail-value">{{ seguimiento.huevoSucio ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Deforme</label>
+                        <div class="detail-value">{{ seguimiento.huevoDeforme ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Blanco</label>
+                        <div class="detail-value">{{ seguimiento.huevoBlanco ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Doble Yema</label>
+                        <div class="detail-value">{{ seguimiento.huevoDobleYema ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Piso</label>
+                        <div class="detail-value">{{ seguimiento.huevoPiso ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Pequeño</label>
+                        <div class="detail-value">{{ seguimiento.huevoPequeno ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Roto</label>
+                        <div class="detail-value">{{ seguimiento.huevoRoto ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Desecho</label>
+                        <div class="detail-value">{{ seguimiento.huevoDesecho ?? 0 }}</div>
+                      </div>
+                      <div class="detail-field">
+                        <label>Otro</label>
+                        <div class="detail-value">{{ seguimiento.huevoOtro ?? 0 }}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                }
               </section>
               <!-- PESAJE SEMANAL -->
               <section id="panel-det-pesaje" class="ux-tab-panel" role="tabpanel">

@@ -78,6 +78,12 @@ export interface CompanyFlags {
   ocultaMachosEnPostura: boolean;
   /** Santa Reyes: el catálogo de ítems de inventario sólo ofrece Alimento y Aves (en vez de los 6 tipos de siempre). */
   limitaTiposInventarioAlimentoYAves: boolean;
+  /**
+   * Santa Reyes: última semana de vida del lote (edad global desde encasetamiento) en la que el
+   * ítem «Huevo de primera postura» sigue disponible en la clasificación por ítems. `null` = sin
+   * límite configurado (todas las empresas salvo Santa Reyes) — no se oculta nada.
+   */
+  huevoPrimeraPosturaHastaSemana: number | null;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -95,7 +101,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   semanasCicloPosturaPorRaza: false,
   consumoAlimentoSoloHembras: false,
   ocultaMachosEnPostura: false,
-  limitaTiposInventarioAlimentoYAves: false
+  limitaTiposInventarioAlimentoYAves: false,
+  huevoPrimeraPosturaHastaSemana: null
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -122,6 +129,7 @@ interface CompanyFlagsResponse {
   consumoAlimentoSoloHembras?: boolean | null;
   ocultaMachosEnPostura?: boolean | null;
   limitaTiposInventarioAlimentoYAves?: boolean | null;
+  huevoPrimeraPosturaHastaSemana?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -205,6 +213,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿el catálogo de ítems de inventario de la empresa activa se limita a Alimento y Aves? */
   readonly limitaTiposInventarioAlimentoYAves$: Observable<boolean> = this.flags$.pipe(
     map(f => f.limitaTiposInventarioAlimentoYAves),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: última semana de vida con «Huevo de primera postura» vigente (`null` = sin límite). */
+  readonly huevoPrimeraPosturaHastaSemana$: Observable<number | null> = this.flags$.pipe(
+    map(f => f.huevoPrimeraPosturaHastaSemana),
     distinctUntilChanged()
   );
 
@@ -321,7 +335,10 @@ export class ActiveCompanyConfigService {
       semanasCicloPosturaPorRaza: dto?.semanasCicloPosturaPorRaza === true,
       consumoAlimentoSoloHembras: dto?.consumoAlimentoSoloHembras === true,
       ocultaMachosEnPostura: dto?.ocultaMachosEnPostura === true,
-      limitaTiposInventarioAlimentoYAves: dto?.limitaTiposInventarioAlimentoYAves === true
+      limitaTiposInventarioAlimentoYAves: dto?.limitaTiposInventarioAlimentoYAves === true,
+      huevoPrimeraPosturaHastaSemana: typeof dto?.huevoPrimeraPosturaHastaSemana === 'number'
+        ? dto.huevoPrimeraPosturaHastaSemana
+        : null
     };
   }
 
@@ -343,7 +360,8 @@ export class ActiveCompanyConfigService {
       actual.semanasCicloPosturaPorRaza === flags.semanasCicloPosturaPorRaza &&
       actual.consumoAlimentoSoloHembras === flags.consumoAlimentoSoloHembras &&
       actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura &&
-      actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves
+      actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves &&
+      actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana
     ) return;
     this.flagsSubject.next(flags);
   }

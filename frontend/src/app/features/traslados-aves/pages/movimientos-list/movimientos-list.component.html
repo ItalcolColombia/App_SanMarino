@@ -182,6 +182,7 @@
                           <th>Origen</th>
                           <th>Destino</th>
                           <th>Cantidad</th>
+                          <th>Transporte</th>
                           <th>Estado</th>
                         </tr>
                       </thead>
@@ -213,6 +214,15 @@
                                 <span>—</span>
                               }
                             </td>
+                            <td class="text-sm">
+                              @if (movimiento.placa || movimiento.conductor || movimiento.sellos) {
+                                @if (movimiento.placa) { <span>Placa: {{ movimiento.placa }}</span> }
+                                @if (movimiento.conductor) { <span>Cond.: {{ movimiento.conductor }}</span> }
+                                @if (movimiento.sellos) { <span>Precinto: {{ movimiento.sellos }}</span> }
+                              } @else {
+                                <span>—</span>
+                              }
+                            </td>
                             <td>
                               <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
                                 [class.badge--warning]="movimiento.estado === 'Pendiente'"
@@ -224,7 +234,7 @@
                         }
                         @if (!loadingMovimientos() && movimientosAvesLote().length === 0) {
                           <tr>
-                            <td colspan="8" class="empty-state">
+                            <td colspan="9" class="empty-state">
                               <div class="empty-illustration">🐔</div>
                               <p>No hay registros de traslado de aves para este lote.</p>
                               <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>

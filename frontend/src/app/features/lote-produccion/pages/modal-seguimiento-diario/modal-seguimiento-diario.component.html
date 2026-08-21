@@ -361,25 +361,31 @@
                   <small class="ux-hint">Automático: suma de las cantidades por ítem</small>
                 </div>
               }
-              <div class="form-field">
-                <label for="f-peso-huevo"><span class="label-icon">⚖️</span> Peso Promedio (g) *</label>
-                <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" required />
-                <small class="ux-hint">Peso promedio en gramos</small>
-              </div>
-              <div class="form-field">
-                <label for="f-tipo-alimento"><span class="label-icon">🌾</span> Tipo de Alimento *</label>
-                <select id="f-tipo-alimento" formControlName="tipoAlimento" required>
-                  <option value="Standard">Standard</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Inicio">Inicio</option>
-                  <option value="Postura">Postura</option>
-                  <option value="Final">Final</option>
-                  @if (editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')) {
-                    <option [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
-                  }
-                </select>
-                <small class="ux-hint">Tipo de alimento utilizado</small>
-              </div>
+              <!-- Peso promedio y tipo de alimento: no se usan con clasificación por ítems (Santa Reyes,
+                   Requerimientos de Italapp §Producción de huevos: "tampoco es necesita la parte de peso
+                   promedio ni de tipo de alimento"). Los controles conservan su valor por defecto
+                   (0 / 'Standard'), así que siguen siendo válidos y se guardan igual que hoy — es solo UI. -->
+              @if (!clasificacionHuevoPorItems) {
+                <div class="form-field">
+                  <label for="f-peso-huevo"><span class="label-icon">⚖️</span> Peso Promedio (g) *</label>
+                  <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" required />
+                  <small class="ux-hint">Peso promedio en gramos</small>
+                </div>
+                <div class="form-field">
+                  <label for="f-tipo-alimento"><span class="label-icon">🌾</span> Tipo de Alimento *</label>
+                  <select id="f-tipo-alimento" formControlName="tipoAlimento" required>
+                    <option value="Standard">Standard</option>
+                    <option value="Premium">Premium</option>
+                    <option value="Inicio">Inicio</option>
+                    <option value="Postura">Postura</option>
+                    <option value="Final">Final</option>
+                    @if (editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')) {
+                      <option [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
+                    }
+                  </select>
+                  <small class="ux-hint">Tipo de alimento utilizado</small>
+                </div>
+              }
               <!-- CLASIFICACIÓN POR ÍTEMS (empresas con `clasificacion_huevo_por_items`) -->
               @if (clasificacionHuevoPorItems) {
                 <div class="form-field form-field--full">
@@ -407,7 +413,9 @@
                             @for (grupo of gruposHuevoItems; track grupo.tipoHuevo) {
                               <optgroup [label]="grupo.tipoHuevo">
                                 @for (op of grupo.items; track op.id) {
-                                  <option [ngValue]="op.id" [disabled]="itemHuevoUsadoEnOtraFila(op.id, i)">{{ op.label }}</option>
+                                  <option [ngValue]="op.id" [disabled]="itemHuevoUsadoEnOtraFila(op.id, i) || !itemHuevoVigente(op)">
+                                    {{ op.label }}{{ !itemHuevoVigente(op) ? ' (fuera de vigencia)' : '' }}
+                                  </option>
                                 }
                               </optgroup>
                             }

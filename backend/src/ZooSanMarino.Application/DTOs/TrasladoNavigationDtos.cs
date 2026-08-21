@@ -81,7 +81,12 @@ public record MovimientoAvesCompletoDto(
     // Información calculada
     bool EsMovimientoInterno,
     bool EsMovimientoEntreGranjas,
-    string TipoMovimientoDescripcion
+    string TipoMovimientoDescripcion,
+
+    // Transporte (opcional, postura Santa Reyes — ver MovimientoAves.Placa/Conductor/Sellos)
+    string? Placa = null,
+    string? Conductor = null,
+    string? Sellos = null
 );
 
 /// <summary>

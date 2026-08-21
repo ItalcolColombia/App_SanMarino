@@ -22,6 +22,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 import { HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
 import {
   agruparItemsHuevoPorTipo,
+  esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
   mapearItemsHuevoACatalogo,
   sumarCantidadesHuevo
@@ -33,6 +34,7 @@ import {
   ETAPA_CICLO_FUERA_DE_CICLO,
   EtapaCicloPostura
 } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
+import { semanaVidaLevante } from '../../../lote-levante/funciones/semana-vida-levante.funcion';
 
 // Interfaz extendida localmente para incluir tipoItem y unidad
 interface CatalogItemExtended extends CatalogItemDto {
@@ -164,6 +166,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   /** Total de huevos clasificados (memoizado; NO getter, para no alocar en cada ciclo de CD). */
   totalHuevosClasificados = 0;
   cargandoItemsHuevo = false;
+  /**
+   * Santa Reyes: última semana de vida con «Huevo de primera postura» vigente (`Company
+   * .huevoPrimeraPosturaHastaSemana`). `null` = sin límite, no se oculta ningún ítem.
+   */
+  huevoPrimeraPosturaHastaSemana: number | null = null;
   /** Ítems del catálogo por id (para completar código/nombre/tipoHuevo/um en el payload). */
   private huevoItemsById = new Map<number, HuevoCatalogOption>();
   /** Ítems que ya venían en `metadata.huevoItems` (fallback si salieron del catálogo). */
@@ -224,6 +231,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         }
       }
       this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
+      this.huevoPrimeraPosturaHastaSemana = flags.huevoPrimeraPosturaHastaSemana;
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       if (!this.clasificacionHuevoPorItems) return;
@@ -793,6 +801,18 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return true;
     }
     return false;
+  }
+
+  /**
+   * Template: ¿sigue vigente este ítem de huevo? Solo aplica a los tagueados «primera postura»
+   * (`Company.huevoPrimeraPosturaHastaSemana`, hoy semana 22 en Santa Reyes) — el resto de los
+   * ítems (Primera común / Pnc) no tiene vigencia y siempre devuelve `true`.
+   */
+  itemHuevoVigente(op: HuevoCatalogOption): boolean {
+    if (!op.primeraPostura) return true;
+    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
+    const semanaVida = semanaVidaLevante(this.fechaEncaset, fechaRegistro);
+    return esVigentePrimeraPostura(this.huevoPrimeraPosturaHastaSemana, semanaVida);
   }
 
   /** Registro nuevo con el flag activo: arranca con una fila lista para cargar. */
