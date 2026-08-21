@@ -886,3 +886,46 @@ diario, luego cada 4 días). Plan:
       coincide con el valor ya conocido de sus propios casos), inserta 1 sola fila y la 2da pasada
       la encuentra sin duplicar — 0 filas persistidas en la BD real tras el `ROLLBACK`
 - [x] **X6 cerrado.**
+
+---
+
+## X7 — Auditoría de no-regresión Santa Reyes sobre postura: 2 hallazgos, 2 fixes, 2 tickets cerrados (21-ago-2026)
+
+Pedido del usuario: validar que la implementación de Santa Reyes (flags F0.1-F10) no afecte a
+Sanmarino en postura y otros módulos. Auditoría con 4 agentes en paralelo (solo lectura) sobre:
+gating de los 5 flags de comportamiento en seguimiento diario, el refactor `GuiaGeneticaLookup` (6
+sitios compartidos por todas las empresas), traslados de aves/huevos (F7/F9/F10), y build/tests/BD
+real. Resultado: aislamiento multi-tenant correcto (solo Santa Reyes y, en 2 flags no relacionados,
+Demo a propósito, tienen algo encendido — Sanmarino/Panamá/Ecuador en `false` en los 7 flags), pero
+2 hallazgos reales que sí tocan a Sanmarino.
+
+- [x] X7.1 **Hallazgo 1 (introducido por el trabajo de Santa Reyes, afecta a cualquier empresa):**
+      `TrasladoHuevos.TotalHuevos` pasó de calcularse en vivo a columna persistida al agregar el
+      desglose por ítems (F10, commit `650f43a`), pero `ActualizarTrasladoHuevosAsync` dejaba
+      editar las 11 cantidades legacy de un traslado `Pendiente` sin recalcular el total — el valor
+      obsoleto llegaba al espejo de producción, al descuento diario y al listado al completar el
+      traslado. Fix: recálculo condicional (solo si el traslado no usa `HuevoItems`) inmediatamente
+      después de aplicar los cambios de cantidades, en
+      `TrasladoHuevosService.ActualizarTrasladoHuevosAsync` (commit `75023c2`)
+- [x] X7.2 **Hallazgo 2 (preexistente, NO causado por Santa Reyes, confirmado con datos reales):**
+      `ReporteTecnicoProduccionService.cs` tenía 3 consultas a la guía genética compartida
+      (`ProduccionAvicolaRaw`) sin filtrar por `company_id`. Confirmado en la BD local: Sanmarino
+      (empresa 1) y Demo (empresa 4) comparten raza `AP`/año `2026` con 77 de 77 semanas
+      solapadas — el reporte podía mostrarle a una empresa valores de guía genética de otra. Fix:
+      agregado `p.CompanyId == _currentUser.CompanyId` a las 3 consultas (commit `8625d40`)
+- [x] X7.3 Validado cada fix por separado: `dotnet build` (portable SDK 10.0.301, 0 errores,
+      mismos 21 warnings preexistentes) + `dotnet test` (**2975/2975**, 0 fallos)
+- [x] X7.4 Migración data-only `20260821125030_SeedTicketsFixesAuditoriaSantaReyes` (mismo patrón
+      `SeedTicketPlanItalappSantaReyes`/`SeedTicketGananciaDiariaEngordeLadyMalave`: Designer
+      clonado, sin cambio de schema) siembra **TK-2026-000177** (hallazgo 1, prioridad ALTA) y
+      **TK-2026-000178** (hallazgo 2, prioridad CRITICA), ambos a nombre de la empresa **Santa
+      Reyes** (forzada por nombre — el módulo auditado es el que ellos usan — no la empresa por
+      defecto del creador), creados y **cerrados** (no solo solucionados: `Estado=CERRADO`,
+      `FechaCierreSolicitante` y `CerradoPorUserId` poblados, mismos campos que
+      `TicketService.Gestion.cs` usa al cerrar desde la pantalla) por `moiesbbuga@gmail.com`, que
+      detectó, aplicó y validó ambos fixes en la misma sesión. SQL validado dos veces dentro de
+      `BEGIN;...ROLLBACK;` antes de aplicar de verdad (idempotencia confirmada); aplicado con
+      `dotnet ef database update` (arrastró también la migración de X6, ya commiteada y pendiente
+      desde antes) y verificado en la BD real: ambos tickets `CERRADO`, `company_id=6`,
+      `cerrado_ok=true` (commit `78f4366`)
+- [x] **X7 cerrado.**
