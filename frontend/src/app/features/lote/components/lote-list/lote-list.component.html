@@ -47,28 +47,32 @@
           (click)="setTab('lote')">
           Lotes Seguimientos
         </button>
-        <!--  <button
-        type="button"
-        class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-        [class.bg-primary]="activeTab === 'levante'"
-        [class.text-white]="activeTab === 'levante'"
-        [class.bg-gray-100]="activeTab !== 'levante'"
-        [class.text-gray-700]="activeTab !== 'levante'"
-        [class.hover:bg-gray-200]="activeTab !== 'levante'"
-        (click)="setTab('levante')">
-        Lotes en  Levante
-      </button>
-      <button
-        type="button"
-        class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-        [class.bg-primary]="activeTab === 'produccion'"
-        [class.text-white]="activeTab === 'produccion'"
-        [class.bg-gray-100]="activeTab !== 'produccion'"
-        [class.text-gray-700]="activeTab !== 'produccion'"
-        [class.hover:bg-gray-200]="activeTab !== 'produccion'"
-        (click)="setTab('produccion')">
-        Lotes en Producción
-      </button>-->
+        <!-- Pestanas por etapa: opcionales por empresa (flag separa_lotes_postura_por_etapa).
+             Apagado (default) se ve una sola lista, con la etapa en la columna Fase/Etapa. -->
+        @if (separaLotesPorEtapa) {
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+            [class.bg-primary]="activeTab === 'levante'"
+            [class.text-white]="activeTab === 'levante'"
+            [class.bg-gray-100]="activeTab !== 'levante'"
+            [class.text-gray-700]="activeTab !== 'levante'"
+            [class.hover:bg-gray-200]="activeTab !== 'levante'"
+            (click)="setTab('levante')">
+            Lotes en Levante
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+            [class.bg-primary]="activeTab === 'produccion'"
+            [class.text-white]="activeTab === 'produccion'"
+            [class.bg-gray-100]="activeTab !== 'produccion'"
+            [class.text-gray-700]="activeTab !== 'produccion'"
+            [class.hover:bg-gray-200]="activeTab !== 'produccion'"
+            (click)="setTab('produccion')">
+            Lotes en Producción
+          </button>
+        }
     </div>
   </div>
 

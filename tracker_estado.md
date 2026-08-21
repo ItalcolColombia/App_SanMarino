@@ -1146,3 +1146,45 @@ tiene produccion no muestre la palabra produccion hasta que este en esa etapa».
 - [x] X11.8 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
       `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
 - [x] **X11 cerrado.**
+
+---
+
+## X12 — Flag por empresa: separar los lotes de postura por etapa (21-ago-2026)
+
+Pedido del usuario: poder decidir **desde el modulo Empresa, como los otros flags**, si se ven o no
+las pestanas de Levante y Produccion. Reactiva las dos vistas comentadas desde `cd9b1a7`
+(25-may-2026) — el pendiente X10.7 —, ahora que X11 hace confiable la etapa de cada lote.
+
+- [x] X12.1 Flag `companies.separa_lotes_postura_por_etapa`, **nombrado por el comportamiento** y no
+      por el tenant, `NOT NULL DEFAULT false` (fail-closed: nace apagado en TODAS las empresas y la
+      migracion no lo enciende para nadie). Patron §🏢 del CLAUDE.md
+- [x] X12.2 Backend, las **9 posiciones** del patron: `Company` + `CompanyConfiguration`, los 3 DTOs
+      (`CompanyDto` / `Create` / `Update`) y las **4 proyecciones** (`CompanyService.ToDto`,
+      `CompanyService.Crud` ×2 —alta y edicion—, `CompanyResolver` ×2, `CompanyPaisService`)
+- [x] X12.3 Migracion `20260821170000_AddFlagSeparaLotesPosturaPorEtapa` idempotente
+      (`ADD COLUMN IF NOT EXISTS`). Cambia schema ⇒ Designer clonado del ModelSnapshot **y**
+      property agregada al propio ModelSnapshot, en orden alfabetico (hecho a mano: el backend de
+      otra sesion tiene tomado el `bin/` y `dotnet ef` no puede correr)
+- [x] X12.4 Frontend: `CompanyFlags` gana el campo en sus **6 posiciones** (interfaz,
+      `FLAGS_APAGADOS`, forma de la respuesta, mapeo fail-closed, comparacion de igualdad y atajo
+      `separaLotesPosturaPorEtapa$`) y **una linea** en el catalogo `FLAGS_EMPRESA`, que es todo lo
+      que hace falta para que aparezca en la pantalla de Empresas
+- [x] X12.5 Los dos tabs vuelven al HTML dentro de `@if (separaLotesPorEtapa)`. Si el flag se apaga
+      con el usuario parado en una de esas pestanas, `loadCompanyFlags` lo devuelve a la lista
+      completa — si no, se quedaria mirando una pestana que ya no existe
+- [x] X12.6 **Verificado en pantalla, los dos estados**: con el flag APAGADO se ven solo «Lote Base»
+      y «Lotes Seguimientos» (identico a hoy); ENCENDIDO aparecen ademas «Lotes en Levante»
+      (16 lotes) y «Lotes en Produccion» (2), **todas las filas sumando** — el tab de produccion, que
+      antes mostraba 21 y 26 aves, ahora muestra 10.991 + 1.596 = 12.587 gracias a X9
+- [x] X12.7 **Aislamiento multi-tenant probado**: encendido solo en Sanmarino, la sesion de
+      ItalcolEcuador NO ve las pestanas. El listado `GET /api/Company` devuelve `separa=true` solo
+      para Sanmarino y `false` en las otras 4 empresas
+- [x] X12.8 **Ciclo de escritura completo** por la API: PUT apagando => `false` (y los demas flags
+      intactos), PUT encendiendo => `true`, y **PUT omitiendo el campo => conserva el valor**
+      (patron `?? c.X` del Crud: un cliente viejo no puede borrar la configuracion)
+- [x] X12.9 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno cerrado: puertos libres, clon borrado
+- [i] X12.10 La columna **no se aplico en la BD local**: la migracion corre sola en el proximo
+      arranque del backend (`RunMigrations=true`), que es el flujo normal. En el clon de prueba se
+      aplico asi y quedo con `default false`
+- [x] **X12 cerrado** — con esto se cierra tambien el pendiente **X10.7**.

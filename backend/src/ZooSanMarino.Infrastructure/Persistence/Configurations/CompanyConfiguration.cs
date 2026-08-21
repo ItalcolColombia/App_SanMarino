@@ -157,6 +157,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el listado de lotes de postura se separa en pestañas por
+        // etapa (Levante / Producción), además de la lista completa.
+        builder.Property(x => x.SeparaLotesPosturaPorEtapa)
+            .HasColumnName("separa_lotes_postura_por_etapa")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

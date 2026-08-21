@@ -232,6 +232,12 @@ export class LoteListComponent implements OnInit {
   /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
   manejaInventarioPorSilo = false;
 
+  /**
+   * Flag: el listado suma las pestañas «Lotes en Levante» y «Lotes en Producción». Fail-closed:
+   * apagado (o si falla la consulta) se ve una sola lista, que es el comportamiento de siempre.
+   */
+  separaLotesPorEtapa = false;
+
   /** Destino del modal de asignación de silos del lote (null = cerrado). */
   destinoSilos: DestinoAsignacionSilos | null = null;
 
@@ -501,6 +507,14 @@ export class LoteListComponent implements OnInit {
     this.companyConfig.getFlags().subscribe(flags => {
       this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
       this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
+
+      // Las pestañas por etapa son opcionales por empresa. Si el flag se apaga mientras el usuario
+      // está parado en una de ellas, hay que devolverlo a la lista completa o se quedaría mirando
+      // una pestaña que ya no existe.
+      this.separaLotesPorEtapa = flags.separaLotesPosturaPorEtapa;
+      if (!this.separaLotesPorEtapa && (this.activeTab === 'levante' || this.activeTab === 'produccion')) {
+        this.setTab('lote');
+      }
     });
   }
 
