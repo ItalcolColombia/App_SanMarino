@@ -518,13 +518,28 @@
                 <!-- Sección: Aves y pesos -->
                 <div class="le-form-section">
                   <h3 class="le-form-section__title">Aves y pesos (gramos)</h3>
+
+                  @if (editing) {
+                    <div class="le-form-note">
+                      <strong>Estas cantidades son el encasetamiento del lote</strong>, no las aves que
+                      quedan hoy. Corregirlas recalcula toda la serie del seguimiento diario; el saldo
+                      actual se mueve por la misma diferencia y las bajas ya registradas se conservan.
+                      @if (saldoActual) {
+                        <span class="le-form-note__saldo">
+                          Saldo actual: <b>{{ formatNumber(saldoActualTotal) }}</b> aves vivas
+                          ({{ formatNumber(saldoActual.hembras) }} H · {{ formatNumber(saldoActual.machos) }} M · {{ formatNumber(saldoActual.mixtas) }} X).
+                        </span>
+                      }
+                    </div>
+                  }
+
                   <div class="le-form-grid le-form-grid--wide">
                     <div class="le-field">
-                      <label class="le-label"># Hembras</label>
+                      <label class="le-label">Hembras encasetadas</label>
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="hembrasL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
-                      <label class="le-label"># Machos</label>
+                      <label class="le-label">Machos encasetados</label>
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="machosL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
@@ -532,8 +547,8 @@
                       <input type="text" inputmode="numeric" appThousandSeparator formControlName="avesEncasetadas" readonly class="le-input le-input--readonly" placeholder="0"/>
                     </div>
                     <div class="le-field">
-                      <label class="le-label">Mixtas</label>
-                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" class="le-input" placeholder="0"/>
+                      <label class="le-label">Mixtas encasetadas</label>
+                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
                       <label class="le-label">Peso mixto (g)</label>

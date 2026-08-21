@@ -929,3 +929,89 @@ Demo a propósito, tienen algo encendido — Sanmarino/Panamá/Ecuador en `false
       desde antes) y verificado en la BD real: ambos tickets `CERRADO`, `company_id=6`,
       `cerrado_ok=true` (commit `78f4366`)
 - [x] **X7 cerrado.**
+
+---
+
+## X8 — Ajuste de encasetamiento: editar las aves de un lote que ya tiene seguimiento (21-ago-2026)
+
+Ticket: crearon un lote de pollo engorde con la cantidad de aves equivocada y siguieron cargando el
+seguimiento diario; ahora necesitan **editar el lote y sumarle** (o restarle) aves y que la
+correccion baje en cascada a seguimientos, reportes, consumo, disponibilidad y ventas. Aplica
+tambien a **postura**. Plan:
+[`fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md`](fase_de_desarrollo/ajuste_encasetamiento_lote_plan.md).
+
+Decisiones del usuario: restar por debajo de lo consumido => **bloquear con detalle**; en postura la
+correccion llega a **levante Y produccion**.
+
+### Diagnostico (cerrado)
+
+- [x] X8.1 En engorde el form edita el **saldo vivo**, no el encasetamiento: `lote_ave_engorde.hembras_l/
+      machos_l/mixtas` los descuenta `RetiroAvesEngordeAplicador` + ventas, mientras `aves_encasetadas`
+      es el inicial historico. Medido en BD local: lote id 5 => `aves_encasetadas=25.542` contra
+      `maestro=1.840`
+- [x] X8.2 `actualizarEncasetadas()` (lote-engorde-list.component.ts:1031) hace
+      `avesEncasetadas = hembrasL + machosL` y esta enganchado por `valueChanges` (273-274) **y** por
+      `(input)` en el HTML (524, 528) => tocar `# Hembras` **pisa el inicial con el saldo** y la fn
+      vuelve a restar las bajas ya descontadas. No hay hoy ningun camino correcto para sumar/restar
+- [x] X8.3 Linea base del invariante congelada: `fn_cuadre_aves_engorde(NULL)` => **191 lotes,
+      0 descuadrados, 0 sin referencia**. Los 191 tienen fila `Inicio` en `historial_lote_pollo_engorde`
+- [x] X8.4 En postura la semantica es la OPUESTA (`lotes.hembras_l` **si** es el inicial) y el trigger
+      `trg_lotes_sync_lote_postura_levante` ya corre el delta sobre `lote_postura_levante.aves_h_actual`
+      (migracion `20260806074742`). Quedan fuera `lote_etapa_levante.aves_inicio_*` — que **gana** sobre
+      `lotes.hembras_l` en `GetMortalidadResumenAsync` — y todo `lote_postura_produccion`
+
+### Ejecucion
+
+- [x] X8.5 `AjusteEncasetamientoCalculos` (puro) + `AjusteEncasetamientoCalculosTests`: delta por
+      sexo, aplicacion con clamp y bucket mixto (Panama), diagnostico del primer dia negativo,
+      reversibilidad, no-op. **24 casos, todos verdes**
+- [x] X8.6 Engorde backend: `LoteAveEngordeService.UpdateAsync` aplica **delta** en vez de pisar;
+      escribe `aves_encasetadas` + fila `Inicio` + maestro en la misma unidad de trabajo (preserva el
+      invariante de `fn_cuadre_aves_engorde`) y audita con `TipoRegistro=AjusteEncaset`, invisible
+      para la conservacion igual que `AjusteResync`. El `DetailDto` expone `inicialHembras/Machos/
+      Mixtas` por subconsulta correlacionada
+- [x] X8.7 Engorde frontend: el form edita el **inicial** (no el saldo), bloque de aviso con el saldo
+      vivo, `mixtas` suma al total encasetado (antes quedaba en 0 en lotes mixtos de Panama), helpers
+      puros en `funciones/aves-encasetadas.funcion.ts` + README, y el 400 del gate llega al
+      `ToastService` (el controller responde string plano, no `{message}`)
+- [x] X8.8 Postura backend: partial `Funciones/LoteService.AjusteEncasetamiento.cs` propaga el delta a
+      `lote_etapa_levante` y a `lote_postura_produccion` (`aves_h_inicial`/`hembras_iniciales_prod`/
+      `aves_h_actual`) **preservando los NULL** (materializarlos cambiaria cual columna gana el
+      `COALESCE` de la fn). `lote_postura_levante` se deja al trigger: no se duplica la formula
+- [x] X8.9 Postura frontend: aviso en el form de edicion + mismo manejo del 400
+- [x] X8.10 **Validado**: `dotnet build` 0 errores / 0 warnings · `dotnet test` **2999/2999** ·
+      `yarn build` 0 errores
+
+### Verificacion contra datos reales (smoke aislado)
+
+> Clon `sanmarino_smoke_x8` (`TEMPLATE sanmarinoapplocal`) + content root propio + backend en :5501.
+> `pg_stat_activity` confirmo 1 sola conexion, al clon. Al terminar: puerto libre, clon borrado.
+
+- [x] X8.11 **Engorde, lote 107 (Ecuador, 42 seguimientos)**: PUT sin tocar aves ⇒ **cero cambios** y
+      cero filas de auditoria. Sumar 500 H ⇒ inicial 10.917→11.417, encaset 24.374→24.874, saldo
+      10.775→**11.275** (las bajas se conservan) y **toda la serie diaria +500** (dia 1:
+      24.345→24.845; dia 42: 3.967→4.467). Restar 200 ⇒ los tres bajan 200. Testigo
+      `fn_cuadre_aves_engorde` en **0 descuadrados / 0 sin referencia** despues de cada ajuste
+- [x] X8.12 **Gate al restar**: bajar el lote 107 a 200 aves ⇒ **400** con dia y faltante
+      («el 17/07/2026 ... por 10 ave(s) ... lleva 20407 aves consumidas») y **nada escrito**: ni el
+      lote, ni el historial
+- [x] X8.13 **Postura, lote 13 (K345A, Sanmarino, 168 dias de levante + 301 de produccion)**: sumar
+      500 H ⇒ las **6 copias** corregidas — `lotes` 7.999→8.499, `lote_etapa_levante` 7.999→8.499,
+      `lote_postura_levante` inicial y actual →8.499, `lote_postura_produccion` inicial 7.597→8.097,
+      `hembras_iniciales_prod` →8.097 y `aves_h_actual` 5.315→**5.815** (conserva las bajas de
+      produccion). `fn_seguimiento_diario_produccion` +500 en los 301 dias, 0 negativos
+- [x] X8.14 🔴 **El smoke encontro 2 defectos que ni el compilador ni los tests unitarios veian**:
+      (a) EF no traduce una llamada a metodo propio dentro del arbol de expresion — la subconsulta del
+      `Inicio` reventaba en runtime con *The LINQ expression could not be translated* y dejaba el GET
+      del modulo en 500; se escribio en linea. (b) el gate de postura media **solo la serie de
+      levante**: en el lote 13 (levante 739 aves, produccion 2.492) bajar la base a 1.232 pasaba el
+      filtro y hundia `lpp.aves_h_inicial` de 7.597 a 0 por clamp, en silencio. Corregido a la serie
+      del **ciclo completo** y fijado con el test `Medir_solo_una_etapa_del_ciclo_deja_pasar_...`
+- [x] X8.15 **Gate multipais (CLAUDE.md §Invariantes)** sobre el clon, linea base congelada antes y
+      comparada despues: `dif_saldo_alimento`, `dif_ingreso`, `dif_consumo`, `dif_documento`,
+      `filas_nuevas` y `filas_que_desaparecen` = **0 en las dos empresas**. Unico diff:
+      `dif_saldo_aves = 42` en ItalcolEcuador, **atribuido lote por lote**: las 42 filas son todas del
+      lote 107 y todas cambian exactamente +500 — Panama en 0. `fn_cuadre_alimento_engorde` da
+      **68 galpones / 11 con kilos / 19 con dias rojos, identico con y sin el cambio** (deuda
+      preexistente, no se movio)
+- [x] **X8 cerrado.**

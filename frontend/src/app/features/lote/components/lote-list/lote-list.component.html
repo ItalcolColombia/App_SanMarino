@@ -903,6 +903,14 @@
                         </div>
                       }
                       <!-- ======= AVES: enteros con separador ======= -->
+                      @if (editing) {
+                        <div class="ux-hint ux-hint--encaset">
+                          Estas cantidades son el <strong>encasetamiento</strong> del lote. Corregirlas
+                          recalcula la serie del seguimiento diario y arrastra la misma diferencia al
+                          saldo de levante y, si el lote ya pasó, a producción. Las bajas ya
+                          registradas se conservan.
+                        </div>
+                      }
                       <div>
                         <label class="ux-label">🐔 # Aves Hembra</label>
                         <input

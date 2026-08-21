@@ -596,3 +596,19 @@
   color: #78350f;
   font-weight: 700;
 }
+
+/* Aviso del formulario de edicion: aclara que las cantidades editables son el ENCASETAMIENTO
+ * del lote (la base contra la que la serie diaria calcula el saldo), no las aves que quedan hoy.
+ * Estilo autosuficiente: no toca los .ux-hint existentes. */
+.ux-hint--encaset {
+  grid-column: 1 / -1;
+  margin: 0 0 .5rem 0;
+  padding: .7rem .85rem;
+  border: 1px solid var(--warm-200);
+  border-left: 3px solid var(--chicken-yellow);
+  border-radius: 10px;
+  background: var(--warm-50);
+  color: var(--slate-800);
+  font-size: .8rem;
+  line-height: 1.5;
+}

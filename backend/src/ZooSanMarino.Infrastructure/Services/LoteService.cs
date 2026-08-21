@@ -607,8 +607,10 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.Regional = dto.Regional;
             ent.FechaEncaset = dto.FechaEncaset?.ToUniversalTime();
 
-            ent.HembrasL = dto.HembrasL;
-            ent.MachosL = dto.MachosL;
+            // Encasetamiento: escribe hembras_l/machos_l y propaga el DELTA a las copias que la
+            // edición dejaba atrás (lote_etapa_levante y lote_postura_produccion). Ver el partial
+            // Funciones/LoteService.AjusteEncasetamiento.cs.
+            await AplicarAjusteEncasetamientoAsync(ent, dto);
 
             ent.PesoInicialH = dto.PesoInicialH;
             ent.PesoInicialM = dto.PesoInicialM;

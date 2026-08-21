@@ -1432,7 +1432,15 @@ export class LoteListComponent implements OnInit {
         this.loadData();
       },
       error: (err) => {
-        const msg = err?.error?.message || err?.message || 'Error al guardar el lote.';
+        // El controller responde `BadRequest(ex.Message)`, o sea un string plano — no `{ message }`.
+        // Sin esta rama, el rechazo del ajuste de encasetamiento (que dice el día y las aves que
+        // faltan) se perdía detrás del mensaje genérico de HttpErrorResponse.
+        const msg =
+          (typeof err?.error === 'string' && err.error.trim() ? err.error : null) ??
+          err?.error?.message ??
+          err?.error?.detail ??
+          err?.message ??
+          'Error al guardar el lote.';
         this.toastService.error(msg, 'Error');
       }
     });
