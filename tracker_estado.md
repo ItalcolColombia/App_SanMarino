@@ -1062,3 +1062,40 @@ no se puede tocar. Continuacion de X8; mismo plan:
       **124 lotes / 0 columnas que no suman**, levante **16 / 0**, produccion **2 / 0** (antes 2 de 2
       no cuadraban). `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
 - [x] **X9 cerrado.**
+
+---
+
+## X10 — Tickets de X8 y X9 en ItalJira (21-ago-2026)
+
+Pedido del usuario: registrar en ItalJira los dos casos ya resueltos, para dejar el tablero alineado
+con el codigo.
+
+- [x] X10.1 Migracion data-only `20260821160000_SeedTicketsAjusteEncasetamientoLote` (patron
+      `SeedTicketsFixesAuditoriaSantaReyes`: Designer clonado del ModelSnapshot actual, sin cambio de
+      schema; el SQL vive en el partial `.Seed.cs`). Siembra **2 casos, ya CERRADOS**, a nombre de
+      **ItalcolEcuador** (resuelta por nombre, no por id) — es donde los dos se reportaron y se
+      midieron. Creador, asignado y cerrador: `moiesbbuga@gmail.com`, resuelto **por email**.
+      Fail-open si falta el usuario o la empresa; idempotente por `titulo`
+- [x] X10.2 **TK-2026-000178** (CRITICA) — «Lote engorde: editar las aves de un lote con seguimiento
+      reescribia el encasetamiento con el saldo». Causa, medicion (lote 5: 25.542 contra 1.840),
+      solucion y la validacion completa del smoke; commit `a9fd721`
+- [x] X10.3 **TK-2026-000179** (ALTA) — «Gestion de lotes: las columnas de hembras y machos mostraban
+      el saldo, no las aves encasetadas». Incluye el caso que nombro operacion (lote 24: 19.120
+      contra 3.655), el alcance real en postura y **la trampa del fallback de produccion**
+      (`aves_h_inicial` NO es el encasetamiento); commit `299c816`
+- [x] X10.4 SQL validado **dos veces dentro de `BEGIN; ... ROLLBACK;`** antes de aplicar: la 2da
+      pasada reusa los mismos ids y no duplica ⇒ idempotente. Confirmado que el ROLLBACK no dejo
+      rastro (0 filas, 175 tickets totales, igual que antes)
+- [x] X10.5 Aplicado de verdad sobre la BD local: **TK-2026-000178 y TK-2026-000179**, ambos
+      `CERRADO`, `company_id=3`, con `fecha_solucion`, `fecha_cierre_solicitante` y
+      `cerrado_por_user_id` poblados. `notificado_correo=false` (es SQL, no pasa por la cola de
+      correo). Migracion registrada en `__EFMigrationsHistory` **en la misma transaccion que el
+      seed** — el efecto esta realmente en la base, que es la condicion que exige CLAUDE.md §🗄️
+      *(se aplico por psql y no por `dotnet ef` porque el backend de otra sesion tiene tomado el
+      `bin/`; `UseArtifactsOutput` rompe `GetEFProjectMetadata`)*
+- [x] X10.6 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **2999/2999**
+- [!] X10.7 **Decision pendiente del usuario:** reactivar los tabs «Lotes en Levante» y «Lotes en
+      Produccion» de postura, comentados en el HTML desde `cd9b1a7` (25-may-2026). Su codigo quedo
+      corregido en X9.3, pero descomentarlos es una decision de producto — se comentaron a proposito
+      y este trabajo no los toca. Queda anotado en el propio TK-2026-000179
+- [x] **X10 cerrado** (salvo X10.7, que espera decision).
