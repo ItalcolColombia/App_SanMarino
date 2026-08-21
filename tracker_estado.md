@@ -1188,3 +1188,28 @@ las pestanas de Levante y Produccion. Reactiva las dos vistas comentadas desde `
       arranque del backend (`RunMigrations=true`), que es el flujo normal. En el clon de prueba se
       aplico asi y quedo con `default false`
 - [x] **X12 cerrado** — con esto se cierra tambien el pendiente **X10.7**.
+
+---
+
+## X13 — La pestana «Lotes en Levante» muestra solo los que estan HOY en levante (21-ago-2026)
+
+Cierre del pendiente que quedo abierto al reactivar los tabs (X12): la pestana listaba los 16
+registros de `lote_postura_levante`, incluidos los lotes que ya pasaron a produccion — el registro
+de levante sobrevive a la transicion porque es la historia de esa etapa.
+
+- [x] X13.1 `LotePosturaLevanteDetailDto` gana `TieneProduccion` (subconsulta correlacionada
+      **escrita en linea**, misma leccion de X8.14) y `FaseActual` como **propiedad derivada**, que la
+      traduce con `FaseLoteCalculos.ResolverFaseVisible` — la MISMA funcion que usa la columna
+      Fase/Etapa del listado, asi que las dos vistas no pueden contradecirse
+- [x] X13.2 El front filtra la pestana por `faseActual !== 'Produccion'`. Es un filtro de
+      presentacion, no un recalculo: la regla vive en el backend
+- [x] X13.3 **Verificado en pantalla, con las tres vistas cruzadas**: pestana Levante **14 lotes**
+      (antes 16; K345A y K345B ya no aparecen), pestana Produccion **2** (P-K345A, P-K345B) y la
+      lista completa **14 «Levante» + 2 «Produccion» = 16**. Los tres numeros coinciden por
+      construccion
+- [x] X13.4 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno cerrado: puertos libres, clon borrado
+- [i] X13.5 Un lote de levante **cerrado pero SIN produccion** sigue apareciendo en la pestana
+      Levante, coherente con lo que dice su columna Fase/Etapa. Solo sale de la lista cuando la
+      produccion existe de verdad
+- [x] **X13 cerrado.**

@@ -570,7 +570,12 @@ export class LoteListComponent implements OnInit {
         .pipe(finalize(() => this.loading = false))
         .subscribe({
           next: (list) => {
-            this.lotesLevante = list;
+            // Solo los que están HOY en levante. El registro de levante sobrevive al paso a
+            // producción —es la historia de esa etapa— así que sin este filtro la pestaña también
+            // listaba lotes que ya están produciendo. La fase la resuelve el backend con la misma
+            // regla que la columna Fase/Etapa (levante cerrado + lote de producción creado), así
+            // que las dos vistas no pueden contradecirse.
+            this.lotesLevante = (list ?? []).filter(l => l.faseActual !== 'Produccion');
             this.buildFilterOptions();
             this.recomputeList();
           },
