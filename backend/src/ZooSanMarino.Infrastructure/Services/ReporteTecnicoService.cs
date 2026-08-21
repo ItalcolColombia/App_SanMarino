@@ -1603,17 +1603,26 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var razaNorm = lpl.Raza.Trim().ToLower();
                 var ano = lpl.AnoTablaGenetica.Value.ToString();
                 
-                // Obtener datos raw directamente para tener acceso a ConsAcH, ConsAcM, etc.
-                var guiasRawList = await _ctx.ProduccionAvicolaRaw
-                    .AsNoTracking()
-                    .Where(p =>
-                        p.Raza != null && p.AnioGuia != null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                        p.AnioGuia.Trim() == ano &&
-                        p.CompanyId == _currentUser.CompanyId &&
-                        p.DeletedAt == null
-                    )
-                    .ToListAsync(ct);
+                // Santa Reyes tiene su guia en tabla propia (F2.2). Se pregunta primero; si la
+                // empresa no tiene guia propia -Sanmarino, Panama, Ecuador- la lista vuelve vacia y
+                // corre la consulta de siempre, sin tocarla.
+                var guiasRawList = await GuiaGeneticaLookup.ObtenerFilasPropiasAsync(
+                    _ctx, _currentUser.CompanyId, razaNorm, ano, ct);
+
+                if (guiasRawList.Count == 0)
+                {
+                    // Obtener datos raw directamente para tener acceso a ConsAcH, ConsAcM, etc.
+                    guiasRawList = await _ctx.ProduccionAvicolaRaw
+                        .AsNoTracking()
+                        .Where(p =>
+                            p.Raza != null && p.AnioGuia != null &&
+                            EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                            p.AnioGuia.Trim() == ano &&
+                            p.CompanyId == _currentUser.CompanyId &&
+                            p.DeletedAt == null
+                        )
+                        .ToListAsync(ct);
+                }
                 
                 // Parsear edades y crear diccionario
                 foreach (var guia in guiasRawList)
@@ -2722,15 +2731,23 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var razaNorm = primerLpl.Raza.Trim().ToLower();
                 var ano = primerLpl.AnoTablaGenetica.Value.ToString();
 
-                var guiasRawList = await _ctx.ProduccionAvicolaRaw
-                    .AsNoTracking()
-                    .Where(p =>
-                        p.Raza != null && p.AnioGuia != null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                        p.AnioGuia.Trim() == ano &&
-                        p.CompanyId == _currentUser.CompanyId &&
-                        p.DeletedAt == null)
-                    .ToListAsync(ct);
+                // Santa Reyes tiene su guia en tabla propia (F2.2). Se pregunta primero; si la
+                // empresa no tiene guia propia la lista vuelve vacia y corre la de siempre.
+                var guiasRawList = await GuiaGeneticaLookup.ObtenerFilasPropiasAsync(
+                    _ctx, _currentUser.CompanyId, razaNorm, ano, ct);
+
+                if (guiasRawList.Count == 0)
+                {
+                    guiasRawList = await _ctx.ProduccionAvicolaRaw
+                        .AsNoTracking()
+                        .Where(p =>
+                            p.Raza != null && p.AnioGuia != null &&
+                            EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                            p.AnioGuia.Trim() == ano &&
+                            p.CompanyId == _currentUser.CompanyId &&
+                            p.DeletedAt == null)
+                        .ToListAsync(ct);
+                }
 
                 foreach (var guia in guiasRawList)
                 {

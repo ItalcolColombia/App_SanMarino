@@ -1104,14 +1104,23 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             var razaNorm = lpp.Raza.Trim().ToLower();
             var ano = lpp.AnoTablaGenetica.Value.ToString();
 
-            guiasCompletas = await _ctx.ProduccionAvicolaRaw
-                .AsNoTracking()
-                .Where(p =>
-                    p.CompanyId == _currentUser.CompanyId &&
-                    p.Raza != null && p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == ano)
-                .ToListAsync(ct);
+            // Santa Reyes tiene su guia en tabla propia (F2.2). Se pregunta primero; si la empresa
+            // no tiene guia propia -Sanmarino, Panama, Ecuador- la lista vuelve vacia y corre la
+            // consulta de siempre, sin tocarla.
+            guiasCompletas = await GuiaGeneticaLookup.ObtenerFilasPropiasAsync(
+                _ctx, _currentUser.CompanyId, razaNorm, ano, ct);
+
+            if (guiasCompletas.Count == 0)
+            {
+                guiasCompletas = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.CompanyId == _currentUser.CompanyId &&
+                        p.Raza != null && p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == ano)
+                    .ToListAsync(ct);
+            }
         }
 
         // Convertir datos semanales a formato Cuadro con valores de guía genética
@@ -1371,14 +1380,22 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                     var razaNorm = lpp.Raza.Trim().ToLower();
                     var ano = lpp.AnoTablaGenetica.Value.ToString();
 
-                    guiasCompletas = await _ctx.ProduccionAvicolaRaw
-                        .AsNoTracking()
-                        .Where(p =>
-                            p.CompanyId == _currentUser.CompanyId &&
-                            p.Raza != null && p.AnioGuia != null &&
-                            EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                            p.AnioGuia.Trim() == ano)
-                        .ToListAsync(ct);
+                    // Santa Reyes tiene su guia en tabla propia (F2.2). Se pregunta primero; si la
+                    // empresa no tiene guia propia la lista vuelve vacia y corre la de siempre.
+                    guiasCompletas = await GuiaGeneticaLookup.ObtenerFilasPropiasAsync(
+                        _ctx, _currentUser.CompanyId, razaNorm, ano, ct);
+
+                    if (guiasCompletas.Count == 0)
+                    {
+                        guiasCompletas = await _ctx.ProduccionAvicolaRaw
+                            .AsNoTracking()
+                            .Where(p =>
+                                p.CompanyId == _currentUser.CompanyId &&
+                                p.Raza != null && p.AnioGuia != null &&
+                                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                                p.AnioGuia.Trim() == ano)
+                            .ToListAsync(ct);
+                    }
                 }
                 catch
                 {
@@ -1715,13 +1732,21 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         {
             var razaNorm = lppConRaza.Raza!.Trim().ToLower();
             var ano      = lppConRaza.AnoTablaGenetica!.Value.ToString();
-            guiasCompletas = await _ctx.ProduccionAvicolaRaw
-                .AsNoTracking()
-                .Where(p => p.CompanyId == _currentUser.CompanyId &&
-                            p.Raza != null && p.AnioGuia != null &&
-                            EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                            p.AnioGuia.Trim() == ano)
-                .ToListAsync(ct);
+            // Santa Reyes tiene su guia en tabla propia (F2.2). Se pregunta primero; si la empresa
+            // no tiene guia propia la lista vuelve vacia y corre la consulta de siempre.
+            guiasCompletas = await GuiaGeneticaLookup.ObtenerFilasPropiasAsync(
+                _ctx, _currentUser.CompanyId, razaNorm, ano, ct);
+
+            if (guiasCompletas.Count == 0)
+            {
+                guiasCompletas = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .Where(p => p.CompanyId == _currentUser.CompanyId &&
+                                p.Raza != null && p.AnioGuia != null &&
+                                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                                p.AnioGuia.Trim() == ano)
+                    .ToListAsync(ct);
+            }
         }
 
         // ── 3. Construir datos por galpón ──────────────────────────────────────
