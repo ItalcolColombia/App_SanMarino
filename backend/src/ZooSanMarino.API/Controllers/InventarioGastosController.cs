@@ -173,7 +173,7 @@ public class InventarioGastosController : ControllerBase
 
         try
         {
-            var dto = await _svc.CreateAsync(req, ct);
+            var dto = await _svc.CreateAsync(req!, ct);
             return Ok(dto);
         }
         catch (Exception ex)

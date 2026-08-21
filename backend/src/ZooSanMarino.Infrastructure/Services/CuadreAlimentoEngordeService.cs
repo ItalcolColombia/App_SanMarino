@@ -151,7 +151,7 @@ public partial class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeServic
             var ajustesKg = delGalpon.Sum(a => Math.Abs(a.Quantity));
 
             return new CuadreAlimentoEngordeFilaDto(
-                r.company_id, r.empresa, r.granja_id, r.granja, r.nucleo_id, r.galpon_id,
+                r.company_id, r.empresa, r.granja_id, r.granja, r.nucleo_id!, r.galpon_id!,
                 r.lote_ave_engorde_id, r.lote_nombre, r.estado_operativo_lote, r.ultimo_seguimiento,
                 (decimal)r.saldo_tabla_kg, (decimal)r.mov_post_kg, (decimal)r.stock_kg,
                 (decimal)r.esperado_kg, descuadre, r.filas_negativas,

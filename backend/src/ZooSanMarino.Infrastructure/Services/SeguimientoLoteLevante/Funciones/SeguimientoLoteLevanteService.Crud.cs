@@ -37,7 +37,7 @@ public partial class SeguimientoLoteLevanteService
             // Postura nunca es mixta: el alimento va por sexo (hembras y/o machos).
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos!);
         }
 
         // Huevos en levante (semana 14+): gate por flag de empresa + edad del lote. Neutraliza o
@@ -184,7 +184,7 @@ public partial class SeguimientoLoteLevanteService
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos!);
         }
 
         // Huevos en levante (semana 14+): mismo gate que en el alta.

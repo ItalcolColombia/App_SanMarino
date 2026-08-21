@@ -304,7 +304,7 @@ public class MovimientoAvesController : ControllerBase
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var movimiento = await _movimientoService.CreateAsync(dto);
+            var movimiento = await _movimientoService.CreateAsync(dto!);
             return CreatedAtAction(nameof(GetById), new { id = movimiento.Id }, movimiento);
         }
         catch (InvalidOperationException ex)
@@ -399,7 +399,7 @@ public class MovimientoAvesController : ControllerBase
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var movimiento = await _movimientoService.ActualizarMovimientoAvesAsync(id, dto, _currentUser.UserId);
+            var movimiento = await _movimientoService.ActualizarMovimientoAvesAsync(id, dto!, _currentUser.UserId);
             return Ok(movimiento);
         }
         catch (InvalidOperationException ex)

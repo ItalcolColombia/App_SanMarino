@@ -271,7 +271,7 @@ public class MovimientoPolloEngordeController : ControllerBase
 
         try
         {
-            var created = await _service.CreateAsync(dto);
+            var created = await _service.CreateAsync(dto!);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
         catch (InvalidOperationException ex)
@@ -293,7 +293,7 @@ public class MovimientoPolloEngordeController : ControllerBase
 
         try
         {
-            var updated = await _service.UpdateAsync(id, dto);
+            var updated = await _service.UpdateAsync(id, dto!);
             if (updated == null) return NotFound();
             return Ok(updated);
         }
