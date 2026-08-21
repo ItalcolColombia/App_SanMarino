@@ -694,6 +694,25 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             traslado.CantidadOtro = dto.CantidadOtro.Value;
         }
 
+        // Recalcular TotalHuevos tras editar las cantidades legacy. Desde F10 (migración
+        // 20260821030415) TotalHuevos pasó de calcularse en vivo (suma de las 11 columnas) a ser
+        // columna persistida, fijada solo al crear el traslado. Sin este recálculo, editar las
+        // cantidades de un traslado Pendiente dejaba el total desactualizado — y ese valor stale
+        // es el que usan el espejo de producción, el descuento diario y el listado al completar el
+        // traslado. Solo aplica al camino legacy: si el traslado usa HuevoItems (Metadata != null)
+        // las 11 columnas son 0 por diseño y este método no las toca.
+        if (traslado.Metadata == null &&
+            (dto.CantidadLimpio.HasValue || dto.CantidadTratado.HasValue || dto.CantidadSucio.HasValue ||
+             dto.CantidadDeforme.HasValue || dto.CantidadBlanco.HasValue || dto.CantidadDobleYema.HasValue ||
+             dto.CantidadPiso.HasValue || dto.CantidadPequeno.HasValue || dto.CantidadRoto.HasValue ||
+             dto.CantidadDesecho.HasValue || dto.CantidadOtro.HasValue))
+        {
+            traslado.TotalHuevos = traslado.CantidadLimpio + traslado.CantidadTratado + traslado.CantidadSucio +
+                                    traslado.CantidadDeforme + traslado.CantidadBlanco + traslado.CantidadDobleYema +
+                                    traslado.CantidadPiso + traslado.CantidadPequeno + traslado.CantidadRoto +
+                                    traslado.CantidadDesecho + traslado.CantidadOtro;
+        }
+
         // Actualizar destino
         if (dto.GranjaDestinoId.HasValue)
         {
