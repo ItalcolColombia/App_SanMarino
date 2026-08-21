@@ -66,26 +66,43 @@ detalle con `git show e971871:tracker_estado.md`.
       `AddSesionesActivas` (V39) y `20260819120000_SeedTicketPlanItalappSantaReyes` (X3, caso
       Santa Reyes en ItalJira) — las tres migraciones ya corrieron en prod
       (`Database__RunMigrations=true`)
-- [ ] **A2 · V39.13 — cerrar la ventana de gracia** de los tokens sin `jti`: hoy `Evaluar` devuelve
-      `Legado` y los acepta. Va **después** de A1 y de verificar la revocación en prod.
-      ⚠️ Trampa: `SesionActivaService` devuelve `Legado` **también ante un fallo de BD** (fail-open
-      deliberado) — borrar esa rama sin distinguir los dos usos convierte una caída de BD en un
-      **logout masivo**. Commit propio y explícito.
-      *Releído el código hoy (`SesionActivaService.EvaluarAsync`): el diagnóstico sigue exacto —
-      `jti` vacío ⇒ retorna sin consultar nada, rama `Legado` intacta*
-- [ ] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
+- [x] **A2 · V39.13 — ventana de gracia CERRADA** (21-ago-2026, commit `def1fd4`). Un token sin
+      `jti` ahora recibe 401 con `errorCode: sesion-revocada`. La trampa que advertía este pendiente
+      se resolvió **separando los dos usos**: el fallo de BD dejó de compartir valor con `Legado` y
+      tiene estado propio (`EstadoSesion.NoVerificable`), que sigue dejando pasar y además nunca se
+      cachea. **Precondición verificada, no asumida:** `JwtSettings__DurationInMinutes = 60` en la
+      TaskDef viva (164) ⇒ un día después del despliegue de B1 (20-ago) no quedaba un solo token sin
+      `jti` vivo; y `AuthService` es la **única** fábrica de tokens de usuario del backend (un solo
+      `new JwtSecurityToken` en todo el repo, verificado por grep) y siempre emite `jti` + anota la
+      fila. Los PAT `sk_` van por su propio esquema y ni pasan por `EvaluarAsync`.
+      *Detalle → X14*
+- [x] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
       ingreso a granja + homologación ERP + seed de las 5 guías genéticas (540 filas). **Detalle
-      granular y estado real → V52 (F0-F2)**
-- [ ] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
+      granular y estado real → V52 (F0-F2)**.
+      *CERRADA el 21-ago-2026: F0, F1 y F2 al 100 % (las guías resultaron **615** filas, no
+      540 — recontadas contra el Excel del cliente).*
+- [x] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
       `modal-seguimiento-diario.component.ts:1463`), consumo sólo hembras, ocultar machos y error de
       sexaje **en UI** (⚠️ no borrar del modelo: lo consumen los saldos), tipos de inventario.
-      **→ V52 (F3-F6)**
-- [ ] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
-      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**
-- [ ] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
+      **→ V52 (F3-F6)**.
+      *CERRADA: F3, F4 y F6 al 100 %; F5.1 y F5.2 hechas. Lo único que queda de H2 es F5.3,
+      que es una definición del cliente → `TK-2026-000180` / `SR-DEF-1`.*
+- [!] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
+      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**.
+      *F7.1, F7.2, F7.4 y F8.2 hechas. Quedan F7.3, F8.1 y F8.3, las tres del cliente →
+      `TK-2026-000180` / `SR-DEF-2`, `SR-DEF-3`, `SR-DEF-4`.*
+- [!] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
       existen en `MovimientoAves`**, falta la UI) y huevos (bodega destino desplegable) + no regresión
-      multipaís. **→ V52 (F9-F12)**
+      multipaís. **→ V52 (F9-F12)**.
+      *F9.1, F9.2, F9.2b, F10.2, F11.1, F11.2 y F12 hechas. Quedan F9.2c y F10.1, las dos del
+      cliente → `TK-2026-000180` / `SR-DEF-5`, `SR-DEF-6`; y F11.3, que necesita al cliente.*
 
+> **A4-A7 · estado al 21-ago-2026 (X14):** todo lo construible de V52 está construido, probado y
+> desplegado. Lo que queda son las **6 definiciones que faltan del cliente** (F5.3, F7.3, F8.1,
+> F8.3, F9.2c, F10.1), sembradas como caso `TK-2026-000180` (DUDAS, ABIERTO, Santa Reyes) con una
+> subtarea `BLOQUEADA` cada una. F8.1 además necesita un DATO, no una decisión: los códigos ERP de
+> los ítems nuevos del catálogo.
+>
 > **A4-A7 quedaron DESBLOQUEADAS el 20-ago-2026**: el usuario confirmó en sesión que B5 (aprobación
 > del cliente) y C7 (entrega de estructura física + códigos ERP) ya se dieron. Ejecución en curso,
 > ver **V52** (checklist granular F0-F12, calcado del desglose real ya sembrado en ItalJira
@@ -449,7 +466,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         `modal-silos-granja`, DTOs ya los aceptan), `LotePosturaBase.CodigoErp`
         (`lote-list`, `formControlName="codigoErp"`). Nada que construir; falta cargar los códigos
         REALES que entregó el cliente (dato, no código)
-- [~] **F2 · Guías genéticas** (10h)
+- [x] **F2 · Guías genéticas** (10h) — cerrada del todo el 21-ago-2026 (X14.7)
   - [x] F2.1 Carga de las 5 líneas (Babcock Brown, Hy Line Brown, Lohmann LSL, Criolla, Azur), sem 18-125
         — **corrección del usuario en sesión: va en una TABLA PROPIA**, no en
         `guia_genetica_sanmarino_colombia` (esa es compartida con postura y pollo engorde de otras
@@ -466,8 +483,8 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Verificado: 615/615 filas, round-trip Down→Up sin duplicar, `codigo_guia_genetica` calculado
         igual que `ExcelImportService.ComputeCodigo` (Raza+AnioGuia+Edad) para que una futura
         reimportación por Excel lo reconozca
-  - [~] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
-        — **mayormente hecho**, un chokepoint + 6 sitios de consumo:
+  - [x] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
+        — un chokepoint + 6 sitios de consumo, **y los 5 que faltaban, cerrados el 21-ago (X14.7)**:
         - `GuiaGeneticaService` (backend de `api/guia-genetica`, el que alimenta el selector de raza
           en `modal-create-edit-lote`/`lote-list`): ahora mira primero `guia_genetica_santa_reyes` y
           cae a la compartida si la empresa no tiene filas propias — cubre los 6 métodos públicos
@@ -484,13 +501,19 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           **no se tocaron a propósito**: `LiquidacionTecnicaService` lee
           `seguimiento_diario_levante_reproductoras` — es de REPRODUCTORA, Santa Reyes no cría
           reproductoras (compra pollita de un día), no aplica
-        - ⚠️ **Gap conocido, no cerrado**: `ReporteTecnicoProduccionService` (3 sitios) y
-          `ReporteTecnicoService` (2 sitios) tienen consultas DIRECTAS a `ProduccionAvicolaRaw`
-          además de las que ya pasan por `IGuiaGeneticaService` — son archivos de 1000-2700 líneas
-          y al menos una de esas consultas (`ReporteTecnicoProduccionService.cs:~1107`) **no filtra
-          por `company_id`**, así que no es seguro tocarla sin antes entender si es a propósito o un
-          bug preexistente. Quedó sin tocar para no meter una regresión en un reporte financiero bajo
-          presión de tiempo — a retomar con más cuidado
+        - [x] **Gap CERRADO el 21-ago-2026** (commit `457be71`, detalle en X14.7). Era real y era
+          alcanzable: `ReporteTecnicoProduccionService` (3 sitios) y `ReporteTecnicoService` (2)
+          traían la guía con consultas DIRECTAS a `ProduccionAvicolaRaw`, así que para Santa Reyes
+          —cuya guía vive en la tabla dedicada— salían **sin una sola columna de comparación**. Y
+          Santa Reyes tiene `/reportes-tecnicos` habilitado en `company_menus`, o sea que no era
+          teórico. **No se unificaron las 5 consultas** (habría cambiado el SQL de las otras 3
+          empresas: no todas filtran `deleted_at`, y `Like` ≠ `==` con un guion bajo en la raza):
+          cada sitio pregunta primero por la guía propia y, si vuelve vacía, corre **su** consulta
+          de siempre intacta. Delta cero por construcción
+        - [i] **Corrección**: la nota original decía que
+          `ReporteTecnicoProduccionService.cs:~1107` **no filtra por `company_id`**. Es **falso**
+          contra el código de hoy — los 5 sitios filtran los cinco por
+          `p.CompanyId == _currentUser.CompanyId`. No hay fuga entre empresas ahí
         - Validado: `dotnet build` 0 errores (21 warnings preexistentes) · `dotnet test` **2936/2936**
           sin regresión
 - [x] **F3 · Semanas de producción por raza** (10h) — commit `6df9a98`
@@ -570,6 +593,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         mal — a definir con el cliente o el usuario antes de tocar código
         - Validado (F5.1+F5.2): `yarn build` 0 errores; cruce manual del nombre de la propiedad
           `ocultaMachosEnPostura` entre `.ts`/`.html` en los 2 formularios (11 usos cada uno)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-1` (X14.4)*
   - [x] **Gap cerrado (20-ago-2026, migración `20260820220645`):** F4 y F5.1+F5.2 construyeron y
         probaron la UI pero **ningún commit encendió los flags para Santa Reyes** — mismo "toggle
         sin efecto" que F0.1 advertía evitar. Verificado por consulta directa a `companies` en la
@@ -607,10 +631,11 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [x] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula — **ya
         existían los 7** en `catalogo_items` (verificado F0.2, re-confirmado acá), no había nada que
         crear
-  - [ ] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote — **sin
+  - [!] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote — **sin
         construir, ambigüedad real** (ver §8.3 del plan): el texto ("especificar los huevos que va a
         producir" al crear el lote) no deja claro si pide una UI nueva en el alta de lote o si la
         clasificación por ítems que ya existe en el seguimiento diario alcanza. No se adivina
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-2` (X14.4)*
   - [x] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día
         de semana 23 — `HuevoPrimeraPosturaCalculos.EsVigente` (backend, con tests xUnit) + espejo
         `esVigentePrimeraPostura` (`items-huevo-catalogo.funcion.ts`); ítems marcados
@@ -620,22 +645,25 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Reyes vía migración. **Alcance deliberado: solo UI** (no rechaza en el guardado) — mismo
         criterio "solo UI" que el resto de la familia de flags; extender a validación de guardado
         queda documentado en §8.2 del plan para cuando se confirme que hace falta
-- [ ] **F8 · Productos no conformes y panel de eficiencia** (7h)
-  - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara — sin construir. Catálogo
+- [!] **F8 · Productos no conformes y panel de eficiencia** (7h) — F8.2 hecha; F8.1 y F8.3
+      bloqueadas por el cliente (`TK-2026-000180`)
+  - [!] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara — sin construir. Catálogo
         actual (11 ítems `Pnc`) no cubre las 5 categorías por raza: falta "Enyemado" completo (0
         ítems, hallazgo ya conocido desde F0.2) y "Decolorado" solo existe para Rojo. No se inventan
         cantidades/nombres sin confirmar con el cliente
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-3` (X14.4)*
   - [x] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción —
         `huevoTratado` ya estaba oculto (vive dentro del bloque `!clasificacionHuevoPorItems`);
         `pesoHuevo`/`tipoAlimento` **no tenían ningún gate** (gap real, encontrado auditando el
         template junto con F7) — envueltos en `@if (!clasificacionHuevoPorItems)` acá. Los controles
         conservan su valor por defecto (`0`/`'Standard'`), siguen siendo válidos para
         `Validators.required` y se guardan igual — cambio de UI, no de contrato
-  - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja — sin
+  - [!] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja — sin
         construir. El texto fuente (párrafo 68 del .docx) es contradictorio con F7.1 tal como está
         escrito y no hay pantalla "Panel de eficiencia" en el repo hoy — ver §8.3 del plan. A
         confirmar con el cliente si es pantalla nueva o ajuste de nomenclatura sobre un reporte
         existente antes de tocar nada (son reportes financieros)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-4` (X14.4)*
 - [~] **F9 · Traslado de aves** (5h) — captura + listado hechos (20-ago-2026), comprobante sin tocar
   - [x] F9.1 Ocultar machos en el traslado de aves — el traslado real de postura NO es
         `traslado-form`/`trasladoRapido` (roto, ver hallazgo abajo): es
@@ -657,10 +685,11 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Cantidad (H:/M:) y en la de Huevos para Detalle (L:/T:/S:) — se descartó agregar 3 columnas
         sueltas a una tabla que ya tenía 8 (quedaría muy ancha) y una fila expandible (más estado,
         sin necesidad real todavía)
-  - [ ] F9.2c **Comprobante — sin construir.** No existe una pantalla/printable de comprobante de
+  - [!] F9.2c **Comprobante — sin construir.** No existe una pantalla/printable de comprobante de
         traslado hoy (ninguna ruta ni componente con ese nombre); no está claro si el pedido es un
         PDF descargable, una vista de detalle imprimible, o el mismo listado alcanza. A definir antes
         de construir algo — mismo criterio que F5.3/F7.3/F8.3 (no adivinar UX)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-5` (X14.4)*
   - [i] **Hallazgo de paso, fuera de Santa Reyes**: `POST api/MovimientoAves/traslado-rapido`
         (usado por `traslado-form.component`, ruta `/traslados-aves/traslados`) tiene el DTO del
         frontend completamente desalineado del que espera el backend (`loteOrigenId`/`loteDestinoId`
@@ -722,12 +751,13 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           salvo que el procesamiento automático falle)
         - Validado: `dotnet build`/`dotnet test` (pendiente de correr en esta sesión tras el cambio,
           ver bloque de validación al pie) + migración aplicada y re-verificada en BD local
-  - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre) —
+  - [!] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre) —
         **sigue sin resolver, ambigüedad real** (§9.3 del plan): "Traslado" (no Venta) hoy no
         captura destino en absoluto (`granjaDestinoId` se manda `undefined` siempre); la lista
         `traslado_de_huevos_planta_destino` (Venta→Planta) es una lista maestra de la EMPRESA, no
         por granja. No está claro si el pedido es agregar destino a "Traslado" o cambiar el alcance
         de esa lista — no se adivina, a confirmar con el cliente
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-6` (X14.4)*
   - [x] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo — cerrado como parte del fix
         de arriba (mismo selector de ítems de F7, reusado en los 2 formularios)
   - [x] **Lado de lectura, mismo bug (21-ago-2026, misma sesión, tras "seguí con lo que se pueda"):**
@@ -752,12 +782,32 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         - Validado: `yarn build` 0 errores; balance de `<div>`/`@if` verificado con grep contra
           `git show HEAD:...` antes de compilar (mismo chequeo que atajó los 2 `</div>` de más de la
           tanda anterior)
-- [ ] **F11 · Pruebas** (8h)
-  - [ ] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas
-  - [ ] F11.2 No regresión sobre empresas productivas (Sanmarino, Panamá, Ecuador) — gate multipaís si toca `*SaldoAlimento*`/`fn_seguimiento_diario_*`
-  - [ ] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales
-- [ ] **F12 · Despliegue** (2h)
-  - [ ] F12.1 Despliegue a producción y verificación posterior (TaskDef↔imagen↔`/version.json`)
+- [~] **F11 · Pruebas** (8h) — F11.1 y F11.2 cerradas (21-ago-2026); F11.3 es del usuario
+  - [x] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas — el backend ya las tenía
+        (`SemanasCicloPostura`, `HuevoPrimeraPostura`, `HuevoItems` 30 casos, `ItemInventarioTipo`,
+        `GuiaGeneticaRequisito`); **el front no tenía ninguna, y es donde viven los ESPEJOS**.
+        43 tests nuevos en 3 archivos (commit `7e3ebda`): paridad caso por caso con
+        `SemanasCicloPosturaCalculosTests.cs`, vigencia de primera postura 22/23 + fail-open, y el
+        invariante que V52 rompió DOS veces (F4 y F5): todo flag booleano que lee
+        `ActiveCompanyConfigService` tiene que existir en el catálogo de la pantalla de Empresas.
+        *Detalle → X14.2*
+  - [x] F11.2 No regresión sobre empresas productivas — **el gate multipaís NO aplica, medido**:
+        ningún archivo del rango `6e4fe7f..HEAD` define `fn_seguimiento_diario_*` ni
+        `fn_cuadre_alimento_*`, ni toca un `*SaldoAlimento*` (las 51 menciones son del diagnóstico
+        de solo lectura `verificar_cuadre_alimento_engorde.sql`, que las CONSULTA). Suites verdes:
+        `dotnet test` **3014/3014**, `ng test` **624/624**, `dotnet build` y `ng build` 0/0.
+        *Detalle → X14.3*
+  - [~] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales — **fuera del
+        repo**: es una sesión con el cliente, no hay código que escribir
+- [x] **F12 · Despliegue** (2h) — lo construido de V52 **ya está en producción**
+  - [x] F12.1 Verificado con el checklist obligatorio de CLAUDE.md §🚀 el 21-ago-2026: TaskDef viva
+        `sanmarino-back-task:164`, `rolloutState COMPLETED`, 1/1 running; imagen
+        `...backend:a62d8b4d...` = merge de PR #78, que es el HEAD de `origin/main-produccion`; y
+        `origin/main` está **0 commits adelante**. O sea F0-F10 (con sus 8 migraciones de Santa
+        Reyes) corren en prod, no es un rollback silencioso. ⚠️ Lo ÚNICO sin desplegar son los 3
+        commits de esta sesión (A2 + tests + tickets), a propósito: el usuario decidió el 21-ago
+        hacer el merge a `main-produccion` él mismo, en horario de baja operación, porque A2 es un
+        cambio de autenticación en caliente. *Detalle → X14.5*
 
 ---
 
@@ -1213,3 +1263,181 @@ de levante sobrevive a la transicion porque es la historia de esa etapa.
       Levante, coherente con lo que dice su columna Fase/Etapa. Solo sale de la lista cuando la
       produccion existe de verdad
 - [x] **X13 cerrado.**
+
+---
+
+## X14 — Cierre de lo ejecutable que quedaba: A2, F11 y las 6 dudas del cliente (21-ago-2026)
+
+Sesion de continuacion: **«continua con lo que esta en el tracker sin cerrar para darle fin a todo
+en esta sesion»**. Se separo lo que dependia de codigo (se hizo) de lo que dependia del cliente (se
+registro en ItalJira, decision del usuario en sesion).
+
+### X14.1 · A2 — la ventana de gracia de los tokens sin `jti`, cerrada (commit `def1fd4`)
+
+- [x] **La trampa que el pendiente advertia era real, y no se resolvia borrando la rama.**
+      `SesionActivaService.EvaluarAsync` devolvia `EstadoSesion.Legado` en DOS situaciones sin
+      relacion: (a) token sin `jti`, o sea anterior a B1 — la ventana de gracia; y (b) **fallo de
+      base**, un fail-open deliberado para que una caida de RDS no desloguee a todas las tablets en
+      campo con sus capturas sin subir. Compartian el mismo valor del enum, asi que cerrar (a)
+      tocando `EsSesionValida` habria cerrado (b) tambien: un blip de RDS = logout masivo.
+      **Se separaron:** el fallo de base pasa a `EstadoSesion.NoVerificable`, que sigue dejando
+      pasar y ademas **nunca se cachea** (cachearlo hasta el `exp` seria una hora de barra libre
+      para ese token por un solo error de red)
+- [x] **Precondicion verificada, no asumida** — el pendiente decia «va despues de A1 y de verificar
+      la revocacion en prod»:
+      - `aws ecs describe-task-definition` sobre la TaskDef **viva** (164): `JwtSettings__DurationInMinutes = 60`.
+        B1 se desplego el 20-ago ⇒ al dia siguiente no quedaba un solo token sin `jti` vivo. La
+        ventana se apago sola, como estaba disenada
+      - `grep 'new JwtSecurityToken('` sobre todo `backend/src` ⇒ **1 sola coincidencia**
+        (`AuthService`), que siempre pone `jti` y llama a `RegistrarAsync`. No hay una segunda
+        fabrica de tokens que pudiera emitir uno sin `jti`
+      - Los PAT `sk_` van por el esquema `ServiceToken` (policy scheme «Smart» los desvia por
+        prefijo del header) y **no pasan** por `EvaluarAsync`. Tienen su propia revocacion
+- [x] **Que ve el usuario:** 401 con `errorCode: sesion-revocada`, que
+      `debe-cerrar-sesion-por-401.funcion.ts` ya sabe leer — cierra sesion y pide login, que emite
+      un token con `jti`. En la practica no deberia dispararse nunca
+- [x] Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3014/3014** (+4 tests: el
+      fail-open sigue pasando, `NoVerificable` no se cachea, los dos estados son distintos, y un
+      barrido exhaustivo del enum que obliga a decidir explicitamente que hace un estado nuevo el
+      dia que alguien agregue uno)
+- [~] **Queda del lado del usuario:** verificar la revocacion **en prod** con una sesion real
+      (revocar desde la pantalla y ver el 401 con motivo). No se puede hacer desde aca sin mintear
+      una sesion de un usuario real, que es exactamente lo que el clasificador de seguridad bloqueo
+      en F0.1 — y con razon
+- [i] **Ata con C2.** Ese pendiente (subir `JwtSettings__DurationInMinutes` a 960 en la TaskDef)
+      **ya no tiene el riesgo que tenia**: con A2 desplegado, un token de 16 h sigue siendo
+      revocable en menos de un minuto. C2 sigue siendo del usuario (es la TaskDef, no el repo)
+
+### X14.2 · F11.1 — las pruebas que faltaban estaban en el FRONT (commit `7e3ebda`)
+
+- [x] **El backend ya estaba cubierto**: de los 113 `Calculos` solo 5 no tienen test, y ninguno es
+      de V52. Los de Santa Reyes tienen los suyos (`SemanasCicloPostura` 7, `HuevoPrimeraPostura` 3,
+      `HuevoItems` 30, `ItemInventarioTipo` 5, `GuiaGeneticaRequisito` 9)
+- [x] **El gap real: las 3 funciones puras del front no tenian NI UN test**, y son justo los
+      ESPEJOS del backend — el lugar donde la regla «una sola formula por numero» se rompe sola.
+      43 tests nuevos:
+      - `semanas-ciclo-postura.funcion.spec.ts` — espejo caso por caso de
+        `SemanasCicloPosturaCalculosTests.cs`: cortes 8/24/28, cierre 102 (rojas/criollas) vs 112
+        (blancas/azur), `null` cuando la raza no se reconoce. El caso de **103 semanas** es el que
+        prueba que el grupo cambia el RESULTADO y no solo la etiqueta: fuera de ciclo para una roja,
+        postura para una blanca
+      - `items-huevo-catalogo.funcion.spec.ts` — `esVigentePrimeraPostura` (22 vigente / 23 no) y
+        su fail-open, que es el caso **«flag OFF = comportamiento previo identico»** que exige el
+        patron de features por empresa. Mas el mapeo del catalogo tolerando camelCase/snake_case, la
+        fusion de items descatalogados y el orden Primera > Pnc > Sin categoria
+      - `flags-empresa.funcion.spec.ts` — **el bug recurrente de V52 no fue de calculo, fue de
+        CABLEADO**: F4 y F5 encontraron que el flag no habia llegado a `ActiveCompanyConfigService`,
+        y F0.1 tuvo que cruzar a mano cinco `formControlName` contra el `.ts` porque Angular no
+        valida esa coincidencia al compilar. El test lo vuelve un fallo de build: todo flag booleano
+        que el runtime lee tiene que existir en el catalogo de la pantalla de Empresas. **Hoy pasa**
+        (los 15 booleanos de `CompanyFlags` estan en `FLAGS_EMPRESA`), asi que es una red, no un fix
+- [i] **Como se corre el front headless** (no estaba escrito en ningun lado):
+      `CHROME_BIN="C:/Program Files/Google/Chrome/Application/chrome.exe" npx ng test --watch=false --browsers=ChromeHeadless`
+      con el node portable en el PATH. Con `--include='**/x.spec.ts'` corre uno solo
+
+### X14.3 · F11.2 — el gate multipais NO aplica, y esta MEDIDO
+
+- [x] **Ningun archivo del rango `6e4fe7f..HEAD` (56 commits) define `fn_seguimiento_diario_*` ni
+      `fn_cuadre_alimento_*`, ni toca un `*SaldoAlimento*`.** Las 51 menciones que aparecen al
+      grepear el diff son del diagnostico de **solo lectura**
+      `verificar_cuadre_alimento_engorde.sql`, que las CONSULTA. Se verificó buscando
+      `CREATE OR REPLACE FUNCTION` / `DROP FUNCTION` en cada archivo cambiado, no por mencion del
+      nombre — la mencion sola habria dado un falso positivo
+- [x] Suites completas verdes: `dotnet build` **0/0** · `dotnet test` **3014/3014** ·
+      `ng build` **0 errores, 0 warnings** (203 s) · `ng test` **624/624** ·
+      `tsc -p tsconfig.spec.json` limpio · gate del `.sql`
+      (`verificar-sql-llega-por-migracion.js`) OK
+- [i] **Correccion a la nota de F2.2.** Decia que `ReporteTecnicoProduccionService.cs:~1107` **no
+      filtra por `company_id`**, y lo dejaba marcado como riesgo sin tocar. **Es falso contra el
+      codigo de hoy**: los 3 sitios de ese archivo (1107, 1374, 1718) y los 2 de
+      `ReporteTecnicoService` (1607, 2725) filtran los cinco por
+      `p.CompanyId == _currentUser.CompanyId`. No hay fuga de datos entre empresas ahi. Se deja
+      escrito para que nadie vuelva a gastar tiempo persiguiendola
+
+### X14.4 · Las 6 definiciones del cliente, en ItalJira (commit `9801f9d`)
+
+- [x] **Decision del usuario en sesion**: registrarlas en ItalJira en vez de adivinar la lectura.
+      Caso **`TK-2026-000180`** (`DUDAS`, `ABIERTO`, Santa Reyes, prioridad ALTA) con **6 subtareas
+      `BLOQUEADA`** — `SR-DEF-1..6`: F5.3 (machos sobre el total en ventas), F7.3 (primera postura
+      al crear el lote), F8.1 (productos no conformes), F8.3 (panel de eficiencia), F9.2c
+      (comprobante de traslado), F10.1 (bodega de salida)
+- [x] **Un caso con 6 subtareas y no 6 casos**: comparan solicitante, destinatario y condicion de
+      cierre — una sola reunion con Santa Reyes las responde todas. Es lo contrario del criterio de
+      `SeedTicketsAjusteEncasetamientoLote` (dos incidentes con reporte y arreglo propios); aca es
+      una sola conversacion
+- [x] **`BLOQUEADA` y no `BACKLOG`**: backlog dice «todavia no lo empezamos», bloqueada dice «no
+      depende de nosotros». Y tipo `DUDAS` y no `REQUERIMIENTO` porque el requerimiento ya existe
+      (`TK-2026-000172`): esto es lo que le FALTA para poder ejecutarse. Meterlas dentro del 172
+      habria escondido que el bloqueo esta del lado del cliente
+- [i] **F8.1 no se destraba con una decision, se destraba con un DATO.** Medido contra la base el
+      21-ago: el catalogo de huevo de Santa Reyes tiene 21 items — Manchado y Picado en 4 razas
+      (criollo/blanco/azur/rojo), **Decolorado solo en rojo**, **Farfara en un unico item generico
+      sin raza** y **Enyemado en ninguna**. Los codigos son codigos del **ERP del cliente** (537,
+      538, 539, 1944, 2124, 2125, 2521, 2522, 2523, 2697, 2698): inventar uno crea un item que el
+      ERP no reconoce y la conciliacion falla en silencio recien cuando se cargue produccion real
+- [x] Migracion data-only `20260821190000_SeedTicketDefinicionesPendientesSantaReyes` (Designer
+      clonado, ModelSnapshot intacto), identidad por email y empresa por nombre, fail-open con
+      `RAISE NOTICE`. Validada en BD local: **2 pasadas seguidas dejan 1 caso y 6 subtareas** (sin
+      duplicar) y el `Down` probado **dentro de una transaccion revertida** (borra las 7 filas, el
+      `ROLLBACK` las devuelve) — el patron que exige el propio CLAUDE.md antes de borrar nada
+
+### X14.5 · Estado del despliegue (F12)
+
+- [x] **Todo V52 ya corre en produccion.** Checklist obligatorio de CLAUDE.md §🚀 corrido el
+      21-ago: servicio `sanmarino-back-task-service-75khncfa` en TaskDef **164**,
+      `rolloutState COMPLETED`, 1/1 running; su imagen es
+      `...backend:a62d8b4db881a2770685cbe1ff0578b4b15c49a5`, que es el **merge de PR #78** y el HEAD
+      de `origin/main-produccion`; y `origin/main` esta **0 commits adelante**. No es un rollback
+      silencioso
+- [~] **Los 3 commits de esta sesion quedan en `main`, sin merge a produccion — decision del
+      usuario.** A2 es un cambio de autenticacion en caliente y el merge se hace en horario de baja
+      operacion. Pusheados a `origin/main` el mismo dia, asi que **no repiten el «Riesgo #1»** de
+      trabajo que vive solo en un disco
+
+### X14.6 · Lo que NO se cerro, y por que
+
+- [i] **F11.3** (pruebas asistidas con Santa Reyes sobre datos reales) — necesita al cliente
+- [i] **Los 6 de `TK-2026-000180`** — necesitan la respuesta del cliente
+- [i] **B1-B4, B6** (decisiones del usuario sobre alimento y aves reales), **C1-C13** (fuera del
+      repo: admin de Microsoft 365, TaskDef, secretos, escenarios de PWA con dos dispositivos) —
+      siguen igual, ninguno es codigo
+- [i] **Gap conocido de F10 que sigue abierto:** `ActualizarTrasladoHuevosAsync` (editar un traslado
+      `Pendiente`) sigue solo con las 11 columnas legacy. No se toco: el alta procesa en el mismo
+      request, asi que un traslado no queda `Pendiente` el tiempo suficiente para editarse salvo
+      que el procesamiento automatico falle. Queda escrito, no olvidado
+- [!] **4to formulario de traslado de huevos sin auditar**: `traslados-aves/pages/inventario-dashboard`
+      (~1800 lineas) tiene su propia reimplementacion sin selector de items. Spawneado aparte
+      (`task_b8e26e02`), sigue sin tocar
+
+### X14.7 · F2.2 — el ultimo hueco de la guia genetica, cerrado (commit `457be71`)
+
+- [x] **El gap era real y era ALCANZABLE, no teorico.** `GuiaGeneticaService`, `LoteService` y las
+      3 liquidaciones ya miraban las dos tablas, pero `ReporteTecnicoProduccionService` (3 sitios) y
+      `ReporteTecnicoService` (2) traen la guia con consultas PROPIAS y directas a
+      `ProduccionAvicolaRaw`. Para Santa Reyes, cuya guia vive en `guia_genetica_santa_reyes`, esas
+      consultas devuelven **cero filas**: el reporte sale sin una sola columna de comparacion contra
+      la guia. Y Santa Reyes **tiene `/reportes-tecnicos` habilitado** en `company_menus` — o sea que
+      el reporte se abre y sale vacio, no es un camino muerto
+- [x] **Por que NO se reemplazaron por `ObtenerFilasCompatiblesAsync`, que ya existia.** Porque las 5
+      consultas **no son iguales entre si**: las 2 de `ReporteTecnicoService` filtran `deleted_at` y
+      las 3 de `ReporteTecnicoProduccionService` **no**; y la unificada usa `==` donde las otras usan
+      `EF.Functions.Like` —que con un guion bajo en el nombre de la raza **no significa lo mismo**,
+      porque en `LIKE` el `_` es un comodin—. Sustituirlas habria cambiado el SQL de Sanmarino,
+      Panama y Ecuador, que no tienen guia propia y no deberian notar nada
+- [x] **La forma que si conserva el comportamiento**: `GuiaGeneticaLookup.ObtenerFilasPropiasAsync`
+      devuelve SOLO las filas de la guia propia, o lista vacia. Cada sitio pregunta primero por ella
+      y, si vuelve vacia, corre **SU** consulta de siempre, intacta, sin mover una coma. El delta
+      cero para quien no tiene guia propia queda garantizado **por construccion**, no por revision
+- [x] Verificado en BD: de las 5 empresas **solo Santa Reyes** tiene filas en
+      `guia_genetica_santa_reyes` (**615**); las otras 4 tienen **0**, o sea que el camino ejecutado
+      para ellas es literalmente el de antes. `dotnet build` 0/0 · `dotnet test` **3014/3014**
+- [i] **Correccion a la nota que dejo F2.2.** Decia que
+      `ReporteTecnicoProduccionService.cs:~1107` **no filtra por `company_id`** y lo marcaba como
+      posible fuga entre empresas. Es **falso** contra el codigo de hoy: los 5 sitios (1107, 1374,
+      1718 de uno; 1607 y 2725 del otro) filtran los cinco por
+      `p.CompanyId == _currentUser.CompanyId`. Se deja escrito para que nadie vuelva a gastar tiempo
+      persiguiendola
+
+- [x] **X14 cerrado.** Entorno: no se levanto backend propio (se uso `--artifacts-path` para no
+      pelear el `bin/` con el backend ajeno vivo en :5002 desde las 08:49); no quedan procesos
+      nuevos.
