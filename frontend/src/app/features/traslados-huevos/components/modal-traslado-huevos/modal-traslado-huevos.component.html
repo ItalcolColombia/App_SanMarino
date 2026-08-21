@@ -66,12 +66,21 @@
             @if (disponibilidad() && disponibilidad()!.tipoLote === 'Produccion') {
               <div class="traslado-meta-bar__eggs">
                 <span class="traslado-meta-total">Total <strong>{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</strong></span>
-                <span class="traslado-meta-total">Incubables <strong>{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</strong></span>
-                <span class="traslado-meta-bar__chips">
-                  @for (tipo of tiposHuevo; track tipo) {
-                    <span class="traslado-disp-chip">{{ tipo.label }} <b>{{ tipo.disponible() }}</b></span>
-                  }
-                </span>
+                @if (!clasificacionHuevoPorItems) {
+                  <span class="traslado-meta-total">Incubables <strong>{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</strong></span>
+                  <span class="traslado-meta-bar__chips">
+                    @for (tipo of tiposHuevo; track tipo) {
+                      <span class="traslado-disp-chip">{{ tipo.label }} <b>{{ tipo.disponible() }}</b></span>
+                    }
+                  </span>
+                }
+                @if (clasificacionHuevoPorItems) {
+                  <span class="traslado-meta-bar__chips">
+                    @for (item of disponibilidad()!.huevoItemsDisponibles; track item.catalogItemId) {
+                      <span class="traslado-disp-chip">{{ item.nombre || item.codigo }} <b>{{ item.cantidad }}</b></span>
+                    }
+                  </span>
+                }
               </div>
             }
           </div>
@@ -174,32 +183,95 @@
                   </div>
                 }
               </div>
-              <div class="form-section form-section--compact">
-                <h3 class="form-section__title">Cantidades por tipo de huevo</h3>
-                <div class="huevos-cantidades-grid">
-                  @for (tipo of tiposHuevo; track tipo) {
-                    <div class="form-group-huevo">
-                      <label [for]="'cantidad' + tipo.key">
-                        {{ tipo.label }}
-                        <span class="disponible">{{ tipo.disponible() }}</span>
-                      </label>
-                      <input
-                        type="number"
-                        [id]="'cantidad' + tipo.key"
-                        [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
-                        class="form-control"
-                        [max]="tipo.disponible()"
-                        min="0"
-                        [readonly]="isReadOnly()">
+              @if (!clasificacionHuevoPorItems) {
+                <div class="form-section form-section--compact">
+                  <h3 class="form-section__title">Cantidades por tipo de huevo</h3>
+                  <div class="huevos-cantidades-grid">
+                    @for (tipo of tiposHuevo; track tipo) {
+                      <div class="form-group-huevo">
+                        <label [for]="'cantidad' + tipo.key">
+                          {{ tipo.label }}
+                          <span class="disponible">{{ tipo.disponible() }}</span>
+                        </label>
+                        <input
+                          type="number"
+                          [id]="'cantidad' + tipo.key"
+                          [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
+                          class="form-control"
+                          [max]="tipo.disponible()"
+                          min="0"
+                          [readonly]="isReadOnly()">
+                        </div>
+                      }
+                    </div>
+                    @if (formHuevos.hasError('sinCantidad') && formHuevos.touched) {
+                      <div class="error-message">
+                        Ingresa al menos una cantidad
                       </div>
                     }
                   </div>
+              }
+              <!-- CLASIFICACIÓN POR ÍTEMS (empresas con `clasificacion_huevo_por_items`, ej. Santa Reyes) -->
+              @if (clasificacionHuevoPorItems) {
+                <div class="form-section form-section--compact">
+                  <h3 class="form-section__title">
+                    Clasificación de huevos
+                    <span class="field-hint">· por ítem del catálogo (Primera / Pnc)</span>
+                  </h3>
+
+                  @if (cargandoItemsHuevo) {
+                    <p class="field-hint">Cargando ítems de huevo…</p>
+                  }
+                  @if (!cargandoItemsHuevo && gruposHuevoItems.length === 0) {
+                    <p class="field-hint">
+                      La empresa no tiene ítems de huevo activos en el catálogo. Cargalos en Catálogo de ítems para poder clasificar.
+                    </p>
+                  }
+
+                  <div formArrayName="huevoItems">
+                    @for (fila of huevoItemsArray.controls; track fila; let i = $index) {
+                      <div class="form-row form-row--2" [formGroupName]="i">
+                        <div class="form-group">
+                          <label [for]="'th-item-' + i">Ítem de huevo</label>
+                          <select [id]="'th-item-' + i" formControlName="catalogItemId" class="form-control" [disabled]="isReadOnly()">
+                            <option [ngValue]="null">— Seleccione —</option>
+                            @for (grupo of gruposHuevoItems; track grupo.tipoHuevo) {
+                              <optgroup [label]="grupo.tipoHuevo">
+                                @for (op of grupo.items; track op.id) {
+                                  <option [ngValue]="op.id" [disabled]="itemHuevoUsadoEnOtraFila(op.id, i)">{{ op.label }}</option>
+                                }
+                              </optgroup>
+                            }
+                          </select>
+                          @if (detalleItemHuevo(fila.get('catalogItemId')?.value); as detalleHuevo) {
+                            <small class="field-hint">
+                              {{ detalleHuevo }} · Disponible: {{ disponibleItemHuevo(fila.get('catalogItemId')?.value) }}
+                            </small>
+                          }
+                        </div>
+                        <div class="form-group">
+                          <label [for]="'th-cantidad-' + i">Cantidad</label>
+                          <input [id]="'th-cantidad-' + i" type="number" min="0" step="1" formControlName="cantidad"
+                                 class="form-control" [readonly]="isReadOnly()">
+                        </div>
+                        @if (!isReadOnly()) {
+                          <button type="button" class="icon-btn icon-btn--danger" (click)="eliminarFilaHuevo(i)" [attr.aria-label]="'Quitar fila ' + (i + 1)">🗑️</button>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  @if (!isReadOnly()) {
+                    <button type="button" class="btn btn--outline btn--sm" (click)="agregarFilaHuevo()">➕ Agregar ítem</button>
+                  }
+                  <div class="traslado-meta-total">Total de huevos <strong>{{ totalHuevosClasificados }}</strong></div>
                   @if (formHuevos.hasError('sinCantidad') && formHuevos.touched) {
                     <div class="error-message">
                       Ingresa al menos una cantidad
                     </div>
                   }
                 </div>
+              }
                 @if (esTipoVenta(formHuevos.get('tipoOperacion')?.value)) {
                   <div class="form-section form-section--compact">
                     <h3 class="form-section__title">Venta</h3>

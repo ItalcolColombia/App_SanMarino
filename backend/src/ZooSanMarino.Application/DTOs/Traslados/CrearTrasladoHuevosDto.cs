@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/Traslados/CrearTrasladoHuevosDto.cs
+using ZooSanMarino.Application.DTOs.Produccion;
+
 namespace ZooSanMarino.Application.DTOs.Traslados;
 
 /// <summary>
@@ -34,11 +36,19 @@ public record CrearTrasladoHuevosDto
     public string? Motivo { get; init; }
     public string? Descripcion { get; init; }
     public string? Observaciones { get; init; }
-    
-    // Total calculado
-    public int TotalHuevos => CantidadLimpio + CantidadTratado + CantidadSucio + 
-                              CantidadDeforme + CantidadBlanco + CantidadDobleYema + 
-                              CantidadPiso + CantidadPequeno + CantidadRoto + 
+
+    /// <summary>
+    /// Clasificación por ÍTEM del catálogo (Santa Reyes, <c>companies.clasificacion_huevo_por_items
+    /// = true</c>). Si viene con filas, reemplaza a las 11 <c>Cantidad*</c> de arriba (que deben
+    /// llegar en 0) y requiere <see cref="LotePosturaProduccionId"/> — no hay flujo legacy por
+    /// ítems. <c>null</c>/vacío = flujo legacy de siempre, sin cambios.
+    /// </summary>
+    public IReadOnlyList<HuevoItemSeguimientoDto>? HuevoItems { get; init; }
+
+    // Total calculado (flujo legacy; con HuevoItems el service usa HuevoItemsCalculos.SumarTotal)
+    public int TotalHuevos => CantidadLimpio + CantidadTratado + CantidadSucio +
+                              CantidadDeforme + CantidadBlanco + CantidadDobleYema +
+                              CantidadPiso + CantidadPequeno + CantidadRoto +
                               CantidadDesecho + CantidadOtro;
 }
 

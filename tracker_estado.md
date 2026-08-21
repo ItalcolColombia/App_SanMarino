@@ -679,9 +679,52 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         manual de llaves/divs por lectura visual falló 3 veces seguidas en un archivo con muchos
         bloques `@if (mismaCondición)` hermanos y anidados mezclados. La próxima vez: cambio mínimo,
         `yarn build` después de CADA paso, no acumular varios cambios de estructura antes de compilar
-- [ ] **F10 · Traslado de huevos** (5h)
-  - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre)
-  - [ ] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo
+- [~] **F10 · Traslado de huevos** (5h) — bug real encontrado y cerrado (21-ago-2026, sesión de
+      continuación), F10.1 (UX de bodega de salida) sigue sin resolver. Diseño técnico completo en
+      §9 del plan (`santa_reyes_requerimientos_italapp_plan.md`)
+  - [x] **Bug encontrado auditando F10.1, no era la pregunta de UX que parecía**: la disponibilidad
+        de huevos para traslado/venta se calculaba SOLO desde las 11 columnas legacy
+        (`espejo_huevo_produccion.huevo_*_dinamico`), que F0.2/F7 dejan en `0` para Santa Reyes
+        (clasificación por ítems). En cuanto Santa Reyes cargara producción real, **no iba a poder
+        trasladar ni vender un solo huevo** — disponible `0` en las 11 categorías aunque el total
+        fuera correcto — y ni siquiera había una validación real de disponibilidad para ese caso
+        (el chequeo contra las 11 en `0` pasaba trivialmente). Cerrado de raíz:
+        - `TrasladoHuevos.TotalHuevos` pasó de propiedad calculada (nunca mapeada por EF) a columna
+          real (`ADD COLUMN IF NOT EXISTS total_huevos`, migración
+          `20260821030415_SantaReyesF10TrasladoHuevosPorItems`, con backfill de las filas
+          existentes) + `Metadata` (jsonb) nueva para el desglose por ítems
+        - `HuevoItemsCalculos.CalcularDisponibilidad` (producido − transferido por `catalogItemId`,
+          nunca negativo) — cálculo puro nuevo, 6 tests xUnit
+        - `DisponibilidadLoteService`: `ObtenerDisponibilidadHuevoItemsLPPAsync` +
+          `ValidarDisponibilidadHuevoItemsLPPAsync` (lee `SeguimientoProduccion.Metadata` producido
+          y `TrasladoHuevos.Metadata` de traslados `Completado` transferido, en memoria — mismo
+          estilo que el resto del archivo)
+        - `EspejoHuevoProduccionSyncService`: `movTot` pasó de sumar las 11 columnas de
+          `TrasladoHuevos` a sumar `TrasladoHuevos.TotalHuevos` — con el total ahora siempre
+          correcto (legacy o por ítems), `HuevoTotDinamico` resta bien los traslados por ítems
+          también. Único cambio en ese archivo
+        - `TrasladoHuevosService.CrearTrasladoHuevosAsync`: con `HuevoItems` en el payload exige
+          LPP, valida con `HuevoItemsCalculos.Validar` + la nueva disponibilidad por ítem, persiste
+          `Metadata`+`TotalHuevos` con las 11 `Cantidad*` en 0. **Sin `HuevoItems`, byte a byte igual
+          que siempre** (mismo flujo legacy, sin tocar)
+        - Frontend: los DOS formularios vivos (`traslado-huevos-form` en `/traslados-huevos/nuevo` y
+          `modal-traslado-huevos` embebido en la lista — los dos permiten crear) reemplazan la
+          grilla de 11 tipos fijos por el selector de ítems del catálogo de F7 (mismas funciones
+          puras reusadas, cero duplicación) cuando `clasificacionHuevoPorItems` está ON
+        - **Gap conocido, documentado, no cerrado**: `ActualizarTrasladoHuevosAsync` (editar un
+          traslado `Pendiente`) sigue solo con las 11 columnas legacy — riesgo bajo porque el alta
+          procesa en el mismo request (nunca queda "Pendiente" el tiempo suficiente para editarse
+          salvo que el procesamiento automático falle)
+        - Validado: `dotnet build`/`dotnet test` (pendiente de correr en esta sesión tras el cambio,
+          ver bloque de validación al pie) + migración aplicada y re-verificada en BD local
+  - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre) —
+        **sigue sin resolver, ambigüedad real** (§9.3 del plan): "Traslado" (no Venta) hoy no
+        captura destino en absoluto (`granjaDestinoId` se manda `undefined` siempre); la lista
+        `traslado_de_huevos_planta_destino` (Venta→Planta) es una lista maestra de la EMPRESA, no
+        por granja. No está claro si el pedido es agregar destino a "Traslado" o cambiar el alcance
+        de esa lista — no se adivina, a confirmar con el cliente
+  - [x] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo — cerrado como parte del fix
+        de arriba (mismo selector de ítems de F7, reusado en los 2 formularios)
 - [ ] **F11 · Pruebas** (8h)
   - [ ] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas
   - [ ] F11.2 No regresión sobre empresas productivas (Sanmarino, Panamá, Ecuador) — gate multipaís si toca `*SaldoAlimento*`/`fn_seguimiento_diario_*`

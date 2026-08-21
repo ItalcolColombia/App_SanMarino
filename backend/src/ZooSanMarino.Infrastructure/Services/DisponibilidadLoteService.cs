@@ -1,5 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/DisponibilidadLoteService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -339,6 +341,8 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             };
         }
 
+        var huevoItemsDisponibles = await ObtenerDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId).ConfigureAwait(false);
+
         var diasProd = lpp.FechaInicioProduccion.HasValue
             ? (int)(DateTime.Today - lpp.FechaInicioProduccion.Value.Date).TotalDays
             : 0;
@@ -387,6 +391,7 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             LotePosturaProduccionId = lotePosturaProduccionId,
             Huevos = huevos,
             HuevosHistoricoEspejo = historicoEspejo,
+            HuevoItemsDisponibles = huevoItemsDisponibles,
             GranjaId = lpp.GranjaId,
             GranjaNombre = lpp.Farm?.Name ?? string.Empty,
             NucleoId = lpp.NucleoId,
@@ -413,6 +418,57 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         if (cantidadesPorTipo.ContainsKey("Roto") && cantidadesPorTipo["Roto"] > h.Roto) return false;
         if (cantidadesPorTipo.ContainsKey("Desecho") && cantidadesPorTipo["Desecho"] > h.Desecho) return false;
         if (cantidadesPorTipo.ContainsKey("Otro") && cantidadesPorTipo["Otro"] > h.Otro) return false;
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<HuevoItemSeguimientoDto>> ObtenerDisponibilidadHuevoItemsLPPAsync(int lotePosturaProduccionId)
+    {
+        var producidoMetadata = await _context.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId && s.Metadata != null)
+            .Select(s => s.Metadata)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var transferidoMetadata = await _context.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t =>
+                t.LotePosturaProduccionId == lotePosturaProduccionId
+                && t.Estado == "Completado"
+                && t.DeletedAt == null
+                && t.Metadata != null)
+            .Select(t => t.Metadata)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var producidos = producidoMetadata
+            .Where(m => m != null)
+            .SelectMany(m => HuevoItemsCalculos.LeerDeMetadata(m!.RootElement))
+            .ToList();
+
+        var transferidos = transferidoMetadata
+            .Where(m => m != null)
+            .SelectMany(m => HuevoItemsCalculos.LeerDeMetadata(m!.RootElement))
+            .ToList();
+
+        return HuevoItemsCalculos.CalcularDisponibilidad(producidos, transferidos);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ValidarDisponibilidadHuevoItemsLPPAsync(int lotePosturaProduccionId, IReadOnlyList<HuevoItemSeguimientoDto> solicitados)
+    {
+        if (solicitados.Count == 0) return false;
+
+        var disponibles = await ObtenerDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId).ConfigureAwait(false);
+        var disponiblePorItem = disponibles.ToDictionary(d => d.CatalogItemId, d => d.Cantidad);
+
+        foreach (var solicitado in solicitados)
+        {
+            var disponible = disponiblePorItem.GetValueOrDefault(solicitado.CatalogItemId);
+            if (solicitado.Cantidad > disponible) return false;
+        }
+
         return true;
     }
 }

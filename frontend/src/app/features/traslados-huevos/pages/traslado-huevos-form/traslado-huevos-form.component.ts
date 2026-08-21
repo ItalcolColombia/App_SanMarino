@@ -1,13 +1,26 @@
 // frontend/src/app/features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component.ts
 import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
+import { FormBuilder, FormGroup, FormArray, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
+import { catchError } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, HuevosDisponiblesDto } from '../../services/traslados-huevos.service';
 import { FarmService } from '../../../farm/services/farm.service';
 import { environment } from '../../../../../environments/environment';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { InventarioService } from '../../../inventario/services/inventario.service';
+import { CatalogItemDto } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
+import { ToastService } from '../../../../shared/services/toast.service';
+import { HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../../lote-produccion/models/huevo-clasificacion.model';
+import { HuevoItemSeguimiento } from '../../../lote-produccion/services/produccion.service';
+import {
+  agruparItemsHuevoPorTipo,
+  mapearItemsHuevoACatalogo,
+  sumarCantidadesHuevo
+} from '../../../lote-produccion/funciones/items-huevo-catalogo.funcion';
 import {
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
@@ -24,6 +37,13 @@ import {
 })
 export class TrasladoHuevosFormComponent implements OnInit {
   formHuevos!: FormGroup;
+
+  // ===== Clasificación de huevos por ÍTEMS (flag de empresa · Santa Reyes, ver F10 §9 del plan) =====
+  clasificacionHuevoPorItems = false;
+  gruposHuevoItems: HuevoCatalogGrupo[] = [];
+  totalHuevosClasificados = 0;
+  cargandoItemsHuevo = false;
+  private huevoItemsById = new Map<number, HuevoCatalogOption>();
 
   disponibilidad = signal<DisponibilidadLoteDto | null>(null);
   loading = signal<boolean>(false);
@@ -57,9 +77,137 @@ export class TrasladoHuevosFormComponent implements OnInit {
     private trasladosService: TrasladosHuevosService,
     private farmService: FarmService,
     private router: Router,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService,
+    private inventarioSvc: InventarioService,
+    private toast: ToastService
   ) {
     this.initForm();
+    this.companyConfig.getFlags().subscribe(flags => {
+      if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      if (!this.clasificacionHuevoPorItems) return;
+      this.cargarItemsHuevo();
+      this.asegurarFilaHuevoInicial();
+    });
+  }
+
+  get huevoItemsArray(): FormArray {
+    return this.formHuevos.get('huevoItems') as FormArray;
+  }
+
+  private cargarItemsHuevo(): void {
+    if (this.cargandoItemsHuevo || this.huevoItemsById.size > 0) return;
+    this.cargandoItemsHuevo = true;
+    this.inventarioSvc.getCatalogoByType(ITEM_TYPE_HUEVO).pipe(
+      catchError(err => {
+        console.error('Error al cargar ítems de huevo:', err);
+        return of([] as CatalogItemDto[]);
+      })
+    ).subscribe((items: CatalogItemDto[]) => {
+      this.cargandoItemsHuevo = false;
+      const opciones = mapearItemsHuevoACatalogo(items ?? []);
+      this.huevoItemsById.clear();
+      opciones.forEach(o => this.huevoItemsById.set(o.id, o));
+      this.gruposHuevoItems = agruparItemsHuevoPorTipo(opciones);
+    });
+  }
+
+  private get totalItemsHuevoOfrecidos(): number {
+    let total = 0;
+    for (const g of this.gruposHuevoItems) total += g.items.length;
+    return total;
+  }
+
+  private crearFilaHuevo(catalogItemId: number | null = null, cantidad: number = 0): FormGroup {
+    const grp = this.fb.group({
+      catalogItemId: [catalogItemId],
+      cantidad: [cantidad, [Validators.min(0)]]
+    });
+    grp.get('catalogItemId')!.valueChanges.subscribe(valor => this.onCambioItemHuevo(grp, valor));
+    return grp;
+  }
+
+  private onCambioItemHuevo(fila: FormGroup, valor: unknown): void {
+    const id = Number(valor) || 0;
+    if (!id) return;
+    const duplicado = this.huevoItemsArray.controls
+      .some(c => c !== fila && Number(c.get('catalogItemId')?.value) === id);
+    if (!duplicado) return;
+    fila.get('catalogItemId')!.setValue(null, { emitEvent: false });
+    this.toast.warning(
+      'Ese ítem de huevo ya está en otra fila. Sumá la cantidad en la fila existente.',
+      'Ítem duplicado'
+    );
+  }
+
+  agregarFilaHuevo(): void {
+    const tope = this.totalItemsHuevoOfrecidos;
+    if (tope > 0 && this.huevoItemsArray.length >= tope) {
+      this.toast.warning('Ya hay una fila por cada ítem de huevo del catálogo.', 'Clasificación de huevos');
+      return;
+    }
+    this.huevoItemsArray.push(this.crearFilaHuevo());
+  }
+
+  eliminarFilaHuevo(index: number): void {
+    this.huevoItemsArray.removeAt(index);
+  }
+
+  itemHuevoUsadoEnOtraFila(catalogItemId: number, index: number): boolean {
+    const controls = this.huevoItemsArray.controls;
+    for (let i = 0; i < controls.length; i++) {
+      if (i === index) continue;
+      if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return true;
+    }
+    return false;
+  }
+
+  detalleItemHuevo(catalogItemId: unknown): string {
+    const id = Number(catalogItemId) || 0;
+    if (!id) return '';
+    const item = this.huevoItemsById.get(id);
+    if (!item) return '';
+    if (item.tipoHuevo && item.um) return `${item.tipoHuevo} · ${item.um}`;
+    return item.tipoHuevo || item.um || '';
+  }
+
+  disponibleItemHuevo(catalogItemId: unknown): number {
+    const id = Number(catalogItemId) || 0;
+    if (!id) return 0;
+    const fila = this.disponibilidad()?.huevoItemsDisponibles?.find(d => d.catalogItemId === id);
+    return fila?.cantidad ?? 0;
+  }
+
+  private asegurarFilaHuevoInicial(): void {
+    if (!this.clasificacionHuevoPorItems) return;
+    if (this.huevoItemsArray.length > 0) return;
+    this.huevoItemsArray.push(this.crearFilaHuevo());
+  }
+
+  private recalcularTotalHuevosClasificados(): void {
+    this.totalHuevosClasificados = sumarCantidadesHuevo(
+      this.huevoItemsArray.controls.map(c => c.get('cantidad')?.value)
+    );
+  }
+
+  private construirHuevoItemsPayload(): HuevoItemSeguimiento[] {
+    const filas: HuevoItemSeguimiento[] = [];
+    for (const control of this.huevoItemsArray.controls) {
+      const catalogItemId = Number(control.get('catalogItemId')?.value) || 0;
+      const cantidad = Number(control.get('cantidad')?.value) || 0;
+      if (catalogItemId <= 0 || cantidad <= 0) continue;
+      const item = this.huevoItemsById.get(catalogItemId);
+      filas.push({
+        catalogItemId,
+        codigo: item?.codigo ?? null,
+        nombre: item?.nombre ?? null,
+        tipoHuevo: item?.tipoHuevo ?? null,
+        cantidad,
+        um: item?.um ?? null
+      });
+    }
+    return filas;
   }
 
   /** Ventana de fechas admitida para `fechaTraslado` (mes en curso ∪ últimos 15 días). */
@@ -112,8 +260,10 @@ export class TrasladoHuevosFormComponent implements OnInit {
     this.tiposHuevo.forEach(tipo => {
       huevosControls[`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`] = [0, [Validators.min(0)]];
     });
+    huevosControls['huevoItems'] = this.fb.array([]);
 
     this.formHuevos = this.fb.group(huevosControls, { validators: this.validarTrasladoHuevos.bind(this) });
+    this.huevoItemsArray.valueChanges.subscribe(() => this.recalcularTotalHuevosClasificados());
 
     this.formHuevos.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
       this.actualizarValidadoresDestino(tipo);
@@ -148,6 +298,12 @@ export class TrasladoHuevosFormComponent implements OnInit {
   }
 
   private validarTrasladoHuevos(control: AbstractControl): ValidationErrors | null {
+    if (this.clasificacionHuevoPorItems) {
+      const items = (control.get('huevoItems') as FormArray | null)?.controls ?? [];
+      const total = sumarCantidadesHuevo(items.map(c => c.get('cantidad')?.value));
+      return total === 0 ? { sinCantidad: true } : null;
+    }
+
     let totalHuevos = 0;
     this.tiposHuevo.forEach(tipo => {
       const cantidad = control.get(`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`)?.value || 0;
@@ -206,22 +362,26 @@ export class TrasladoHuevosFormComponent implements OnInit {
       : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
 
     const lppId = formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined;
+    const usaHuevoItems = this.clasificacionHuevoPorItems;
+    const huevoItems = usaHuevoItems ? this.construirHuevoItemsPayload() : undefined;
+
     const dto: CrearTrasladoHuevosDto = {
       lotePosturaProduccionId: lppId,
       loteId: lppId ? '' : String(formValue.loteId ?? ''),
       fechaTraslado: fechaTraslado,
       tipoOperacion: formValue.tipoOperacion,
-      cantidadLimpio: formValue.cantidadLimpio || 0,
-      cantidadTratado: formValue.cantidadTratado || 0,
-      cantidadSucio: formValue.cantidadSucio || 0,
-      cantidadDeforme: formValue.cantidadDeforme || 0,
-      cantidadBlanco: formValue.cantidadBlanco || 0,
-      cantidadDobleYema: formValue.cantidadDobleYema || 0,
-      cantidadPiso: formValue.cantidadPiso || 0,
-      cantidadPequeno: formValue.cantidadPequeno || 0,
-      cantidadRoto: formValue.cantidadRoto || 0,
-      cantidadDesecho: formValue.cantidadDesecho || 0,
-      cantidadOtro: formValue.cantidadOtro || 0,
+      cantidadLimpio: usaHuevoItems ? 0 : (formValue.cantidadLimpio || 0),
+      cantidadTratado: usaHuevoItems ? 0 : (formValue.cantidadTratado || 0),
+      cantidadSucio: usaHuevoItems ? 0 : (formValue.cantidadSucio || 0),
+      cantidadDeforme: usaHuevoItems ? 0 : (formValue.cantidadDeforme || 0),
+      cantidadBlanco: usaHuevoItems ? 0 : (formValue.cantidadBlanco || 0),
+      cantidadDobleYema: usaHuevoItems ? 0 : (formValue.cantidadDobleYema || 0),
+      cantidadPiso: usaHuevoItems ? 0 : (formValue.cantidadPiso || 0),
+      cantidadPequeno: usaHuevoItems ? 0 : (formValue.cantidadPequeno || 0),
+      cantidadRoto: usaHuevoItems ? 0 : (formValue.cantidadRoto || 0),
+      cantidadDesecho: usaHuevoItems ? 0 : (formValue.cantidadDesecho || 0),
+      cantidadOtro: usaHuevoItems ? 0 : (formValue.cantidadOtro || 0),
+      huevoItems,
       granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
       loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
       tipoDestino: formValue.tipoDestino,
@@ -242,6 +402,8 @@ export class TrasladoHuevosFormComponent implements OnInit {
         this.tiposHuevo.forEach(tipo => {
           this.formHuevos.get(`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`)?.setValue(0);
         });
+        while (this.huevoItemsArray.length) this.huevoItemsArray.removeAt(0);
+        this.asegurarFilaHuevoInicial();
         this.selectedLotePosturaProduccionId = null;
         this.disponibilidad.set(null);
         this.loading.set(false);

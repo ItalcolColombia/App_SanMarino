@@ -1,4 +1,5 @@
 // src/ZooSanMarino.Application/Interfaces/IDisponibilidadLoteService.cs
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.DTOs.Traslados;
 
 namespace ZooSanMarino.Application.Interfaces;
@@ -35,6 +36,19 @@ public interface IDisponibilidadLoteService
     /// Valida disponibilidad de huevos para un lote LPP (desde espejo).
     /// </summary>
     Task<bool> ValidarDisponibilidadHuevosLPPAsync(int lotePosturaProduccionId, Dictionary<string, int> cantidadesPorTipo);
+
+    /// <summary>
+    /// Disponibilidad por ÍTEM del catálogo de huevo (Santa Reyes) de un lote LPP: producido
+    /// (<c>SeguimientoProduccion.Metadata.huevoItems</c>) menos ya transferido (<c>TrasladoHuevos
+    /// .Metadata.huevoItems</c> de traslados <c>Completado</c>). Ver F10 §9 del plan de Santa Reyes.
+    /// </summary>
+    Task<IReadOnlyList<HuevoItemSeguimientoDto>> ObtenerDisponibilidadHuevoItemsLPPAsync(int lotePosturaProduccionId);
+
+    /// <summary>
+    /// Valida que cada ítem solicitado no exceda su disponible (ver
+    /// <see cref="ObtenerDisponibilidadHuevoItemsLPPAsync"/>).
+    /// </summary>
+    Task<bool> ValidarDisponibilidadHuevoItemsLPPAsync(int lotePosturaProduccionId, IReadOnlyList<HuevoItemSeguimientoDto> solicitados);
 }
 
 

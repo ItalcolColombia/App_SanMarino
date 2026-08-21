@@ -314,4 +314,76 @@ public class HuevoItemsCalculosTests
         Assert.NotNull(request!.HuevoItems);
         Assert.Empty(request.HuevoItems!);
     }
+
+    // ── CalcularDisponibilidad (F10 — traslado de huevos por ítems) ────────────────
+
+    [Fact]
+    public void CalcularDisponibilidad_ProducidoMenosTransferido_PorItem()
+    {
+        var producidos = new List<HuevoItemSeguimientoDto> { Item(528, 500), Item(2520, 300) };
+        var transferidos = new List<HuevoItemSeguimientoDto> { Item(528, 120) };
+
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(producidos, transferidos);
+
+        Assert.Equal(380, disp.Single(d => d.CatalogItemId == 528).Cantidad);
+        Assert.Equal(300, disp.Single(d => d.CatalogItemId == 2520).Cantidad);
+    }
+
+    [Fact]
+    public void CalcularDisponibilidad_SumaVariosRegistrosDelMismoItem()
+    {
+        var producidos = new List<HuevoItemSeguimientoDto> { Item(528, 200), Item(528, 150) };
+        var transferidos = new List<HuevoItemSeguimientoDto> { Item(528, 50), Item(528, 30) };
+
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(producidos, transferidos);
+
+        Assert.Equal(270, disp.Single().Cantidad); // (200+150) - (50+30)
+    }
+
+    [Fact]
+    public void CalcularDisponibilidad_NuncaBajaDeCero()
+    {
+        var producidos = new List<HuevoItemSeguimientoDto> { Item(528, 100) };
+        var transferidos = new List<HuevoItemSeguimientoDto> { Item(528, 130) }; // más de lo producido
+
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(producidos, transferidos);
+
+        Assert.Equal(0, disp.Single().Cantidad);
+    }
+
+    [Fact]
+    public void CalcularDisponibilidad_ItemSinProduccionNiTransferencia_NoAparece()
+    {
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(
+            new List<HuevoItemSeguimientoDto>(), new List<HuevoItemSeguimientoDto>());
+
+        Assert.Empty(disp);
+    }
+
+    [Fact]
+    public void CalcularDisponibilidad_ItemSoloEnTransferidos_Da0_NoNegativo()
+    {
+        // Caso borde: item desactivado del catálogo entre la producción y el traslado (o dato legado).
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(
+            new List<HuevoItemSeguimientoDto>(),
+            new List<HuevoItemSeguimientoDto> { Item(999, 40) });
+
+        var fila = Assert.Single(disp);
+        Assert.Equal(999, fila.CatalogItemId);
+        Assert.Equal(0, fila.Cantidad);
+    }
+
+    [Fact]
+    public void CalcularDisponibilidad_ConservaCodigoNombreTipoUmDelItem()
+    {
+        var producidos = new List<HuevoItemSeguimientoDto> { Item(528, 100) };
+
+        var disp = HuevoItemsCalculos.CalcularDisponibilidad(producidos, new List<HuevoItemSeguimientoDto>());
+
+        var fila = Assert.Single(disp);
+        Assert.Equal("528", fila.Codigo);
+        Assert.Equal("HUEVO 528", fila.Nombre);
+        Assert.Equal("Primera", fila.TipoHuevo);
+        Assert.Equal("UND", fila.Um);
+    }
 }

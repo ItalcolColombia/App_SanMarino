@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/Traslados/DisponibilidadLoteDto.cs
+using ZooSanMarino.Application.DTOs.Produccion;
+
 namespace ZooSanMarino.Application.DTOs.Traslados;
 
 /// <summary>
@@ -20,7 +22,16 @@ public record DisponibilidadLoteDto
 
     /// <summary>LPP: totales históricos en espejo (producción acumulada). Disponible actual sigue en <see cref="Huevos"/>.</summary>
     public HuevosDisponiblesDto? HuevosHistoricoEspejo { get; init; }
-    
+
+    /// <summary>
+    /// LPP + empresa con clasificación de huevos por ítems (Santa Reyes): disponible por ítem del
+    /// catálogo (<c>Cantidad</c> = disponible), producido menos ya transferido. <c>null</c> para
+    /// empresas que no usan esta clasificación (no se calcula, mismo criterio fail-closed/aditivo del
+    /// resto de flags Santa Reyes). El desglose legacy de <see cref="Huevos"/> sigue viniendo igual
+    /// que siempre (0 en las 11 categorías para estas empresas, ver F10 §9 del plan).
+    /// </summary>
+    public IReadOnlyList<HuevoItemSeguimientoDto>? HuevoItemsDisponibles { get; init; }
+
     // Información del lote
     public int GranjaId { get; init; }
     public string GranjaNombre { get; init; } = string.Empty;

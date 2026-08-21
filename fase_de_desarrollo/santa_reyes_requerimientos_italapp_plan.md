@@ -389,3 +389,112 @@ F0.1/F3 (minteo de sesión rechazado por el clasificador de seguridad de Auto Mo
 SÍ es nativo (no Docker: Postgres 17 en :5433, back :5002, front :4200 con toolchain portable),
 confirmado en esta sesión, pero entrar con credenciales reales para el smoke sigue fuera de lo que
 puedo hacer solo. Pendiente que alguien lo abra una vez en pantalla.
+
+---
+
+## 9. F10 — Traslado de huevos: bug real encontrado (auditoría, 21-ago-2026)
+
+**No es la pregunta de UX que parecía.** Auditando F10.1 ("bodega de salida digitada → lista
+desplegable") encontré algo más grave y sin ambigüedad: **la disponibilidad de huevos para
+traslado/venta está calculada solo desde las 11 columnas legacy, que F0.2/F7 dejan en `0` para
+Santa Reyes.** En cuanto Santa Reyes cargue producción real con el flag `clasificacionHuevoPorItems`
+(ya encendido), **no va a poder trasladar ni vender un solo huevo** — el formulario mostrará
+disponible `0` en las 11 categorías aunque `TotalHuevos` sea correcto.
+
+### 9.1 Cadena del bug (verificada leyendo código, no solo grep)
+
+- `modal-seguimiento-diario` (F7): con el flag ON, `huevoLimpio…huevoOtro` se guardan en `0`
+  siempre; el desglose real vive en `seguimiento_diario_produccion.metadata.huevoItems`. Correcto y
+  a propósito (documentado en F7).
+- `EspejoHuevoProduccionSyncService.RecalcularEspejoHuevoProduccionAsync`: sólo suma
+  `SeguimientoProduccion.HuevoLimpio…HuevoOtro` (todas en 0 para Santa Reyes) para
+  `espejo.HuevoLimpioDinamico…HuevoOtroDinamico`. `HuevoTotDinamico` SÍ es correcto (suma
+  `HuevoTot`, que F7 seguía poblando bien).
+- `traslado-huevos-form`/`modal-traslado-huevos`: leen `disponibilidad()?.huevos?.limpio` (u otros)
+  para `getMaxCantidad` — todos en `0` para Santa Reyes. El usuario ve "Total: 500, pero todo tipo
+  disponible: 0" y no puede cargar ninguna cantidad.
+- Gap adicional, más serio: `ValidarDisponibilidadHuevosLPPAsync` compara contra el diccionario de
+  las 11 categorías — si alguien manda un payload con esas 11 en `0` (como ya haría el form actual),
+  la validación **pasa trivialmente** sin comparar nada real. No es sólo una UI que muestra mal: hoy
+  no hay ningún control de disponibilidad real para el flujo por ítems.
+
+### 9.2 Diseño del fix (acotado al flujo LPP — el único que usa Santa Reyes)
+
+- `TrasladoHuevos` (entidad): + `Metadata` (`JsonDocument?`, mismo patrón que
+  `SeguimientoProduccion.Metadata`) para guardar `huevoItems`; `TotalHuevos` deja de ser una
+  propiedad calculada (`=>` sobre las 11 columnas, nunca mapeada por EF) y pasa a ser una columna
+  real que el SERVICE fija explícitamente — con la MISMA fórmula de siempre para el flujo legacy
+  (byte a byte igual) y `HuevoItemsCalculos.SumarTotal(items)` para el flujo por ítems. Migración
+  idempotente: `ADD COLUMN IF NOT EXISTS metadata jsonb`, `ADD COLUMN IF NOT EXISTS total_huevos
+  integer NOT NULL DEFAULT 0` + backfill de las filas existentes (recomputar es inofensivo, no hace
+  falta guarda).
+- `HuevoItemsCalculos` (reusado tal cual, sin duplicar): + `CalcularDisponibilidad(producidos,
+  transferidos)` — agrupa por `catalogItemId`, `disponible = max(0, producido - transferido)`.
+- `DisponibilidadLoteService.ObtenerDisponibilidadLoteLPPAsync`: además del espejo (sin tocar), agrega
+  `HuevoItemsDisponibles` leyendo `SeguimientoProduccion.Metadata` (producido) y `TrasladoHuevos
+  .Metadata` de traslados `Completado` (transferido) del mismo LPP, en memoria — mismo estilo que ya
+  usa el resto del archivo (no hace falta SQL nuevo, el volumen es por-lote, no multipaís). Nuevo
+  `ValidarDisponibilidadHuevoItemsLPPAsync` para el guardado real.
+- `EspejoHuevoProduccionSyncService`: `movTot` pasa de sumar las 11 columnas de `TrasladoHuevos` a
+  sumar `TrasladoHuevos.TotalHuevos` directamente — con `TotalHuevos` ahora siempre correcto (legacy
+  o por ítems), esto hace que `HuevoTotDinamico` reste bien los traslados por ítems también. Único
+  cambio en este archivo; no toca `Historico` ni las 11 columnas `*Dinamico`.
+- `TrasladoHuevosService.CrearTrasladoHuevosAsync`: cuando `dto.HuevoItems` viene con filas, exige
+  `LotePosturaProduccionId` (Santa Reyes siempre lo manda; si no viene, error explícito — no hay
+  flujo legacy por ítems, no se inventa uno), valida con `HuevoItemsCalculos.Validar` +
+  `ValidarDisponibilidadHuevoItemsLPPAsync`, y persiste `Metadata`+`TotalHuevos` dejando las 11
+  `Cantidad*` en `0` (mismo criterio que producción). **Sin `dto.HuevoItems`, el flujo queda BYTE A
+  BYTE igual que hoy** (mismas 11 columnas, misma validación, mismo total).
+- **Alcance deliberado, documentado como gap conocido:** `ActualizarTrasladoHuevosAsync` (edición de
+  un traslado `Pendiente`) NO se tocó — sigue operando solo sobre las 11 columnas legacy. Riesgo bajo:
+  `CrearTrasladoHuevosAsync` llama `ProcesarTrasladoAsync` en el mismo request, así que un traslado
+  normal nunca queda "Pendiente" el tiempo suficiente para editarse; sólo se expone si el
+  procesamiento automático falla. A cerrar si se confirma que hace falta.
+- **Frontend:** ambos formularios vivos (`traslado-huevos-form` en `/traslados-huevos/nuevo` y
+  `modal-traslado-huevos` embebido en la lista) — los dos permiten crear, así que los dos se
+  actualizan. Con el flag `clasificacionHuevoPorItems` ON, reemplazan la grilla de 11 tipos fijos por
+  el mismo selector de ítems del catálogo de F7 (`HuevoCatalogOption`/`agruparItemsHuevoPorTipo`/
+  `mapearItemsHuevoACatalogo`, reusados tal cual — cero duplicación), leyendo el "disponible" nuevo
+  del backend en vez de `disponibilidad()?.huevos?.<tipo>`.
+
+### 9.3 Fuera de este commit (F10.1, la pregunta de UX original)
+
+La duda real sobre "bodega de salida"/`plantaDestino` (¿lista maestra `traslado_de_huevos_planta_destino`
+debería ser por GRANJA en vez de global de la empresa? ¿"Traslado" sin Venta captura destino en
+absoluto hoy — no, `granjaDestinoId` se manda `undefined` siempre que `TipoOperacion=Traslado`) sigue
+sin resolver — es una pregunta de producto, no un bug, y no se adivina. Documentada para retomar con
+el cliente.
+
+### 9.4 Validación
+
+`dotnet build` (solución completa) → **0 errores**, 21 warnings preexistentes (ninguno en archivos
+tocados) · `dotnet test` → **2974/2974** (incluye los 6 casos nuevos de
+`HuevoItemsCalculosTests.CalcularDisponibilidad*`, sin regresión) · `yarn build` → **0 errores**
+(131s), confirma además que los 2 templates quedaron bien balanceados tras corregir a mano 2
+`</div>` de más que había dejado el primer edit (ver nota de proceso abajo) · migración
+`20260821030415_SantaReyesF10TrasladoHuevosPorItems` aplicada en local y re-verificada
+(`\d traslado_huevos` muestra `metadata jsonb` y `total_huevos integer not null default 0`).
+
+**Nota de proceso:** un chequeo rápido de balance de `<div>`/`@if`/`@for` (contar aperturas vs
+cierres con grep, comparando contra la versión en `git show HEAD:...`) encontró 2 `</div>` sobrantes
+que mi propio edit había dejado — uno en `modal-traslado-huevos.component.html`, otro en
+`traslado-huevos-form.component.html` — antes de correr `yarn build`. Ambos se debían al mismo
+patrón: al envolver un bloque existente en `@if (...) { ... }`, dejé sin querer el `</div>` que
+cerraba el div original ADEMÁS del nuevo. El chequeo de grep los encontró en segundos; sin él,
+`ng build` los habría marcado igual (NG5002), pero después de un ciclo de espera de varios minutos —
+la misma lección de F9 (cambio mínimo, verificar antes de acumular), aplicada más rápido acá.
+
+**No regresión multipaís (F11.2) — razonada, no solo corrida.** `EspejoHuevoProduccionSyncService`
+es compartido por TODAS las empresas que usan el flujo LPP de postura (no solo Santa Reyes), así que
+el cambio de `movTot` amerita el mismo cuidado que el gate de `*SaldoAlimento*` aunque no sea
+literalmente esa función. No hace falta corrida empírica multipaís porque la equivalencia es
+demostrable por construcción: para un traslado del flujo LEGACY (`usaHuevoItems = false`, el único
+caso que existe hoy fuera de Santa Reyes), `traslado.TotalHuevos` se fija en la creación como
+`dto.TotalHuevos` — que es exactamente `CantidadLimpio + … + CantidadOtro`, la MISMA fórmula que
+`movTot` calculaba antes sumando esas 11 columnas directamente de la entidad. Como las 11 columnas
+de la entidad legacy son idénticas a las del DTO (no se tocan), `SUM(t.TotalHuevos)` para filas
+legacy es aritméticamente idéntico a `SUM(t.CantidadLimpio + … + t.CantidadOtro)` — byte a byte, no
+una aproximación. El único caso donde el valor cambia es cuando `Metadata`/`HuevoItems` está
+presente, y eso solo ocurre en traslados creados con el flag `clasificacionHuevoPorItems` (hoy, solo
+Santa Reyes). Sanmarino, Panamá y Ecuador no pueden producir ese payload — el flag está en `false`
+para las tres.
