@@ -138,7 +138,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 q = q.Where(l => l.Fase == "Produccion" && l.LotePadreId == null);
 
             q = q.OrderBy(l => l.LoteId);
-            return await ProjectToDetail(q).ToListAsync();
+            return await ProjectToDetail(_ctx, q).ToListAsync();
         }
 
         /// <summary>Lotes en fase Levante (Fase == "Levante") para el módulo Seguimiento Diario de Levante. No mezcla con Producción.</summary>
@@ -157,7 +157,7 @@ namespace ZooSanMarino.Infrastructure.Services
             q = await AplicarScopeUbicacionAsync(q);
 
             q = q.OrderBy(l => l.LoteId);
-            return await ProjectToDetail(q).ToListAsync();
+            return await ProjectToDetail(_ctx, q).ToListAsync();
         }
 
         // ======================================================
@@ -212,7 +212,7 @@ namespace ZooSanMarino.Infrastructure.Services
             q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
             var total = await q.LongCountAsync();
-            var items = await ProjectToDetail(q)
+            var items = await ProjectToDetail(_ctx, q)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -242,7 +242,7 @@ namespace ZooSanMarino.Infrastructure.Services
             // (fail-closed → 404). Sin filtro por granjas asignadas aquí: lo usan flujos internos.
             q = await AplicarScopeUbicacionAsync(q);
 
-            return await ProjectToDetail(q).SingleOrDefaultAsync();
+            return await ProjectToDetail(_ctx, q).SingleOrDefaultAsync();
         }
 
         // ======================================================
@@ -825,8 +825,16 @@ namespace ZooSanMarino.Infrastructure.Services
             return Math.Max(0, (dias / 7) + 1);
         }
 
-        // Proyección consistente a LoteDetailDto con Lite DTOs
-        private static IQueryable<LoteDetailDto> ProjectToDetail(IQueryable<Lote> q)
+        /// <summary>
+        /// Proyección consistente a LoteDetailDto con Lite DTOs.
+        /// <para>
+        /// Las dos señales de la fase real (levante cerrado / existe producción) se resuelven con
+        /// subconsultas correlacionadas escritas <b>en línea</b>: EF Core no traduce una llamada a
+        /// método propio dentro del árbol de expresión y la consulta reventaría en runtime. La fase
+        /// en sí la deriva <c>LoteDetailDto.FaseActual</c>, para no duplicar la regla.
+        /// </para>
+        /// </summary>
+        private static IQueryable<LoteDetailDto> ProjectToDetail(ZooSanMarinoContext ctx, IQueryable<Lote> q)
         {
             return q
                 .Include(l => l.Farm)
@@ -899,7 +907,12 @@ namespace ZooSanMarino.Infrastructure.Services
                             l.Galpon.GranjaId
                         ),
                     l.CodigoCentroCosto,
-                    l.DescripcionCentroCosto
+                    l.DescripcionCentroCosto,
+                    ctx.LotePosturaLevante.Any(x => x.LoteId == l.LoteId
+                                                 && x.DeletedAt == null
+                                                 && x.EstadoCierre != null
+                                                 && x.EstadoCierre.ToLower() == "cerrado"),
+                    ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId && p.DeletedAt == null)
                 ));
         }
 

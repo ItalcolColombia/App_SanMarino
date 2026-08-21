@@ -1099,3 +1099,50 @@ con el codigo.
       corregido en X9.3, pero descomentarlos es una decision de producto — se comentaron a proposito
       y este trabajo no los toca. Queda anotado en el propio TK-2026-000179
 - [x] **X10 cerrado** (salvo X10.7, que espera decision).
+
+---
+
+## X11 — La fase del lote sale del CIERRE, no de la fecha de encasetamiento (21-ago-2026)
+
+Pedido del usuario: la columna Fase/Etapa del listado de lotes de postura se calculaba por edad
+(>= 26 semanas desde el encaset => Produccion), asi que **un lote viejo que apenas se carga aparece
+en Produccion sin haber pasado nunca a produccion**. Debe salir del estado real: levante mientras no
+este cerrado, y produccion solo cuando el levante cerro Y existe el lote de produccion — «si no
+tiene produccion no muestre la palabra produccion hasta que este en esa etapa».
+
+- [x] X11.1 **Reproducido y medido.** `calcularFase(fechaEncaset)` (lote-list.component.ts:1513) hacia
+      `edad < 26 ? Levante : Produccion`. En la base: **Sanmarino 10 de 16 lotes decian Produccion,
+      solo 2 lo estaban**; los 8 falsos son justo los cargados con historia (A374, S369), todos con
+      el levante ABIERTO y cero filas de produccion. Es el mismo defecto que
+      `FaseLoteCalculos.EsRegistroLevante` ya habia corregido del lado de los reportes
+      ([[etapa-lpl-nunca-cambia-en-la-transicion]])
+- [x] X11.2 **La senal correcta se eligio con datos, no por intuicion.** Los criterios de
+      `ExisteProduccionLoteAsync` (lote hijo en fase Produccion / mismo lote en Produccion, ambos con
+      datos de registro inicial) dan **0 en los 21 lotes de la base** — la fase no se actualiza en la
+      transicion. La unica prueba que funciona es **la fila viva en `lote_postura_produccion`**,
+      exactamente lo que dice la memoria
+- [x] X11.3 `FaseLoteCalculos.ResolverFaseVisible(levanteCerrado, tieneProduccion)` + sobrecarga que
+      tolera el texto crudo del cierre (mayusculas, espacios, null) + `EsCierreCerrado`. **11 casos
+      nuevos**, incluido el que fija que la regla NO depende de la edad y el que prueba que las dos
+      sobrecargas son la misma formula
+- [x] X11.4 Backend: `LoteDetailDto` gana `LevanteCerrado` y `TieneProduccion` (subconsultas
+      correlacionadas **escritas en linea** — la leccion de X8.14: EF no traduce una llamada a metodo
+      propio en el arbol de expresion) y **`FaseActual` como propiedad DERIVADA del record**, que las
+      traduce con la formula unica. Escribir el ternario dentro del `Select` habria duplicado la regla
+- [x] X11.5 Frontend: `calcularFase(l)` pasa a leer `faseActual`; sin ese campo devuelve `—`, no
+      vuelve a adivinar por la fecha. Corregidos sus 2 usos vivos (grilla y panel de detalle).
+      ⚠️ El `calcularFase` de `tabla-registro-list` NO se toca: es otro concepto
+      (Inicio/Crecimiento/Engorde/Finalizacion por dias de engorde), sin este defecto
+- [x] X11.6 **Verificado en pantalla** (build de produccion en :4310 contra backend propio sobre un
+      clon): de los 16 lotes de Sanmarino, **solo K345A y K345B muestran «Produccion»** — los unicos
+      con levante cerrado y produccion creada — y los otros 14 «Levante». El detalle de S369A dice
+      **«Fase: Levante» con 51 semanas de edad**, que es exactamente el caso reportado. `GET /api/Lote`
+      200; los 2 errores de consola son NG05604 (Service Worker) y un 403 de vacunacion por los
+      permisos del JWT sintetico, ambos ajenos
+- [x] X11.7 **Corrige en las DOS direcciones**, medido sobre todas las empresas: Sanmarino 10 => 2
+      (8 falsos positivos eliminados) y **Demo 0 => 1 (un falso NEGATIVO**: LOTE 235A esta cerrado y
+      con produccion pero mostraba «Levante» por tener menos de 26 semanas). Los 3 lotes con
+      produccion de la base estan los 3 en `Cerrado` — consistencia total
+- [x] X11.8 Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3011/3011** ·
+      `yarn build` 0 errores. Entorno de prueba cerrado: puertos libres, clon borrado
+- [x] **X11 cerrado.**

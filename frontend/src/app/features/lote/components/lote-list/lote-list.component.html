@@ -455,7 +455,7 @@
                   <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
                   <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
                   <td>{{ l.raza ?? '—' }}</td>
-                  <td><span class="ux-badge">{{ calcularFase(l.fechaEncaset) }}</span></td>
+                  <td><span class="ux-badge">{{ calcularFase(l) }}</span></td>
                   <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
                   <td>{{ formatOrDash(l.hembrasL) }}</td>
                   <td>{{ formatOrDash(l.machosL) }}</td>
@@ -1175,7 +1175,7 @@
                               <div><strong class="text-warm-gray-800">🏠 Granja:</strong> {{ selectedLote.farm?.name ?? '—' }}</div>
                               <div><strong class="text-warm-gray-800">📍 Núcleo:</strong> {{ selectedLote.nucleo?.nucleoNombre ?? '—' }}</div>
                               <div><strong class="text-warm-gray-800">📅 Fecha encaset:</strong> {{ selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</div>
-                              <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote.fechaEncaset) }}</div>
+                              <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote) }}</div>
                               <div><strong class="text-warm-gray-800">⏳ Edad:</strong> {{ calcularEdadSemanas(selectedLote.fechaEncaset) }} sem.</div>
                               <div><strong class="text-warm-gray-800">🧩 Lote base:</strong> {{ getBaseLoteNombre(selectedLote.lotePosturaBaseId) }}</div>
                               <div><strong class="text-warm-gray-800">📄 Lote ERP:</strong> {{ selectedLote.loteErp || '—' }}</div>

@@ -1510,9 +1510,25 @@ export class LoteListComponent implements OnInit {
     return Math.max(1, semanas + 1); // primera semana = 1, no 0
   }
 
-  calcularFase(fechaEncaset?: string | Date | null): 'Levante' | 'Producción' | 'Desconocido' {
-    if (!fechaEncaset) return 'Desconocido';
-    return this.calcularEdadSemanas(fechaEncaset) < 26 ? 'Levante' : 'Producción';
+  /**
+   * Fase que se muestra en pantalla, tomada del ESTADO del lote y no de su edad.
+   *
+   * Un lote pasa a «Producción» solo cuando ocurrieron las dos cosas: su levante se cerró y existe
+   * el lote de producción. Mientras falte cualquiera de las dos sigue siendo «Levante», así que la
+   * palabra «Producción» no aparece hasta que el lote está de verdad en esa etapa.
+   *
+   * Antes esto era `edad < 26 semanas ? Levante : Producción`, que es correcto para un lote dado de
+   * alta al día y falso para todo lote cargado con historia: su encasetamiento es viejo, así que
+   * nacía mostrando «Producción» sin haber pasado nunca a producción. Medido en la base: 8 de los
+   * 16 lotes de Sanmarino, todos con el levante abierto y cero filas de producción.
+   *
+   * La resuelve el backend (`FaseLoteCalculos.ResolverFaseVisible`) y viaja en `faseActual`. Sin
+   * ese campo se devuelve «—»: es preferible no decir nada a volver a adivinar por la fecha.
+   */
+  calcularFase(l?: LoteDto | null): string {
+    const fase = (l?.faseActual ?? '').trim();
+    if (!fase) return '—';
+    return fase.toLowerCase() === 'produccion' ? 'Producción' : 'Levante';
   }
 
   formatNumber(value: number | null | undefined): string {

@@ -1,5 +1,7 @@
 namespace ZooSanMarino.Application.DTOs.Lotes;
 
+using ZooSanMarino.Application.Calculos;
+
 using FarmLiteDto   = ZooSanMarino.Application.DTOs.Farms.FarmLiteDto;
 using NucleoLiteDto = ZooSanMarino.Application.DTOs.Shared.NucleoLiteDto;
 using GalponLiteDto = ZooSanMarino.Application.DTOs.Shared.GalponLiteDto;
@@ -50,5 +52,27 @@ public sealed record LoteDetailDto(
     GalponLiteDto? Galpon,
     // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
     string?   CodigoCentroCosto      = null,
-    string?   DescripcionCentroCosto = null
-);
+    string?   DescripcionCentroCosto = null,
+    // ─── Señales que deciden la fase REAL del lote ───
+    // La pantalla derivaba la fase de las semanas desde el encasetamiento, así que todo lote
+    // cargado con historia aparecía en «Producción» sin haber pasado nunca a producción. Estas dos
+    // señales vienen de la BD y `FaseActual` las traduce con la fórmula única.
+    /// <summary>El levante del lote está cerrado (<c>lote_postura_levante.estado_cierre</c>).</summary>
+    bool      LevanteCerrado  = false,
+    /// <summary>Existe el lote de producción: una fila viva en <c>lote_postura_produccion</c>.</summary>
+    bool      TieneProduccion = false
+)
+{
+    /// <summary>
+    /// Fase real del lote — <c>Levante</c> o <c>Produccion</c> — para mostrar en pantalla.
+    ///
+    /// <para>
+    /// Es una propiedad DERIVADA y no un parámetro del constructor a propósito: la proyección a SQL
+    /// trae las dos señales y la fase se resuelve acá con <see cref="FaseLoteCalculos.ResolverFaseVisible"/>.
+    /// Escribir el ternario dentro del <c>Select</c> habría duplicado la regla —EF Core no traduce
+    /// una llamada a método propio dentro del árbol de expresión— y este repositorio ya pagó caro
+    /// tener el mismo número calculado en dos lugares.
+    /// </para>
+    /// </summary>
+    public string FaseActual => FaseLoteCalculos.ResolverFaseVisible(LevanteCerrado, TieneProduccion);
+}
