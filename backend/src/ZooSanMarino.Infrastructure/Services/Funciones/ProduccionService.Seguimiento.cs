@@ -261,7 +261,7 @@ public partial class ProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-                await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
+                await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr, fechaMovimiento: request.FechaRegistro);
                 await _context.SaveChangesAsync();
             }
             if (tx is not null) await tx.CommitAsync();
@@ -654,7 +654,7 @@ public partial class ProduccionService
                 ? await _context.Database.BeginTransactionAsync()
                 : null;
             var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
+            await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr, fechaMovimiento: request.FechaRegistro);
             await _context.SaveChangesAsync().ConfigureAwait(false);
             if (tx is not null) await tx.CommitAsync();
             if (lotePosturaProduccionId.HasValue)
@@ -741,7 +741,8 @@ public partial class ProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{seguimientoId} (devolución por eliminación)";
-                await _colombiaConsumoB.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción");
+                // Fecha = día del BORRADO (hecho de HOY), no la fecha del seguimiento eliminado.
+                await _colombiaConsumoB.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción", fechaMovimiento: DateTime.UtcNow.Date);
             }
             _context.SeguimientoProduccion.Remove(e);
             await _context.SaveChangesAsync().ConfigureAwait(false);

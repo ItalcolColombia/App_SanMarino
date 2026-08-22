@@ -222,7 +222,8 @@ public partial class SeguimientoAvesEngordeService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
+                // El movimiento se fecha en el DÍA del seguimiento (mismo criterio que la rama EC/PA de abajo).
+                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr, fechaMovimiento: dto.FechaRegistro.Date);
             }
             await _ctx.SaveChangesAsync();
             await tx.CommitAsync();
@@ -464,7 +465,8 @@ public partial class SeguimientoAvesEngordeService
             await using var tx = await _ctx.Database.BeginTransactionAsync();
             await _ctx.SaveChangesAsync();
             var refCo = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
+            // Fecha del registro editado (no la de "hoy") — describe el mismo día para los dos lados del diff.
+            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo, fechaMovimiento: dto.FechaRegistro.Date);
             await _ctx.SaveChangesAsync();
             await tx.CommitAsync();
         }
@@ -506,10 +508,12 @@ public partial class SeguimientoAvesEngordeService
                         var diff = newQty - oldQty;
                         if (diff > 0)
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null));
+                                farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null,
+                                FechaMovimiento: dto.FechaRegistro.Date));
                         else if (diff < 0)
                             await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento aves engorde"));
+                                farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento aves engorde",
+                                FechaMovimiento: dto.FechaRegistro.Date));
                     }
                 }
                 catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (aves engorde)"); }
@@ -596,7 +600,8 @@ public partial class SeguimientoAvesEngordeService
                 if (positivos.Count > 0)
                 {
                     var refStr = $"Seguimiento aves engorde #{id} (devolución por eliminación)";
-                    await _colombiaConsumoB.AplicarDevolucionAsync(ent.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento aves engorde");
+                    // Devolución por BORRADO = hecho de HOY, no una corrección del pasado: se fecha el día del borrado.
+                    await _colombiaConsumoB.AplicarDevolucionAsync(ent.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento aves engorde", fechaMovimiento: DateTime.UtcNow.Date);
                 }
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario Colombia al eliminar seguimiento aves engorde"); }
@@ -611,8 +616,10 @@ public partial class SeguimientoAvesEngordeService
                 var refStr = $"Seguimiento aves engorde #{id} (devolución por eliminación)";
                 foreach (var kv in byItem)
                     if (kv.Value > 0)
+                        // Devolución por BORRADO = hecho de HOY, no una corrección del pasado: se fecha el día del borrado.
                         await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                            ent.GranjaId, ent.NucleoId?.Trim(), ent.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde"));
+                            ent.GranjaId, ent.NucleoId?.Trim(), ent.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde",
+                            FechaMovimiento: DateTime.UtcNow.Date));
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento aves engorde"); }
         }

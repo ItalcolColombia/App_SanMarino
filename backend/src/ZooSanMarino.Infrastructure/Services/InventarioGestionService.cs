@@ -90,13 +90,25 @@ public partial class InventarioGestionService : IInventarioGestionService
                 "recálculo.", farmId, nucleoId, galponId),
             ct);
 
-    /// <summary>Fecha en histórico: día elegido a mediodía UTC; si no hay fecha, hora actual del servidor (mismo criterio que ingresos).</summary>
-    private static DateTimeOffset ResolveMovimientoCreatedAt(DateTime? fechaMovimiento)
+    /// <summary>
+    /// Fecha en histórico: día elegido, anclado a <paramref name="horaAncla"/> UTC; si no hay fecha,
+    /// hora actual del servidor (mismo criterio histórico).
+    ///
+    /// <para>
+    /// F2 (22-ago-2026): <paramref name="horaAncla"/> default 12 conserva el comportamiento de
+    /// SIEMPRE — todo llamador que no lo pase queda exactamente igual. Los DOS caminos de CONSUMO
+    /// (<c>RegistrarConsumoAsync</c> y <c>RegistrarConsumoNivelGranjaAsync</c>) pasan
+    /// <see cref="FechaMovimientoSeguimientoCalculos.AnclaConsumoUtc"/> para no empatar con el
+    /// ingreso del mismo día — ver el doc-comment de esa constante para el porqué.
+    /// </para>
+    /// </summary>
+    private static DateTimeOffset ResolveMovimientoCreatedAt(
+        DateTime? fechaMovimiento,
+        int horaAncla = FechaMovimientoSeguimientoCalculos.AnclaIngresoUtc)
     {
         if (!fechaMovimiento.HasValue)
             return DateTimeOffset.UtcNow;
-        var d = fechaMovimiento.Value.Date;
-        return new DateTimeOffset(d.Year, d.Month, d.Day, 12, 0, 0, TimeSpan.Zero);
+        return FechaMovimientoSeguimientoCalculos.Anclar(fechaMovimiento.Value.Date, horaAncla);
     }
 
     private async Task<int?> GetEffectiveCompanyIdAsync(CancellationToken ct = default)
@@ -1600,8 +1612,9 @@ public partial class InventarioGestionService : IInventarioGestionService
                 Reference = req.Reference?.Trim(),
                 Reason = req.Reason?.Trim(),
                 // Simetría con RegistrarIngresoAsync: sin fecha explícita se usa "ahora" (comportamiento
-                // histórico); con fecha, el movimiento queda en el día real del consumo.
-                CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
+                // histórico); con fecha, el movimiento queda en el día real del consumo. Ancla a las
+                // 18:00 (no a las 12:00 del ingreso) para no empatar el orden intra-día — ver F2.
+                CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento, FechaMovimientoSeguimientoCalculos.AnclaConsumoUtc),
                 CreatedByUserId = _current?.UserId.ToString()
             });
             await _db.SaveChangesAsync(ct);
@@ -1652,8 +1665,27 @@ public partial class InventarioGestionService : IInventarioGestionService
     /// <summary>
     /// Fase 3 — consumo a nivel granja (Colombia): descuenta <c>inventario_gestion_stock</c> por
     /// (farm, item, nucleo=NULL, galpon=NULL) e inserta un movimiento <c>Consumo</c> sin ubicación
-    /// estructurada. NO abre transacción propia (participa de la externa) ni exige galpón. Lanza si
-    /// no hay stock suficiente (bloqueo). No mueve nada de Ecuador/Panamá.
+    /// estructurada. Lanza si no hay stock suficiente (bloqueo). No mueve nada de Ecuador/Panamá.
+    ///
+    /// <para>
+    /// F4 (22-ago-2026): antes esto era <c>read-modify-write</c> sobre una fila RASTREADA
+    /// (<c>stock.Quantity -= req.Quantity</c>, sin <c>SaveChanges</c> propio — el orquestador externo
+    /// commiteaba todo junto). Sin concurrency token en la tabla, dos consumos concurrentes sobre la
+    /// misma granja+ítem pasaban <b>los dos</b> la validación y el <c>UPDATE</c> final de EF escribía
+    /// el absoluto en memoria: pérdida DETERMINISTA, no una carrera rara. Y el stock a nivel granja es
+    /// UNO por (granja, ítem) compartido por TODOS los lotes de la granja — N tablets de la misma
+    /// granja recuperando señal a la vez es el peor caso posible.
+    /// </para>
+    ///
+    /// <para>
+    /// Ahora adopta la forma que Ecuador/Panamá ya tiene al lado: lectura SIN rastreo
+    /// (<see cref="BuscarStockSinRastreoAsync"/>) + descuento en una sola sentencia condicional
+    /// (<see cref="DescontarStockAtomicoAsync"/>, <c>UPDATE ... WHERE quantity &gt;= @q</c>) + el
+    /// movimiento, TODO dentro de <see cref="EnTransaccionAsync"/> (abre transacción sólo si no hay
+    /// una ambiente — el mismo patrón que ya usa <c>RegistrarConsumoAsync</c>). Por eso este método SÍ
+    /// llama su propio <c>SaveChangesAsync</c> ahora: los llamadores (levante/engorde/producción)
+    /// persisten el seguimiento ANTES de invocar este camino, así que no hay nada ajeno que arrastrar.
+    /// </para>
     /// </summary>
     public async Task RegistrarConsumoNivelGranjaAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
@@ -1661,49 +1693,72 @@ public partial class InventarioGestionService : IInventarioGestionService
         var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
-        var stock = await StockNivelGranjaQuery(req.FarmId, req.ItemInventarioEcuadorId, req.SiloId)
-            .FirstOrDefaultAsync(ct);
+        // Lectura SIN rastreo: es parte del contrato de DescontarStockAtomicoAsync. Una copia
+        // rastreada con la cantidad vieja haría que un SaveChanges posterior pisara el descuento.
+        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, null, null, req.SiloId, ct);
         if (stock == null || stock.Quantity < req.Quantity)
-            throw new InvalidOperationException(
-                $"Stock insuficiente para '{item.Codigo} - {item.Nombre}' (granja {req.FarmId}): disponible {(stock?.Quantity ?? 0m):0.###}, requerido {req.Quantity:0.###}.");
-
-        stock.Quantity -= req.Quantity;
-        stock.UpdatedAt = DateTimeOffset.UtcNow;
+            throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
+                item.Codigo, item.Nombre, req.FarmId, stock?.Quantity ?? 0m, req.Quantity));
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
 
-        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+        // El descuento y el movimiento que lo explica van juntos o no van: si el movimiento fallara
+        // después del UPDATE, el stock bajaría sin ningún registro que lo justifique.
+        await EnTransaccionAsync(async () =>
         {
-            CompanyId = companyId,
-            PaisId = paisId,
-            FarmId = req.FarmId,
-            NucleoId = null,
-            GalponId = null,
-            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-            // El silo del consumo (Fase C). Null en toda empresa sin el flag ⇒ movimiento idéntico al
-            // de siempre; con silo, el kardex dice de qué silo salió el alimento.
-            SiloId = req.SiloId,
-            Quantity = req.Quantity,
-            // TK-2026-000019 — la del catálogo (Colombia manda "kg" fijo en el request).
-            Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
-            MovementType = "Consumo",
-            Estado = "Consumo",
-            Reference = req.Reference?.Trim(),
-            Reason = req.Reason?.Trim(),
-            // Simetría con RegistrarConsumoAsync: sin fecha explícita se usa "ahora" (lo que hacen
-            // todos los llamadores históricos, así que su comportamiento no cambia); con fecha, el
-            // movimiento queda en el día real del consumo — lo necesita la carga masiva, cuya
-            // idempotencia se apoya en la fecha del movimiento.
-            CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
-            CreatedByUserId = _current?.UserId.ToString()
-        });
-        // NO SaveChanges/tx aquí: el orquestador externo commitea (bloqueo atómico).
+            if (!await DescontarStockAtomicoAsync(stock.Id, req.Quantity, ct))
+                // Rama de la carrera: la pre-lectura alcanzaba, pero otra transacción se llevó el
+                // saldo antes que ésta. Mismo mensaje con nombre e ítem, no el genérico de EC/PA —
+                // así el reporte de la carga masiva sigue diciendo qué faltó y dónde.
+                throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
+                    item.Codigo, item.Nombre, req.FarmId, stock.Quantity, req.Quantity));
+
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            {
+                CompanyId = companyId,
+                PaisId = paisId,
+                FarmId = req.FarmId,
+                NucleoId = null,
+                GalponId = null,
+                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+                // El silo del consumo (Fase C). Null en toda empresa sin el flag ⇒ movimiento idéntico
+                // al de siempre; con silo, el kardex dice de qué silo salió el alimento.
+                SiloId = req.SiloId,
+                Quantity = req.Quantity,
+                // TK-2026-000019 — la del catálogo (Colombia manda "kg" fijo en el request).
+                Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
+                MovementType = "Consumo",
+                Estado = "Consumo",
+                Reference = req.Reference?.Trim(),
+                Reason = req.Reason?.Trim(),
+                // Simetría con RegistrarConsumoAsync: sin fecha explícita se usa "ahora" (lo que hacen
+                // todos los llamadores históricos, así que su comportamiento no cambia); con fecha, el
+                // movimiento queda en el día real del consumo — lo necesita la carga masiva, cuya
+                // idempotencia se apoya en la fecha del movimiento. Ancla a las 18:00, no a las 12:00
+                // del ingreso, para no empatar el orden intra-día — ver F2.
+                CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento, FechaMovimientoSeguimientoCalculos.AnclaConsumoUtc),
+                CreatedByUserId = _current?.UserId.ToString()
+            });
+            await _db.SaveChangesAsync(ct);
+        }, ct);
     }
 
     /// <summary>
     /// Fase 3 — devolución a nivel granja (Colombia): repone <c>inventario_gestion_stock</c> por
     /// (farm, item, nucleo=NULL, galpon=NULL) e inserta un movimiento <c>Ingreso</c>. Crea el stock
-    /// si no existe (idéntico a la devolución/edición). NO abre transacción propia.
+    /// si no existe.
+    ///
+    /// <para>
+    /// F4 (22-ago-2026), trampa #1 del plan: si esto se quedaba <c>read-modify-write</c> RASTREADO
+    /// mientras <see cref="RegistrarConsumoNivelGranjaAsync"/> pasaba a SQL crudo, un
+    /// <c>SaveChangesAsync</c> de ESTE método —dentro de la MISMA unidad de trabajo, por ejemplo
+    /// <c>AplicarDiffAsync</c> resolviendo dos <c>ItemConsumoKey</c> distintas al mismo
+    /// <c>itemBId</c>— escribiría el absoluto de esta fila rastreada y <b>pisaría</b> el descuento
+    /// atómico del otro ítem sobre la misma fila. Régimen mixto = footgun documentado en
+    /// <c>StockAtomico.cs:44-48</c>. Ahora usa <see cref="SumarStockAtomicoAsync"/> — el mismo
+    /// <c>INSERT ... ON CONFLICT ... DO UPDATE</c> que ya usan ingreso y traslados de Ecuador/Panamá—,
+    /// así que dos operaciones sobre la misma fila, vengan de donde vengan, se serializan en la base.
+    /// </para>
     /// </summary>
     public async Task RegistrarIngresoNivelGranjaAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
@@ -1712,57 +1767,47 @@ public partial class InventarioGestionService : IInventarioGestionService
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
+        var unidad = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit);
 
-        var stock = await StockNivelGranjaQuery(req.FarmId, req.ItemInventarioEcuadorId, req.SiloId)
-            .FirstOrDefaultAsync(ct);
-        if (stock == null)
+        GuardarMarcaProximoCicloApagada(req.ParaProximoCiclo);
+
+        // El ingreso y el movimiento que lo explica van juntos o no van, igual que en el consumo.
+        await EnTransaccionAsync(async () =>
         {
-            stock = new InventarioGestionStock
+            await SumarStockAtomicoAsync(
+                companyId, paisId, req.FarmId, null, null,
+                req.ItemInventarioEcuadorId, req.Quantity, unidad, req.SiloId, ct);
+
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
             {
                 CompanyId = companyId,
                 PaisId = paisId,
                 FarmId = req.FarmId,
                 NucleoId = null,
                 GalponId = null,
-                SiloId = req.SiloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-                Quantity = 0,
-                Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            _db.InventarioGestionStock.Add(stock);
-        }
-        stock.Quantity += req.Quantity;
-        stock.UpdatedAt = DateTimeOffset.UtcNow;
-
-        GuardarMarcaProximoCicloApagada(req.ParaProximoCiclo);
-
-        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
-        {
-            CompanyId = companyId,
-            PaisId = paisId,
-            FarmId = req.FarmId,
-            NucleoId = null,
-            GalponId = null,
-            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-            SiloId = req.SiloId,
-            Quantity = req.Quantity,
-            // TK-2026-000019 — la del catálogo, igual que el consumo de nivel granja.
-            Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
-            MovementType = "Ingreso",
-            Estado = "Ingreso",
-            Reference = req.Reference?.Trim(),
-            Reason = req.Reason?.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatedByUserId = _current?.UserId.ToString(),
-            // Mismo criterio que RegistrarIngresoAsync: la marca viaja en el request y el instante de
-            // captura se guarda aparte. Sin esto, todo lo que entra por Colombia quedaría marcado
-            // como «fila anterior a la columna» para siempre.
-            ParaProximoCiclo = req.ParaProximoCiclo,
-            RegistradoAt = DateTimeOffset.UtcNow
-        });
-        // NO SaveChanges/tx aquí: el orquestador externo commitea.
+                SiloId = req.SiloId,
+                Quantity = req.Quantity,
+                // TK-2026-000019 — la del catálogo, igual que el consumo de nivel granja.
+                Unit = unidad,
+                MovementType = "Ingreso",
+                Estado = "Ingreso",
+                Reference = req.Reference?.Trim(),
+                Reason = req.Reason?.Trim(),
+                // F2.2 (22-ago-2026): antes hardcodeaba UtcNow aunque `req.FechaMovimiento` ya existía en
+                // el DTO — una edición devolvía el ajuste positivo al día del seguimiento y su devolución
+                // quedaba en HOY: los dos lados del mismo diff en días distintos. Mismo criterio que
+                // RegistrarConsumoNivelGranjaAsync, con la ancla de INGRESO (12:00), no la de consumo.
+                CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
+                CreatedByUserId = _current?.UserId.ToString(),
+                // Mismo criterio que RegistrarIngresoAsync: la marca viaja en el request y el instante de
+                // captura se guarda aparte. Sin esto, todo lo que entra por Colombia quedaría marcado
+                // como «fila anterior a la columna» para siempre.
+                ParaProximoCiclo = req.ParaProximoCiclo,
+                RegistradoAt = DateTimeOffset.UtcNow
+            });
+            await _db.SaveChangesAsync(ct);
+        }, ct);
     }
 
     /// <summary>

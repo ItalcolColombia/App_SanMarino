@@ -106,7 +106,7 @@ public partial class SeguimientoLoteLevanteService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento lote levante #{createdCo.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
+                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr, fechaMovimiento: dto.FechaRegistro);
             }
             await _ctx.SaveChangesAsync();
             if (tx is not null) await tx.CommitAsync();
@@ -136,7 +136,7 @@ public partial class SeguimientoLoteLevanteService
                 foreach (var kv in byItem)
                     if (kv.Value > 0)
                         await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                            lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
+                            lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null, FechaMovimiento: dto.FechaRegistro));
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al registrar consumo inventario (levante)"); }
         }
@@ -265,7 +265,7 @@ public partial class SeguimientoLoteLevanteService
             if (updatedCo is null) { if (tx is not null) await tx.RollbackAsync(); return null; }
 
             var refCo = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
+            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo, fechaMovimiento: dto.FechaRegistro);
 
             // A7 — el ajuste del saldo de aves ya NO se hace acá: lo aplica
             // SeguimientoDiarioService.UpdateAsync (llamado arriba), igual que para producción.
@@ -321,10 +321,10 @@ public partial class SeguimientoLoteLevanteService
                     var diff = newQty - oldQty;
                     if (diff > 0)
                         await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                            farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null));
+                            farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null, FechaMovimiento: dto.FechaRegistro));
                     else if (diff < 0)
                         await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                            farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento lote levante"));
+                            farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento lote levante", FechaMovimiento: dto.FechaRegistro));
                 }
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (levante)"); }
@@ -399,7 +399,9 @@ public partial class SeguimientoLoteLevanteService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
-                await _colombiaConsumoB.AplicarDevolucionAsync(loteRow.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento lote levante");
+                // Devolución por ELIMINACIÓN: se fecha con el día del borrado (hecho de HOY), no con la
+                // fecha del seguimiento original que se está borrando.
+                await _colombiaConsumoB.AplicarDevolucionAsync(loteRow.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento lote levante", fechaMovimiento: DateTime.UtcNow.Date);
             }
             // A7 — la devolución de aves la hace SeguimientoDiarioService.DeleteAsync, dentro de
             // esta misma transacción.
@@ -419,8 +421,10 @@ public partial class SeguimientoLoteLevanteService
                 var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
                 foreach (var kv in byItem)
                     if (kv.Value > 0)
+                        // Devolución por ELIMINACIÓN: se fecha con el día del borrado (hecho de HOY), no
+                        // con la fecha del seguimiento original que se está borrando.
                         await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                            loteRow.GranjaId, loteRow.NucleoId?.Trim(), loteRow.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento lote levante"));
+                            loteRow.GranjaId, loteRow.NucleoId?.Trim(), loteRow.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento lote levante", FechaMovimiento: DateTime.UtcNow.Date));
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento levante"); }
         }

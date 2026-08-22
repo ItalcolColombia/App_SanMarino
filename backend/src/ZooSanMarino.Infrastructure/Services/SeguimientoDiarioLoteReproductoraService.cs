@@ -3,6 +3,7 @@
 // Inventario: mismo patrón que SeguimientoAvesEngordeService — descuenta al crear, ajusta al editar, restituye al eliminar.
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -18,17 +19,20 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     private readonly IInventarioGestionService? _inventarioGestionService;
     /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
     private readonly IValidacionSeguimientoService? _validacion;
+    private readonly ILogger<SeguimientoDiarioLoteReproductoraService>? _logger;
 
     public SeguimientoDiarioLoteReproductoraService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         IInventarioGestionService? inventarioGestionService = null,
-        IValidacionSeguimientoService? validacion = null)
+        IValidacionSeguimientoService? validacion = null,
+        ILogger<SeguimientoDiarioLoteReproductoraService>? logger = null)
     {
         _ctx = ctx;
         _current = current;
         _inventarioGestionService = inventarioGestionService;
         _validacion = validacion;
+        _logger = logger;
     }
 
     private static SeguimientoLoteLevanteDto MapToDto(SeguimientoDiarioLoteReproductoraAvesEngorde e)
@@ -330,7 +334,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al registrar consumo inventario (reproductora): {ex.Message}");
+                _logger?.LogError(ex, "Error al registrar consumo inventario (reproductora), lote {LoteId}, seguimiento {SeguimientoId}", dto.LoteId, ent.Id);
             }
         }
 
@@ -496,17 +500,21 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                         var oldQty = oldByItemId.GetValueOrDefault(itemId);
                         var diff = newQty - oldQty;
                         if (diff > 0)
+                            // Fecha del movimiento = fecha del registro que se está editando (no "hoy"):
+                            // es una corrección del mismo día, igual que el alta.
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, diff, "kg", refStr + " (ajuste)", null));
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, diff, "kg", refStr + " (ajuste)", null,
+                                FechaMovimiento: dto.FechaRegistro.Date));
                         else if (diff < 0)
                             await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento reproductora"));
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento reproductora",
+                                FechaMovimiento: dto.FechaRegistro.Date));
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al actualizar inventario (reproductora): {ex.Message}");
+                _logger?.LogError(ex, "Error al actualizar inventario (reproductora), lote {LoteId}, seguimiento {SeguimientoId}", dto.LoteId, dto.Id);
             }
         }
 
@@ -594,7 +602,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error al sincronizar las bajas del cruce con el maestro de aves: {ex.Message}");
+            _logger?.LogError(ex, "Error al sincronizar las bajas del cruce con el maestro de aves, lote reproductora {LoteReproductoraId}", loteReproductoraId);
         }
     }
 
@@ -654,13 +662,16 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                     var refStr = $"Seguimiento reproductora #{id} (devolución por eliminación)";
                     foreach (var kv in byItem)
                         if (kv.Value > 0)
+                            // Devolución por ELIMINACIÓN: se fecha con el día del borrado (hecho de hoy),
+                            // no con la fecha del seguimiento original que se está eliminando.
                             await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento reproductora"));
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento reproductora",
+                                FechaMovimiento: DateTime.UtcNow.Date));
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al devolver inventario al eliminar seguimiento reproductora: {ex.Message}");
+                _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento reproductora, id {SeguimientoId}", id);
             }
         }
 

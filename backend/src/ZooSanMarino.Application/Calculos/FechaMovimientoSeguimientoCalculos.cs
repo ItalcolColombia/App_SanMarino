@@ -81,4 +81,43 @@ public static class FechaMovimientoSeguimientoCalculos
         DateTime? capturadoAtDispositivo,
         DateTime ahoraServidorUtc)
         => fechaRegistro.Date;
+
+    /// <summary>
+    /// Hora UTC a la que se ancla un movimiento de <b>ingreso</b>. Es la hora histórica
+    /// (<c>ResolveMovimientoCreatedAt</c> siempre anclaba a mediodía) y sigue siéndolo: nada cambia
+    /// para quien sólo ingresa alimento.
+    /// </summary>
+    public const int AnclaIngresoUtc = 12;
+
+    /// <summary>
+    /// Hora UTC a la que se ancla un movimiento de <b>consumo</b>.
+    ///
+    /// <para>
+    /// <b>Por qué no comparte la hora del ingreso.</b> <c>fn_seguimiento_diario_engorde</c> ordena el
+    /// saldo corriente intra-día por <c>created_at</c> (<c>SUM(delta) OVER (ORDER BY DATE(fecha), ts
+    /// ROWS UNBOUNDED PRECEDING)</c>). Antes de F2 casi ningún consumo fechaba: caía a
+    /// <c>DateTimeOffset.UtcNow</c>, que es más tarde que cualquier ingreso anclado a las 12:00 y el
+    /// orden —entra primero, se come después— salía bien por accidente. Fechar el consumo con la MISMA
+    /// ancla del ingreso (12:00) los empataría exactamente, y el orden pasaría a depender del
+    /// desempate no documentado de la ventana SQL: el saldo corriente de un galpón podría cerrar el
+    /// día en rojo (<c>filas_negativas</c>, la señal que CLAUDE.md distingue de <c>descuadre_kg</c>)
+    /// sin que ningún kilo real faltara.
+    /// </para>
+    ///
+    /// <para>
+    /// Se elige una ancla POSTERIOR y determinista —nunca una hora aleatoria ni la del reloj del
+    /// servidor— porque es el orden físicamente correcto (primero entra el alimento, después se come)
+    /// y no exige tocar <c>fn_seguimiento_diario_engorde</c>, que es cálculo compartido multipaís con
+    /// su propio gate.
+    /// </para>
+    /// </summary>
+    public const int AnclaConsumoUtc = 18;
+
+    /// <summary>
+    /// Ancla un día a una hora UTC exacta. Es el mismo cálculo que hacía <c>ResolveMovimientoCreatedAt</c>
+    /// inline; se sube acá para que la elección de hora (ingreso vs. consumo) tenga un solo dueño y un
+    /// test que la fije.
+    /// </summary>
+    public static DateTimeOffset Anclar(DateTime dia, int horaUtc) =>
+        new(dia.Year, dia.Month, dia.Day, horaUtc, 0, 0, TimeSpan.Zero);
 }

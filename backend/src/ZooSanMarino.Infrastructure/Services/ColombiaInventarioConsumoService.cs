@@ -223,7 +223,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
         }
     }
 
-    public async Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default)
+    public async Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var positivos = byItem.Where(kv => kv.Value > 0).ToArray();
         if (positivos.Length == 0) return;
@@ -236,11 +236,11 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             if (!map.TryGetValue(kv.Key, out var itemBId))
                 throw ErrorItemSinEquivalente(kv.Key, companyId);
             await _gestion.RegistrarConsumoNivelGranjaAsync(
-                new InventarioGestionConsumoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, null, SiloId: kv.Key.SiloId), ct);
+                new InventarioGestionConsumoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, null, FechaMovimiento: fechaMovimiento, SiloId: kv.Key.SiloId), ct);
         }
     }
 
-    public async Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default)
+    public async Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var positivos = byItem.Where(kv => kv.Value > 0).ToArray();
         if (positivos.Length == 0) return;
@@ -256,11 +256,11 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             // guardado). Por eso no se revalida contra lote_silos: reasignar los silos del lote no
             // puede cambiar dónde se repone lo que ya se había consumido.
             await _gestion.RegistrarIngresoNivelGranjaAsync(
-                new InventarioGestionIngresoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, reason, SiloId: kv.Key.SiloId), ct);
+                new InventarioGestionIngresoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, reason, FechaMovimiento: fechaMovimiento, SiloId: kv.Key.SiloId), ct);
         }
     }
 
-    public async Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default)
+    public async Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var allKeys = new HashSet<ItemConsumoKey>(oldByItem.Keys);
         foreach (var k in newByItem.Keys) allKeys.Add(k);
@@ -285,10 +285,10 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             // alimento seguiría descontado del silo equivocado.
             if (diff > 0)
                 await _gestion.RegistrarConsumoNivelGranjaAsync(
-                    new InventarioGestionConsumoRequest(farmId, null, null, itemBId, diff, "kg", reference + " (ajuste)", null, SiloId: key.SiloId), ct);
+                    new InventarioGestionConsumoRequest(farmId, null, null, itemBId, diff, "kg", reference + " (ajuste)", null, FechaMovimiento: fechaMovimiento, SiloId: key.SiloId), ct);
             else
                 await _gestion.RegistrarIngresoNivelGranjaAsync(
-                    new InventarioGestionIngresoRequest(farmId, null, null, itemBId, -diff, "kg", reference + " (devolución)", "Devolución por ajuste de seguimiento", SiloId: key.SiloId), ct);
+                    new InventarioGestionIngresoRequest(farmId, null, null, itemBId, -diff, "kg", reference + " (devolución)", "Devolución por ajuste de seguimiento", FechaMovimiento: fechaMovimiento, SiloId: key.SiloId), ct);
         }
     }
 }

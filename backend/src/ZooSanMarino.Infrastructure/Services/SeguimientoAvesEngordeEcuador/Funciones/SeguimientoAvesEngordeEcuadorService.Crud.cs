@@ -159,7 +159,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
+                await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr, fechaMovimiento: dto.FechaRegistro);
             }
             await _ctx.SaveChangesAsync();
             if (tx is not null) await tx.CommitAsync();
@@ -186,7 +186,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
                         if (kv.Value > 0)
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
                                 lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
-                                kv.Key, kv.Value, "kg", refStr, null));
+                                kv.Key, kv.Value, "kg", refStr, null, FechaMovimiento: dto.FechaRegistro));
                 }
                 catch (Exception ex) { _logger?.LogError(ex, "Error al registrar consumo inventario (aves engorde Ecuador)"); }
             }
@@ -397,7 +397,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 : null;
             await _ctx.SaveChangesAsync();
             var refCo = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
+            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo, fechaMovimiento: dto.FechaRegistro);
             await _ctx.SaveChangesAsync();
             if (tx is not null) await tx.CommitAsync();
         }
@@ -439,11 +439,11 @@ public partial class SeguimientoAvesEngordeEcuadorService
                         var diff = newQty - oldQty;
                         if (diff > 0)
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null));
+                                farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null, FechaMovimiento: dto.FechaRegistro));
                         else if (diff < 0)
                             await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
                                 farmId, nucleoId, galponId, itemId, -diff, "kg",
-                                refStr + " (devolución)", "Devolución desde seguimiento aves engorde Ecuador"));
+                                refStr + " (devolución)", "Devolución desde seguimiento aves engorde Ecuador", FechaMovimiento: dto.FechaRegistro));
                     }
                 }
                 catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (aves engorde Ecuador)"); }
@@ -529,7 +529,8 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 if (positivos.Count > 0)
                 {
                     var refStr = $"Seguimiento aves engorde #{id} (devolución por eliminación)";
-                    await _colombiaConsumoB.AplicarDevolucionAsync(ent.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento aves engorde Ecuador");
+                    // Fecha = día del BORRADO (hecho de HOY), no la fecha del seguimiento original.
+                    await _colombiaConsumoB.AplicarDevolucionAsync(ent.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento aves engorde Ecuador", fechaMovimiento: DateTime.UtcNow.Date);
                 }
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario Colombia al eliminar seguimiento aves engorde Ecuador"); }
@@ -544,9 +545,10 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 var refStr = $"Seguimiento aves engorde #{id} (devolución por eliminación)";
                 foreach (var kv in byItem)
                     if (kv.Value > 0)
+                        // Fecha = día del BORRADO (hecho de HOY), no la fecha del seguimiento original.
                         await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
                             ent.GranjaId, ent.NucleoId?.Trim(), ent.GalponId?.Trim(),
-                            kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde Ecuador"));
+                            kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde Ecuador", FechaMovimiento: DateTime.UtcNow.Date));
             }
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento aves engorde Ecuador"); }
         }

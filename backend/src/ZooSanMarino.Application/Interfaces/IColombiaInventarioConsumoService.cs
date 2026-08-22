@@ -43,18 +43,27 @@ public interface IColombiaInventarioConsumoService
     /// por ítem (cantidad &gt; 0). NO abre transacción propia; participa de la externa. Vuelve a
     /// validar stock (defensa) y lanza si insuficiente.
     /// </summary>
-    Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default);
+    /// <param name="fechaMovimiento">
+    /// F2 (22-ago-2026): día del seguimiento que originó el consumo. Aditivo — <c>null</c> conserva
+    /// el comportamiento de siempre (fecha/hora del servidor). Es lo que le falta a este camino: sin
+    /// él el kardex de Colombia fecha en el día del sync, no en el del galpón.
+    /// </param>
+    Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null);
 
     /// <summary>
     /// Aplica una devolución en B nivel granja: repone stock e inserta un movimiento <c>Ingreso</c>
     /// por ítem (cantidad &gt; 0). NO abre transacción propia.
     /// </summary>
-    Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default);
+    /// <param name="fechaMovimiento">Ver <see cref="AplicarConsumoAsync"/>. Para una devolución por
+    /// borrado, se fecha el día del BORRADO, no el del seguimiento original — es un hecho de hoy.</param>
+    Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default, DateTime? fechaMovimiento = null);
 
     /// <summary>
     /// Aplica el diff old/new de una edición (por clave de ítem): diff &gt; 0 → consumo adicional;
     /// diff &lt; 0 → devolución por |diff|. NO abre transacción propia. La validación previa de los
     /// diff positivos debe hacerse con <see cref="ValidarStockConsumoAsync"/> ANTES de persistir.
     /// </summary>
-    Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default);
+    /// <param name="fechaMovimiento">Ver <see cref="AplicarConsumoAsync"/>. Se aplica a los dos lados
+    /// del diff (consumo adicional y devolución): los dos describen el mismo día editado.</param>
+    Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null);
 }
