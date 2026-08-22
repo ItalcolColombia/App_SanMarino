@@ -13,7 +13,9 @@ class LocalDb {
 
   /// v2 (21ago26): sesión persistida, registros ya conocidos por el servidor y
   /// las columnas que la cola necesita para saber a dónde postear cada fila.
-  static const int _version = 2;
+  /// v3 (22ago26): `lote_maestro_id`, que los módulos de postura necesitan para
+  /// postear (el id de la etapa no alcanza).
+  static const int _version = 3;
   Database? _db;
 
   Future<Database> get db async => _db ??= await _open();
@@ -61,6 +63,7 @@ class LocalDb {
             company_id         INTEGER,
             cerrado            INTEGER NOT NULL DEFAULT 0,
             lote_ave_engorde_id INTEGER,
+            lote_maestro_id    INTEGER,
             updated_at         TEXT NOT NULL,
             -- Engorde y reproductora numeran por separado: el id 12 existe en los
             -- dos módulos y son lotes distintos. La clave es (modulo, id).
@@ -140,12 +143,21 @@ class LocalDb {
         '  company_id INTEGER,'
         '  cerrado INTEGER NOT NULL DEFAULT 0,'
         '  lote_ave_engorde_id INTEGER,'
+        '  lote_maestro_id INTEGER,'
         '  updated_at TEXT NOT NULL,'
         '  PRIMARY KEY (modulo, id)'
         ')',
       );
 
       await _crearTablasV2(d);
+    }
+
+    if (desde == 2) {
+      // Sólo para quien ya estaba en v2: los que vienen de v1 recrearon la tabla
+      // arriba y la columna ya viene incluida.
+      try {
+        await d.execute('ALTER TABLE lotes_cache ADD COLUMN lote_maestro_id INTEGER');
+      } catch (_) {}
     }
   }
 
@@ -382,6 +394,7 @@ class LocalDb {
           'company_id': l.companyId,
           'cerrado': l.cerrado ? 1 : 0,
           'lote_ave_engorde_id': l.loteAveEngordeId,
+          'lote_maestro_id': l.loteMaestroId,
           'updated_at': now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
@@ -408,6 +421,7 @@ class LocalDb {
       companyId: r['company_id'] as int?,
       cerrado: ((r['cerrado'] as int?) ?? 0) == 1,
       loteAveEngordeId: r['lote_ave_engorde_id'] as int?,
+      loteMaestroId: r['lote_maestro_id'] as int?,
     )).toList();
   }
 }

@@ -28,12 +28,21 @@ class LotesApi {
   Future<List<Lote>> descargar({required List<ModuloSeguimiento> modulos}) async {
     final quiereEngorde = modulos.contains(ModuloSeguimiento.engorde);
     final quiereReproductora = modulos.contains(ModuloSeguimiento.reproductora);
-    if (!quiereEngorde && !quiereReproductora) return const [];
+    final quiereLevante = modulos.contains(ModuloSeguimiento.levante);
+    final quiereProduccion = modulos.contains(ModuloSeguimiento.produccion);
+    if (!quiereEngorde && !quiereReproductora && !quiereLevante && !quiereProduccion) {
+      return const [];
+    }
 
-    final deEngorde = await engorde();
+    // Engorde sólo se baja si hace falta: para sus propios lotes, o como fuente
+    // de la ubicación de los de reproductora.
+    final deEngorde = (quiereEngorde || quiereReproductora) ? await engorde() : const <Lote>[];
+
     final lotes = <Lote>[
       if (quiereEngorde) ...deEngorde,
       if (quiereReproductora) ...await reproductora(padres: deEngorde),
+      if (quiereLevante) ...await levante(),
+      if (quiereProduccion) ...await produccion(),
     ];
 
     lotes.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
@@ -51,6 +60,21 @@ class LotesApi {
     final filas = await _lista('/LoteReproductoraAveEngorde');
     final porId = {for (final p in padres) p.id: p};
     return filas.map((f) => loteDeReproductora(f, padres: porId)).toList();
+  }
+
+
+  /// `GET /api/LotePosturaLevante` → `LotePosturaLevanteDetailDto`.
+  Future<List<Lote>> levante() async {
+    final filas = await _lista('/LotePosturaLevante');
+    return filas.map(loteDePostura).toList();
+  }
+
+  /// `GET /api/LotePosturaProduccion` → `LotePosturaProduccionDetailDto`.
+  Future<List<Lote>> produccion() async {
+    final filas = await _lista('/LotePosturaProduccion');
+    return filas
+        .map((f) => loteDePostura(f, modulo: ModuloSeguimiento.produccion))
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> _lista(String path) async {
@@ -125,6 +149,46 @@ class LotesApi {
       // "Cerrado" = ya se vendieron todas las aves iniciales; "Vigente" = abierto.
       cerrado: (_texto(j['estado']) ?? '').toLowerCase() == 'cerrado',
       loteAveEngordeId: padreId,
+    );
+  }
+
+
+  /// Los dos DTOs de postura comparten forma, así que comparten mapeo. **Lo que
+  /// NO se puede compartir con engorde es el significado de `hembrasL`:** en
+  /// postura es la BASE del encasetamiento, no el saldo — el saldo vivo son
+  /// `avesHActual` / `avesMActual`. Usar `hembrasL` acá mostraría el lote lleno
+  /// aunque hubiera muerto la mitad.
+  static Lote loteDePostura(
+    Map<String, dynamic> j, {
+    ModuloSeguimiento modulo = ModuloSeguimiento.levante,
+  }) {
+    final fecha = _fecha(j['fechaEncaset']);
+    final vivas = _int(j['avesHActual']) + _int(j['avesMActual']);
+    final inicial = _int(j['avesHInicial']) + _int(j['avesMInicial']);
+    final esProduccion = modulo == ModuloSeguimiento.produccion;
+
+    return Lote(
+      id: _int(j[esProduccion ? 'lotePosturaProduccionId' : 'lotePosturaLevanteId']),
+      nombre: _texto(j['loteNombre']) ?? 's/n',
+      granja: _texto(j['farm'] is Map ? (j['farm'] as Map)['name'] : null) ??
+          _texto(j['granjaNombre']) ??
+          '',
+      galpon: _texto(j['galpon'] is Map ? (j['galpon'] as Map)['galponNombre'] : null) ??
+          _texto(j['galponId']) ??
+          '',
+      modulo: modulo,
+      // `edad` viene en SEMANAS en estos DTOs; la app muestra días.
+      dia: _diasDesde(fecha),
+      aves: vivas,
+      viabilidad: inicial > 0 ? (vivas / inicial) * 100 : null,
+      raza: _texto(j['raza']),
+      anoTablaGenetica: j['anoTablaGenetica'] as int?,
+      fechaEncaset: fecha,
+      companyId: j['companyId'] as int?,
+      // `estadoCierre` es "Abierto | Cerrado": un levante cerrado ya pasó a
+      // producción y no admite registros nuevos en esta etapa.
+      cerrado: (_texto(j['estadoCierre']) ?? '').toLowerCase() == 'cerrado',
+      loteMaestroId: j['loteId'] as int?,
     );
   }
 

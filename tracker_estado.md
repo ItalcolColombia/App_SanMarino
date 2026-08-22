@@ -1816,3 +1816,62 @@ codigo de la app movil.
 - [i] El smoke **no** cubre Produccion: sus dos call sites se corrigieron igual, pero la app movil
       todavia no postea ese modulo (`endpointDeModulo` lo deja en null). Queda cubierto solo por los
       tests del calculo hasta que la fase siguiente lo conecte
+
+---
+
+## X19 — App movil: Levante y Produccion, los dos modulos que faltaban (22ago26)
+
+**Plan:** [`fase_de_desarrollo/app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md)
+(el alcance de X18 los dejaba fuera: la UI existia, el mapeo no).
+
+Perfil de prueba: **Agroavicola Sanmarino** (company 1, Colombia, pais 1) — es donde viven los lotes
+de postura. Colombia no captura agua ni quintales, asi que ejercita el camino con los dos flags OFF.
+
+### Contrato — medido
+- [x] **Levante** postea a `/api/SeguimientoLoteLevante` con el MISMO request que engorde, mas
+      `lotePosturaLevanteId`. Manda los **dos** ids: el maestro (`lotes.lote_id`) como `loteId` y el
+      de la etapa aparte. Mandar solo el de la etapa da *«Lote '6' no existe»*
+- [x] **Produccion** postea a `/api/Produccion/seguimiento` con un contrato propio: `mortalidadH`
+      (no `mortalidadHembras`), consumo escalar + unidad, y `huevosTotales`/`huevosIncubables`/`etapa`
+      **obligatorios**
+- [i] **Un dia no puede tener registro de levante y de produccion a la vez** — el backend lo rechaza
+      con un mensaje que explica por que (el ciclo sumaria dos veces el mismo alimento y las mismas
+      aves). En el lote P-K345A se descartaron 25 fechas antes de encontrar una libre
+
+### Implementacion
+- [x] `core/postura_calculos.dart` — clasificadora (incubables = limpio + tratado; total = + las 9
+      no incubables) y etapa del ciclo. **Logica pura con tests**: los dos numeros viajan calculados
+      en el payload y el backend los persiste tal cual
+- [x] La etapa **ya no se elige**: era un desplegable editable que ademas decia «semana 25-33». El
+      rango real es **26**-33 / 34-50 / >50 (el calculo hace `max(26, …)`). Ahora se deriva del
+      encasetamiento y se muestra de solo lectura, como en el web
+- [x] `LotesApi.levante()` / `.produccion()`; mapeo compartido `loteDePostura`. **`hembrasL` NO sirve
+      aca**: en postura es la BASE, el saldo vivo es `avesHActual`/`avesMActual`
+- [x] `Lote.loteMaestroId` + SQLite **v3** (`ALTER` para quien venia de v2; los de v1 ya recrean la tabla)
+- [x] Alimento y quintales agregados a levante y produccion (mismo patron que engorde)
+- [x] **Codigo muerto eliminado:** el editor de items dinamicos (`_ItemsEditor`/`_ItemRow`/
+      `ItemSeguimiento`) ya no lo montaba ninguna seccion. Sigue intacto en la carpeta del design
+      system para cuando se implemente el descuento de stock
+
+### 4 bugs de la app que destapo el smoke
+- [x] **El motivo del 400 no se veia.** `SeguimientoLoteLevante` responde un **string JSON pelado**,
+      no `{message}`: el usuario leia «El servidor respondio 400» en vez del motivo
+- [x] **El id de produccion se perdia.** Devuelve un `int` pelado (`ActionResult<int>`), no el
+      registro: la fila de la cola quedaba sin `remote_id` y despues no se podia editar ni borrar
+- [x] **El listado de produccion se leia vacio.** Envuelve en `items` (paginado), no en `registros`.
+      Daba «0 dias registrados» y el smoke elegia una fecha ya tomada. Se pide `size: 0` = todos
+- [x] **Levante nombra el duplicado distinto:** *«Ya existe un seguimiento manual…»*. La deteccion
+      por contenido no lo cubria y la cola habria reintentado para siempre
+
+### Validacion
+- [x] `flutter analyze` **0 errores, 0 warnings** · `flutter test` **98/98** (32 nuevos)
+- [x] Smoke contra el backend real (`:5499`, binario propio; el de :5002 de otra sesion intacto):
+      **8/8 en levante y 8/8 en produccion**, mas engorde Ecuador y Panama **sin regresion**
+- [x] BD verificada: **0 filas `SMOKE%` en las cuatro tablas** de seguimiento; puerto liberado
+- [i] El registro de prueba de produccion se borra **por la API**, no por SQL: descuenta aves y
+      alimento, y un `DELETE` directo dejaria el inventario descuadrado
+
+### Limite conocido
+- [i] La etapa por **raza** de Santa Reyes (`semanas_ciclo_postura_por_raza`) no esta: necesita la
+      guia genetica, que el movil todavia no descarga. Para esa empresa el numero puede diferir del
+      que calcularia el web — hasta entonces, ese modulo se registra desde la web

@@ -140,6 +140,7 @@ class Lote {
     this.companyId,
     this.cerrado = false,
     this.loteAveEngordeId,
+    this.loteMaestroId,
   });
 
   final int id;
@@ -163,6 +164,12 @@ class Lote {
 
   /// Sólo en reproductora: el lote de engorde del que cuelga. Informativo.
   final int? loteAveEngordeId;
+
+  /// Sólo en postura: el `lote_id` de la tabla `lotes` — el lote MAESTRO, la única
+  /// fila que existe tanto en levante como en producción. El seguimiento de
+  /// levante manda este id **además** del de la etapa, porque el backend los usa
+  /// para cosas distintas.
+  final int? loteMaestroId;
 
   int get semana => (dia / 7).ceil();
 
@@ -192,25 +199,8 @@ class Lote {
     companyId: j['companyId'] as int?,
     cerrado: (j['cerrado'] as bool?) ?? false,
     loteAveEngordeId: j['loteAveEngordeId'] as int?,
+    loteMaestroId: j['loteMaestroId'] as int?,
   );
-}
-
-/// Ítem consumido en un seguimiento: alimento, medicamento, suplemento…
-/// En el web es un FormArray; aquí una lista dinámica por sexo.
-class ItemSeguimiento {
-  ItemSeguimiento({this.tipo = '', this.catalogItemId, this.cantidad = '', this.unidad = 'kg'});
-
-  String tipo;
-  int? catalogItemId;
-  String cantidad;
-  String unidad;
-
-  Map<String, dynamic> toJson() => {
-    'tipoItem': tipo,
-    'catalogItemId': catalogItemId,
-    'cantidad': double.tryParse(cantidad.replaceAll(',', '.')) ?? 0,
-    'unidad': unidad,
-  };
 }
 
 /// Un registro pendiente de sincronizar. Se persiste en SQLite y sobrevive al

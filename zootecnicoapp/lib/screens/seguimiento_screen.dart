@@ -1,4 +1,11 @@
 /// Formularios de seguimiento diario — el corazón de la app.
+///
+/// El **editor de ítems dinámicos** (`_ItemsEditor` / `_ItemRow`) se quitó al
+/// conectar los formularios con el backend: capturaba alimento por ítem de
+/// inventario, pero esta fase manda el consumo como campo suelto y ese editor no
+/// llegaba a ninguna parte. Cuando se implemente el descuento de stock, el
+/// componente está intacto en
+/// `San Marino Zootécnico — Design System/movil/lib/screens/seguimiento_screen.dart`.
 /// Los campos salen de los modales del web:
 ///   levante      → features/lote-levante/pages/modal-create-edit
 ///   engorde      → features/aves-engorde/pages/modal-seguimiento-engorde
@@ -14,6 +21,7 @@ import '../core/alimento_obligatorio.dart';
 import '../core/api/seguimientos_api.dart';
 import '../core/local_db.dart';
 import '../core/models.dart';
+import '../core/postura_calculos.dart';
 import '../core/sync_service.dart';
 
 class SeguimientoScreen extends StatefulWidget {
@@ -35,9 +43,6 @@ class SeguimientoScreen extends StatefulWidget {
 class _SeguimientoScreenState extends State<SeguimientoScreen> {
   final Map<String, TextEditingController> _c = {};
   final Map<String, bool> _abierto = {'general': true};
-  final List<ItemSeguimiento> _itemsH = [];
-  final List<ItemSeguimiento> _itemsM = [];
-  final List<ItemSeguimiento> _itemsG = [];
   DateTime _fecha = DateTime.now();
   bool _guardado = false;
 
@@ -55,9 +60,8 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
   }
 
   /// El cuerpo que se le manda al backend, armado por [PayloadSeguimiento]
-  /// según el módulo y el país. Devuelve null para los módulos que esta versión
-  /// todavía no sabe enviar (levante y producción): la UI existe, el mapeo no.
-  Map<String, dynamic>? _payload() {
+  /// según el módulo y el país. Los cuatro módulos tienen mapeo.
+  Map<String, dynamic> _payload() {
     final campos = {for (final e in _c.entries) e.key: e.value.text};
     final u = widget.usuario;
 
@@ -78,16 +82,30 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
           quintales: u.capturaQuintales,
           usuarioId: u.id,
         ),
-      _ => null,
+      ModuloSeguimiento.levante => PayloadSeguimiento.levante(
+          // El lote MAESTRO va como `loteId`; el id de la etapa, aparte.
+          loteId: widget.lote.loteMaestroId ?? widget.lote.id,
+          lotePosturaLevanteId: widget.lote.id,
+          fecha: _fecha,
+          campos: campos,
+          controlAgua: u.tieneControlAgua,
+          quintales: u.capturaQuintales,
+          usuarioId: u.id,
+        ),
+      ModuloSeguimiento.produccion => PayloadSeguimiento.produccion(
+          lotePosturaProduccionId: widget.lote.id,
+          fecha: _fecha,
+          campos: campos,
+          controlAgua: u.tieneControlAgua,
+          // La etapa se calcula desde el encasetamiento del lote.
+          fechaEncaset: widget.lote.fechaEncaset,
+          usuarioId: u.id,
+        ),
     };
   }
 
   Future<void> _guardar() async {
     final payload = _payload();
-    if (payload == null) {
-      _avisar('Esta versión todavía no envía ${modulo.label}. Registralo desde la web.');
-      return;
-    }
 
     // El alimento es obligatorio (regla del 14ago26). Se comprueba ANTES de
     // encolar: si no, el registro rebotaría al sincronizar, cuando el usuario ya
@@ -402,25 +420,11 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
     )];
   }
 
-  Widget _itemsSec(String key, String title, List<ItemSeguimiento> items, {Color? acento, String? nota}) => AppSection(
-    title: items.isEmpty ? title : '$title (${items.length})',
-    icon: Icons.inventory_2_outlined,
-    expanded: abierto(key),
-    onToggle: () => toggle(key),
-    filled: items.isNotEmpty,
-    children: [
-      if (nota != null) AppInfoBox(text: nota),
-      _ItemsEditor(items: items, acento: acento ?? AppColors.ink700, onChanged: () => setState(() {})),
-    ],
-  );
-
   // ── LEVANTE ────────────────────────────────────────────────────────────────
   List<Widget> _levante() => [
     _general(),
-    _itemsSec('itemsH', 'Ítems Hembras ♀', _itemsH, acento: AppColors.hembra),
-    _itemsSec('itemsM', 'Ítems Machos ♂', _itemsM, acento: AppColors.macho),
-    _itemsSec('itemsG', 'Ítems generales del lote', _itemsG,
-      nota: 'Medicamentos, biológicos y accesorios no asignados a un sexo.'),
+    _alimentoSec(acento: AppColors.green600),
+    ..._quintalesSec(),
     _mortalidadSec(),
     _pesoSec(nota: 'Solo registrar en el día de pesaje semanal.'),
     ..._aguaSec(),
@@ -447,10 +451,15 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
     ('huevoRoto', 'Roto'), ('huevoDesecho', 'Desecho'), ('huevoOtro', 'Otro'),
   ];
 
-  int get _totalHuevos => [..._huevosIncubables, ..._huevosNoIncubables]
-      .map((h) => int.tryParse(_c[h.$1]?.text ?? '') ?? 0).fold(0, (a, b) => a + b);
-  int get _incubables => _huevosIncubables
-      .map((h) => int.tryParse(_c[h.$1]?.text ?? '') ?? 0).fold(0, (a, b) => a + b);
+  /// Los totales de la clasificadora los calcula [PosturaCalculos], no esta
+  /// pantalla: son el MISMO número que viaja en el payload, y dos
+  /// implementaciones del mismo número terminan divergiendo (regla del repo).
+  /// Acá sólo se conservan las etiquetas, que son cosa de la UI.
+  TotalesHuevos get _totales => PosturaCalculos.totalesClasificadora(
+      {for (final e in _c.entries) e.key: e.value.text});
+
+  int get _totalHuevos => _totales.total;
+  int get _incubables => _totales.incubables;
 
   List<Widget> _produccion() => [
     AppSection(
@@ -459,7 +468,10 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
       expanded: abierto('general'), onToggle: () => toggle('general'), filled: true,
       children: [
         _fechaField(),
-        _EtapaSelector(controller: ctl('etapa')),
+        _EtapaCalculada(
+          etapa: PosturaCalculos.etapa(
+            fechaEncaset: widget.lote.fechaEncaset, fechaRegistro: _fecha),
+        ),
         AppField(label: 'Ciclo', controller: ctl('ciclo'), placeholder: 'Normal'),
         AppField(label: 'Observaciones', controller: ctl('observaciones'),
           placeholder: 'Novedades del día…', maxLines: 3),
@@ -485,7 +497,6 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
           Expanded(child: AppField(label: 'CV', suffix: '%', controller: ctl('cvHembras'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true))),
         ]),
-        _ItemsEditor(items: _itemsH, acento: AppColors.hembra, onChanged: () => setState(() {})),
       ],
     ),
     AppSection(
@@ -508,9 +519,9 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
           Expanded(child: AppField(label: 'CV', suffix: '%', controller: ctl('cvMachos'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true))),
         ]),
-        _ItemsEditor(items: _itemsM, acento: AppColors.macho, onChanged: () => setState(() {})),
       ],
     ),
+    _alimentoSec(acento: AppColors.produccion),
     AppSection(
       title: _totalHuevos > 0 ? 'Huevos clasificadora · ${_fmt(_totalHuevos)}' : 'Huevos clasificadora',
       icon: Icons.egg_outlined,
@@ -655,129 +666,34 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
 // Editor de ítems dinámicos (alimento, medicamentos…)
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _ItemsEditor extends StatelessWidget {
-  const _ItemsEditor({required this.items, required this.acento, required this.onChanged});
 
-  final List<ItemSeguimiento> items;
-  final Color acento;
-  final VoidCallback onChanged;
+/// La etapa NO se elige: se deriva del encasetamiento y la fecha del registro,
+/// igual que en el web (que deshabilita el campo y lo calcula). Un desplegable
+/// editable dejaba mandar una etapa que no corresponde al día, y el reporte
+/// semanal agrupa por ese número.
+///
+/// El rango correcto es **26**-33 / 34-50 / >50 — no 25-33, como decía este
+/// mismo campo antes: el cálculo que produce el dato hace `max(26, …)`.
+class _EtapaCalculada extends StatelessWidget {
+  const _EtapaCalculada({required this.etapa});
 
-  static const _tipos = ['alimento', 'medicamento', 'suplemento', 'biológico', 'otro'];
+  final int etapa;
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('Ítems', style: TextStyle(
-          fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700, color: acento,
-        )),
-        TextButton(
-          onPressed: () { items.add(ItemSeguimiento()); onChanged(); },
-          style: TextButton.styleFrom(
-            foregroundColor: acento, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            side: BorderSide(color: acento.withValues(alpha: 0.4)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xs)),
-          ),
-          child: const Text('+ Agregar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-        ),
-      ]),
-      const SizedBox(height: AppSpacing.s2),
-      if (items.isEmpty)
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: AppColors.line),
-          ),
-          alignment: Alignment.center,
-          child: const Text('Sin ítems registrados', style: TextStyle(
-            fontFamily: 'Inter', fontSize: 12, color: AppColors.ink500,
-          )),
-        ),
-      for (int i = 0; i < items.length; i++) ...[
-        if (i > 0) const SizedBox(height: AppSpacing.s2),
-        _ItemRow(item: items[i], index: i, tipos: _tipos,
-          onRemove: () { items.removeAt(i); onChanged(); }, onChanged: onChanged),
-      ],
-    ]);
-  }
-}
-
-class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item, required this.index, required this.tipos,
-    required this.onRemove, required this.onChanged});
-
-  final ItemSeguimiento item;
-  final int index;
-  final List<String> tipos;
-  final VoidCallback onRemove;
-  final VoidCallback onChanged;
+  static const _rangos = {
+    1: 'semana 26–33',
+    2: 'semana 34–50',
+    3: 'semana >50',
+  };
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.s3),
-      decoration: BoxDecoration(color: AppColors.cream, borderRadius: BorderRadius.circular(AppRadius.sm)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Ítem ${index + 1}', style: const TextStyle(
-            fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.ink700,
-          )),
-          GestureDetector(
-            onTap: onRemove,
-            child: const Text('Eliminar', style: TextStyle(
-              fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.danger,
-            )),
-          ),
-        ]),
-        const SizedBox(height: AppSpacing.s2),
-        DropdownButtonFormField<String>(
-          initialValue: item.tipo.isEmpty ? null : item.tipo,
-          decoration: const InputDecoration(labelText: 'Tipo', isDense: true),
-          items: [for (final t in tipos) DropdownMenuItem(value: t, child: Text('${t[0].toUpperCase()}${t.substring(1)}'))],
-          onChanged: (v) { item.tipo = v ?? ''; onChanged(); },
-        ),
-        const SizedBox(height: AppSpacing.s2),
-        Row(children: [
-        Expanded(child: AppField(label: 'Cantidad',
-            onChanged: (v) => item.cantidad = v,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true), placeholder: '0')),
-          const SizedBox(width: AppSpacing.s2),
-          SizedBox(width: 92, child: DropdownButtonFormField<String>(
-            initialValue: item.unidad,
-            decoration: const InputDecoration(labelText: 'Unidad', isDense: true),
-            items: const [
-              DropdownMenuItem(value: 'kg', child: Text('kg')),
-              DropdownMenuItem(value: 'g', child: Text('g')),
-              DropdownMenuItem(value: 'L', child: Text('L')),
-              DropdownMenuItem(value: 'unidades', child: Text('uds')),
-              DropdownMenuItem(value: 'dosis', child: Text('dosis')),
-            ],
-            onChanged: (v) { item.unidad = v ?? 'kg'; onChanged(); },
-          )),
-        ]),
-      ]),
-    );
-  }
-}
-
-class _EtapaSelector extends StatelessWidget {
-  const _EtapaSelector({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: controller.text.isEmpty ? '1' : controller.text,
-      decoration: const InputDecoration(labelText: 'Etapa de producción'),
-      items: const [
-        DropdownMenuItem(value: '1', child: Text('Etapa 1 (semana 25–33)')),
-        DropdownMenuItem(value: '2', child: Text('Etapa 2 (semana 34–50)')),
-        DropdownMenuItem(value: '3', child: Text('Etapa 3 (semana >50)')),
-      ],
-      onChanged: (v) => controller.text = v ?? '1',
+    return AppField(
+      label: 'Etapa de producción',
+      readOnly: true,
+      controller: TextEditingController(
+        text: 'Etapa $etapa (${_rangos[etapa] ?? '—'})',
+      ),
+      hint: 'Se calcula desde el encasetamiento del lote',
     );
   }
 }

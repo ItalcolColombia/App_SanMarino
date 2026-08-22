@@ -182,22 +182,31 @@ class ApiClient {
   static const String _mensajeDuplicado =
       'Ya existe un registro de este lote en esa fecha.';
 
-  /// Violación del índice único (un registro por lote y día). Llega de dos
-  /// formas: como el 400 redactado de engorde, o como el `23505` de Postgres
-  /// dentro del `detail` de un 500 sin traducir.
+  /// Violación de "un registro por lote y día". Cada módulo la reporta a su
+  /// manera y hay que reconocer las tres, porque de eso depende que la cola deje
+  /// de reintentar un día que ya está guardado:
+  ///  · engorde y reproductora → «Ya existe un registro …» (400 redactado);
+  ///  · levante → «Ya existe un seguimiento manual para ese lote en esa fecha»;
+  ///  · reproductora sin traducir → el `23505` crudo dentro de un 500.
   static bool _esDuplicado(String cuerpo, String mensaje) {
     final t = '$mensaje $cuerpo'.toLowerCase();
     return t.contains('ya existe un registro') ||
+        t.contains('ya existe un seguimiento') ||
         t.contains('solo puede haber un registro') ||
         t.contains('23505') ||
         t.contains('duplicate key value');
   }
 
-  /// Los errores llegan como `{ "message": "..." }` o como `ValidationProblemDetails`.
+  /// Los errores llegan de tres formas y hay que leer las tres, porque de esto
+  /// depende que el usuario vea el motivo y no un «El servidor respondió 400»:
+  ///  · `{ "message": "..." }` — la mayoría de los controllers;
+  ///  · `ValidationProblemDetails` con `title`/`detail`/`errors`;
+  ///  · un **string JSON pelado** — así responde `SeguimientoLoteLevante`.
   static String? _mensajeDelBackend(String cuerpo) {
     if (cuerpo.trim().isEmpty) return null;
     try {
       final j = jsonDecode(cuerpo);
+      if (j is String) return j.trim().isEmpty ? null : j;
       if (j is! Map) return null;
       final m = j['message'] ?? j['Message'] ?? j['title'] ?? j['detail'];
       if (m is String && m.trim().isNotEmpty) return m;

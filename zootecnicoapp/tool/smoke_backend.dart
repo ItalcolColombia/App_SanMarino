@@ -167,31 +167,36 @@ Future<void> _probarEscritura(
     return;
   }
 
-  // Una fecha DENTRO de la vida del lote y sin registro previo. El backend
-  // rechaza cualquier fecha anterior al encasetamiento (y, con el flag de hora de
+  // Fechas DENTRO de la vida del lote y sin registro previo. El backend rechaza
+  // cualquier fecha anterior al encasetamiento (y, con el flag de hora de
   // llegada, al día siguiente), así que se arranca dos días después del encaset.
-  DateTime? libre;
+  final candidatas = <DateTime>[];
+  var ocupadasCount = 0;
   try {
     final ocupadas = await seg.fechasRegistradas(lote);
+    ocupadasCount = ocupadas.length;
     final desde = (lote.fechaEncaset ?? DateTime.now().subtract(const Duration(days: 30)))
         .add(const Duration(days: 2));
     for (var f = DateTime(desde.year, desde.month, desde.day);
-        f.isBefore(DateTime.now());
+        f.isBefore(DateTime.now()) && candidatas.length < 40;
         f = f.add(const Duration(days: 1))) {
-      if (!ocupadas.contains(f)) {
-        libre = f;
-        break;
-      }
+      if (!ocupadas.contains(f)) candidatas.add(f);
     }
   } catch (e) {
     _mal('6. buscar una fecha libre', e);
     return;
   }
-  if (libre == null) {
-    stdout.writeln('\n  (pasos 6 y 7 omitidos: no se encontró una fecha libre)');
+  if (candidatas.isEmpty) {
+    stdout.writeln('  (pasos 6 y 7 omitidos: no se encontró una fecha libre; '
+        '$ocupadasCount días ya registrados)');
     return;
   }
+  stdout.writeln('         días ya registrados en el servidor: $ocupadasCount');
 
+  // El backend rechaza por motivos que dependen del día y no del contrato — el
+  // más común: producción no admite una fecha que ya tenga registro de levante
+  // (si no, el ciclo sumaría dos veces el mismo alimento). Se prueban varias
+  // fechas libres antes de dar el contrato por roto.
   final campos = {
     'mortalidadHembras': '1',
     // El alimento es obligatorio en los cuatro módulos (regla del 14ago26):
@@ -200,28 +205,57 @@ Future<void> _probarEscritura(
     'consumoKgHembras': '1',
     'observaciones': 'SMOKE — borrar',
   };
-  final payload = lote.modulo == ModuloSeguimiento.reproductora
-      ? PayloadSeguimiento.reproductora(
-          loteId: lote.id, fecha: libre, campos: campos,
-          controlAgua: PerfilPais.controlAgua(usuario.paisId),
-          quintales: PerfilPais.quintales(usuario.paisId))
-      : PayloadSeguimiento.engorde(
-          loteId: lote.id, fecha: libre, campos: campos,
-          controlAgua: PerfilPais.controlAgua(usuario.paisId),
-          quintales: PerfilPais.quintales(usuario.paisId));
+  // Cada módulo arma su propio cuerpo: usar el de engorde para todos mandaba el
+  // id de la etapa como `loteId` y el backend contestaba «Lote no existe».
+  final agua = PerfilPais.controlAgua(usuario.paisId);
+  final qq = PerfilPais.quintales(usuario.paisId);
+  Map<String, dynamic> cuerpoPara(DateTime libre) => switch (lote.modulo) {
+    ModuloSeguimiento.reproductora => PayloadSeguimiento.reproductora(
+        loteId: lote.id, fecha: libre, campos: campos,
+        controlAgua: agua, quintales: qq),
+    ModuloSeguimiento.levante => PayloadSeguimiento.levante(
+        loteId: lote.loteMaestroId ?? lote.id, lotePosturaLevanteId: lote.id,
+        fecha: libre, campos: campos, controlAgua: agua, quintales: qq),
+    ModuloSeguimiento.produccion => PayloadSeguimiento.produccion(
+        lotePosturaProduccionId: lote.id, fecha: libre, campos: campos,
+        controlAgua: agua, fechaEncaset: lote.fechaEncaset),
+    ModuloSeguimiento.engorde => PayloadSeguimiento.engorde(
+        loteId: lote.id, fecha: libre, campos: campos,
+        controlAgua: agua, quintales: qq),
+  };
 
   final endpoint = endpointDeModulo[lote.modulo]!;
-  final fechaTxt = '${libre.year}-${libre.month}-${libre.day}';
 
   int? id;
-  try {
-    id = await seg.enviar(endpoint: endpoint, payload: payload);
-    _ok('6. seguimiento creado',
-        'id=$id · lote ${lote.nombre} (${lote.modulo.label}) · $fechaTxt');
-  } catch (e) {
-    _mal('6. seguimiento creado', e);
+  DateTime? usada;
+  String? ultimoMotivo;
+  var descartadas = 0;
+
+  for (final f in candidatas) {
+    try {
+      id = await seg.enviar(endpoint: endpoint, payload: cuerpoPara(f));
+      usada = f;
+      break;
+    } on ApiError catch (e) {
+      if (e.tipo != TipoFallo.datosInvalidos) {
+        _mal('6. seguimiento creado', e);
+        return;
+      }
+      ultimoMotivo = e.mensaje;
+      descartadas++;
+    }
+  }
+
+  if (usada == null) {
+    _mal('6. seguimiento creado',
+        'ninguna de las ${candidatas.length} fechas libres fue aceptada. Último motivo: $ultimoMotivo');
     return;
   }
+
+  final fechaTxt = '${usada.year}-${usada.month}-${usada.day}';
+  _ok('6. seguimiento creado',
+      'id=$id · lote ${lote.nombre} (${lote.modulo.label}) · $fechaTxt'
+      '${descartadas > 0 ? ' (${descartadas} fecha(s) descartadas por el backend)' : ''}');
 
   // El mismo día otra vez. Hay DOS formas legítimas de que el backend lo pare y
   // las dos son correctas:
@@ -231,7 +265,7 @@ Future<void> _probarEscritura(
   // Lo que NO puede pasar es que lo acepte. En ambos casos la app deja de
   // reintentar, que es lo que se está comprobando.
   try {
-    await seg.enviar(endpoint: endpoint, payload: payload);
+    await seg.enviar(endpoint: endpoint, payload: cuerpoPara(usada));
     _mal('7. segundo registro del mismo día',
         'el backend aceptó dos registros del mismo lote y día');
   } on ApiError catch (e) {
