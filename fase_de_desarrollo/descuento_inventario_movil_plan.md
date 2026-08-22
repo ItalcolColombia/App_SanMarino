@@ -1,6 +1,9 @@
 # Plan — Descuento de inventario desde la app móvil
 
-**Estado:** propuesta ejecutable. No hay código escrito.
+**Estado:** EJECUTADO (22-ago-2026). F1-F7 completos y verificados — ver el detalle en
+`tracker_estado.md`, bloque "F1, F2, F3 y F4", "F5", "F7" y "Plan cerrado". F6 quedó fuera de
+alcance por decisión del usuario (medido sin excepciones: EC/PA no operan producción postura,
+Colombia no tiene reproductora — construirlo sería superficie sin usuario).
 **Fecha:** 22-ago-2026.
 **Alcance:** que un seguimiento diario cargado en `zootecnicoapp` descuente stock, en los 4 módulos, sin romper el camino web.
 
