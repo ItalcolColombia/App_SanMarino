@@ -2046,3 +2046,47 @@ no postura que es levante y produccion»*.
 - [x] El `tipoAlimento` de texto libre → **lo reemplaza el selector** del catalogo. Es la unica forma
       de mandar el id que dispara el descuento
 - [x] Produccion EC/PA → **fuera de alcance**, el comentario de `ProduccionService.cs:29-33` vale
+
+### F1, F2, F3 y F4 — hechos y verificados (22ago26)
+
+Los 4 backend siguieron el orden `F1 F2 F4 F3`: los tres primeros no tocan el camino EC/PA
+directo, F3 si (marcado "RIESGOSA" en el plan) y se dejo para el final con el patron ya probado.
+
+- [x] **F1 — calculo puro** (`ItemConsumoCalculos`, `ConsumoDiffCalculos`,
+      `FechaMovimientoSeguimientoCalculos`): extraccion pura desde `ProduccionService.cs` y los 3
+      services de diff, cero cambio de comportamiento (verificacion adversarial: equivalente,
+      solo divergencias cosmeticas). Tests nuevos en `ZooSanMarino.Application.Tests`.
+- [x] **F2 — fecha del movimiento**: `FechaMovimientoSeguimientoCalculos.Anclar` (ingreso 12:00Z,
+      consumo 18:00Z — evita el empate de `created_at` que usa la ventana de saldo). Propagado a
+      ~25 sitios (levante, produccion, engorde x2, reproductora, `ValidacionSeguimientoService`,
+      `MigracionService`). Verificado en vivo: movimiento fechado el dia del seguimiento, no el
+      del sync; ancla correcta.
+- [x] **F4 — atomicidad Colombia (nivel granja)**: `RegistrarConsumoNivelGranjaAsync` y
+      `RegistrarIngresoNivelGranjaAsync` reescritos sobre `DescontarStockAtomicoAsync`/
+      `SumarStockAtomicoAsync` (UPDATE condicional / INSERT ON CONFLICT — ya existian de una fase
+      anterior de silos). Verificado en vivo: descuento exacto, devolucion exacta al borrar, cero
+      diffs en `verificar_paridad_stock_clave_natural.sql`.
+- [x] **F3 — atomicidad EC/PA**: el hueco real. `RegistrarConsumoAsync`/`RegistrarIngresoAsync` se
+      aplicaban DESPUES del `SaveChangesAsync` del dia, dentro de un `try/catch` que solo logueaba
+      — con la app offline eso es *permanente* (el push saca la fila del outbox igual). Cambiado a
+      transaccion condicional (`await using ... CurrentTransaction is null ? Begin : null`)
+      envolviendo guardado + consumo/ajuste/devolucion, SIN try/catch: si algo falla, la excepcion
+      sube y el `await using` deshace todo, incluido el seguimiento.
+  - [x] 4 archivos: `SeguimientoLoteLevanteService.Crud.cs`, `SeguimientoAvesEngordeService.Crud.cs`
+        (Panama legacy), `SeguimientoAvesEngordeEcuadorService.Crud.cs` (el que la app usa de
+        verdad, EC+PA+CO), `SeguimientoDiarioLoteReproductoraService.cs`
+  - [i] `ValidacionSeguimientoService.Validar.cs` (el flujo de Confirmar de la doble validacion,
+        el que **si** usa Panama en operacion real) **ya tenia** este patron desde antes — no
+        necesito tocarlo. Bug real de F3 solo pega en EC/PA con `separa=false`, hoy eso es
+        Ecuador (Panama tiene doble validacion ON en las 3 tablas)
+  - [x] `dotnet build` 0/0, `dotnet test` 3124/3124 (sin tests nuevos: la logica es
+        EF/transaccion, no cae en `Calculos/` — su red es el smoke, como dice el plan)
+  - [x] Smoke en vivo contra backend aislado (`:5499`, DB local, puerto `:5002` de la otra sesion
+        intacto): Ecuador engorde con items reales — descuenta exacto (7.5kg), ancla a las
+        18:00Z, `DELETE` devuelve el stock exacto. Stock insuficiente (0kg disponibles) → 400 +
+        CERO seguimientos nuevos + stock sin tocar (antes: 200 + catch silencioso).
+  - [x] `verificar_cuadre_alimento_engorde.sql` antes/despues: diff = 0 filas, ningun galpon
+        nuevo ni descuadre que crecio (los 11 descuadres que muestra son preexistentes y
+        documentados, no de este cambio)
+- [ ] F5 (la app emite items — el interruptor real del descuento) y F7 (`requiere_cuadre`) siguen
+      sin arrancar, tal como los dejo el hallazgo de arriba
