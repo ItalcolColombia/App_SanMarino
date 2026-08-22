@@ -97,6 +97,10 @@ class AuthApi {
       // Los módulos llegan aparte: el `menu` del login viene vacío en varios
       // roles, mientras que `/Auth/menu` sí lo resuelve.
       modulos: const [],
+      // Fail-closed (F5.1): ausente o `false` ⇒ el formulario sigue mandando el
+      // escalar de hoy. Sale de `companyPaises[0].descuentaInventarioDesdeMovil`,
+      // NUNCA de un `if (empresa == 'X')` — es la empresa activa la que decide.
+      descuentaInventarioDesdeMovil: (principal['descuentaInventarioDesdeMovil'] as bool?) ?? false,
     );
   }
 }

@@ -80,5 +80,9 @@ public record CompanyDto(
     /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
     bool LimitaTiposInventarioAlimentoYAves = false,
     /// <summary>El listado de lotes de postura se separa en pestanas por etapa (Levante / Produccion).</summary>
-    bool SeparaLotesPosturaPorEtapa = false
+    bool SeparaLotesPosturaPorEtapa = false,
+    /// <summary>La app móvil manda ítems de inventario reales (no el escalar de hoy) y el seguimiento
+    /// diario descuenta stock igual que el front web. Kill switch de F5 — no encender para empresas
+    /// con <c>ManejaInventarioPorSilo</c> hasta que exista el selector de silo en la app.</summary>
+    bool DescuentaInventarioDesdeMovil = false
 );

@@ -17,10 +17,13 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/selector_items_inventario.dart';
 import '../core/alimento_obligatorio.dart';
 import '../core/api/seguimientos_api.dart';
+import '../core/items_consumo.dart';
 import '../core/local_db.dart';
 import '../core/models.dart';
+import '../core/models_inventario.dart';
 import '../core/postura_calculos.dart';
 import '../core/sync_service.dart';
 
@@ -46,12 +49,43 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
   DateTime _fecha = DateTime.now();
   bool _guardado = false;
 
+  // ── F5: selector de ítems de inventario (sólo con el flag encendido) ──────
+  final List<LineaConsumo> _itemsH = [];
+  final List<LineaConsumo> _itemsM = [];
+  List<ItemInventario> _catalogoAlimento = const [];
+  Map<String, ExistenciaInventario> _existencias = const {};
+
   TextEditingController ctl(String k) => _c.putIfAbsent(k, () => TextEditingController());
   bool abierto(String k) => _abierto[k] ?? false;
   void toggle(String k) => setState(() => _abierto[k] = !abierto(k));
   bool lleno(List<String> keys) => keys.any((k) => (_c[k]?.text ?? '').isNotEmpty);
 
   ModuloSeguimiento get modulo => widget.lote.modulo;
+
+  /// Kill switch de F5: con el flag apagado esta pantalla es BYTE A BYTE la de
+  /// antes — el selector ni se pinta ni se consulta el catálogo.
+  bool get _usaSelectorItems => widget.usuario.descuentaInventarioDesdeMovil;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_usaSelectorItems) _cargarCatalogo();
+  }
+
+  /// Catálogo + existencias YA cacheados por la sincronización diaria
+  /// (`main.dart:_refrescarCatalogoInventario`) — no hay red acá, sólo SQLite.
+  /// Un catálogo vacío (primer login sin sincronizar, o empresa que recién
+  /// prendió el flag) deja el selector sin ítems para elegir: el operario lo
+  /// nota en el botón "Sin catálogo disponible sin conexión", no en un error.
+  Future<void> _cargarCatalogo() async {
+    final catalogo = await LocalDb.instance.catalogoCacheado(soloAlimento: true);
+    final existencias = await LocalDb.instance.existenciasCacheadas();
+    if (!mounted) return;
+    setState(() {
+      _catalogoAlimento = catalogo;
+      _existencias = existencias;
+    });
+  }
 
   @override
   void dispose() {
@@ -61,11 +95,30 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
 
   /// El cuerpo que se le manda al backend, armado por [PayloadSeguimiento]
   /// según el módulo y el país. Los cuatro módulos tienen mapeo.
+  ///
+  /// Con el selector de ítems encendido (F5), `tipoAlimento` y el consumo
+  /// escalar se DERIVAN de lo elegido — el operario ya no los tipea — y recién
+  /// después se le agrega el array `itemsHembras`/`itemsMachos` al payload que
+  /// arma [PayloadSeguimiento]: es el array cuya sola presencia dispara el
+  /// descuento de inventario en el backend.
   Map<String, dynamic> _payload() {
     final campos = {for (final e in _c.entries) e.key: e.value.text};
     final u = widget.usuario;
 
-    return switch (modulo) {
+    if (_usaSelectorItems) {
+      final nombres = [..._itemsH, ..._itemsM]
+          .where((l) => l.valida)
+          .map((l) => l.item.nombre)
+          .toSet()
+          .join(', ');
+      if (nombres.isNotEmpty) campos['tipoAlimento'] = nombres;
+      final kgH = ItemsConsumo.kgDeAlimento(_itemsH);
+      final kgM = ItemsConsumo.kgDeAlimento(_itemsM);
+      if (kgH > 0) campos['consumoKgHembras'] = kgH.toString();
+      if (kgM > 0) campos['consumoKgMachos'] = kgM.toString();
+    }
+
+    final payload = switch (modulo) {
       ModuloSeguimiento.engorde => PayloadSeguimiento.engorde(
           loteId: widget.lote.id,
           fecha: _fecha,
@@ -102,6 +155,20 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
           usuarioId: u.id,
         ),
     };
+
+    if (_usaSelectorItems) {
+      // manejaSilos: false — F5.5 del plan: el flag no se enciende para
+      // empresas con inventario por silo hasta que exista el selector de
+      // silo en la app (hoy ninguna empresa con ese modelo tiene el flag).
+      ItemsConsumo.aplicarEn(
+        payload,
+        itemsHembras: ItemsConsumo.armar(lineas: _itemsH, paisId: u.paisId, manejaSilos: false),
+        itemsMachos: ItemsConsumo.armar(lineas: _itemsM, paisId: u.paisId, manejaSilos: false),
+        modulo: modulo,
+      );
+    }
+
+    return payload;
   }
 
   Future<void> _guardar() async {
@@ -381,25 +448,67 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
 
   /// Alimento consumido en el día.
   ///
-  /// Va como consumo directo en kg (`consumoKgHembras`/`consumoKgMachos`), que es
-  /// lo que el backend acepta sin catálogo de inventario. El editor de ítems con
-  /// descuento de stock necesita el catálogo de `item_inventario_ecuador` con
-  /// existencias por galpón — queda para la fase siguiente; ponerlo ahora sería
-  /// un formulario que se llena y no descuenta nada.
+  /// **Con el flag [Usuario.descuentaInventarioDesdeMovil] apagado** (toda
+  /// empresa hoy) esta sección es BYTE A BYTE la de antes: consumo directo en
+  /// kg, que es lo que el backend acepta sin descontar inventario.
+  ///
+  /// **Encendido**, el campo de texto libre y el consumo escalar se
+  /// REEMPLAZAN por el selector de ítems del catálogo real (F5.2/F0.2#4): el
+  /// operario elige de lo que hay en el galpón, no lo tipea. `tipoAlimento` y
+  /// el consumo escalar se siguen mandando —[_payload] los deriva de lo
+  /// elegido— porque el backend y el reporte diario los siguen leyendo.
   Widget _alimentoSec({Color? acento}) => AppSection(
     title: 'Alimento',
     icon: Icons.grass_rounded,
     expanded: abierto('alimento'),
     onToggle: () => toggle('alimento'),
-    filled: lleno(['consumoKgHembras', 'consumoKgMachos']),
+    filled: _usaSelectorItems
+        ? (_itemsH.any((l) => l.valida) || _itemsM.any((l) => l.valida))
+        : lleno(['consumoKgHembras', 'consumoKgMachos']),
     trailing: const AppBadge(label: 'Obligatorio', tone: BadgeTone.danger),
-    children: [
+    children: _usaSelectorItems ? _selectorAlimentoChildren(acento) : [
       AppField(label: 'Tipo de alimento', required: true, controller: ctl('tipoAlimento'),
         placeholder: 'Ej: Iniciación, Engorde 1…'),
       AppPairField(label: 'Consumo', suffix: 'kg', required: true,
         hController: ctl('consumoKgHembras'), mController: ctl('consumoKgMachos')),
     ],
   );
+
+  List<Widget> _selectorAlimentoChildren(Color? acento) {
+    final color = acento ?? AppColors.orange600;
+    final ubicacion = (
+      farmId: widget.lote.granjaId,
+      nucleoId: widget.lote.nucleoId,
+      galponId: widget.lote.galponId,
+    );
+    return [
+      if (widget.lote.granjaId == null)
+        const AppInfoBox(
+          text: 'No se pudo resolver la granja de este lote: el disponible no se puede mostrar, '
+              'pero el registro se puede guardar igual.',
+          tone: InfoTone.warn,
+        ),
+      Text('Hembras', style: TextStyle(
+        fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700, color: color,
+      )),
+      const SizedBox(height: AppSpacing.s2),
+      SelectorItemsInventario(
+        lineas: _itemsH, catalogo: _catalogoAlimento, existencias: _existencias,
+        acento: color, onChanged: () => setState(() {}),
+        farmId: ubicacion.farmId, nucleoId: ubicacion.nucleoId, galponId: ubicacion.galponId,
+      ),
+      const SizedBox(height: AppSpacing.s3),
+      Text('Machos', style: TextStyle(
+        fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700, color: color,
+      )),
+      const SizedBox(height: AppSpacing.s2),
+      SelectorItemsInventario(
+        lineas: _itemsM, catalogo: _catalogoAlimento, existencias: _existencias,
+        acento: color, onChanged: () => setState(() {}),
+        farmId: ubicacion.farmId, nucleoId: ubicacion.nucleoId, galponId: ubicacion.galponId,
+      ),
+    ];
+  }
 
   /// Quintales por categoría — sólo Panamá los captura. Devuelve lista vacía
   /// cuando no aplica, para poder usar spread.

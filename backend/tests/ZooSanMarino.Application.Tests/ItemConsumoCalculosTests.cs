@@ -424,4 +424,77 @@ public class ItemConsumoCalculosTests
         Assert.Equal(5m, porMetadata[Catalogo(77)]);
         Assert.False(porRequest.ContainsKey(Catalogo(77)));
     }
+
+    // ── F5.4 — NormalizarParaModeloB ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// El caso que motiva la función: <c>modal-seguimiento-reproductora.component.ts</c> manda hoy el
+    /// id de <c>item_inventario_ecuador</c> metido en <c>catalogItemId</c> (nunca llena
+    /// <c>itemInventarioEcuadorId</c>). Bajo Modelo B eso NO es un ítem de catálogo — se normaliza a
+    /// <c>EsItemInventario = true</c>, mismo id, mismos kg.
+    /// </summary>
+    [Fact]
+    public void NormalizarParaModeloB_UnaClaveDeCatalogo_PasaAInventarioConLosMismosKg()
+    {
+        var porOrigen = new Dictionary<ItemConsumoKey, decimal> { [Catalogo(208)] = 40m };
+
+        var r = ItemConsumoCalculos.NormalizarParaModeloB(porOrigen);
+
+        var entry = Assert.Single(r);
+        Assert.Equal(Inventario(208), entry.Key);
+        Assert.Equal(40m, entry.Value);
+    }
+
+    /// <summary>Una clave ya marcada como inventario no cambia — es el caso normal (el front manda bien el id).</summary>
+    [Fact]
+    public void NormalizarParaModeloB_UnaClaveYaDeInventario_QuedaIgual()
+    {
+        var porOrigen = new Dictionary<ItemConsumoKey, decimal> { [Inventario(208)] = 40m };
+
+        var r = ItemConsumoCalculos.NormalizarParaModeloB(porOrigen);
+
+        var entry = Assert.Single(r);
+        Assert.Equal(Inventario(208), entry.Key);
+        Assert.Equal(40m, entry.Value);
+    }
+
+    /// <summary>
+    /// Si el mismo id ya existía marcado como inventario Y como catálogo (no debería pasar en la
+    /// práctica bajo Modelo B, pero la función no puede asumirlo), las dos colapsan en una sola clave
+    /// con la suma — no se pierde ningún kilo.
+    /// </summary>
+    [Fact]
+    public void NormalizarParaModeloB_MismoIdEnLosDosOrigenes_ColapsaSumando()
+    {
+        var porOrigen = new Dictionary<ItemConsumoKey, decimal>
+        {
+            [Catalogo(208)] = 40m,
+            [Inventario(208)] = 15m
+        };
+
+        var r = ItemConsumoCalculos.NormalizarParaModeloB(porOrigen);
+
+        var entry = Assert.Single(r);
+        Assert.Equal(Inventario(208), entry.Key);
+        Assert.Equal(55m, entry.Value);
+    }
+
+    /// <summary>El silo se conserva: normalizar el origen no toca la ubicación.</summary>
+    [Fact]
+    public void NormalizarParaModeloB_ConservaElSilo()
+    {
+        var porOrigen = new Dictionary<ItemConsumoKey, decimal> { [Catalogo(208, silo: 4)] = 40m };
+
+        var r = ItemConsumoCalculos.NormalizarParaModeloB(porOrigen);
+
+        var entry = Assert.Single(r);
+        Assert.Equal(Inventario(208, 4), entry.Key);
+    }
+
+    /// <summary>Diccionario vacío devuelve vacío, no null ni excepción.</summary>
+    [Fact]
+    public void NormalizarParaModeloB_VacioDevuelveVacio()
+    {
+        Assert.Empty(ItemConsumoCalculos.NormalizarParaModeloB(new Dictionary<ItemConsumoKey, decimal>()));
+    }
 }

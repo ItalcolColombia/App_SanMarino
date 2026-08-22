@@ -2088,5 +2088,71 @@ directo, F3 si (marcado "RIESGOSA" en el plan) y se dejo para el final con el pa
   - [x] `verificar_cuadre_alimento_engorde.sql` antes/despues: diff = 0 filas, ningun galpon
         nuevo ni descuadre que crecio (los 11 descuadres que muestra son preexistentes y
         documentados, no de este cambio)
-- [ ] F5 (la app emite items — el interruptor real del descuento) y F7 (`requiere_cuadre`) siguen
-      sin arrancar, tal como los dejo el hallazgo de arriba
+- [x] F5 (la app emite items — el interruptor real del descuento) — hecho y verificado (22ago26)
+- [ ] F7 (`requiere_cuadre`) sigue sin arrancar
+
+### F5 — el interruptor, hecho (22ago26)
+
+- [x] **F5.1 — el flag.** `companies.descuenta_inventario_desde_movil` (migracion EF
+      idempotente `20260822183118_AddFlagDescuentaInventarioDesdeMovil`, default `false`).
+      Propagado a las 6 proyecciones de `CompanyDto`/`CompanyPaisDto`
+      (`CompanyService`, `CompanyService.Crud`, `CompanyResolver` x2, `CompanyPaisService`
+      x2, `AuthService.GenerateResponseAsync` x2 — el que de verdad llega al login). Del
+      lado Flutter: `Usuario.descuentaInventarioDesdeMovil` (constructor, campo, copyWith,
+      fromJson, toJson) + parseo en `AuthApi.usuarioDesdeRespuesta` desde
+      `companyPaises[0]`. Fail-closed en los dos lados: ausente o error ⇒ `false`.
+  - [i] **Hallazgo:** `CompanyPaisDto` (el que arma el login) **no proyectaba NINGUNO** de
+        los ~20 flags de `Company` — todos viven solo en `CompanyDto` (endpoints de admin).
+        Sin agregarlo ahi, el flag nunca habria llegado a la app.
+- [x] **F5.4 — decision de riesgo (con el usuario).** El plan pedia rechazar en el backend
+      cuando falta `itemInventarioEcuadorId` bajo Modelo B. Medido: el modal de
+      reproductora WEB (`modal-seguimiento-reproductora.component.ts`) manda HOY, en
+      produccion (Panama 121 lotes + Ecuador 3), el id de `item_inventario_ecuador`
+      metido en `catalogItemId` y nunca llena `itemInventarioEcuadorId` — el mismo bug que
+      el plan describe para F6.2/Colombia, pero en el componente que Panama usa de
+      verdad. Rechazar habria roto ese flujo en produccion. Decision del usuario:
+      corregir la falla latente en el BACKEND sin tocar la web, y aplicar el contrato
+      correcto en el MOVIL.
+  - [x] Backend: `ItemConsumoCalculos.NormalizarParaModeloB` (nueva, con 5 tests) — bajo
+        Modelo B, un `ItemConsumoKey` con `EsItemInventario=false` se normaliza a `true`
+        (mismo id, mismos kg): bajo ese modelo solo existe una tabla de origen posible,
+        asi que la marca en `false` era simplemente falsa, no una senal real de
+        `catalogo_items`. Sin rechazo, cero cambio de comportamiento para lo que ya
+        funciona. Conectado en `SeparacionSeguimientoHelper.Contexto` (la reserva de
+        doble validacion que usa Panama).
+  - [x] Movil: `ItemsConsumo.armar()` (ya construido en una fase anterior de esta sesion)
+        **ya** mandaba `itemInventarioEcuadorId` siempre que el pais lo usa — verificado
+        en vivo, no solo leido.
+- [x] **F5.2 — el selector real.** El editor de items del design system (commit
+      `1cdabbc`) era texto libre sin catalogo — no servia. Selector nuevo
+      (`widgets/selector_items_inventario.dart`): busca en el catalogo cacheado
+      (`InventarioApi.catalogo()`), muestra el disponible por (granja, nucleo, galpon)
+      cruzando `ExistenciaInventario`, un campo de cantidad por linea. Reemplaza el
+      campo `tipoAlimento` de texto libre + el consumo escalar SOLO cuando el flag esta
+      encendido (F0.2#4) — con el flag apagado la seccion de Alimento es BYTE A BYTE la
+      de antes.
+  - [i] **Hallazgo:** `Lote` (Dart) no llevaba `granjaId`/`nucleoId`/`galponId` — solo el
+        texto de pantalla. Sin la ubicacion real no se puede cruzar contra
+        `existencias_inventario`. Agregado a `Lote` + a los 3 mappers de `LotesApi` +
+        migracion local v5 (`ALTER TABLE lotes_cache ADD COLUMN`, cache regenerable).
+        La correctitud del descuento NO dependia de esto (el backend resuelve la
+        ubicacion desde el lote, nunca del cliente) — solo el AVISO de disponible en
+        pantalla.
+  - [i] Todo el resto de la capa (modelos `ItemInventario`/`ExistenciaInventario`,
+        `InventarioApi`, cache SQLite v4, `items_consumo.dart` con 25 tests) **ya estaba
+        construido** de una fase anterior de esta sesion, sin un solo caller en toda la
+        app — era groundwork esperando la pantalla. `grep ItemsConsumo lib/` daba 0 antes
+        de esto.
+- [x] **F5.5 — silo, declarado.** El selector manda `manejaSilos: false` siempre (comentario
+      en el codigo lo explica): ninguna empresa por silo tiene el flag encendido, y no lo
+      va a tener hasta que exista un selector de silo — no se construyo en esta pasada.
+- [x] Sincronizacion: `main.dart._refrescarCatalogoInventario` baja catalogo + existencias
+      (por cada granja de los lotes del usuario) SOLO si el flag esta encendido — una
+      empresa sin el flag no paga el peso de un catalogo que nunca ve.
+- [x] `dotnet build` 0/0, `dotnet test` 3129/3129 · `flutter analyze` 0 errores ·
+      `flutter test` 165/165 (10 nuevos: `usuario_test.dart` + 2 en `cola_sync_test.dart`)
+- [x] Smoke en vivo end-to-end con el CODIGO REAL de la app (`tool/smoke_f5_items.dart`,
+      nuevo): flag encendido a mano en la BD local para ItalcolEcuador (revertido despues),
+      `ItemsConsumo.armar()` arma `itemInventarioEcuadorId=4` de verdad, POST real a
+      `/SeguimientoAvesEngordeEcuador` descuenta 6.25 kg exactos, DELETE devuelve el stock
+      exacto (2520 → 2520). Puerto `:5002` de la otra sesion intacto.

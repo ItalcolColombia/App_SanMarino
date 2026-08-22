@@ -437,7 +437,8 @@ public class AuthService : IAuthService
         CompanyLogoDataUrl = BuildCompanyLogoDataUrl(cp.Company),
         PaisId = cp.PaisId,
         PaisNombre = cp.Pais?.PaisNombre ?? string.Empty,
-        IsDefault = defaultCompanies.Contains(cp.CompanyId)
+        IsDefault = defaultCompanies.Contains(cp.CompanyId),
+        DescuentaInventarioDesdeMovil = cp.Company?.DescuentaInventarioDesdeMovil ?? false
     }).ToList();
     
     // Si una empresa no tiene países asociados, agregarla sin país (para compatibilidad)
@@ -453,7 +454,8 @@ public class AuthService : IAuthService
                 CompanyLogoDataUrl = BuildCompanyLogoDataUrl(uc.Company),
                 PaisId = 0,
                 PaisNombre = string.Empty,
-                IsDefault = uc.IsDefault
+                IsDefault = uc.IsDefault,
+                DescuentaInventarioDesdeMovil = uc.Company?.DescuentaInventarioDesdeMovil ?? false
             });
         }
     }

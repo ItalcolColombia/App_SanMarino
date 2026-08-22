@@ -164,6 +164,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Kill switch de F5 (descuento_inventario_movil_plan.md): la app móvil manda ítems reales
+        // en vez del escalar de hoy. Default false = comportamiento actual.
+        builder.Property(x => x.DescuentaInventarioDesdeMovil)
+            .HasColumnName("descuenta_inventario_desde_movil")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

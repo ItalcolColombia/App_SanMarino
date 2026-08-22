@@ -60,7 +60,8 @@ public class CompanyPaisService : ICompanyPaisService
             CompanyName = company.Name,
             PaisId = companyPais.PaisId,
             PaisNombre = pais.PaisNombre,
-            IsDefault = false
+            IsDefault = false,
+            DescuentaInventarioDesdeMovil = company.DescuentaInventarioDesdeMovil
         };
     }
 
@@ -131,7 +132,8 @@ public class CompanyPaisService : ICompanyPaisService
             HuevoPrimeraPosturaHastaSemana: cp.Company.HuevoPrimeraPosturaHastaSemana,
             SemanasCicloPosturaPorRaza: cp.Company.SemanasCicloPosturaPorRaza,
             LimitaTiposInventarioAlimentoYAves: cp.Company.LimitaTiposInventarioAlimentoYAves,
-            SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa
+            SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa,
+            DescuentaInventarioDesdeMovil: cp.Company.DescuentaInventarioDesdeMovil
         )).ToList();
     }
 
@@ -164,7 +166,8 @@ public class CompanyPaisService : ICompanyPaisService
             CompanyLogoDataUrl = CompanyCalculos.BuildLogoDataUrl(cp.Company.Logo?.LogoBytes, cp.Company.Logo?.LogoContentType),
             PaisId             = cp.PaisId,
             PaisNombre         = cp.Pais.PaisNombre,
-            IsDefault          = false
+            IsDefault          = false,
+            DescuentaInventarioDesdeMovil = cp.Company.DescuentaInventarioDesdeMovil
         }).ToList();
     }
 
@@ -232,7 +235,8 @@ public class CompanyPaisService : ICompanyPaisService
             CompanyName = company?.Name ?? string.Empty,
             PaisId = dto.PaisId,
             PaisNombre = pais?.PaisNombre ?? string.Empty,
-            IsDefault = dto.IsDefault
+            IsDefault = dto.IsDefault,
+            DescuentaInventarioDesdeMovil = company?.DescuentaInventarioDesdeMovil ?? false
         };
     }
 
@@ -263,7 +267,8 @@ public class CompanyPaisService : ICompanyPaisService
                 CompanyName = uc.Company != null ? uc.Company.Name : string.Empty,
                 PaisId = 0,
                 PaisNombre = string.Empty,
-                IsDefault = uc.IsDefault
+                IsDefault = uc.IsDefault,
+                DescuentaInventarioDesdeMovil = uc.Company != null && uc.Company.DescuentaInventarioDesdeMovil
             })
             .ToListAsync();
     }

@@ -225,6 +225,32 @@ void main() {
       ]);
       expect((await db.lotesCacheados()).single.loteMaestroId, 114);
     });
+
+    // F5.2 (v5): la ubicación REAL del lote (no el texto de pantalla) hace
+    // falta para cruzar contra existencias_inventario y mostrar el disponible
+    // en el selector de ítems.
+    test('conserva granjaId/nucleoId/galponId, la ubicación real del lote', () async {
+      await db.guardarLotes(const [
+        Lote(id: 217, nombre: '2604', granja: 'Sacachun 3A', galpon: 'G0058',
+            modulo: ModuloSeguimiento.engorde, dia: 4, aves: 5000,
+            granjaId: 45, nucleoId: '668786', galponId: 'G0058'),
+      ]);
+      final l = (await db.lotesCacheados()).single;
+      expect(l.granjaId, 45);
+      expect(l.nucleoId, '668786');
+      expect(l.galponId, 'G0058');
+    });
+
+    test('un lote sin ubicación resuelta (granjaId null) no revienta', () async {
+      await db.guardarLotes(const [
+        Lote(id: 1, nombre: 'A', granja: 'G', galpon: 'A',
+            modulo: ModuloSeguimiento.engorde, dia: 1, aves: 10),
+      ]);
+      final l = (await db.lotesCacheados()).single;
+      expect(l.granjaId, isNull);
+      expect(l.nucleoId, isNull);
+      expect(l.galponId, isNull);
+    });
   });
 
   group('sesión', () {

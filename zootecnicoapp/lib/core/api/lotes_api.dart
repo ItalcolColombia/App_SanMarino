@@ -114,6 +114,9 @@ class LotesApi {
       fechaEncaset: fecha,
       companyId: j['companyId'] as int?,
       cerrado: (_texto(j['estadoOperativoLote']) ?? '').toLowerCase() == 'cerrado',
+      granjaId: j['granjaId'] as int?,
+      nucleoId: _texto(j['nucleoId']),
+      galponId: _texto(j['galponId']),
     );
   }
 
@@ -149,6 +152,9 @@ class LotesApi {
       // "Cerrado" = ya se vendieron todas las aves iniciales; "Vigente" = abierto.
       cerrado: (_texto(j['estado']) ?? '').toLowerCase() == 'cerrado',
       loteAveEngordeId: padreId,
+      granjaId: padre?.granjaId,
+      nucleoId: padre?.nucleoId,
+      galponId: padre?.galponId,
     );
   }
 
@@ -189,6 +195,9 @@ class LotesApi {
       // producción y no admite registros nuevos en esta etapa.
       cerrado: (_texto(j['estadoCierre']) ?? '').toLowerCase() == 'cerrado',
       loteMaestroId: j['loteId'] as int?,
+      granjaId: j['granjaId'] as int?,
+      nucleoId: _texto(j['nucleoId']),
+      galponId: _texto(j['galponId']),
     );
   }
 

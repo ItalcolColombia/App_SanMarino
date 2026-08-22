@@ -39,6 +39,7 @@ class Usuario {
     required this.companyName,
     required this.token,
     required this.modulos,
+    this.descuentaInventarioDesdeMovil = false,
   });
 
   /// `userId` del backend: es un GUID, no un entero.
@@ -64,6 +65,12 @@ class Usuario {
   final String token;
 
   final List<ModuloSeguimiento> modulos;
+
+  /// Kill switch de F5 (`descuento_inventario_movil_plan.md`): con `true`, el
+  /// formulario reemplaza el campo de alimento de texto libre por el selector de
+  /// ítems del inventario real. Fail-closed: ausente, `false` o error de red al
+  /// resolverlo ⇒ sigue mandando el escalar de hoy, como toda empresa sin el flag.
+  final bool descuentaInventarioDesdeMovil;
 
   /// Etiqueta corta del país para el badge del perfil.
   String get pais => paisNombre.isEmpty ? PerfilPais.nombre(paisId) : paisNombre;
@@ -92,6 +99,7 @@ class Usuario {
     companyId: companyId, companyName: companyName,
     token: token ?? this.token,
     modulos: modulos ?? this.modulos,
+    descuentaInventarioDesdeMovil: descuentaInventarioDesdeMovil,
   );
 
   /// Reconstruye la sesión guardada en SQLite (ver `SessionStore`).
@@ -110,6 +118,8 @@ class Usuario {
         .map((m) => ModuloSeguimiento.fromId(m as String))
         .whereType<ModuloSeguimiento>()
         .toList(),
+    // Fail-closed: una fila de sesión guardada ANTES de este campo no lo trae ⇒ null ⇒ false.
+    descuentaInventarioDesdeMovil: j['descuentaInventarioDesdeMovil'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -118,6 +128,7 @@ class Usuario {
     'companyId': companyId, 'companyName': companyName,
     'token': token,
     'modulos': modulos.map((m) => m.id).toList(),
+    'descuentaInventarioDesdeMovil': descuentaInventarioDesdeMovil,
   };
 }
 
@@ -141,6 +152,9 @@ class Lote {
     this.cerrado = false,
     this.loteAveEngordeId,
     this.loteMaestroId,
+    this.granjaId,
+    this.nucleoId,
+    this.galponId,
   });
 
   final int id;
@@ -148,6 +162,16 @@ class Lote {
   final String granja;
   final String galpon;
   final ModuloSeguimiento modulo;
+
+  /// Ubicación real del lote (`farms.id` / `nucleo_id` / `galpon_id`), NO el
+  /// texto que se muestra en pantalla. Hace falta para cruzar contra
+  /// `ExistenciaInventario.clave` y mostrarle al operario cuánto hay disponible
+  /// ANTES de que el ítem se elija — el backend igual resuelve la ubicación
+  /// desde el lote, así que un valor desactualizado acá sólo afecta el aviso en
+  /// pantalla, nunca de dónde se descuenta de verdad.
+  final int? granjaId;
+  final String? nucleoId;
+  final String? galponId;
 
   /// Edad en días desde el encasetamiento.
   final int dia;
@@ -200,6 +224,9 @@ class Lote {
     cerrado: (j['cerrado'] as bool?) ?? false,
     loteAveEngordeId: j['loteAveEngordeId'] as int?,
     loteMaestroId: j['loteMaestroId'] as int?,
+    granjaId: j['granjaId'] as int?,
+    nucleoId: j['nucleoId'] as String?,
+    galponId: j['galponId'] as String?,
   );
 }
 

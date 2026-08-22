@@ -306,6 +306,21 @@
         /// </summary>
         public bool SeparaLotesPosturaPorEtapa { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = la app móvil manda ítems de inventario reales (<c>itemInventarioEcuadorId</c>)
+        /// en vez del escalar <c>consumoKg*</c>/texto libre de hoy, y el seguimiento diario descuenta
+        /// stock igual que el front web.
+        /// <para>
+        /// Es el kill switch de F5 (plan <c>descuento_inventario_movil_plan.md</c>): una app ya
+        /// desplegada no se revierte con <c>git revert</c>, así que el interruptor vive acá, no en el
+        /// binario. La app lo lee del login (fail-closed: ausente o error ⇒ manda el escalar de hoy).
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual, la app no descuenta inventario.
+        /// ⚠️ No encender para empresas con <see cref="ManejaInventarioPorSilo"/> hasta que exista el
+        /// selector de silo en la app (F5.5) — hoy ningún flujo móvil manda <c>siloId</c>.
+        /// </summary>
+        public bool DescuentaInventarioDesdeMovil { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

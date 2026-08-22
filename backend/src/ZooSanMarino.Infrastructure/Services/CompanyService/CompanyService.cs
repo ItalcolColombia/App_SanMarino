@@ -61,6 +61,7 @@ public partial class CompanyService : ICompanyService
         c.HuevoPrimeraPosturaHastaSemana,
         c.SemanasCicloPosturaPorRaza,
         c.LimitaTiposInventarioAlimentoYAves,
-        c.SeparaLotesPosturaPorEtapa
+        c.SeparaLotesPosturaPorEtapa,
+        c.DescuentaInventarioDesdeMovil
     );
 }

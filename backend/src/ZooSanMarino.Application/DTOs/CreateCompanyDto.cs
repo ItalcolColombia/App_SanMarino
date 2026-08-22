@@ -55,5 +55,7 @@ public record CreateCompanyDto(
     bool     SemanasCicloPosturaPorRaza = false,
     /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
     bool     LimitaTiposInventarioAlimentoYAves = false,
-    bool     SeparaLotesPosturaPorEtapa         = false
+    bool     SeparaLotesPosturaPorEtapa         = false,
+    /// <summary>La app móvil manda ítems reales de inventario. Kill switch de F5.</summary>
+    bool     DescuentaInventarioDesdeMovil      = false
 );

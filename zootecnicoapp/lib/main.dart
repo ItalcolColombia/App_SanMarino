@@ -8,9 +8,11 @@ import 'theme/app_colors.dart';
 import 'theme/app_spacing.dart';
 import 'core/api/api_client.dart';
 import 'core/api/auth_api.dart';
+import 'core/api/inventario_api.dart';
 import 'core/api/lotes_api.dart';
 import 'core/api/seguimientos_api.dart';
 import 'core/models.dart';
+import 'core/models_inventario.dart';
 import 'core/local_db.dart';
 import 'core/session/session_store.dart';
 import 'core/sync_service.dart';
@@ -56,6 +58,7 @@ class _RootShellState extends State<RootShell> {
   late final AuthApi _auth = AuthApi(_api);
   late final LotesApi _lotesApi = LotesApi(_api);
   late final SeguimientosApi _segApi = SeguimientosApi(_api);
+  late final InventarioApi _inventarioApi = InventarioApi(_api);
 
   Usuario? _usuario;
   List<Lote> _lotes = const [];
@@ -132,6 +135,13 @@ class _RootShellState extends State<RootShell> {
 
       final lotes = await _lotesApi.descargar(modulos: modulos);
       await LocalDb.instance.guardarLotes(lotes);
+
+      // F5: sólo se baja el catálogo con el flag encendido — la empresa que no
+      // lo usa no paga el peso de un catálogo que nunca va a mostrar.
+      if (conModulos.descuentaInventarioDesdeMovil) {
+        await _refrescarCatalogoInventario(lotes);
+      }
+
       await _sesion.marcarSincronizado();
 
       if (!mounted) return;
@@ -151,6 +161,30 @@ class _RootShellState extends State<RootShell> {
         return;
       }
       _avisar(e.mensaje);
+    }
+  }
+
+  /// Catálogo + existencias, sólo para las granjas de los lotes que el usuario
+  /// tiene asignados — bajar la empresa entera sería peso muerto en una tablet
+  /// de una sola granja.
+  ///
+  /// Un fallo acá NO aborta la sincronización de lotes: si el catálogo no baja,
+  /// el formulario cae al escalar de hoy (falla cerrada, ver [Usuario.descuentaInventarioDesdeMovil]),
+  /// que sigue siendo un registro válido.
+  Future<void> _refrescarCatalogoInventario(List<Lote> lotes) async {
+    try {
+      final catalogo = await _inventarioApi.catalogo();
+      await LocalDb.instance.guardarCatalogo(catalogo);
+
+      final farmIds = lotes.map((l) => l.granjaId).whereType<int>().toSet();
+      final existencias = <ExistenciaInventario>[];
+      for (final farmId in farmIds) {
+        existencias.addAll(await _inventarioApi.existencias(farmId: farmId));
+      }
+      await LocalDb.instance.guardarExistencias(existencias);
+    } on ApiError {
+      // Sin red o error del servidor: se queda con lo que ya había en caché
+      // (o vacío, en el primer login). No es un fallo de la sincronización.
     }
   }
 

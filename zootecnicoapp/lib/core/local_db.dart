@@ -31,7 +31,10 @@ class LocalDb {
   /// postear (el id de la etapa no alcanza).
   /// v4 (22ago26): catálogo de ítems y existencias, para poder elegir alimento
   /// sin señal — es lo que permite que el consumo descuente stock.
-  static const int _version = 4;
+  /// v5 (22ago26): `granja_id`/`nucleo_id`/`galpon_id` en `lotes_cache` — la
+  /// ubicación REAL del lote (no el texto de pantalla), para cruzar contra
+  /// `existencias_inventario` y avisar disponible antes de elegir el ítem.
+  static const int _version = 5;
   Database? _db;
 
   Future<Database> get db async => _db ??= await _open();
@@ -88,6 +91,9 @@ class LocalDb {
             cerrado            INTEGER NOT NULL DEFAULT 0,
             lote_ave_engorde_id INTEGER,
             lote_maestro_id    INTEGER,
+            granja_id          INTEGER,
+            nucleo_id          TEXT,
+            galpon_id          TEXT,
             updated_at         TEXT NOT NULL,
             -- Engorde y reproductora numeran por separado: el id 12 existe en los
             -- dos módulos y son lotes distintos. La clave es (modulo, id).
@@ -185,6 +191,20 @@ class LocalDb {
       try {
         await d.execute('ALTER TABLE lotes_cache ADD COLUMN lote_maestro_id INTEGER');
       } catch (_) {}
+    }
+
+    if (desde < 5) {
+      // `lotes_cache` es caché regenerable (se borra y se rellena en cada
+      // sincronización) — agregar columnas es seguro, la próxima sync las llena.
+      for (final sql in const [
+        'ALTER TABLE lotes_cache ADD COLUMN granja_id INTEGER',
+        'ALTER TABLE lotes_cache ADD COLUMN nucleo_id TEXT',
+        'ALTER TABLE lotes_cache ADD COLUMN galpon_id TEXT',
+      ]) {
+        try {
+          await d.execute(sql);
+        } catch (_) {}
+      }
     }
   }
 
@@ -642,6 +662,9 @@ class LocalDb {
           'cerrado': l.cerrado ? 1 : 0,
           'lote_ave_engorde_id': l.loteAveEngordeId,
           'lote_maestro_id': l.loteMaestroId,
+          'granja_id': l.granjaId,
+          'nucleo_id': l.nucleoId,
+          'galpon_id': l.galponId,
           'updated_at': now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
@@ -669,6 +692,9 @@ class LocalDb {
       cerrado: ((r['cerrado'] as int?) ?? 0) == 1,
       loteAveEngordeId: r['lote_ave_engorde_id'] as int?,
       loteMaestroId: r['lote_maestro_id'] as int?,
+      granjaId: r['granja_id'] as int?,
+      nucleoId: r['nucleo_id'] as String?,
+      galponId: r['galpon_id'] as String?,
     )).toList();
   }
 }

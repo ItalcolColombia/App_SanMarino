@@ -90,7 +90,8 @@ public partial class CompanyService
             HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana,
             SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza,
             LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves,
-            SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa
+            SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa,
+            DescuentaInventarioDesdeMovil = dto.DescuentaInventarioDesdeMovil
         };
 
         _ctx.Companies.Add(c);
@@ -157,6 +158,7 @@ public partial class CompanyService
         c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
         c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
         c.SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa ?? c.SeparaLotesPosturaPorEtapa;
+        c.DescuentaInventarioDesdeMovil = dto.DescuentaInventarioDesdeMovil ?? c.DescuentaInventarioDesdeMovil;
 
         await _ctx.SaveChangesAsync();
 
