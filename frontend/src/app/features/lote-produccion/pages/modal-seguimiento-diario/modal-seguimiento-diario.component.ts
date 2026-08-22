@@ -283,6 +283,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     if (this.isOpen) {
       // Los silos son del LOTE: abrir el modal en otro lote cambia de qué silos se puede consumir.
       this.cargarSilosDelLote();
+      // F7.3 — los tipos de huevo también son del LOTE, por la misma razón. Va ACÁ y no solo en
+      // `loadCompanyFlags`: ese corre una vez en `ngOnInit`, cuando todavía no hay `loteId`, así que
+      // se iba por el early-return y las filas quedaban vacías para siempre. Detectado en el smoke
+      // por la UI (22-ago-2026): el bloque se pintaba con su encabezado y sin una sola fila.
+      this.cargarHuevoItemsDelLote();
       if (this.usaInventarioGestion && this.granjaId) {
         this.cargarCatalogEcuadorPanama();
       } else if (this.granjaId) {
