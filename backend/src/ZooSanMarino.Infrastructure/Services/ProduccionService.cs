@@ -388,7 +388,7 @@ public partial class ProduccionService : IProduccionService
         // que sí filtra `Activo`) jamás lo ofreciera. Los dos gates ahora coinciden.
         var delCatalogo = await _context.CatalogItems.AsNoTracking()
             .Where(ci => ci.CompanyId == companyId && ci.ItemType == "huevo" && ci.Activo && ids.Contains(ci.Id))
-            .Select(ci => new { ci.Id, ci.Nombre, ci.Metadata })
+            .Select(ci => new { ci.Id, ci.Codigo, ci.Nombre, ci.Metadata })
             .ToListAsync()
             .ConfigureAwait(false);
 
@@ -420,7 +420,47 @@ public partial class ProduccionService : IProduccionService
             empresa.HuevoPrimeraPosturaHastaSemana, fechaRegistro).ConfigureAwait(false);
         if (errorVigencia != null) throw new InvalidOperationException(errorVigencia);
 
+        // ENRIQUECIMIENTO desde el catálogo. El desglose se persiste como SNAPSHOT en
+        // `metadata.huevoItems`, y `fn_clasificacion_huevo_items_produccion` lee `codigo`, `nombre` y
+        // `tipoHuevo` DIRECTO de ahí, sin join al catálogo. Hasta acá el backend confiaba en que el
+        // cliente los mandara: el formulario los completa, pero cualquier otro llamador (la API
+        // directa, un script, un cliente nuevo) guardaba el desglose con esos campos en NULL y el
+        // reporte semanal salía con filas sin nombre. Detectado en el smoke del 22-ago-2026.
+        // Se completa solo lo que falta: si el cliente mandó una etiqueta, se respeta.
+        var catalogoPorId = delCatalogo.ToDictionary(ci => ci.Id);
+        for (var i = 0; i < huevoItems.Count; i++)
+        {
+            if (!catalogoPorId.TryGetValue(huevoItems[i].CatalogItemId, out var ci)) continue;
+
+            huevoItems[i] = huevoItems[i] with
+            {
+                Codigo = string.IsNullOrWhiteSpace(huevoItems[i].Codigo) ? ci.Codigo : huevoItems[i].Codigo,
+                Nombre = string.IsNullOrWhiteSpace(huevoItems[i].Nombre) ? ci.Nombre : huevoItems[i].Nombre,
+                TipoHuevo = string.IsNullOrWhiteSpace(huevoItems[i].TipoHuevo)
+                    ? LeerTextoDeMetadata(ci.Metadata, "tipoHuevo", "tipo_huevo")
+                    : huevoItems[i].TipoHuevo,
+                Um = string.IsNullOrWhiteSpace(huevoItems[i].Um)
+                    ? LeerTextoDeMetadata(ci.Metadata, "um", "UM", "unidadMedida")
+                    : huevoItems[i].Um
+            };
+        }
+
         return huevoItems;
+    }
+
+    /// <summary>Lee una clave de texto del metadata del catálogo, tolerando camelCase y snake_case.</summary>
+    private static string? LeerTextoDeMetadata(System.Text.Json.JsonDocument? metadata, params string[] claves)
+    {
+        if (metadata is null || metadata.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+            return null;
+
+        foreach (var clave in claves)
+        {
+            if (!metadata.RootElement.TryGetProperty(clave, out var v)) continue;
+            var texto = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
+            if (!string.IsNullOrWhiteSpace(texto)) return texto.Trim();
+        }
+        return null;
     }
 
     /// <summary>
