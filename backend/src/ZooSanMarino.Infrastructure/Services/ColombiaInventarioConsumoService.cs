@@ -136,14 +136,17 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
         var catalogIds = distintas.Where(k => !k.EsItemInventario).Select(k => k.Id).ToArray();
         var directIds = distintas.Where(k => k.EsItemInventario).Select(k => k.Id).ToArray();
 
-        // Camino 1: catalogItemId → codigo (modelo A, catálogo Colombia).
+        // Camino 1: catalogItemId → codigo (modelo A, catálogo Colombia). Un catalogItem SIN código
+        // (p. ej. un ítem de huevo sembrado sin código ERP todavía) no tiene con qué bridgear a
+        // item_inventario_ecuador — se filtra igual que ya se filtraba implícito cuando Codigo era
+        // NOT NULL, y `Codigo!` queda seguro porque el `Where` ya lo garantiza no-nulo.
         var codigosPorCatalogItem = catalogIds.Length == 0
             ? new List<(int Id, string Codigo)>()
             : (await _db.CatalogItems.AsNoTracking()
-                .Where(c => catalogIds.Contains(c.Id))
+                .Where(c => catalogIds.Contains(c.Id) && c.Codigo != null)
                 .Select(c => new { c.Id, c.Codigo })
                 .ToListAsync(ct))
-              .Select(c => (c.Id, c.Codigo)).ToList();
+              .Select(c => (c.Id, Codigo: c.Codigo!)).ToList();
 
         var codigos = codigosPorCatalogItem.Select(c => c.Codigo).Distinct().ToArray();
 

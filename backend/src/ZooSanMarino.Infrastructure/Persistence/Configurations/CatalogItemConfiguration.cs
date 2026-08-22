@@ -13,10 +13,11 @@ public class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
         e.HasKey(x => x.Id);
         e.Property(x => x.Id).HasColumnName("id");
 
+        // Opcional a propósito (ver el doc-comment de CatalogItem.Codigo): un ítem puede nacer sin
+        // código ERP y completarse después.
         e.Property(x => x.Codigo)
          .HasColumnName("codigo")
-         .HasMaxLength(50)
-         .IsRequired();
+         .HasMaxLength(50);
 
         e.Property(x => x.Nombre)
          .HasColumnName("nombre")

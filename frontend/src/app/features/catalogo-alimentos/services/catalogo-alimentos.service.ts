@@ -22,7 +22,8 @@ export type CatalogItemType =
 
 export interface CatalogItemDto {
   id?: number;
-  codigo: string;
+  /** Código ERP. `null`/`undefined` = todavía sin asignar (se completa después, ver `CatalogItemUpdateRequest.codigo`). */
+  codigo?: string | null;
   nombre: string;
   itemType?: string; // Tipo de item: alimento, vacuna, medicamento, etc.
   metadata?: any;   // Campos adicionales específicos del tipo
@@ -30,7 +31,8 @@ export interface CatalogItemDto {
 }
 
 export interface CatalogItemCreateRequest {
-  codigo: string;
+  /** Código ERP. Opcional: se puede crear el ítem sin código y completarlo después. */
+  codigo?: string | null;
   nombre: string;
   itemType?: string; // Tipo de item: alimento, vacuna, medicamento, etc.
   metadata?: any;
@@ -42,6 +44,11 @@ export interface CatalogItemUpdateRequest {
   itemType?: string; // Tipo de item (opcional al actualizar)
   metadata?: any;
   activo: boolean;
+  /**
+   * Código ERP a asignar SOLO si el ítem todavía no tiene uno. Una vez que el ítem tiene código es
+   * clave natural: el backend ignora cualquier valor que llegue acá si ya está seteado.
+   */
+  codigo?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

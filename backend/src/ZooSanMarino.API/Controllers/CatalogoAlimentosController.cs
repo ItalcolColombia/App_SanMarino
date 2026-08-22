@@ -86,9 +86,18 @@ public class CatalogoAlimentosController : ControllerBase
         [FromBody] CatalogItemUpdateRequest req,
         CancellationToken ct = default)
     {
-        var updated = await _service.UpdateAsync(id, req, ct);
-        if (updated is null) return NotFound();
-        return Ok(updated);
+        try
+        {
+            var updated = await _service.UpdateAsync(id, req, ct);
+            if (updated is null) return NotFound();
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Único caso hoy: completar el código de un ítem que nacía sin uno y el código pedido
+            // ya está en uso por otro ítem de la empresa (CatalogItemService.UpdateAsync).
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     /// <summary>Elimina un item. Por defecto borrado lógico (activo=false). Usa ?hard=true para borrado físico.</summary>
@@ -117,7 +126,7 @@ public class CatalogoAlimentosController : ControllerBase
             Campos = new[]
             {
                 new { Nombre = "Id", Tipo = "int", Requerido = true, Descripcion = "Identificador único" },
-                new { Nombre = "Codigo", Tipo = "string", Requerido = true, Descripcion = "Código único del alimento" },
+                new { Nombre = "Codigo", Tipo = "string", Requerido = false, Descripcion = "Código único del alimento (ERP). Opcional: se puede completar después de crear el ítem." },
                 new { Nombre = "Nombre", Tipo = "string", Requerido = true, Descripcion = "Nombre del alimento" },
                 new { Nombre = "Metadata", Tipo = "object", Requerido = false, Descripcion = "Datos adicionales en formato JSON" },
                 new { Nombre = "Activo", Tipo = "bool", Requerido = true, Descripcion = "Indica si el alimento está activo" }

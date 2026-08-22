@@ -102,7 +102,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
     });
 
     this.form = this.fb.group({
-      codigo: ['', [Validators.required, Validators.maxLength(10)]],
+      codigo: ['', [Validators.maxLength(10)]], // Opcional: se puede crear/dejar el ítem sin código y completarlo después.
       nombre: ['', [Validators.required, Validators.maxLength(150)]],
       activo: [true, Validators.required],
       // Tipo de ítem (columna separada)
@@ -331,8 +331,13 @@ export class CatalogoAlimentosListComponent implements OnInit {
       raza: 'Ross',
       genero: 'Mixto'
     });
-    // Código no editable al editar (clave natural)
-    this.form.get('codigo')?.disable();
+    // Código no editable UNA VEZ ASIGNADO (clave natural). Un ítem sin código todavía se deja
+    // editable para poder completarlo — mismo criterio que CatalogItemService.UpdateAsync.
+    if (item.codigo) {
+      this.form.get('codigo')?.disable();
+    } else {
+      this.form.get('codigo')?.enable();
+    }
     this.fillFormFromMetadata(item.metadata, item.itemType);
     this.modalOpen = true;
   }
@@ -371,7 +376,10 @@ export class CatalogoAlimentosListComponent implements OnInit {
           nombre: raw.nombre,
           itemType: raw.itemType,
           activo: raw.activo,
-          metadata
+          metadata,
+          // Solo tiene efecto si el ítem todavía no tenía código (el backend lo ignora si ya lo
+          // tenía). getRawValue() trae el valor aunque el control esté disabled.
+          codigo: raw.codigo || null
         };
         this.svc.update(this.editing.id!, dto)
           .pipe(finalize(() => this.loading = false))

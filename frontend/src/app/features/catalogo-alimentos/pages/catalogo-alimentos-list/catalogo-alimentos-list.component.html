@@ -123,7 +123,7 @@
             <tbody>
               @for (it of items; track trackById($index, it)) {
                 <tr>
-                  <td><code>{{ it.codigo }}</code></td>
+                  <td><code>{{ it.codigo || '—' }}</code></td>
                   <td>
                     <div class="cell-title">
                       <span class="title-text">{{ it.nombre }}</span>
@@ -204,14 +204,17 @@
             <h3 class="form-section__title">1. Información Básica</h3>
             <div class="grid grid-2">
               <div class="form-field">
-                <label for="f-cod">Código *</label>
-                <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing"
-                  placeholder="Ej: ALI001" maxlength="10" />
+                <label for="f-cod">Código</label>
+                <input id="f-cod" type="text" formControlName="codigo" [readonly]="!!(editing && editing.codigo)"
+                  placeholder="Ej: ALI001 (opcional)" maxlength="10" />
                   @if (!editing) {
-                    <small class="help">Código único del ítem (máx. 10 caracteres)</small>
+                    <small class="help">Código único del ítem (máx. 10 caracteres). Opcional: se puede dejar en blanco y completar después.</small>
                   }
-                  @if (editing) {
+                  @if (editing && editing.codigo) {
                     <small class="help">El código no se puede modificar</small>
+                  }
+                  @if (editing && !editing.codigo) {
+                    <small class="help">Este ítem todavía no tiene código. Una vez que lo guardes, ya no se podrá cambiar.</small>
                   }
                 </div>
                 <div class="form-field">
@@ -457,7 +460,7 @@
                                             <div class="detail-grid">
                                               <div class="detail-item">
                                                 <span class="detail-label">Código:</span>
-                                                <span class="detail-value"><code>{{ selectedItem.codigo }}</code></span>
+                                                <span class="detail-value"><code>{{ selectedItem.codigo || '—' }}</code></span>
                                               </div>
                                               <div class="detail-item">
                                                 <span class="detail-label">Nombre:</span>

@@ -26,7 +26,7 @@ public partial class MigracionService
     /// Ítems de HUEVO del catálogo de la empresa (activos), como lista para la hoja Referencias y
     /// para resolver la columna "Ítem" por nombre o código normalizados.
     /// </summary>
-    private async Task<List<(int Id, string Codigo, string Nombre, string? TipoHuevo)>> CargarItemsHuevoEmpresaAsync(
+    private async Task<List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>> CargarItemsHuevoEmpresaAsync(
         int companyId, CancellationToken ct)
     {
         var items = await _ctx.CatalogItems.AsNoTracking()
@@ -70,7 +70,7 @@ public partial class MigracionService
         }
 
         var catalogo = await CargarItemsHuevoEmpresaAsync(companyId, ct);
-        var porClave = new Dictionary<string, List<(int Id, string Codigo, string Nombre, string? TipoHuevo)>>();
+        var porClave = new Dictionary<string, List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>>();
         foreach (var i in catalogo)
         {
             Indexar(i.Nombre, i);
@@ -129,11 +129,11 @@ public partial class MigracionService
 
         return porFecha;
 
-        void Indexar(string? clave, (int Id, string Codigo, string Nombre, string? TipoHuevo) item)
+        void Indexar(string? clave, (int Id, string? Codigo, string Nombre, string? TipoHuevo) item)
         {
             var k = MigracionCalculos.NormalizarClave(clave);
             if (string.IsNullOrEmpty(k)) return;
-            if (!porClave.TryGetValue(k, out var lista)) porClave[k] = lista = new List<(int, string, string, string?)>();
+            if (!porClave.TryGetValue(k, out var lista)) porClave[k] = lista = new List<(int, string?, string, string?)>();
             if (!lista.Any(x => x.Id == item.Id)) lista.Add(item);
         }
     }
