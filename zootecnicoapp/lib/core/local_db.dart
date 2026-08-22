@@ -3,13 +3,25 @@
 library;
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'models.dart';
 
 class LocalDb {
-  LocalDb._();
+  LocalDb._([this._rutaOverride]);
   static final LocalDb instance = LocalDb._();
+
+  /// Instancia aislada para tests: recibe la ruta del archivo (o
+  /// `inMemoryDatabasePath`) en vez de usar la del dispositivo. Cada test abre la
+  /// suya, así no comparten estado ni pisan la base real.
+  ///
+  /// Existe porque la cola de sincronización es la pieza donde un bug cuesta el
+  /// trabajo de campo de alguien, y sin esto no había forma de probarla.
+  @visibleForTesting
+  factory LocalDb.paraPruebas(String ruta) => LocalDb._(ruta);
+
+  final String? _rutaOverride;
 
   /// v2 (21ago26): sesión persistida, registros ya conocidos por el servidor y
   /// las columnas que la cola necesita para saber a dónde postear cada fila.
@@ -20,10 +32,18 @@ class LocalDb {
 
   Future<Database> get db async => _db ??= await _open();
 
+  /// Cierra el handle. Sólo lo usan los tests, para no dejar bases abiertas entre
+  /// casos; la app mantiene la suya viva mientras corre.
+  @visibleForTesting
+  Future<void> cerrar() async {
+    await _db?.close();
+    _db = null;
+  }
+
   Future<Database> _open() async {
-    final dir = await getDatabasesPath();
+    final ruta = _rutaOverride ?? p.join(await getDatabasesPath(), 'sanmarino.db');
     return openDatabase(
-      p.join(dir, 'sanmarino.db'),
+      ruta,
       version: _version,
       onUpgrade: _migrar,
       onCreate: (d, v) async {
@@ -248,6 +268,25 @@ class LocalDb {
     });
   }
 
+  /// Quita la marca de un día. Se llama cuando la fila que la puso deja de tener
+  /// futuro (el servidor la rechazó y se agotaron los reintentos).
+  ///
+  /// **Por qué hace falta:** `encolar` marca el día apenas el usuario guarda —
+  /// sin red, esa marca es lo único que impide cargarlo dos veces. Pero si el
+  /// servidor termina rechazándolo, la marca quedaba igual: el operario veía el
+  /// día como cargado, el servidor no lo tenía, y nadie se enteraba. Sólo se
+  /// borran las de origen `local`; las que confirmó el servidor no se tocan.
+  Future<void> desmarcarRegistroLocal({
+    required String modulo,
+    required int loteId,
+    required DateTime fecha,
+  }) async {
+    final d = await db;
+    await d.delete('registros_conocidos',
+        where: 'modulo = ? AND lote_id = ? AND fecha = ? AND origen = ?',
+        whereArgs: [modulo, loteId, _soloFecha(fecha), 'local']);
+  }
+
   Future<bool> yaHayRegistro({
     required String modulo,
     required int loteId,
@@ -299,17 +338,51 @@ class LocalDb {
     return rows.map(_mapPendiente).toList();
   }
 
+  /// Cuántas veces se reintenta una fila que el servidor rechazó por su
+  /// contenido antes de dejar de insistir y pedirle al usuario que la mire.
+  ///
+  /// Sin techo, `estado='error'` volvía a la cola en cada pasada **para siempre**:
+  /// un registro que el backend nunca va a aceptar (el lote se cerró, el alimento
+  /// ya no existe) se reenviaba cada vez que había señal, gastando batería y
+  /// datos, y tapando en la pantalla de sincronización a los que sí van a entrar.
+  static const int maxIntentos = 5;
+
   /// Las que faltan enviar, **en orden cronológico**: el backend valida contra el
   /// saldo del lote, así que mandar el martes antes que el lunes puede dar un
   /// rechazo que en orden no ocurriría.
+  ///
+  /// Las agotadas (`intentos >= maxIntentos`) quedan fuera: siguen en la tabla y
+  /// visibles para el usuario, pero la cola deja de reintentarlas sola.
   Future<List<RegistroPendiente>> porEnviar() async {
     final d = await db;
     final rows = await d.query(
       'pending_sync',
-      where: "estado IN ('pending','syncing','error')",
+      where: "estado IN ('pending','syncing') "
+          "OR (estado = 'error' AND intentos < ?)",
+      whereArgs: [maxIntentos],
       orderBy: 'created_at ASC',
     );
     return rows.map(_mapPendiente).toList();
+  }
+
+  /// Las que la cola ya no reintenta sola y necesitan que alguien las mire.
+  Future<List<RegistroPendiente>> agotadas() async {
+    final d = await db;
+    final rows = await d.query(
+      'pending_sync',
+      where: "estado = 'error' AND intentos >= ?",
+      whereArgs: [maxIntentos],
+      orderBy: 'created_at ASC',
+    );
+    return rows.map(_mapPendiente).toList();
+  }
+
+  /// Devuelve una fila agotada a la cola. La llama el usuario desde la pantalla
+  /// de sincronización, después de corregir lo que estuviera mal.
+  Future<void> reintentar(String id) async {
+    final d = await db;
+    await d.update('pending_sync', {'estado': 'pending', 'intentos': 0},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> contarPendientes() async {

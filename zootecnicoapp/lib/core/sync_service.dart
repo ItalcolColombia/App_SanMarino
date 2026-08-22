@@ -52,6 +52,7 @@ class SyncService extends ChangeNotifier {
   int _enviados = 0;
   int _totalLote = 0;
   int _duplicados = 0;
+  int _rechazados = 0;
   bool _requiereRelogin = false;
   String? _avisoPlataforma;
 
@@ -67,6 +68,22 @@ class SyncService extends ChangeNotifier {
   /// Registros que el servidor ya tenía (mismo lote y día). No son un error del
   /// usuario: se le informa una vez y salen de la cola.
   int get duplicados => _duplicados;
+
+  /// Registros que el servidor rechazó por su contenido en la última pasada. El
+  /// día vuelve a quedar libre para cargarlo de nuevo.
+  int get rechazados => _rechazados;
+
+  /// Filas que la cola ya no reintenta sola: necesitan que alguien las mire.
+  Future<List<RegistroPendiente>> agotadas() => _db.agotadas();
+
+  /// Devuelve una fila agotada a la cola, después de que el usuario corrigió lo
+  /// que estuviera mal.
+  Future<void> reintentar(String id) async {
+    await _db.reintentar(id);
+    await _refrescarPendientes();
+    notifyListeners();
+    if (_autoSync && enLinea) sincronizar();
+  }
 
   /// El token venció mientras subía la cola. La cola NO se pierde: queda
   /// esperando a que el usuario vuelva a entrar.
@@ -138,6 +155,7 @@ class SyncService extends ChangeNotifier {
     _totalLote = cola.length;
     _enviados = 0;
     _duplicados = 0;
+    _rechazados = 0;
     notifyListeners();
 
     for (final r in cola) {
@@ -214,10 +232,15 @@ class SyncService extends ChangeNotifier {
         return true;
 
       case TipoFallo.datosInvalidos:
-        // El backend rechazó el contenido. Reintentar no lo va a arreglar: queda
-        // en error, con el mensaje del servidor a la vista del usuario.
+        // El backend rechazó el CONTENIDO: reintentar no lo va a arreglar solo.
+        // Queda en error con el mensaje del servidor a la vista, y se le suelta
+        // la marca del día para que el operario pueda volver a cargarlo — si no,
+        // vería un día "registrado" que el servidor nunca aceptó.
         await _db.marcarEstado(r.id, EstadoSync.error,
             error: e.mensaje, sumarIntento: true);
+        await _db.desmarcarRegistroLocal(
+            modulo: r.tipo, loteId: r.loteId, fecha: r.fecha);
+        _rechazados++;
         return false;
 
       case TipoFallo.servidor:
