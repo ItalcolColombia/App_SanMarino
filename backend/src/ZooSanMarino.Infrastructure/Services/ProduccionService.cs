@@ -89,30 +89,16 @@ public partial class ProduccionService : IProduccionService
     /// camino-2, si no catalogItemId) los kg de los ítems del request (ItemsHembras + ItemsMachos),
     /// usando la MISMA prioridad de id y conversión g→kg que ParseMetadataItemsToKgPorOrigen.
     /// TODOS los tipos (alimento + medicamento + insumo), sin re-parsear el JSON del metadata. Id &lt;= 0 se ignora.
+    /// <para>
+    /// F1: el cuerpo se movió tal cual a <see cref="ItemConsumoCalculos.AcumularPorOrigen"/> para que
+    /// lo cubran los tests de Application (el proyecto de tests no referencia Infrastructure, así que
+    /// mientras vivió acá no había forma de cubrirlo). Este método se conserva —misma firma y misma
+    /// visibilidad— porque lo llaman <c>ProduccionService.Seguimiento.cs</c> al crear y al editar.
+    /// </para>
     /// </summary>
     private static Dictionary<ItemConsumoKey, decimal> AcumularItemsRequestPorOrigen(
         List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
-    {
-        var byItem = new Dictionary<ItemConsumoKey, decimal>();
-        void Acumular(List<ItemSeguimientoDto>? items)
-        {
-            if (items == null) return;
-            foreach (var i in items)
-            {
-                var id = i.ItemInventarioEcuadorId.GetValueOrDefault();
-                var esItemInventario = id > 0;
-                if (id <= 0) id = i.CatalogItemId;
-                if (id <= 0) continue;
-                // El silo entra en la clave igual que en ParseMetadataItemsToKgPorOrigen: sin él, dos
-                // filas del mismo alimento en silos distintos se sumarían y descontarían del primero.
-                var key = new ItemConsumoKey(id, esItemInventario, i.SiloId is > 0 ? i.SiloId : null);
-                byItem[key] = byItem.GetValueOrDefault(key) + ToKg(i.Cantidad, i.Unidad);
-            }
-        }
-        Acumular(itemsHembras);
-        Acumular(itemsMachos);
-        return byItem;
-    }
+        => ItemConsumoCalculos.AcumularPorOrigen(itemsHembras, itemsMachos);
 
     /// <summary>
     /// Bloquea crear, editar y eliminar seguimiento diario cuando el lote de producción está
