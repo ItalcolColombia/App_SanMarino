@@ -1924,3 +1924,53 @@ de postura. Colombia no captura agua ni quintales, asi que ejercita el camino co
 - [i] La etapa por **raza** de Santa Reyes (`semanas_ciclo_postura_por_raza`) no esta: necesita la
       guia genetica, que el movil todavia no descarga. Para esa empresa el numero puede diferir del
       que calcularia el web — hasta entonces, ese modulo se registra desde la web
+
+---
+
+## X20 — Descuento de inventario desde el movil (22ago26)
+
+**Plan:** [`fase_de_desarrollo/descuento_inventario_movil_plan.md`](fase_de_desarrollo/descuento_inventario_movil_plan.md)
+(432 lineas; salio de 2 workflows con verificacion adversarial — 9 bloqueantes encontrados y resueltos
+o declarados fuera de alcance).
+
+Decision del usuario: alcance **maximo** (los 4 modulos + los 2 huecos del backend) y, ante stock
+insuficiente al sincronizar, **aceptar el dia y marcar para cuadre** en vez de rechazarlo.
+
+### 🔴 El hallazgo que reordena el plan
+- [i] **El backend NO es el cuello de botella: es la app.** `grep itemsHembras|itemInventarioEcuadorId`
+      sobre `zootecnicoapp/lib/` da **0 resultados** — y es deliberado, lo dejamos asi en X18/X19
+      (`seguimientos_api.dart:126-127` lo dice por escrito). El gate de 4 condiciones falla en la
+      TERCERA para todo el trafico movil. **Se pueden implementar los 4 cambios de backend completos
+      y la app seguiria sin descontar un kilo.** El interruptor es F5, no F1-F4
+
+### Fase 0 hecha (esta sesion, commit `5ce6fe6`)
+- [x] Los 2 defectos de la cola que convertian cualquier rechazo en corrupcion silenciosa:
+      reintento infinito (`porEnviar` incluia `'error'` sin techo) y la marca del dia que sobrevivia
+      al rechazo del servidor
+- [x] `local_db.dart` tenia 400 lineas sin un solo test → **22 sobre SQLite real** (sqflite_ffi en
+      memoria). Uno fallo y tenia razon: la marca del dia vive en `SyncService`, no en `LocalDb`
+
+### Correcciones MEDIDAS a los diseños (no opinadas)
+- [i] `RegistrarConsumoNivelGranjaAsync` **SI** fecha el movimiento (`InventarioGestionService.cs:1697`).
+      El que NO fecha es el **INGRESO** (`:1757` hardcodea `DateTimeOffset.UtcNow`)
+- [i] Panama (5) tiene doble validacion ⇒ `separa = true` ⇒ **el camino directo que tocan estos
+      cambios NO corre en Panama**. Un smoke "de Panama" sobre la rama directa prueba otra cosa
+- [i] `SyncController.cs` tiene **52 lineas**, no 200: varias citas del diseño de `requiere_cuadre`
+      apuntan a lineas inexistentes. Reanclar por simbolo antes de implementar
+- [i] Linea base limpia: **0 negativos sobre 583 filas** de `inventario_gestion_stock`
+
+### Bloqueado: F0 necesita datos y decisiones que no puedo tomar yo
+- [~] **Mediciones contra PROD** (la BD local no sirve): lotes de produccion EC/PA sin nucleo/galpon
+      (cada uno pasaria de "guarda sin descontar" a **400 al guardar**), granjas con override de
+      `maneja_alimento_por_galpon`, lotes reproductora en empresa Colombia (en local: **cero**), y
+      `lotes.pais_id` NULL (en local 3 de 5 filas de produccion lo tienen ⇒ el camino que corre es el
+      fallback granja→departamento→pais, que ningun diseño prueba)
+- [!] **4 decisiones de negocio** (una ya respondida: preservar el dia). Ver el bloque de abajo
+
+### Lo que si se puede arrancar sin esperar
+- [ ] **F1 — calculo puro a `Application/Calculos/`**: `ItemConsumoCalculos`, `ConsumoDiffCalculos`,
+      `MetadataItemSeguimientoCalculos`, `FechaMovimientoSeguimientoCalculos`. Refactor puro, cero
+      cambio de comportamiento, solo agrega archivos. Hoy ese bucle esta inline TRES veces y ninguna
+      es testeable
+- [ ] **F5.2 — la UI del selector de items en Flutter**: repos distintos, cero archivos compartidos
+      con el backend. Es el trabajo de mayor plazo: conviene arrancarlo temprano y shippearlo tarde
