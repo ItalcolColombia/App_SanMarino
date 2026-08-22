@@ -273,7 +273,12 @@ tablas de seguimiento.
 
 ---
 
-## 7. Hallazgos en el backend (NO corregidos — fuera del alcance de esta fase)
+## 7. Hallazgos en el backend (✅ CORREGIDOS el 21-ago-2026)
+
+> Los dos se cerraron en su propio plan:
+> [`alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md`](alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md).
+> `dotnet build` 0/0 y `dotnet test` 3.049/3.049. El texto de abajo se conserva como el
+> diagnóstico original.
 
 Los dos salieron del smoke, con el flag `requiere_validacion_seguimiento_diario`
 encendido (hoy **sólo `ItalcolPanama`**, id 5).
@@ -306,8 +311,17 @@ apagado en local, el mismo request se creó bien (id 791) — o sea que el bloqu
 es esa rama, no el payload. Afecta a la app móvil, a la carga masiva por Excel y
 a cualquier integración que no pase por el formulario web.
 
-**Arreglo:** dos líneas, copiando lo que ya hacen los otros tres services.
-Requiere sus tests xUnit antes de mergear (gate del repo).
+**Arreglo (hecho):** las cuatro llamadas pasan los directos. En Producción se pasan las
+variables ya normalizadas a kg (`consumoKgH`/`consumoKgM`) y no `request.ConsumoH`,
+que viene **con unidad** y puede estar en gramos. La combinación MAX metadata-vs-escalar
+bajó a `AlimentoObligatorioCalculos.Capturado(...)` para poder cubrirla con tests
+(`Application.Tests` no referencia Infrastructure). 17 tests xUnit nuevos.
+
+**De paso:** el patrón que se copiaba tenía su propio bug. `(decimal)dto.ConsumoKgMachos!`
+sobre un `double?` **desenvuelve y lanza** `InvalidOperationException("Nullable object must
+have a value.")`, que el controller traduce a un 400 ilegible — y ese campo llega `null`
+siempre que el registro no tiene alimento de machos. Las seis llamadas (las cuatro nuevas
+más las tres viejas, alta y edición) usan ahora `(decimal)(x ?? 0)`.
 
 ### 7.2 El duplicado de reproductora sale como 500, no como 400
 
@@ -316,7 +330,10 @@ Requiere sus tests xUnit antes de mergear (gate del repo).
 índice único cae en el `catch (Exception)` genérico y vuelve como **500** con el
 mensaje crudo de Postgres.
 
-**Mitigado en la app, no en el backend:** `ApiClient` detecta el duplicado por
-**contenido** (`23505` / `duplicate key value` / el texto redactado), no por el
-status. Sin eso, la cola reintentaría para siempre un día que ya está guardado.
-El backend igual debería traducirlo: cualquier otro cliente ve el error crudo.
+**Estaba mitigado en la app:** `ApiClient` detecta el duplicado por **contenido**
+(`23505` / `duplicate key value` / el texto redactado), no por el status. Sin eso, la cola
+reintentaría para siempre un día que ya está guardado.
+
+**Arreglo (hecho):** el `catch` está copiado en `Create`, con el mismo texto que el de
+Ecuador y **antes** del `catch (Exception)` genérico — C# evalúa en orden y el genérico se
+lo comía. La detección por contenido de la app sigue siendo válida y no se tocó.

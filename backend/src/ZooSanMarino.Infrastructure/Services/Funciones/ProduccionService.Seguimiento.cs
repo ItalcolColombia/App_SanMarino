@@ -235,8 +235,12 @@ public partial class ProduccionService
         {
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(
                 ModuloSeguimiento.Produccion, lotePosturaProduccionId ?? loteId);
+            // Los kilos ya normalizados, no `request.ConsumoH`: el request trae la cantidad CON unidad
+            // y puede venir en gramos. Sin ellos, el cliente que manda el consumo como campo suelto
+            // (móvil, carga masiva, PWA) contaba cero y se comía un 400 «no tiene alimento».
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
+                consumoKgH, consumoKgM);
         }
 
         if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
@@ -626,7 +630,8 @@ public partial class ProduccionService
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
+                consumoKgH, consumoKgM);
         }
 
         if (!separaEd && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)

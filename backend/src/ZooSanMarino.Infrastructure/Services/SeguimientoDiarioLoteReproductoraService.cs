@@ -264,8 +264,12 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             // aunque el flag lo promete por escrito. Sin esto, un lote acumula días sin confirmar y el
             // alimento queda separado sin techo.
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Reproductora, dto.LoteId);
+            // Los kilos sueltos van SIEMPRE: la app móvil, la carga masiva por Excel y la PWA mandan
+            // el consumo como campo, no como ítems de inventario, y mirando sólo el metadata el guard
+            // rechazaba con «no tiene alimento» un registro que sí lo traía.
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
         }
 
         // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el consumo
@@ -382,7 +386,8 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                      && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
         if (separaUpd)
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
 
         // Capturar ítems anteriores antes de actualizar
         var oldByItemId = ent.Metadata != null

@@ -1748,3 +1748,51 @@ smoke: `admin.ecuador@italcol.com` (company 3, pais 2).
       con existencias por galpon
 - [i] Windows pide **Developer Mode** para compilar con plugins (`flutter pub get` lo advierte).
       No bloquea `analyze` ni `test`, si el build de la APK
+
+---
+
+## Alimento obligatorio: Reproductora y Producción ignoraban el consumo escalar
+
+Plan: [`fase_de_desarrollo/alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md`](fase_de_desarrollo/alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md)
+Origen: [`app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md) §7 — los dos hallazgos del smoke de la app móvil.
+
+Con `requiere_validacion_seguimiento_diario` ON (hoy sólo **ItalcolPanama**, id 5), Reproductora y
+Producción rechazaban con 400 «no tiene alimento» un registro que **sí** traía alimento, porque no
+le pasaban al guard el consumo escalar. Afectaba a la app móvil, a la carga masiva por Excel y a la PWA.
+
+### Fix
+- [x] `AlimentoObligatorioCalculos.Capturado(metadata, kgHDirecto, kgMDirecto)` — la combinación
+      MAX metadata-vs-escalar baja a `Application/Calculos/` (Infrastructure no es testeable: el
+      proyecto de tests sólo referencia Application)
+- [x] `SeparacionSeguimientoHelper.ValidarAlimentoObligatorio` delega en el cálculo puro
+- [x] `SeguimientoDiarioLoteReproductoraService.cs` — pasar los directos en alta (`:267`) y edición (`:384`)
+- [x] `ProduccionService.Seguimiento.cs` — ídem en alta (`:238`) y edición (`:628`), con las
+      variables ya normalizadas a kg (`consumoKgH`/`consumoKgM`): el request trae `ConsumoH` **con
+      unidad** y puede venir en gramos
+- [x] Las 6 llamadas usan `(decimal)(x ?? 0)` en vez de `(decimal)x!`
+
+### Bug del patrón que se copiaba (encontrado al hacerlo)
+- [i] `(decimal)dto.ConsumoKgMachos!` sobre un `double?` **desenvuelve y lanza**
+      `InvalidOperationException("Nullable object must have a value.")` — verificado ejecutando la
+      expresión con el SDK 10.0.301. El `!` sólo calla al compilador. Como los controllers traducen
+      esa excepción a 400, el usuario veía una «validación» que decía *Nullable object must have a
+      value*. `consumoKgMachos` llega `null` de verdad (`ToDto` lo inicializa
+      `alimentosMachos.Count > 0 ? … : null` ⇒ todo Panamá mixto)
+- [x] Corregido también en los 3 services que ya pasaban los directos (Levante, Engorde,
+      Engorde Ecuador): es la misma línea y mordía justo al cliente de este trabajo
+
+### Duplicado de reproductora: 500 → 400
+- [x] `SeguimientoDiarioLoteReproductoraController.Create` — copiar el
+      `catch (DbUpdateException … 23505)` de `SeguimientoAvesEngordeEcuadorController`, **antes**
+      del `catch (Exception)` genérico
+
+### Tests y verificación
+- [x] `tests/ZooSanMarino.Application.Tests/AlimentoObligatorioConsumoEscalarTests.cs` — escalar sin
+      ítems cumple · sin nada rechaza con el **texto literal de hoy** · MAX no suma · flag OFF no
+      evalúa nada · machos `null` no lanza
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **3.049/3.049 verde**, 17 de ellos nuevos. No se mató el backend que otra
+      sesión tenía vivo en `:5002`: se compiló con `--artifacts-path` a un directorio aparte
+- [i] **Los tests cubren el cálculo, no el call site.** `Application.Tests` no referencia
+      Infrastructure, así que ningún test detecta que mañana alguien vuelva a llamar al guard sin
+      los directos. Para eso haría falta un test de integración del service, que hoy no existe

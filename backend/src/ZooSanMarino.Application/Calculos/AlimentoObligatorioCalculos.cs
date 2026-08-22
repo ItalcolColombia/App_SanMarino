@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace ZooSanMarino.Application.Calculos;
 
@@ -51,6 +52,44 @@ public readonly record struct AlimentoCapturado(decimal KgHembras, decimal KgMac
 /// </summary>
 public static class AlimentoObligatorioCalculos
 {
+    /// <summary>
+    /// Kilos que valen para la regla, mirando las <b>dos</b> formas en que un cliente puede mandar el
+    /// alimento: los ítems del metadata y el campo suelto de consumo (<c>ConsumoKgHembras</c> /
+    /// <c>ConsumoKgMachos</c>, o su equivalente ya convertido a kg).
+    ///
+    /// <para>
+    /// Existe porque <see cref="MetadataEngordeCalculos.ParseKgPorBloque"/> sólo suma ítems con
+    /// <c>catalogItemId</c> / <c>itemInventarioEcuadorId</c> &gt; 0: un registro con
+    /// <c>consumoHembras: 120</c> y sin ítems de inventario da cero por ahí. Así cargan la app móvil,
+    /// la carga masiva por Excel y la PWA — todo lo que no pasa por el formulario web—, y sin mirar el
+    /// campo suelto el guard rechazaba un registro que SÍ traía alimento.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>MÁXIMO, no suma:</b> cuando el registro trae las dos cosas son el MISMO alimento expresado
+    /// dos veces (el formulario llena el campo suelto además de los ítems). Sumarlos duplicaría los
+    /// kg. Para lo único que se usan acá es para decidir si hay alimento o no, así que el máximo basta
+    /// y no inventa cantidades.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>KgGenerales</c> sale sólo del metadata: no hay campo suelto de «otros ítems», y de todos
+    /// modos nunca satisface la regla por sí solo.
+    /// </para>
+    /// </summary>
+    public static AlimentoCapturado Capturado(
+        JsonElement? metadata, decimal kgHembrasDirecto, decimal kgMachosDirecto)
+    {
+        var (h, m, g) = metadata is null
+            ? (0m, 0m, 0m)
+            : MetadataEngordeCalculos.ParseKgPorBloque(metadata.Value);
+
+        return new AlimentoCapturado(
+            Math.Max(h, kgHembrasDirecto),
+            Math.Max(m, kgMachosDirecto),
+            g);
+    }
+
     /// <summary>True si el registro cumple la regla de alimento obligatorio.</summary>
     public static bool Cumple(string modulo, bool loteEsMixto, AlimentoCapturado alimento) =>
         Motivo(modulo, loteEsMixto, alimento, fecha: null) is null;

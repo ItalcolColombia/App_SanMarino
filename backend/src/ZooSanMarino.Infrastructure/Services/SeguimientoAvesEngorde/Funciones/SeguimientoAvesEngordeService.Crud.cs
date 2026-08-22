@@ -96,7 +96,7 @@ public partial class SeguimientoAvesEngordeService
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Engorde, dto.LoteId);
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos!);
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
         }
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
@@ -335,7 +335,7 @@ public partial class SeguimientoAvesEngordeService
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos!);
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
         }
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
