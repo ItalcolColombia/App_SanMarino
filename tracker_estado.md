@@ -1669,3 +1669,82 @@ Auditoría previa: 6 cortes en paralelo del flujo de Santa Reyes.
       qué abrir el modal con datos reales. La verificación fue de código + invariantes en BD.
 
 - [x] **X17 cerrado.** Entorno: sin backend propio (`--artifacts-path`), sin procesos nuevos.
+
+---
+
+## X18 — App movil ItalGranja (Flutter): login + SQLite + engorde/reproductora
+
+**Plan:** [`fase_de_desarrollo/app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md)
+
+Punto de partida: `zootecnicoapp/` ya tiene el design system traducido a Flutter (4.125 lineas,
+tema + widgets + 4 pantallas), pero corre con `_lotesDemo` hardcodeado y un `SyncService` que
+simula el envio con `Future.delayed`. Esta fase reemplaza la simulacion por el backend real.
+
+Perfil: **Ecuador y Panama resueltos por pais** (decision del usuario, 21ago26). Credenciales de
+smoke: `admin.ecuador@italcol.com` (company 3, pais 2).
+
+### Contrato del backend — medido, no supuesto
+- [x] Login cifrado ida y vuelta: AES-256-CBC + PBKDF2-SHA256/10000/`sanmarino-salt`, IV prepend,
+      base64. Verificado 200 contra `:5002` con el usuario real
+- [x] `X-Secret-Up` obligatorio fuera de `/auth/login`; su 401 se tipifica con
+      `X-Auth-Failure: platform-secret` y **no** debe cerrar la sesion ni vaciar la cola
+- [x] `GET /api/LoteAveEngorde` con los 4 headers → 200, 124 lotes (Ecuador)
+- [x] `GET /api/Auth/menu` → descifrado OK; `admin.ecuador` ve *Pollo Engorde* y **no**
+      *Reproductora Pollo Engorde* → confirma que los modulos se gatean por menu
+- [i] El controller `SeguimientoAvesEngordeEcuador` atiende a los 3 paises: la app postea ahi,
+      igual que el front web. La tabla `_ecuador` no existe
+
+### Implementacion
+- [x] `pubspec.yaml`: + `pointycastle`; fuentes Plus Jakarta Sans + Inter descargadas a `assets/fonts/`
+      (el pubspec las declaraba y no existian: `flutter test` no arrancaba)
+- [x] `core/crypto/crypto_service.dart` — espejo de `EncryptionService.cs`
+- [x] `core/config/api_config.dart` — baseUrl y llaves por `--dart-define`, defaults = back local
+- [x] `core/api/api_client.dart` — Dio + headers + los 6 tipos de fallo (`TipoFallo`)
+- [x] `core/api/auth_api.dart` · `lotes_api.dart` · `seguimientos_api.dart`
+- [x] `core/session/session_store.dart` + `sesion_actual.dart` (interfaz: el cliente HTTP no
+      depende de sqflite, por eso el smoke corre con `dart run`)
+- [x] `core/perfil_pais.dart` — agua (EC+PA) y quintales (solo PA), logica pura
+- [x] `core/modulos_del_menu.dart` — menu → modulos por `route`; match EXACTO (la ruta de
+      postura es prefijo literal de la de pollo engorde)
+- [x] `core/alimento_obligatorio.dart` — espejo de `AlimentoObligatorioCalculos.cs`: se valida
+      ANTES de encolar, si no el rechazo llega horas despues y el usuario ya no esta en el galpon
+- [x] `local_db.dart` v1→v2 con `onUpgrade`: `pending_sync` se ALTERA (tiene trabajo del usuario),
+      `lotes_cache` se recrea (es cache y cambia la PK a `(modulo, id)` — engorde y reproductora
+      numeran aparte y el id 12 existe en los dos)
+- [x] `sync_service.dart` — cola real: 201 ok · duplicado = resuelto · 401 segun cabecera ·
+      la cola NUNCA se borra al cerrar sesion
+- [x] `main.dart` — fuera `_lotesDemo`; arranque online/offline con sesion persistida
+- [x] `login_screen.dart` y `seguimiento_screen.dart` contra la API
+- [x] El date picker no ofrece fechas anteriores al encasetamiento (el backend las rechaza)
+
+### Validacion
+- [x] `flutter analyze` — **0 errores, 0 warnings** (5 `info` cosmeticos preexistentes del
+      design system). De paso: `app_theme.dart` no compilaba (faltaba el import de
+      `CupertinoPageTransitionsBuilder`) y la copia del design system se excluyo del analisis
+- [x] `flutter test` — **66/66**: crypto (vectores + robustez), perfil_pais, modulos_del_menu,
+      payload_seguimiento, alimento_obligatorio, widget del login
+- [x] Smoke `tool/smoke_backend.dart` — **8/8 en Ecuador y 8/8 en Panama**. Verificado en BD:
+      0 filas `SMOKE%` en las dos tablas; flag de Panama restaurado a `true`
+
+### Hallazgos del backend (NO corregidos — fuera del alcance, requieren OK + tests xUnit)
+- [!] **Reproductora y Produccion ignoran el consumo escalar al exigir alimento.**
+      `ValidarAlimentoObligatorio` recibe `kgHembrasDirecto`/`kgMachosDirecto` justo para el
+      cliente que no manda items de inventario (lo dice su propio doc-comment). Levante y los dos
+      engordes se los pasan; `SeguimientoDiarioLoteReproductoraService.cs:267,384` y
+      `ProduccionService.Seguimiento.cs:238,628` **no**. Con
+      `requiere_validacion_seguimiento_diario` ON (hoy solo ItalcolPanama) rechazan con 400 «no
+      tiene alimento» un registro que SI trae alimento. Medido: con el flag apagado en local el
+      mismo POST creo el id 791. Afecta al movil, a la carga masiva por Excel y a la PWA
+- [!] **El duplicado de reproductora vuelve como 500, no 400.**
+      `SeguimientoDiarioLoteReproductoraController.Create` no tiene el
+      `catch (DbUpdateException … 23505)` que si tiene el de engorde: sale el error crudo de
+      Postgres. Mitigado EN LA APP (detecta el duplicado por contenido, no por status), pero
+      cualquier otro cliente ve el 500
+
+### Pendiente de la proxima fase
+- [i] Levante y Produccion: la UI existe, falta el mapeo del payload (`endpointDeModulo` los
+      deja en null a proposito y la pantalla lo dice)
+- [i] Items de inventario con descuento de stock: exige el catalogo `item_inventario_ecuador`
+      con existencias por galpon
+- [i] Windows pide **Developer Mode** para compilar con plugins (`flutter pub get` lo advierte).
+      No bloquea `analyze` ni `test`, si el build de la APK
