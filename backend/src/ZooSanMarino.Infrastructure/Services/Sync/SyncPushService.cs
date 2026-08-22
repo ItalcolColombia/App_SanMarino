@@ -2,12 +2,27 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Sync;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
+
+/// <summary>
+/// Lo que devuelve <c>DespacharAsync</c> (y cada <c>Crear*Async</c> por módulo): el efecto YA
+/// ocurrió (la entidad está creada); esto sólo le dice a <see cref="SyncPushService.AplicarUnaAsync"/>
+/// si hay que registrar el estado como <c>aplicada</c> o <c>requiere_cuadre</c> (F7).
+/// </summary>
+internal readonly record struct DespachoResultado(int? EntidadId, string? RespuestaJson, bool EsCuadre, string? DetalleCuadre)
+{
+    public static DespachoResultado Aplicado(int? entidadId, string? respuestaJson) =>
+        new(entidadId, respuestaJson, false, null);
+
+    public static DespachoResultado RequiereCuadre(int? entidadId, string? respuestaJson, string detalle) =>
+        new(entidadId, respuestaJson, true, detalle);
+}
 
 /// <summary>
 /// Aplica lotes de operaciones capturadas sin red (PWA F3).
@@ -131,7 +146,11 @@ public partial class SyncPushService : ISyncPushService
         await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
         try
         {
-            var (entidadId, respuestaJson) = await DespacharAsync(op, ct);
+            var despacho = await DespacharAsync(op, ct);
+
+            // F7: si el módulo tuvo que reintentar sin ítems por falta de stock, esto NO es una
+            // aplicación limpia — va a la bandeja de cuadre, con el detalle de qué faltó.
+            var estado = despacho.EsCuadre ? SyncPushCalculos.Estados.RequiereCuadre : SyncPushCalculos.Estados.Aplicada;
 
             _ctx.SyncOperaciones.Add(new SyncOperacion
             {
@@ -142,9 +161,11 @@ public partial class SyncPushService : ISyncPushService
                 CompanyId = op.CompanyId,
                 DeviceId = Recortar(op.DeviceId, 80),
                 CapturadoAtDispositivo = op.CapturadoAtDispositivo?.ToUniversalTime(),
-                Estado = SyncPushCalculos.Estados.Aplicada,
-                RespuestaJson = respuestaJson,
-                EntidadId = entidadId,
+                Estado = estado,
+                ErrorCodigo = despacho.EsCuadre ? SyncPushCalculos.Errores.DivergenciaStock : null,
+                Detalle = despacho.EsCuadre ? despacho.DetalleCuadre : null,
+                RespuestaJson = despacho.RespuestaJson,
+                EntidadId = despacho.EntidadId,
                 RecibidoAt = DateTime.UtcNow
             });
 
@@ -154,8 +175,10 @@ public partial class SyncPushService : ISyncPushService
             return new SyncOperacionResultado
             {
                 ClientOpId = clientOpId.ToString(),
-                Estado = SyncPushCalculos.Estados.Aplicada,
-                EntidadId = entidadId,
+                Estado = estado,
+                ErrorCodigo = despacho.EsCuadre ? SyncPushCalculos.Errores.DivergenciaStock : null,
+                Detalle = despacho.EsCuadre ? despacho.DetalleCuadre : null,
+                EntidadId = despacho.EntidadId,
                 Replay = false
             };
         }
@@ -199,6 +222,10 @@ public partial class SyncPushService : ISyncPushService
         ClientOpId = registro.ClientOpId.ToString(),
         Estado = registro.Estado,
         ErrorCodigo = registro.ErrorCodigo,
+        // F7: en un replay de requiere_cuadre el detalle es lo único que le dice al humano QUÉ
+        // faltó — sin esto, reenviar dos veces el mismo push (el caso normal de una tablet que
+        // reintenta hasta confirmar) le mostraría el motivo la primera vez y nada la segunda.
+        Detalle = registro.Detalle,
         EntidadId = registro.EntidadId,
         Replay = true
     };
@@ -218,6 +245,15 @@ public partial class SyncPushService : ISyncPushService
 
     private static string? Recortar(string? valor, int max) =>
         string.IsNullOrWhiteSpace(valor) ? null : valor.Trim()[..Math.Min(valor.Trim().Length, max)];
+
+    /// <summary>
+    /// F7 — ¿el request trae algún ítem de inventario? Si NO trae ninguno, una
+    /// <c>StockInsuficienteException</c> no puede venir de un array de ítems (no hay descuento que
+    /// reintentar sin ellos) — el <c>when</c> del catch en cada <c>Crear*Async</c> se apoya en esto
+    /// para no capturar algo que en realidad no tiene reintento posible.
+    /// </summary>
+    private static bool TraeItems(params IReadOnlyCollection<ItemSeguimientoDto>?[] bloques) =>
+        bloques.Any(b => b is { Count: > 0 });
 
     private static readonly JsonSerializerOptions OpcionesJson = new(JsonSerializerDefaults.Web);
 }

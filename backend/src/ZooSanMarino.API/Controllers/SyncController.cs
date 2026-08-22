@@ -49,4 +49,25 @@ public class SyncController : ControllerBase
 
         return Ok(await _svc.PushAsync(request!, ct));
     }
+
+    /// <summary>
+    /// F7 — la bandeja de cuadre: pushes que se aplicaron SIN descontar inventario porque no había
+    /// stock. El día de campo YA está guardado; esto es lo que queda pendiente de revisar.
+    /// Alcance: la empresa activa de la sesión, nunca otra.
+    /// </summary>
+    [HttpGet("cuadres")]
+    [ProducesResponseType(typeof(List<CuadrePendienteDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<CuadrePendienteDto>>> Cuadres(CancellationToken ct) =>
+        Ok(await _svc.ListarCuadresPendientesAsync(ct));
+
+    /// <summary>
+    /// F7 — marca vista una fila de la bandeja. SOLO marca visto: no repone kilos ni toca stock
+    /// (decisión de negocio explícita — reponer acá sería una segunda fórmula para el mismo número
+    /// que el ingreso normal de inventario).
+    /// </summary>
+    [HttpPost("cuadres/{id:long}/resolver")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResolverCuadre(long id, CancellationToken ct) =>
+        await _svc.ResolverCuadreAsync(id, ct) ? NoContent() : NotFound();
 }

@@ -124,4 +124,40 @@ public static class ItemConsumoCalculos
         }
         return normalizado;
     }
+
+    /// <summary>
+    /// F7 — kg de ALIMENTO de un bloque de ítems (mismo filtro y misma conversión de unidad que
+    /// <see cref="AcumularPorOrigen"/>, sin la clave tipada). La usa <c>SyncPushService</c> para
+    /// recomponer el consumo escalar cuando reintenta un push sin ítems: si sólo se borra el array,
+    /// el registro pierde el alimento entero y la validación de "alimento obligatorio" lo rechaza en
+    /// vez de guardarlo para cuadre.
+    /// </summary>
+    public static double KgDeAlimento(IEnumerable<ItemSeguimientoDto>? items)
+    {
+        if (items is null) return 0;
+        double total = 0;
+        foreach (var i in items)
+        {
+            if ((i.TipoItem ?? string.Empty).Trim().ToLowerInvariant() != "alimento") continue;
+            total += (double)MetadataEngordeCalculos.ToKg(i.Cantidad, i.Unidad);
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// F7 — nombres (sin repetir, en el orden en que aparecen) de los ítems de ALIMENTO de un bloque,
+    /// para reconstruir <c>tipoAlimento</c> cuando el reintento sin ítems lo deja vacío.
+    /// </summary>
+    public static IReadOnlyList<string> NombresDeAlimento(IEnumerable<ItemSeguimientoDto>? items)
+    {
+        if (items is null) return Array.Empty<string>();
+        var nombres = new List<string>();
+        foreach (var i in items)
+        {
+            if ((i.TipoItem ?? string.Empty).Trim().ToLowerInvariant() != "alimento") continue;
+            var nombre = i.Nombre?.Trim();
+            if (!string.IsNullOrEmpty(nombre) && !nombres.Contains(nombre)) nombres.Add(nombre);
+        }
+        return nombres;
+    }
 }

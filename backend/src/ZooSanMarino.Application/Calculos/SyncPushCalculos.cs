@@ -31,6 +31,12 @@ public static class SyncPushCalculos
         public const string LoteExcedido = "lote_excedido";
         public const string ReglaDeNegocio = "regla_de_negocio";
         public const string ErrorInterno = "error_interno";
+
+        /// <summary>
+        /// F7: el push se aplicó SIN los ítems de inventario porque no había stock — el día quedó
+        /// guardado y la fila fue a la bandeja de <see cref="Estados.RequiereCuadre"/>, no acá.
+        /// </summary>
+        public const string DivergenciaStock = "divergencia_stock";
     }
 
     public static class Estados
@@ -39,10 +45,10 @@ public static class SyncPushCalculos
         public const string Rechazada = "rechazada";
 
         /// <summary>
-        /// Clase (b) del plan: divergencia con el mundo (stock/aves insuficientes). Se aplica igual y
-        /// se marca para cuadre, porque perder el dato de campo es peor que un saldo negativo
-        /// temporal. **Todavía sin emisor**: el alta de levante no valida saldos. Modelado acá para
-        /// que F3.2 no tenga que migrar la tabla.
+        /// Clase (b) del plan: divergencia con el mundo (stock insuficiente). Se aplica igual —sin
+        /// los ítems de inventario— y se marca para cuadre, porque perder el dato de campo es peor
+        /// que un saldo pendiente de revisar. Emisor: <c>SyncPushService</c> (F7), único lugar
+        /// autorizado a asignar este estado — ver el gate de <c>verificar-cuadre-solo-en-sync.js</c>.
         /// </summary>
         public const string RequiereCuadre = "requiere_cuadre";
     }

@@ -5,6 +5,7 @@ using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Shared;
 using ZooSanMarino.Application.DTOs.Galpones;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -1581,7 +1582,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         // haría que el SaveChanges de abajo pisara el descuento.
         var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, siloId, ct);
         if (stock == null)
-            throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
+            throw new StockInsuficienteException(StockAtomicoCalculos.MensajeStockInsuficiente);
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
         if (_current?.CompanyId > 0 && _current.CompanyId != companyId)
@@ -1592,7 +1593,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         await EnTransaccionAsync(async () =>
         {
             if (!await DescontarStockAtomicoAsync(stock.Id, req.Quantity, ct))
-                throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
+                throw new StockInsuficienteException(StockAtomicoCalculos.MensajeStockInsuficiente);
 
             _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
             {
@@ -1697,7 +1698,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         // rastreada con la cantidad vieja haría que un SaveChanges posterior pisara el descuento.
         var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, null, null, req.SiloId, ct);
         if (stock == null || stock.Quantity < req.Quantity)
-            throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
+            throw new StockInsuficienteException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
                 item.Codigo, item.Nombre, req.FarmId, stock?.Quantity ?? 0m, req.Quantity));
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
@@ -1710,7 +1711,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 // Rama de la carrera: la pre-lectura alcanzaba, pero otra transacción se llevó el
                 // saldo antes que ésta. Mismo mensaje con nombre e ítem, no el genérico de EC/PA —
                 // así el reporte de la carga masiva sigue diciendo qué faltó y dónde.
-                throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
+                throw new StockInsuficienteException(StockAtomicoCalculos.MensajeStockInsuficienteNivelGranja(
                     item.Codigo, item.Nombre, req.FarmId, stock.Quantity, req.Quantity));
 
             _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento

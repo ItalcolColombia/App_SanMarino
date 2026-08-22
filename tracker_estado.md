@@ -2156,3 +2156,59 @@ directo, F3 si (marcado "RIESGOSA" en el plan) y se dejo para el final con el pa
       `ItemsConsumo.armar()` arma `itemInventarioEcuadorId=4` de verdad, POST real a
       `/SeguimientoAvesEngordeEcuador` descuenta 6.25 kg exactos, DELETE devuelve el stock
       exacto (2520 → 2520). Puerto `:5002` de la otra sesion intacto.
+
+## F7 — requiere_cuadre, hecho y verificado (22ago26)
+
+Alcance decidido con el usuario: **solo el PWA web** (`POST /api/Sync/push`), no la app movil.
+Hallazgo previo a implementar: el mecanismo `requiere_cuadre` (constante, DTOs, y el manejo en
+`clasificar-resultado-push.funcion.ts` del lado Angular) **ya existia**, con el comentario "Todavia
+sin emisor" — la app Flutter de esta sesion NO pasa por `/api/Sync/push` (postea directo a cada
+endpoint, cola propia en SQLite), asi que F7 no le aplicaba pese a que el plan lo asumia.
+
+- [x] **La decision se toma ANTES del throw, no parseando el mensaje.** Nuevo
+      `StockInsuficienteException : InvalidOperationException` (hereda para que cualquier catch
+      existente lo siga atrapando igual) en los 6 sitios reales de "no hay stock" (EC/PA y
+      Colombia, pre-check y descuento atomico). `SyncPushService.AplicarUnaAsync` atrapa ESE tipo
+      especificamente — nunca compara texto — y sólo si el request `TraeItems(...)`.
+- [x] **El reintento sin items, con el kg vuelto al escalar.** Sacar el array entero (sin más)
+      dejaba el registro sin alimento y el guard de "alimento obligatorio" lo rechazaba igual —
+      F7 habria fallado en el 100% de los casos reales. `ItemConsumoCalculos.KgDeAlimento`/
+      `NombresDeAlimento` (nuevas, con tests) recomponen `consumoKgHembras`/`tipoAlimento` antes
+      de reintentar. Un helper por forma de request (levante/engorde comparten
+      `CreateSeguimientoLoteLevanteRequest`; reproductora y produccion tienen el suyo — produccion
+      es record posicional, `with` en vez de mutar).
+- [x] **Bug real encontrado por el smoke, no por lectura de codigo:** el primer intento deja su
+      entidad trackeada en el `ChangeTracker` ANTES del chequeo de stock (`SeguimientoAvesEngordeEcuadorService.Crud.cs`
+      hace `_ctx.Add(ent)` antes de `ValidarStockConsumoAsync` — a diferencia de levante/reproductora/
+      produccion, que validan antes de trackear). Sin `_ctx.ChangeTracker.Clear()` antes del
+      reintento, la SEGUNDA entidad se sumaba a la primera sin guardar y las dos violaban el
+      indice unico (lote, fecha) — el push volvia `rechazada / error_interno`, exactamente lo que
+      F7 existe para evitar. Se agrego el `Clear()` en los 4 reintentos (necesario en engorde,
+      defensivo en los otros tres).
+- [x] **Bandeja + resolver**, nuevo en `sync_operaciones`: columnas `detalle`, `cuadre_resuelto_at`,
+      `cuadre_resuelto_por` (migracion `20260822224615_AddCuadreASyncOperaciones`, idempotente) +
+      indice parcial para la bandeja. `GET /api/Sync/cuadres` (fail-closed por empresa activa) y
+      `POST /api/Sync/cuadres/{id}/resolver` — **solo marca visto**, no repone kilos (decision del
+      usuario, F0.2#3: reponer seria una segunda formula para el mismo numero). Nombre de ruta sin
+      "admin" (el WAF de prod devuelve 403 a cualquier path que lo contenga).
+- [x] **Gate de maquina** (`backend/scripts/verificar-cuadre-solo-en-sync.js`, nuevo, wireado en
+      `deploy-production.yml`): falla el CI si algo fuera de `Services/Sync/` asigna el estado
+      `requiere_cuadre` — el camino directo (F3) depende de lo contrario, que CUALQUIER falta de
+      stock deshaga todo el seguimiento.
+- [x] `dotnet build` 0/0, `dotnet test` 3134/3134 (+5 tests nuevos de `KgDeAlimento`/
+      `NombresDeAlimento`), los dos gates de maquina en verde.
+- [x] Smoke en vivo contra backend aislado (`:5499`, puerto `:5002` de la otra sesion intacto), 15
+      verificaciones sobre el camino de divergencia (POST real a `/api/Sync/push` con un item sin
+      stock): estado `requiere_cuadre`/`divergencia_stock`, el dia queda guardado (UN seguimiento,
+      no cero), CERO cambio de stock, el kg paso al escalar, `tipoAlimento` se reconstruyo del
+      nombre del item, reenviar el mismo `clientOpId` hace replay completo (con `detalle`, no solo
+      `errorCodigo`), aparece en la bandeja, resolver lo saca sin tocar stock, resolver dos veces
+      da 404. Camino feliz (stock suficiente) verificado aparte: sigue devolviendo `aplicada` y
+      descontando exacto — F7 no cambio el comportamiento normal.
+- [x] `verificar_cuadre_alimento_engorde.sql` antes/despues: diff = 0 filas.
+
+## Plan cerrado (22ago26)
+
+F1 a F7 completos (F6 fuera de alcance, decidido con el usuario: EC/PA no operan produccion
+postura, Colombia no tiene reproductora — construirlo seria superficie sin usuario). El plan
+`descuento_inventario_movil_plan.md` queda ejecutado de punta a punta.

@@ -497,4 +497,53 @@ public class ItemConsumoCalculosTests
     {
         Assert.Empty(ItemConsumoCalculos.NormalizarParaModeloB(new Dictionary<ItemConsumoKey, decimal>()));
     }
+
+    // ── F7 — KgDeAlimento / NombresDeAlimento ───────────────────────────────────────────────
+
+    [Fact]
+    public void KgDeAlimento_SumaSoloLosItemsDeAlimento()
+    {
+        var items = new[]
+        {
+            Item(itemInventarioEcuadorId: 1, cantidad: 5, tipoItem: "alimento"),
+            Item(itemInventarioEcuadorId: 2, cantidad: 3, tipoItem: "medicamento"),
+            Item(itemInventarioEcuadorId: 3, cantidad: 2, tipoItem: "alimento"),
+        };
+
+        Assert.Equal(7, ItemConsumoCalculos.KgDeAlimento(items));
+    }
+
+    [Fact]
+    public void KgDeAlimento_ConvierteGramosAKgIgualQueAcumularPorOrigen()
+    {
+        var items = new[] { Item(itemInventarioEcuadorId: 1, cantidad: 500, unidad: "g", tipoItem: "alimento") };
+        Assert.Equal(0.5, ItemConsumoCalculos.KgDeAlimento(items));
+    }
+
+    [Fact]
+    public void KgDeAlimento_NuloODinSinAlimento_DevuelveCero()
+    {
+        Assert.Equal(0, ItemConsumoCalculos.KgDeAlimento(null));
+        Assert.Equal(0, ItemConsumoCalculos.KgDeAlimento(new[] { Item(itemInventarioEcuadorId: 1, cantidad: 5, tipoItem: "medicamento") }));
+    }
+
+    [Fact]
+    public void NombresDeAlimento_SoloAlimentoSinRepetirEnOrden()
+    {
+        var items = new[]
+        {
+            Item(itemInventarioEcuadorId: 1, cantidad: 5, tipoItem: "alimento", nombre: "Iniciación"),
+            Item(itemInventarioEcuadorId: 2, cantidad: 1, tipoItem: "medicamento", nombre: "Vacuna X"),
+            Item(itemInventarioEcuadorId: 3, cantidad: 2, tipoItem: "alimento", nombre: "Finalizador"),
+            Item(itemInventarioEcuadorId: 1, cantidad: 1, tipoItem: "alimento", nombre: "Iniciación"),
+        };
+
+        Assert.Equal(new[] { "Iniciación", "Finalizador" }, ItemConsumoCalculos.NombresDeAlimento(items));
+    }
+
+    [Fact]
+    public void NombresDeAlimento_NuloDevuelveVacio()
+    {
+        Assert.Empty(ItemConsumoCalculos.NombresDeAlimento(null));
+    }
 }

@@ -50,4 +50,21 @@ public class SyncOperacion
     public int? EntidadId { get; set; }
 
     public DateTime RecibidoAt { get; set; }
+
+    /// <summary>
+    /// F7 — texto para el humano, sólo cuando <see cref="Estado"/> es <c>requiere_cuadre</c>: qué
+    /// ítem faltó, cuánto había y cuánto se pedía. Es lo que muestra la bandeja del supervisor; el
+    /// cliente decide con <see cref="ErrorCodigo"/>, no con esto.
+    /// </summary>
+    public string? Detalle { get; set; }
+
+    /// <summary>
+    /// F7 — cuándo alguien marcó vista la fila en la bandeja de cuadre. "Resolver" un cuadre SOLO
+    /// marca visto (decisión del negocio): no repone kilos, porque eso abriría una segunda fórmula
+    /// para el mismo número. Null = sigue pendiente.
+    /// </summary>
+    public DateTime? CuadreResueltoAt { get; set; }
+
+    /// <summary>Quién lo marcó visto.</summary>
+    public int? CuadreResueltoPor { get; set; }
 }

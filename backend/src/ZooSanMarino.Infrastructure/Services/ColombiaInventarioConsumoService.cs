@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
 
@@ -217,7 +218,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 var enSilo = kv.Key.SiloId is > 0
                     ? $", silo «{nombresSilo.GetValueOrDefault(kv.Key.SiloId.Value, kv.Key.SiloId.Value.ToString())}»"
                     : string.Empty;
-                throw new InvalidOperationException(
+                throw new StockInsuficienteException(
                     $"Stock insuficiente para '{item?.Codigo} - {item?.Nombre}' (granja {farmId}{enSilo}): disponible {disponible:0.###} kg, requerido {kv.Value:0.###} kg.");
             }
         }
