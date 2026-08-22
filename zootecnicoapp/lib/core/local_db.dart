@@ -6,7 +6,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
+import 'api/inventario_api.dart' show SiloDelLote;
 import 'models.dart';
+import 'models_inventario.dart';
 
 class LocalDb {
   LocalDb._([this._rutaOverride]);
@@ -27,7 +29,9 @@ class LocalDb {
   /// las columnas que la cola necesita para saber a dónde postear cada fila.
   /// v3 (22ago26): `lote_maestro_id`, que los módulos de postura necesitan para
   /// postear (el id de la etapa no alcanza).
-  static const int _version = 3;
+  /// v4 (22ago26): catálogo de ítems y existencias, para poder elegir alimento
+  /// sin señal — es lo que permite que el consumo descuente stock.
+  static const int _version = 4;
   Database? _db;
 
   Future<Database> get db async => _db ??= await _open();
@@ -118,6 +122,7 @@ class LocalDb {
         await d.execute('CREATE INDEX idx_seg_lote ON seguimientos_local(lote_id, fecha)');
 
         await _crearTablasV2(d);
+        await _crearTablasV4(d);
       },
     );
   }
@@ -172,6 +177,8 @@ class LocalDb {
       await _crearTablasV2(d);
     }
 
+    if (desde < 4) await _crearTablasV4(d);
+
     if (desde == 2) {
       // Sólo para quien ya estaba en v2: los que vienen de v1 recrearon la tabla
       // arriba y la columna ya viene incluida.
@@ -179,6 +186,50 @@ class LocalDb {
         await d.execute('ALTER TABLE lotes_cache ADD COLUMN lote_maestro_id INTEGER');
       } catch (_) {}
     }
+  }
+
+  /// Catálogo y existencias. Son **caché regenerable**: se borran y se vuelven a
+  /// bajar en cada sincronización, así que nunca se migran, se recrean.
+  static Future<void> _crearTablasV4(Database d) async {
+    await d.execute(
+      'CREATE TABLE IF NOT EXISTS items_inventario ('
+      '  id INTEGER PRIMARY KEY,'
+      '  codigo TEXT NOT NULL,'
+      '  nombre TEXT NOT NULL,'
+      '  tipo TEXT NOT NULL,'
+      '  concepto TEXT,'
+      '  unidad TEXT NOT NULL,'
+      '  updated_at TEXT NOT NULL'
+      ')',
+    );
+
+    // La PK es la clave natural del stock, la misma del índice del servidor:
+    // un saldo por ítem mostraría el total de la granja y dejaría pasar un
+    // consumo contra un galpón vacío.
+    await d.execute(
+      'CREATE TABLE IF NOT EXISTS existencias_inventario ('
+      '  farm_id INTEGER NOT NULL,'
+      '  item_id INTEGER NOT NULL,'
+      "  nucleo_id TEXT NOT NULL DEFAULT '',"
+      "  galpon_id TEXT NOT NULL DEFAULT '',"
+      '  silo_id INTEGER NOT NULL DEFAULT 0,'
+      '  item_nombre TEXT,'
+      '  cantidad REAL NOT NULL DEFAULT 0,'
+      '  reservado REAL NOT NULL DEFAULT 0,'
+      '  unidad TEXT,'
+      '  updated_at TEXT NOT NULL,'
+      '  PRIMARY KEY (farm_id, item_id, nucleo_id, galpon_id, silo_id)'
+      ')',
+    );
+
+    await d.execute(
+      'CREATE TABLE IF NOT EXISTS silos_lote ('
+      '  lote_maestro_id INTEGER NOT NULL,'
+      '  silo_id INTEGER NOT NULL,'
+      '  nombre TEXT,'
+      '  PRIMARY KEY (lote_maestro_id, silo_id)'
+      ')',
+    );
   }
 
   static Future<void> _crearTablasV2(Database d) async {
@@ -302,6 +353,129 @@ class LocalDb {
 
   static String _soloFecha(DateTime f) =>
       '${f.year.toString().padLeft(4, '0')}-${f.month.toString().padLeft(2, '0')}-${f.day.toString().padLeft(2, '0')}';
+
+
+  // ── Catálogo de inventario ─────────────────────────────────────────────────
+
+  /// Reemplaza el catálogo entero. Es caché: lo que ya no viene del servidor
+  /// deja de existir, en vez de quedar como opción fantasma en el selector.
+  Future<void> guardarCatalogo(List<ItemInventario> items) async {
+    final d = await db;
+    final now = DateTime.now().toIso8601String();
+    await d.transaction((tx) async {
+      await tx.delete('items_inventario');
+      for (final i in items) {
+        await tx.insert('items_inventario', {
+          'id': i.id, 'codigo': i.codigo, 'nombre': i.nombre,
+          'tipo': i.tipo, 'concepto': i.concepto, 'unidad': i.unidad,
+          'updated_at': now,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<ItemInventario>> catalogoCacheado({bool soloAlimento = false}) async {
+    final d = await db;
+    final rows = await d.query('items_inventario', orderBy: 'nombre');
+    final items = rows.map((r) => ItemInventario(
+          id: r['id'] as int,
+          codigo: r['codigo'] as String,
+          nombre: r['nombre'] as String,
+          tipo: r['tipo'] as String,
+          unidad: r['unidad'] as String? ?? 'kg',
+          concepto: r['concepto'] as String?,
+        ));
+    // El filtro por tipo se hace ACÁ y no en el SQL ni en el servidor: el texto
+    // del catálogo viene con mayúsculas distintas según la empresa, y el filtro
+    // del backend compara exacto.
+    return (soloAlimento ? items.where((i) => i.esAlimento) : items).toList();
+  }
+
+  /// Reemplaza las existencias. Idem catálogo: es una foto, no un histórico.
+  Future<void> guardarExistencias(List<ExistenciaInventario> filas) async {
+    final d = await db;
+    final now = DateTime.now().toIso8601String();
+    await d.transaction((tx) async {
+      await tx.delete('existencias_inventario');
+      for (final e in filas) {
+        await tx.insert('existencias_inventario', {
+          'farm_id': e.farmId,
+          'item_id': e.itemId,
+          'nucleo_id': e.nucleoId?.trim() ?? '',
+          'galpon_id': e.galponId?.trim() ?? '',
+          'silo_id': e.siloId ?? 0,
+          'item_nombre': e.itemNombre,
+          'cantidad': e.cantidad,
+          'reservado': e.reservado,
+          'unidad': e.unidad,
+          'updated_at': now,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  /// Las existencias indexadas por su clave natural, listas para consultar al
+  /// armar un consumo.
+  Future<Map<String, ExistenciaInventario>> existenciasCacheadas() async {
+    final d = await db;
+    final rows = await d.query('existencias_inventario');
+    return {
+      for (final r in rows)
+        ExistenciaInventario.claveDe(
+          farmId: r['farm_id'] as int,
+          itemId: r['item_id'] as int,
+          nucleoId: r['nucleo_id'] as String?,
+          galponId: r['galpon_id'] as String?,
+          siloId: r['silo_id'] as int?,
+        ): ExistenciaInventario(
+          itemId: r['item_id'] as int,
+          farmId: r['farm_id'] as int,
+          nucleoId: (r['nucleo_id'] as String?)?.isEmpty ?? true
+              ? null : r['nucleo_id'] as String,
+          galponId: (r['galpon_id'] as String?)?.isEmpty ?? true
+              ? null : r['galpon_id'] as String,
+          siloId: (r['silo_id'] as int?) == 0 ? null : r['silo_id'] as int?,
+          itemNombre: r['item_nombre'] as String? ?? '',
+          cantidad: (r['cantidad'] as num?)?.toDouble() ?? 0,
+          reservado: (r['reservado'] as num?)?.toDouble() ?? 0,
+          unidad: r['unidad'] as String? ?? 'kg',
+        ),
+    };
+  }
+
+  /// Cuándo se bajó la foto del stock. La pantalla la muestra junto al saldo:
+  /// el operario tiene que saber que está mirando algo que puede tener horas.
+  Future<DateTime?> existenciasActualizadasEn() async {
+    final d = await db;
+    final r = await d.rawQuery('SELECT MAX(updated_at) u FROM existencias_inventario');
+    final iso = r.first['u'] as String?;
+    return iso == null ? null : DateTime.tryParse(iso);
+  }
+
+  Future<void> guardarSilosDeLote(int loteMaestroId, List<SiloDelLote> silos) async {
+    final d = await db;
+    await d.transaction((tx) async {
+      await tx.delete('silos_lote',
+          where: 'lote_maestro_id = ?', whereArgs: [loteMaestroId]);
+      for (final s in silos) {
+        await tx.insert('silos_lote', {
+          'lote_maestro_id': loteMaestroId,
+          'silo_id': s.siloId,
+          'nombre': s.nombre,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<SiloDelLote>> silosDeLote(int loteMaestroId) async {
+    final d = await db;
+    final rows = await d.query('silos_lote',
+        where: 'lote_maestro_id = ?', whereArgs: [loteMaestroId], orderBy: 'nombre');
+    return rows
+        .map((r) => SiloDelLote(
+            siloId: r['silo_id'] as int, nombre: r['nombre'] as String? ?? ''))
+        .toList();
+  }
 
   // ── Cola de sincronización ─────────────────────────────────────────────────
 

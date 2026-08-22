@@ -30,6 +30,23 @@ class PerfilPais {
   /// El resto de países registra el consumo en kilos.
   static bool quintales(int? paisId) => paisId == PaisId.panama;
 
+  /// Qué id de ítem entiende el backend para descontar inventario.
+  ///
+  /// En **Ecuador y Panamá** el consumo usa `itemInventarioEcuadorId` tal cual,
+  /// sin traducir. En **Colombia** el backend recibe `catalogItemId` y lo cruza
+  /// por código contra el catálogo de la empresa.
+  ///
+  /// No es una preferencia de estilo: mandar sólo `catalogItemId` en Ecuador o
+  /// Panamá hace que el parser lo tome **como si fuera** un id de inventario, y
+  /// hay 227 ids que colisionan entre las dos tablas. El descuento puede caer
+  /// sobre otro producto sin dar ningún error.
+  ///
+  /// Fail-closed: sin país resuelto devuelve `false`, que es el caso conservador
+  /// (mandar sólo `catalogItemId`, que en el peor caso no descuenta en vez de
+  /// descontar mal).
+  static bool usaItemInventarioEcuador(int? paisId) =>
+      paisId == PaisId.ecuador || paisId == PaisId.panama;
+
   /// Nombre legible, para la cabecera del perfil.
   static String nombre(int? paisId) => switch (paisId) {
         PaisId.colombia => 'Colombia',

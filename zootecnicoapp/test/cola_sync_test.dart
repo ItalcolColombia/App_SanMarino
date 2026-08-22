@@ -9,7 +9,9 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zootecnicoapp/core/local_db.dart';
+import 'package:zootecnicoapp/core/api/inventario_api.dart';
 import 'package:zootecnicoapp/core/models.dart';
+import 'package:zootecnicoapp/core/models_inventario.dart';
 
 void main() {
   setUpAll(() {
@@ -245,6 +247,104 @@ void main() {
       await db.borrarSesion();
       expect(await db.leerSesion(), isNull);
       expect(await db.contarPendientes(), 1);
+    });
+  });
+
+  group('catálogo de inventario', () {
+    ItemInventario it(int id, String nombre, String tipo) => ItemInventario(
+        id: id, codigo: 'C$id', nombre: nombre, tipo: tipo, unidad: 'kg');
+
+    test('se guarda y se lee', () async {
+      await db.guardarCatalogo([it(1, 'ENGORDE 1', 'Alimento')]);
+      expect((await db.catalogoCacheado()).single.nombre, 'ENGORDE 1');
+    });
+
+    test('guardar reemplaza: lo que ya no viene del servidor desaparece', () async {
+      // Si no, un ítem dado de baja seguiría siendo elegible en el selector.
+      await db.guardarCatalogo([it(1, 'VIEJO', 'Alimento')]);
+      await db.guardarCatalogo([it(2, 'NUEVO', 'Alimento')]);
+      final c = await db.catalogoCacheado();
+      expect(c, hasLength(1));
+      expect(c.single.nombre, 'NUEVO');
+    });
+
+    test('el filtro de alimento tolera las mayúsculas del catálogo', () async {
+      // El filtro `?tipoItem=` del backend compara EXACTO: pedir 'alimento'
+      // devolvería 1 de 8 en Ecuador, donde están cargados como 'Alimento'.
+      await db.guardarCatalogo([
+        it(1, 'A', 'Alimento'),
+        it(2, 'B', 'alimento'),
+        it(3, 'C', 'ALIMENTO'),
+        it(4, 'D', 'Vacuna'),
+      ]);
+      final alimentos = await db.catalogoCacheado(soloAlimento: true);
+      expect(alimentos.map((i) => i.nombre), ['A', 'B', 'C']);
+    });
+  });
+
+  group('existencias', () {
+    ExistenciaInventario ex({
+      int item = 1, int farm = 40, String? galpon = 'G1', int? silo,
+      double cant = 100, double res = 0,
+    }) =>
+        ExistenciaInventario(
+            itemId: item, farmId: farm, galponId: galpon, siloId: silo,
+            cantidad: cant, reservado: res, unidad: 'kg');
+
+    test('se indexan por su clave natural, no por ítem', () async {
+      // El mismo ítem en dos galpones son dos saldos distintos: mirar sólo el
+      // ítem mostraría el total de la granja.
+      await db.guardarExistencias([
+        ex(item: 1, galpon: 'G1', cant: 100),
+        ex(item: 1, galpon: 'G2', cant: 50),
+      ]);
+      final m = await db.existenciasCacheadas();
+      expect(m, hasLength(2));
+      expect(m[ExistenciaInventario.claveDe(farmId: 40, itemId: 1, galponId: 'G1')]?.cantidad, 100);
+      expect(m[ExistenciaInventario.claveDe(farmId: 40, itemId: 1, galponId: 'G2')]?.cantidad, 50);
+    });
+
+    test('el silo forma parte de la clave', () async {
+      await db.guardarExistencias([
+        ex(silo: 1, cant: 10),
+        ex(silo: 2, cant: 20),
+      ]);
+      expect(await db.existenciasCacheadas(), hasLength(2));
+    });
+
+    test('disponible descuenta lo ya reservado', () async {
+      await db.guardarExistencias([ex(cant: 100, res: 30)]);
+      final e = (await db.existenciasCacheadas()).values.single;
+      expect(e.cantidad, 100);
+      expect(e.disponible, 70);
+    });
+
+    test('guarda cuándo se tomó la foto: el operario mira algo que envejece', () async {
+      await db.guardarExistencias([ex()]);
+      expect(await db.existenciasActualizadasEn(), isNotNull);
+    });
+
+    test('sin existencias cacheadas, la fecha es null y no revienta', () async {
+      expect(await db.existenciasActualizadasEn(), isNull);
+    });
+  });
+
+  group('silos por lote', () {
+    test('se guardan por lote maestro', () async {
+      await db.guardarSilosDeLote(114, const [SiloDelLote(siloId: 5, nombre: 'Silo A')]);
+      expect((await db.silosDeLote(114)).single.nombre, 'Silo A');
+      expect(await db.silosDeLote(999), isEmpty);
+    });
+
+    test('guardar reemplaza los del lote sin tocar los de otro', () async {
+      // `lote_silos` es un SET que el servidor reemplaza entero: si un supervisor
+      // reasigna silos, la caché tiene que reflejarlo, no acumular.
+      await db.guardarSilosDeLote(114, const [SiloDelLote(siloId: 5, nombre: 'A')]);
+      await db.guardarSilosDeLote(200, const [SiloDelLote(siloId: 9, nombre: 'Z')]);
+      await db.guardarSilosDeLote(114, const [SiloDelLote(siloId: 6, nombre: 'B')]);
+
+      expect((await db.silosDeLote(114)).single.siloId, 6);
+      expect((await db.silosDeLote(200)).single.siloId, 9);
     });
   });
 }
