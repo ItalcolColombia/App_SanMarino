@@ -1717,6 +1717,51 @@ sus movimientos, ventas y traslados a plantas». Corrido contra `:5002` con el c
       del lote (cascade se lleva `lote_huevo_items`).
 - [x] **Backend `:5002` queda ARRIBA y actualizado**, como pidió el usuario para la sesión de móvil.
 
+### X17.8 · Smoke desde el FRONT, en el navegador (22-ago-2026)
+
+Mismo recorrido que X17.7 pero manejando la UI real contra `:4200` + `:5002`.
+**Encontró dos defectos que ni la lectura de código ni los 3.048 tests habían visto.**
+
+- [x] **Lo que se verificó en pantalla, con datos reales:**
+  - El botón **🥚 «Tipos de huevo que produce el lote»** aparece en la grilla de lotes, al lado del
+    de silos, y solo porque la empresa tiene el flag.
+  - El **modal de asignación** pinta los 28 ítems agrupados **Primera (2/10)** y **Pnc (2/18)**, con
+    contador por grupo, resaltado del seleccionado, la etiqueta «primera postura» en los 3 que
+    corresponde, la unidad **KIL** en `HUEVO RECUPERACION BOLSA KIL`, y **sin código** en los 7 PNC
+    que sembró X15 esperando los códigos ERP del cliente.
+  - El **seguimiento diario** muestra las **filas fijas**: 2 grupos, 4 filas, **sin `<select>` y sin
+    «agregar ítem»**. La fila de primera postura sale **apagada y explicada**
+    («primera postura fuera de vigencia», semana 33 > 22) — **D5 visible en pantalla**.
+  - **Subtotales en vivo**: Primera 1.200, Pnc 90, total 1.290. Guardó el registro 677 con
+    `huevo_tot` 1290 = suma del desglose y las 3 filas completas (código, nombre, tipo, unidad).
+  - El bloque legacy de las 11 columnas **no se pinta** con el flag encendido.
+- [x] 🔴 **DEFECTO 1 — las filas no cargaban al abrir el modal** (commit `e820ab3`).
+      El bloque se pintaba con su encabezado y **cero filas**, aunque el lote tuviera 4 tipos
+      declarados: no entraba ninguna de las 4 ramas del template (ni cargando, ni error, ni «lote
+      sin tipos», ni filas). Causa: `cargarHuevoItemsDelLote()` estaba cableado **solo** en
+      `loadCompanyFlags()`, que corre UNA vez en `ngOnInit` — ahí todavía no hay `loteId`, así que
+      tomaba el early-return, y **nada lo volvía a disparar**: `ngOnChanges` llamaba a
+      `cargarSilosDelLote()` pero no a este. Quedaba en el estado mudo: sin filas y **sin el mensaje
+      que le diría al operario que declare los tipos**. El fix es una línea, al lado de los silos y
+      por la misma razón (los tipos son del LOTE).
+      **Los tests no podían verlo**: las funciones puras estaban bien y con cobertura; lo que
+      faltaba era el disparador del ciclo de vida del componente.
+- [x] 🔴 **DEFECTO 2 — la clasificación de la grilla salía en cero** (ya arreglado en `cdf0239`,
+      X17.7). La grilla de registros tiene columnas **PRIMERA** y **PNC**, y ahí se vio el impacto
+      REAL del desglose sin etiquetas: registro 676 (después del fix) → total 77, **Pnc 77** ✓;
+      registros 674 y 675 (antes) → total correcto pero **Primera 0 y Pnc 0** ✗. Confirma que la
+      consecuencia del bug era exactamente la predicha: el total cuadra y la clasificación miente.
+- [i] **Al usuario de prueba le faltaba `user_farms`.** Con empresa y rol pero sin granja asignada,
+      el selector de granja sale vacío y no se ve ni un lote. No es un bug: es cómo funciona el
+      alcance por granja. Anotado porque cualquiera que cree un usuario a mano se lo va a comer.
+- [i] **La sesión deslizante corta a los 5 minutos de inactividad** y los pasos de un smoke manual
+      tienen huecos de minutos: la sesión se cayó dos veces a mitad del recorrido, con redirect a
+      `/login` sin aviso. Para la próxima: batear los pasos en pocas tandas.
+- [~] **Screenshots no disponibles**: el panel del navegador no estaba visible, así que la
+      verificación fue por árbol de accesibilidad y por consultas al DOM, no visual.
+- [x] Validado tras el fix: `ng test` verde, y el reporte de invariantes con los 4 registros ya
+      cargados desde la UI — **9897 = 9897, 0 descuadres**, espejo cuadrando.
+
 - [x] **X17 cerrado.** Entorno: sin backend propio (`--artifacts-path`), sin procesos nuevos.
 
 ---
