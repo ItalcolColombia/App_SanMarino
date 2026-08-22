@@ -1441,3 +1441,99 @@ registro en ItalJira, decision del usuario en sesion).
 - [x] **X14 cerrado.** Entorno: no se levanto backend propio (se uso `--artifacts-path` para no
       pelear el `bin/` con el backend ajeno vivo en :5002 desde las 08:49); no quedan procesos
       nuevos.
+
+---
+
+## X15 — Codigo ERP opcional (F8.1) + bug real de silos en produccion (21-ago-2026)
+
+Pedido directo del usuario en la misma sesion, fuera del flujo de tracker: "el primer punto dejalo
+opcional el codigo erp" (F8.1, `SR-DEF-3`) y un bug de silos en produccion descrito de memoria, sin
+reproducirlo — la causa se confirmo leyendo codigo, no adivinando.
+
+### X15.1 · `catalogo_items.codigo` ahora es opcional
+
+- [x] **Schema**: `catalogo_items.codigo` (antes `NOT NULL varchar(50)`) pasa a nullable —
+      migracion `CatalogoItemsCodigoOpcional`. El indice unico
+      `ux_catalogo_items_codigo_company_pais (company_id, pais_id, codigo)` NO se toco: en Postgres
+      cada `NULL` es distinto de cualquier otro en un indice unico estandar, verificado
+      empiricamente (2 filas con codigo `NULL`, mismo company/pais, insertan sin choque)
+- [x] **Backend**: `CatalogItem.Codigo` → `string?`. `CatalogItemService.CreateAsync` guarda `null`
+      cuando llega vacio (no `""`) y salta el chequeo de duplicado cuando no hay codigo (no hay con
+      que chocar). `CatalogItemService.UpdateAsync` suma la regla nueva: el codigo se puede
+      **completar UNA SOLA VEZ** mientras el item no tenga uno — una vez asignado es clave natural
+      y `dto.Codigo` que llegue despues se ignora, mismo criterio que ya aplicaba el formulario
+      (deshabilitar el campo al editar). Duplicado al completar → 409 (antes no habia forma de que
+      esto pasara, el codigo no era editable)
+- [x] **6 sitios con warning de nulabilidad nuevo, los 6 corregidos** (no quedo ninguno nuevo:
+      `dotnet build` 0/0): 4 `EF.Functions.ILike` con guard `!= null`, 3 asignaciones a DTOs
+      legacy (`FarmInventoryMovementDtos`) con `?? string.Empty` (son de modelo A/alimento, un
+      codigo nulo ahi no es un caso real hoy), y 2 tuplas de migracion Excel
+      (`(int, string?, string, string?)`) que SI necesitan nulable de verdad — son las que resuelven
+      items de huevo, que es justo el caso que ahora puede no tener codigo
+- [x] **Frontend**: quito `Validators.required` del campo Codigo; el `[readonly]` del input pasa de
+      `editing` a `editing && editing.codigo` (antes bloqueaba el campo SIEMPRE al editar, sin
+      importar si tenia codigo o no — hubiera sido imposible completarlo despues); tabla y detalle
+      muestran `—` cuando esta vacio
+- [x] **Seed**: 7 items de PNC que faltaban en el catalogo de Santa Reyes, con `codigo = NULL` —
+      Decolorado Blanco/Azur/Criollo (Rojo ya existia) y Enyemado en las 4 razas (no existia
+      ninguno). **Sigue el patron YA establecido por Manchado/Picado (exactamente esas 4 razas), no
+      inventa cobertura nueva** — Gallina Feliz/Bonegg/Libre de Jaula Certificado quedan afuera
+      porque tampoco las tienen Manchado/Picado. Farfara (hoy generico, sin raza) NO se toca:
+      partirlo en 4 es una decision de alcance, no una completitud de patron — sigue en
+      `TK-2026-000180`/`SR-DEF-3` junto con los codigos reales, que son del ERP del cliente y no se
+      inventan
+- [x] Validado: `dotnet build` 0/0 · `dotnet test` **3014/3014** · `ng build` 0 errores/0 warnings ·
+      `ng test` **624/624**. Migraciones aplicadas en BD local y verificadas: el ALTER corrido 2
+      veces sin error, el seed corrido 2 veces deja 18 filas sin duplicar (11 + 7), `Down` probado
+      dentro de una transaccion revertida (18→11, el `ROLLBACK` devuelve las 7)
+
+### X15.2 · Bug real: el consumo de silo en PRODUCCION no encontraba el silo asignado al lote
+
+- [x] **Causa confirmada, no adivinada** —
+      [`lote-produccion-list.component.ts:424`](frontend/src/app/features/lote-produccion/pages/lote-produccion-list/lote-produccion-list.component.ts:424):
+      al entrar a un lote desde el filtro de Produccion, `selectedLote.loteId` se poblaba con
+      `lppFromFilter.lotePosturaProduccionId` — el id de `lote_postura_produccion`, OTRA tabla — en
+      vez del `lote_id` BASE (`lotes.lote_id`). El modal de seguimiento diario usa
+      `[loteId]="selectedLote?.loteId"` para pedir los silos asignados al lote
+      (`GET .../lote-silos/{loteId}` → `lote_silos.lote_id`, que referencia el lote BASE, no el
+      LPP): con el id equivocado la consulta no encontraba ninguna fila, y el selector de silo del
+      consumo salia vacio — «no los coge», tal cual lo describio el usuario
+- [x] **Por que el mismo lote SI mostraba sus silos desde Levante.** `modal-create-edit`
+      (lote-levante) lee `getSilosDeLote(loteId)` con el `loteId` del `<select>` de lote, que ES el
+      lote base (`[ngValue]="l.loteId"` sobre la lista de lotes) — nunca tuvo el bug. Confirma que
+      la asignacion (`LoteSiloService`, backend) y el guardado del seguimiento
+      (`ProduccionService.ResolverYSanarLoteIdAsync`, que self-sana el `lote_id` correcto de cada
+      LPP) **siempre estuvieron bien**: el bug era 100% de ESTE componente, en la lectura para
+      mostrar opciones, no en la escritura ni en la validacion del backend
+- [x] **Por que "editar el silo, en produccion, solo llega hasta levante" es el MISMO bug, no uno
+      aparte.** El operario asigna el silo desde `lote-list` (correcto, usa el `lote_id` base) →
+      se ve bien desde Levante (correcto, mismo `lote_id`) → no se ve desde Produccion (el `loteId`
+      que la pantalla de Produccion le manda al modal es otro numero). Un solo root cause explica
+      las dos mitades de la descripcion
+- [x] **El fix reusa un mecanismo que YA existia** para otro campo:
+      `resolverLoteIdBaseLPP` — creado para el bloque de cohortes (`loteIdCohortes`), que YA hacia
+      el fetch async del LPP completo para sacar su `.loteId` real — ahora TAMBIEN corrige
+      `selectedLote.loteId` con el mismo valor resuelto, reasignando el objeto completo (no
+      mutando in-place) para que dispare `ngOnChanges` en el modal (el componente padre es
+      `ChangeDetectionStrategy.Eager`, no hay gotcha de OnPush acá) y vuelva a pedir los silos con
+      el id ya corregido
+- [i] **Barrido de todo el archivo para el mismo patron**: aparecen 2 sitios mas con
+      `loteId: lpp.lotePosturaProduccionId` (`openTrasladoAvesModal`, líneas ~1147/1160), pero son
+      **distintos a proposito** — ese feature ya tiene un campo `loteIdBase` separado y correcto
+      para quien necesite el id real; `loteId` ahi es la identidad propia del traslado, no algo que
+      la pantalla de silos consulte. No se tocaron
+- [i] **Hallazgo relacionado, fuera de alcance — NO tocado.**
+      `ValidacionSeguimientoService.Validar.cs:235` pasa `loteId: null` a
+      `ValidarStockConsumoAsync` en el flujo de **doble validacion** (`requiereValidacionSeguimientoDiario`),
+      que agrupa reservas por `{pais, granja, nucleo, galpon}` sin `LoteId` — un `null` ahi cae al
+      fallback "todos los silos de la granja son validos" (mas PERMISIVO, no mas restrictivo: es lo
+      opuesto al sintoma reportado). Verificado que **no aplica a Santa Reyes hoy**
+      (`requiere_validacion_seguimiento_diario = false`). Corregirlo bien exige repensar el agrupado
+      de reservas (podria abarcar mas de un lote a la vez) — no es un cambio de una linea, se deja
+      documentado y sin tocar
+- [x] Validado: `ng build` 0 errores/0 warnings · `ng test` **624/624** (sin tests nuevos: es un fix
+      de una linea en un flujo que depende de datos reales en BD — Santa Reyes no tiene silos
+      asignados todavia en el entorno local para poder escribir un spec que reproduzca el antes/despues
+      contra el backend real)
+
+- [x] **X15 cerrado.** Entorno: mismo criterio que X14 (sin backend propio, `--artifacts-path`).
