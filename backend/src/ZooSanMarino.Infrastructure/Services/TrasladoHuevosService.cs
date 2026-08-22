@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -45,6 +46,49 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             ?? user.FindFirst("email")?.Value;
     }
 
+    /// <summary>
+    /// D6 — los ítems del traslado tienen que existir como ítem de huevo del catálogo de la empresa
+    /// dueña de la granja del lote, y esa empresa tiene que clasificar por ítems.
+    ///
+    /// <para>
+    /// <b>Deliberadamente NO valida la lista blanca del lote (F7.3).</b> Un traslado mueve lo que YA
+    /// se produjo: si la declaración del lote cambió después de registrar la producción, exigir la
+    /// lista de HOY dejaría huevos reales atrapados sin poder moverlos. La contención correcta acá
+    /// es la disponibilidad, que se calcula sobre lo efectivamente producido.
+    /// </para>
+    /// </summary>
+    private async Task ValidarCatalogoHuevoItemsAsync(
+        int lotePosturaProduccionId, IReadOnlyCollection<HuevoItemSeguimientoDto> huevoItems)
+    {
+        var companyId = await _context.LotePosturaProduccion.AsNoTracking()
+            .Where(l => l.LotePosturaProduccionId == lotePosturaProduccionId)
+            .Join(_context.Farms.AsNoTracking(), l => l.GranjaId, f => f.Id, (_, f) => (int?)f.CompanyId)
+            .FirstOrDefaultAsync();
+
+        if (companyId is not > 0)
+            throw new InvalidOperationException(
+                $"No se pudo resolver la empresa de la granja del lote de producción {lotePosturaProduccionId}.");
+
+        var permite = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId.Value)
+            .Select(c => (bool?)c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync();
+        if (permite != true)
+            throw new InvalidOperationException(
+                "La empresa de este lote no tiene habilitada la clasificación de huevos por ítems; use las cantidades por tipo.");
+
+        var ids = huevoItems.Select(i => i.CatalogItemId).Distinct().ToArray();
+        var existentes = await _context.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId.Value && ci.ItemType == "huevo" && ci.Activo && ids.Contains(ci.Id))
+            .Select(ci => ci.Id)
+            .ToListAsync();
+
+        var faltantes = ids.Except(existentes).ToArray();
+        if (faltantes.Length > 0)
+            throw new InvalidOperationException(
+                $"Los siguientes ítems no existen como ítem de huevo ACTIVO del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+    }
+
     public async Task<TrasladoHuevosDto> CrearTrasladoHuevosAsync(CrearTrasladoHuevosDto dto, int usuarioId)
     {
         // Clasificación por ítems (Santa Reyes): sin flujo legacy equivalente — exige LPP porque es
@@ -58,6 +102,11 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             var errorValidacion = HuevoItemsCalculos.Validar(dto.HuevoItems);
             if (errorValidacion != null)
                 throw new InvalidOperationException(errorValidacion);
+
+            // D6 — este camino NO validaba contra el catálogo ni exigía el flag de empresa: lo único
+            // que lo frenaba era la disponibilidad, y un ítem con Cantidad = 0 la pasa (el chequeo es
+            // `solicitado > disponible`). Se alinea con el gate del seguimiento.
+            await ValidarCatalogoHuevoItemsAsync(dto.LotePosturaProduccionId!.Value, dto.HuevoItems!);
         }
 
         var cantidadesPorTipo = new Dictionary<string, int>

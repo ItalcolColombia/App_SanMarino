@@ -31,6 +31,7 @@ import { GuiaGeneticaService } from '../../services/guia-genetica.service';
 import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
+import { ModalAsignarHuevoItemsComponent } from '../modal-asignar-huevo-items/modal-asignar-huevo-items.component';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -141,7 +142,8 @@ export class ThousandSeparatorDirective {
     ModalTrasladoLoteComponent,
     FiltroSelectComponent,
     ConfirmationModalComponent,
-    ModalAsignarSilosComponent
+    ModalAsignarSilosComponent,
+    ModalAsignarHuevoItemsComponent
   ],
   templateUrl: './lote-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -231,6 +233,8 @@ export class LoteListComponent implements OnInit {
 
   /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
   manejaInventarioPorSilo = false;
+  /** F7.3 — la empresa clasifica el huevo por ítems del catálogo (habilita «Tipos de huevo»). */
+  clasificacionHuevoPorItems = false;
 
   /**
    * Flag: el listado suma las pestañas «Lotes en Levante» y «Lotes en Producción». Fail-closed:
@@ -507,6 +511,8 @@ export class LoteListComponent implements OnInit {
     this.companyConfig.getFlags().subscribe(flags => {
       this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
       this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
+      // F7.3 — el botón de tipos de huevo solo existe si la empresa clasifica por ítems.
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
 
       // Las pestañas por etapa son opcionales por empresa. Si el flag se apaga mientras el usuario
       // está parado en una de ellas, hay que devolverlo a la lista completa o se quedaría mirando
@@ -1748,6 +1754,23 @@ export class LoteListComponent implements OnInit {
 
   cerrarSilos(): void {
     this.destinoSilos = null;
+  }
+
+  // ===================== F7.3 · Tipos de huevo que produce el lote =====================
+  /** Lote cuyo modal de tipos de huevo está abierto, o `null`. */
+  huevoItemsLote: LoteDto | null = null;
+
+  /**
+   * Abre la declaración de qué tipos de huevo produce el lote. El seguimiento diario de producción
+   * arma una fila fija por cada uno; sin ninguno declarado, ese lote no puede clasificar huevos
+   * (fail-closed, decisión del cliente).
+   */
+  abrirHuevoItems(lote: LoteDto): void {
+    this.huevoItemsLote = lote;
+  }
+
+  cerrarHuevoItems(): void {
+    this.huevoItemsLote = null;
   }
 
   openMoverUbicacion(lote: LoteDto): void {

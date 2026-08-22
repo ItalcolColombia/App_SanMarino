@@ -136,7 +136,7 @@ public partial class ProduccionService
         List<HuevoItemSeguimientoDto>? huevoItems = null;
         if (request.HuevoItems is { Count: > 0 })
         {
-            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems, request.FechaRegistro).ConfigureAwait(false);
             metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
         }
 
@@ -535,7 +535,7 @@ public partial class ProduccionService
         }
         else if (request.HuevoItems.Count > 0)
         {
-            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems, request.FechaRegistro).ConfigureAwait(false);
         }
 
         if (huevoItems != null)

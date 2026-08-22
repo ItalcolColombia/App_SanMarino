@@ -89,8 +89,9 @@ detalle con `git show e971871:tracker_estado.md`.
       que es una definición del cliente → `TK-2026-000180` / `SR-DEF-1`.*
 - [!] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
       con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**.
-      *F7.1, F7.2, F7.4 y F8.2 hechas. Quedan F7.3, F8.1 y F8.3, las tres del cliente →
-      `TK-2026-000180` / `SR-DEF-2`, `SR-DEF-3`, `SR-DEF-4`.*
+      *F7.1, F7.2, F7.3, F7.4 y F8.2 hechas (F7.3 el 21-ago, X17). Quedan F8.1 —desbloqueada
+      parcialmente en X15: los ítems ya existen, faltan los códigos ERP— y F8.3 →
+      `TK-2026-000180` / `SR-DEF-3`, `SR-DEF-4`.*
 - [!] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
       existen en `MovimientoAves`**, falta la UI) y huevos (bodega destino desplegable) + no regresión
       multipaís. **→ V52 (F9-F12)**.
@@ -631,11 +632,12 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [x] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula — **ya
         existían los 7** en `catalogo_items` (verificado F0.2, re-confirmado acá), no había nada que
         crear
-  - [!] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote — **sin
-        construir, ambigüedad real** (ver §8.3 del plan): el texto ("especificar los huevos que va a
-        producir" al crear el lote) no deja claro si pide una UI nueva en el alta de lote o si la
-        clasificación por ítems que ya existe en el seguimiento diario alcanza. No se adivina
-        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-2` (X14.4)*
+  - [x] F7.3 Huevo de primera postura: selección de tipos al crear/editar el lote — **CONSTRUIDO el
+        21-ago-2026 (X17)**. El cliente definió la ambigüedad en sesión: es la lectura (a) —lista
+        blanca por lote— y además **fail-closed**: «si no tiene asignado no aparece, ahí el usuario
+        tiene que editar el lote para agregarle los tipos de huevos, así controlamos mejor todo».
+        Tabla `lote_huevo_items` + filas FIJAS en el diario (se fue el `<select>` y el «agregar
+        ítem»). *Detalle → X17*
   - [x] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día
         de semana 23 — `HuevoPrimeraPosturaCalculos.EsVigente` (backend, con tests xUnit) + espejo
         `esVigentePrimeraPostura` (`items-huevo-catalogo.funcion.ts`); ítems marcados
@@ -1537,3 +1539,133 @@ reproducirlo — la causa se confirmo leyendo codigo, no adivinando.
       contra el backend real)
 
 - [x] **X15 cerrado.** Entorno: mismo criterio que X14 (sin backend propio, `--artifacts-path`).
+
+---
+
+## X17 — F7.3: los tipos de huevo los declara el LOTE, y el diario los pinta como filas fijas (21-ago-2026)
+
+**Desbloqueado por el cliente en sesión.** Era `TK-2026-000180` / `SR-DEF-2`, una de las 6 dudas que
+X14 había registrado. El usuario definió la ambigüedad y además eligió el modo estricto:
+
+> «cuando yo creo un lote puedo seleccionar los tipos de huevos que me dará el lote. Necesito que
+> esos tipos solo me aparezcan en la fase de producción, no todos los huevos… y en el seguimiento
+> diario ya no tendrá que ser un select, sino que aparecerían por defecto los huevos permitidos para
+> que coloquen su cantidad.»
+>
+> **Fail-closed, textual:** «no, si no tiene asignado no aparece; ahí el usuario tiene que editar el
+> lote para agregarle los tipos de huevos, así controlamos mejor todo.»
+
+Plan: [`fase_de_desarrollo/santa_reyes_items_huevo_por_lote_plan.md`](fase_de_desarrollo/santa_reyes_items_huevo_por_lote_plan.md).
+Auditoría previa: 6 cortes en paralelo del flujo de Santa Reyes.
+
+### X17.1 · El flujo de Santa Reyes, auditado antes de tocar nada
+
+- [i] 🔴 **El flujo NUNCA se ejercitó.** Santa Reyes tiene **0 lotes** y en toda la base hay **0
+      seguimientos con `metadata.huevoItems`**. Las otras 4 empresas tienen
+      `clasificacion_huevo_por_items = false`. O sea que todo lo que se construya detrás de ese flag
+      tiene **radio de impacto cero** sobre datos existentes — por eso el fail-closed que pidió el
+      usuario es seguro HOY y no lo sería dentro de seis meses.
+- [x] **Lo que ya estaba bien:** el guardado rechaza con 400 un ítem que no sea de huevo o de otra
+      empresa, y resuelve la empresa efectiva por `farms.company_id` (no por el token), como manda
+      CLAUDE.md §Features por EMPRESA regla 3.
+- [i] **Alcance: SOLO producción, con evidencia.** Levante no tiene modelo de ítems para huevos en
+      NINGUNA capa (11 columnas fijas), Santa Reyes tiene `captura_huevos_en_levante = false`, y
+      `SeguimientoLoteLevanteService.cs:98` excluye explícitamente a las empresas de ítems. Peor: el
+      arrastre de levante escribe las 11 columnas y `AplicarTotalesHuevoPorItems` **las pone en
+      cero** — son incompatibles hoy. Llevar la lista blanca a levante no es un parámetro, es otro
+      proyecto.
+- [i] ⚠️ **Trampa confirmada:** el form vivo de lote es `features/lote/components/lote-list/`.
+      `features/lote/page/lote-list/` + `modal-create-edit-lote` son huérfanos **que declaran el
+      MISMO selector `app-lote-list`** y encima parecen mejor escritos (usan `ConfirmDialogService`).
+      Tocar el que se ve más moderno es tocar código que no corre.
+
+### X17.2 · La lista blanca
+
+- [x] **Tabla `lote_huevo_items`**, réplica exacta de `lote_silos` (el patrón canónico de N:M por
+      lote, ya probado en prod). Cuelga de `lotes.lote_id` —el maestro, la única fila que existe en
+      las dos etapas— así que la declaración **sobrevive el cierre del levante** sin copiarse.
+      Verificado en BD: `UNIQUE` bloquea el duplicado, `RESTRICT` impide borrar un ítem del catálogo
+      que un lote declara, migración idempotente corrida 2 veces.
+- [x] **Sin columna `orden` a propósito:** el orden sale del catálogo (Primera → Pnc → resto), que ya
+      existe y ya está testeado. Una columna `orden` sería un segundo dueño del mismo número.
+- [x] **La regla es pura:** `HuevoItemsCalculos.ValidarPermitidos` — función NUEVA, no se tocó
+      `Validar`. `Validar` la comparten seguimiento, traslado y carga masiva; agregarle el parámetro
+      habría cambiado el comportamiento de los tres a la vez. **Un traslado no valida la lista
+      blanca a propósito**: mueve lo que YA se produjo, y exigir la lista de HOY dejaría huevos
+      reales atrapados si la declaración cambió después.
+- [x] **Los DOS caminos de escritura la aplican**: alta/edición manual (`ValidarHuevoItemsAsync`) y
+      **carga masiva por Excel** (`MigracionService.HuevosPostura`). Si solo se hubiera puesto en el
+      formulario, el Excel era la puerta de atrás de la restricción.
+- [x] **Frontend:** servicio + `modal-asignar-huevo-items` (espeja `modal-asignar-silos`) + botón 🥚
+      en la grilla de lotes, gateado por `clasificacionHuevoPorItems` (el flag no se leía en
+      `lote-list`, se agregó). El modal avisa explícitamente si se va a guardar vacío — el operario
+      tiene que enterarse ahí, no al día siguiente cargando producción.
+
+### X17.3 · Filas fijas en el diario de producción
+
+- [x] **Se fue el `<select>`, el «➕ agregar ítem» y el 🗑️.** El conjunto lo define el lote. Con eso
+      se cayó código que existía solo para vigilar la selección: `onCambioItemHuevo` (anti-duplicado),
+      `itemHuevoUsadoEnOtraFila`, `agregarFilaHuevo`, `eliminarFilaHuevo`, `totalItemsHuevoOfrecidos`
+      y `cargarItemsHuevo`/`refrescarGruposHuevoItems` (el catálogo entero ya no se pide). **El
+      duplicado pasó de imposible-por-vigilancia a imposible-por-construcción.**
+- [x] **UX:** filas agrupadas por Primera / Pnc con **subtotal por grupo** y total general en vivo.
+      Cada fila muestra nombre + código + unidad y un solo input.
+- [x] 🔴 **Trampa de FormArray esquivada:** `reconstruirFilasHuevo` **vacía y repuebla la MISMA
+      instancia**, nunca la reemplaza. `setupHuevosAutoCalculo` suscribe `valueChanges` UNA sola vez
+      — cambiar la instancia habría dejado el total congelado para siempre, sin error.
+- [x] Las cantidades ya escritas se conservan **por `catalogItemId`, no por índice**: el orden puede
+      cambiar si el lote cambió su declaración mientras el modal estaba abierto.
+- [x] Un ítem guardado que el lote ya no declara **no se pierde**: aparece como fila huérfana marcada.
+
+### X17.4 · Los 6 defectos de la auditoría, arreglados
+
+- [x] **D1 · «Total de huevos: 0» sobre un registro que sí tiene huevos.** Un registro legacy (11
+      columnas, o cargado por migración) abierto con el flag ON mostraba 0, porque las 11 columnas
+      están ocultas y el total por ítems arranca vacío. Ahora se muestra el total REAL con un aviso
+      de que viene del formato viejo.
+- [x] **D2 · El ítem en KILOS redondeaba en silencio.** `HUEVO RECUPERACION BOLSA KIL` (`um='KIL'`)
+      se pesa, pero el contrato es `int`: 12,5 kg se guardaban como 13 sin una sola señal. Ahora el
+      input usa `step` según la unidad y el guardado **avisa y frena** en vez de redondear callado.
+- [x] **D3 · Ítems fantasma entre aperturas.** `resetForm` limpiaba `huevoItemsGuardados` pero no los
+      grupos, y el componente no se destruye entre aperturas (el `@if (isOpen)` está dentro de su
+      propio template). Ahora `resetForm` reconstruye las filas siempre.
+- [x] **D4 · El backend aceptaba ítems INACTIVOS.** El front solo ofrece activos
+      (`CatalogItemService.GetByTypeAsync` filtra `Activo`) pero `ValidarHuevoItemsAsync` no lo
+      hacía: un ítem dado de baja seguía siendo un id válido para guardar. Los dos gates ahora
+      coinciden.
+- [x] **D5 · La vigencia de primera postura era 100 % UI.** `HuevoPrimeraPosturaCalculos.EsVigente`
+      **no tenía un solo llamador en `backend/src`** — la regla del cliente («desde el primer día de
+      la semana 23 no usa más el ítem») no se cumplía por ningún lado: la fecha es editable dentro
+      del mismo modal, así que alcanzaba con elegir el ítem en semana 21 y corregir la fecha a
+      semana 30. Ahora el backend la valida (`MensajeFueraDeVigencia`), y la fila se muestra
+      **deshabilitada y explicada**, no oculta.
+- [x] **D6 · El traslado de huevos no validaba catálogo ni flag.** Solo lo frenaba la disponibilidad,
+      y un ítem con `Cantidad = 0` la pasa (el chequeo es `solicitado > disponible`). Se alineó con
+      el gate del seguimiento — sin la lista blanca, por lo dicho en X17.2.
+
+### X17.5 · Reportes (lo que pidió el usuario: «que se valide en el reporte contable y otros»)
+
+- [i] **Los reportes NO leen `huevoItems`.** El contable, el técnico de producción, el diario de
+      costos, el técnico semanal y el espejo consumen `huevo_tot` y las 11 columnas: son **ciegos al
+      ítem**. Como el guardado por ítems deja `huevo_tot` = suma del desglose, la coherencia de
+      TODOS ellos se reduce a un solo invariante.
+- [x] **`backend/sql/verificar_huevo_items_reportes.sql`** (diagnóstico de solo lectura, exento del
+      gate por prefijo `verificar_`) chequea las 4 cosas: `huevo_tot` == suma del desglose, las 11
+      columnas en 0 en los registros por ítems, ningún ítem fuera de la lista blanca de su lote, y el
+      espejo cuadrando con la suma de seguimientos. **Corrido el 21-ago: 0 descuadres**, y el espejo
+      cuadra exacto en Agroavicola Sanmarino (3.632.634 = 3.632.634).
+
+### X17.6 · Validación
+
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **3031/3031** (+17: lista blanca
+      fail-closed, ítem fuera de lista nombrado, orden de grupos, y la coherencia
+      `EsVigente` ↔ `MensajeFueraDeVigencia` en todo el rango).
+- [x] `ng build` **0 errores / 0 warnings** · `ng test` **633/633** (+9 de `construirFilasFijasHuevo`
+      y `esItemEnKilos`).
+- [x] Gate del `.sql` OK · migración aplicada y re-corrida en BD local sin error.
+- [i] **Gate multipaís NO aplica:** no se tocó `fn_seguimiento_diario_*`, `fn_cuadre_alimento_*` ni
+      ningún `*SaldoAlimento*`.
+- [~] **Sin smoke visual en navegador**: Santa Reyes no tiene lotes en local, así que no hay contra
+      qué abrir el modal con datos reales. La verificación fue de código + invariantes en BD.
+
+- [x] **X17 cerrado.** Entorno: sin backend propio (`--artifacts-path`), sin procesos nuevos.

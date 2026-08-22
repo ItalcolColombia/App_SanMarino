@@ -286,6 +286,8 @@ builder.Services.AddScoped<ISiloCatalogoService, SiloCatalogoService>();
 builder.Services.AddScoped<IFarmSiloService, FarmSiloService>();
 builder.Services.AddScoped<IGalponSiloService, GalponSiloService>();
 builder.Services.AddScoped<ILoteSiloService, LoteSiloService>();
+// F7.3 — qué tipos de huevo produce cada lote (lista blanca del diario de producción).
+builder.Services.AddScoped<ILoteHuevoItemService, LoteHuevoItemService>();
 builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
 // Doble validación de los seguimientos diarios: separa al guardar, descuenta al validar.
 builder.Services.AddScoped<IValidacionSeguimientoService, ValidacionSeguimientoService>();

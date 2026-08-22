@@ -392,55 +392,94 @@
                   <div class="clasificadora-section">
                     <h4 class="clasificadora-title">
                       <span class="label-icon">🥚</span> Clasificación de huevos
-                      <span class="ux-hint">· por ítem del catálogo (Primera / Pnc)</span>
+                      <span class="ux-hint">· tipos declarados en el lote</span>
                     </h4>
 
-                    @if (cargandoItemsHuevo) {
-                      <p class="ux-hint">Cargando ítems de huevo…</p>
+                    @if (cargandoHuevoItemsDelLote) {
+                      <p class="ux-hint">Cargando los tipos de huevo del lote…</p>
                     }
-                    @if (!cargandoItemsHuevo && gruposHuevoItems.length === 0) {
+
+                    <!-- Un error de red NO se puede leer como «el lote no declaró nada»: mandaría
+                         al operario a editar el lote para nada. -->
+                    @if (!cargandoHuevoItemsDelLote && errorHuevoItemsDelLote) {
                       <p class="ux-hint text-danger">
-                        La empresa no tiene ítems de huevo activos en el catálogo. Cargalos en Catálogo de ítems para poder clasificar.
+                        No se pudieron cargar los tipos de huevo de este lote. Reintentá cerrando y
+                        volviendo a abrir el registro.
                       </p>
                     }
 
-                    @for (fila of huevoItemsArray.controls; track fila; let i = $index) {
-                      <div class="huevo-fila" [formGroup]="$any(fila)">
-                        <div class="form-field huevo-fila__item">
-                          <label [for]="'f-huevo-item-' + i">Ítem de huevo</label>
-                          <select [id]="'f-huevo-item-' + i" formControlName="catalogItemId">
-                            <option [ngValue]="null">— Seleccione —</option>
-                            @for (grupo of gruposHuevoItems; track grupo.tipoHuevo) {
-                              <optgroup [label]="grupo.tipoHuevo">
-                                @for (op of grupo.items; track op.id) {
-                                  <option [ngValue]="op.id" [disabled]="itemHuevoUsadoEnOtraFila(op.id, i) || !itemHuevoVigente(op)">
-                                    {{ op.label }}{{ !itemHuevoVigente(op) ? ' (fuera de vigencia)' : '' }}
-                                  </option>
-                                }
-                              </optgroup>
+                    <!-- Fail-closed: sin declaración no hay filas, y el mensaje dice qué hacer. -->
+                    @if (!cargandoHuevoItemsDelLote && !errorHuevoItemsDelLote && loteSinHuevoItems) {
+                      <p class="huevo-vacio">
+                        Este lote todavía <strong>no tiene tipos de huevo asignados</strong>.
+                        Editá el lote (botón 🥚 en la lista de lotes) y declará qué tipos produce
+                        para poder registrar la clasificación.
+                      </p>
+                    }
+
+                    @if (!cargandoHuevoItemsDelLote && hayFilasHuevo) {
+                      @for (grupo of gruposFilasHuevo; track grupo.tipoHuevo) {
+                        <section class="huevo-grupo">
+                          <header class="huevo-grupo__head">
+                            <span class="huevo-grupo__titulo">{{ grupo.tipoHuevo }}</span>
+                            <span class="huevo-grupo__subtotal">
+                              {{ subtotalGrupoHuevo(grupo) | number:'1.0-2' }}
+                            </span>
+                          </header>
+
+                          @for (fila of grupo.filas; track fila.catalogItemId) {
+                            @if (indiceFilaHuevo(fila.catalogItemId) >= 0) {
+                              <div class="huevo-fija"
+                                   [class.huevo-fija--inactiva]="fila.fueraDeVigencia"
+                                   [formGroup]="$any(huevoItemsArray.at(indiceFilaHuevo(fila.catalogItemId)))">
+                                <div class="huevo-fija__item">
+                                  <label [for]="'f-huevo-' + fila.catalogItemId" class="huevo-fija__nombre">
+                                    {{ fila.nombre }}
+                                  </label>
+                                  <span class="huevo-fija__meta">
+                                    @if (fila.codigo) { <span class="huevo-fija__cod">{{ fila.codigo }}</span> }
+                                    @if (fila.um) { <span class="huevo-fija__um">{{ fila.um }}</span> }
+                                    @if (fila.huerfano) {
+                                      <span class="huevo-fija__tag huevo-fija__tag--warn"
+                                            title="El lote ya no declara este tipo, pero este registro lo tenía cargado">
+                                        fuera de la lista del lote
+                                      </span>
+                                    }
+                                    @if (fila.fueraDeVigencia) {
+                                      <span class="huevo-fija__tag huevo-fija__tag--warn">
+                                        primera postura fuera de vigencia
+                                      </span>
+                                    }
+                                  </span>
+                                </div>
+                                <input [id]="'f-huevo-' + fila.catalogItemId"
+                                       type="number" min="0" [step]="pasoCantidadHuevo(fila)"
+                                       formControlName="cantidad" placeholder="0"
+                                       class="huevo-fija__cantidad" />
+                              </div>
                             }
-                          </select>
-                          @if (detalleItemHuevo(fila.get('catalogItemId')?.value); as detalleHuevo) {
-                            <small class="ux-hint">{{ detalleHuevo }}</small>
                           }
+                        </section>
+                      }
+
+                      <div class="huevo-acciones">
+                        <div class="huevo-total" role="status" aria-live="polite">
+                          <span class="huevo-total__label">Total de huevos</span>
+                          <span class="huevo-total__value">{{ totalHuevosClasificados | number:'1.0-2' }}</span>
                         </div>
-                        <div class="form-field huevo-fila__cantidad">
-                          <label [for]="'f-huevo-cantidad-' + i">Cantidad</label>
-                          <input [id]="'f-huevo-cantidad-' + i" type="number" min="0" step="1" formControlName="cantidad" placeholder="0" />
-                        </div>
-                        <button type="button" class="icon-btn icon-btn--danger huevo-fila__quitar"
-                                (click)="eliminarFilaHuevo(i)" [attr.aria-label]="'Quitar fila ' + (i + 1)">🗑️</button>
                       </div>
                     }
 
-                    <div class="huevo-acciones">
-                      <button type="button" class="btn btn--outline btn--sm" (click)="agregarFilaHuevo()">➕ Agregar ítem</button>
-                      <div class="huevo-total" role="status" aria-live="polite">
-                        <span class="huevo-total__label">Total de huevos</span>
-                        <span class="huevo-total__value">{{ totalHuevosClasificados | number:'1.0-2' }}</span>
-                      </div>
-                    </div>
-                    <small class="ux-hint">Sin filas cargadas el registro queda sin clasificación por ítems.</small>
+                    <!-- D1 — registro viejo (11 columnas) abierto con el flag activo: sin este
+                         aviso la pantalla decía «Total de huevos: 0» sobre un registro que sí
+                         tiene huevos, porque las 11 columnas están ocultas. -->
+                    @if (totalHuevosLegacy !== null) {
+                      <p class="huevo-legacy">
+                        Este registro se cargó con el formato anterior y tiene
+                        <strong>{{ totalHuevosLegacy | number:'1.0-2' }}</strong> huevos sin desglosar por ítem.
+                        Si cargás cantidades acá, reemplazan ese total.
+                      </p>
+                    }
                   </div>
                 </div>
               }

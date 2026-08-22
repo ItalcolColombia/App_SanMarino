@@ -70,6 +70,87 @@ public static class HuevoItemsCalculos
         return null;
     }
 
+    /// <summary>Mensaje cuando el lote todavía no declaró qué tipos de huevo produce.</summary>
+    public const string MensajeLoteSinItemsDeclarados =
+        "Este lote no tiene tipos de huevo asignados. Editá el lote y declará qué tipos produce " +
+        "antes de registrar la clasificación.";
+
+    /// <summary>
+    /// F7.3 — ¿todos los ítems del desglose están entre los que el LOTE declaró producir?
+    /// Devuelve <c>null</c> si es válido, o el mensaje del primer problema.
+    ///
+    /// <para>
+    /// <b>Fail-closed, y es el corazón de la feature.</b> Un lote sin ítems declarados
+    /// (<paramref name="permitidos"/> vacío) rechaza cualquier clasificación: NO se cae al catálogo
+    /// completo. Es la decisión explícita del cliente (21-ago-2026) — «si no tiene asignado no
+    /// aparece, el usuario tiene que editar el lote». Caer al catálogo completo sería exactamente
+    /// el control que se pidió eliminar.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué es una función aparte y no un parámetro de <see cref="Validar"/>.</b> A
+    /// <c>Validar</c> la comparten tres caminos de escritura (seguimiento, traslado de huevos y
+    /// carga masiva) y solo el seguimiento y la carga masiva tienen lote con lista blanca: un
+    /// traslado mueve lo que YA se produjo, así que restringirlo por la lista de HOY dejaría huevos
+    /// reales atrapados si la lista cambió después. Agregarle el parámetro habría cambiado el
+    /// comportamiento de los tres a la vez.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>null</c> o lista vacía en <paramref name="items"/> ⇒ válido: no hay nada que clasificar,
+    /// y es el caso «no tocar» de la edición. Un lote sin declarar sigue pudiendo guardar un
+    /// seguimiento SIN huevos.
+    /// </para>
+    /// </summary>
+    /// <param name="items">Desglose que llega en el request.</param>
+    /// <param name="permitidos">Ids de <c>catalogo_items</c> que el lote declaró producir.</param>
+    /// <param name="nombrePorItem">Nombre legible por id, para que el mensaje diga QUÉ ítem sobra.</param>
+    public static string? ValidarPermitidos(
+        IReadOnlyCollection<HuevoItemSeguimientoDto>? items,
+        IReadOnlyCollection<int> permitidos,
+        IReadOnlyDictionary<int, string>? nombrePorItem = null)
+    {
+        if (items is null || items.Count == 0) return null;
+
+        if (permitidos.Count == 0) return MensajeLoteSinItemsDeclarados;
+
+        var set = permitidos as HashSet<int> ?? new HashSet<int>(permitidos);
+
+        foreach (var item in items)
+        {
+            if (set.Contains(item.CatalogItemId)) continue;
+
+            var nombre = nombrePorItem is not null && nombrePorItem.TryGetValue(item.CatalogItemId, out var n)
+                ? $"«{n}»"
+                : $"(id {item.CatalogItemId})";
+
+            return $"El ítem de huevo {nombre} no está entre los tipos que este lote produce. " +
+                   "Editá el lote para agregarlo, o quitá la fila.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Orden de presentación de los grupos de huevo: los tipos conocidos primero y en este orden, el
+    /// resto después. Espeja <c>ORDEN_TIPOS_HUEVO</c> del frontend
+    /// (<c>models/huevo-clasificacion.model.ts</c>) — si cambian, cambian los dos.
+    /// </summary>
+    public static readonly string[] OrdenTiposHuevo = { "Primera", "Pnc" };
+
+    /// <summary>
+    /// Peso de ordenamiento de un tipo de huevo: menor va primero. Un tipo desconocido o nulo va al
+    /// final, nunca intercalado — así una categoría nueva del catálogo no se cuela entre Primera y
+    /// Pnc sin que nadie lo decida.
+    /// </summary>
+    public static int PesoTipoHuevo(string? tipoHuevo)
+    {
+        if (string.IsNullOrWhiteSpace(tipoHuevo)) return OrdenTiposHuevo.Length;
+        var idx = Array.FindIndex(OrdenTiposHuevo,
+            t => t.Equals(tipoHuevo.Trim(), StringComparison.OrdinalIgnoreCase));
+        return idx == -1 ? OrdenTiposHuevo.Length : idx;
+    }
+
     /// <summary>
     /// Reconstruye el desglose persistido en el metadata del seguimiento (clave <c>huevoItems</c>).
     /// Devuelve lista vacía si la clave no existe, no es un array o el elemento no es objeto.

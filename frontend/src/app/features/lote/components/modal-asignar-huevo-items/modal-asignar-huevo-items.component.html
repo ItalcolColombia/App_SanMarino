@@ -1,0 +1,88 @@
+<!-- src/app/features/lote/components/modal-asignar-huevo-items/modal-asignar-huevo-items.component.html -->
+<div class="modal-backdrop" (click)="onCerrar()"></div>
+
+<div class="modal-panel" role="dialog" aria-modal="true" aria-label="Tipos de huevo del lote">
+  <div class="modal-header">
+    <h3>🥚 Tipos de huevo{{ loteNombre ? ' · ' + loteNombre : '' }}</h3>
+    <button type="button" class="icon-btn" (click)="onCerrar()" aria-label="Cerrar">
+      <fa-icon [icon]="faTimes"></fa-icon>
+    </button>
+  </div>
+
+  <div class="modal-body">
+    <p class="mas-hint">
+      Qué tipos de huevo produce este lote. El seguimiento diario de producción mostrará
+      <strong>una fila por cada uno</strong> y no ofrecerá ningún otro.
+    </p>
+
+    @if (loading) {
+      <p class="mas-hint">Cargando el catálogo de huevo…</p>
+    }
+
+    @if (!loading && sinCatalogo) {
+      <p class="mas-hint text-danger">
+        La empresa no tiene ítems de huevo activos en el catálogo. Cargalos en
+        <strong>Catálogo de ítems</strong> antes de asignarlos al lote.
+      </p>
+    }
+
+    @if (!loading && !sinCatalogo) {
+      @for (grupo of grupos; track grupo.tipoHuevo) {
+        <section class="hi-grupo">
+          <header class="hi-grupo__head">
+            <label class="hi-check hi-check--grupo">
+              <input type="checkbox"
+                     [checked]="grupoCompleto(grupo)"
+                     [disabled]="saving"
+                     (change)="alternarGrupo(grupo)" />
+              <span class="hi-grupo__titulo">{{ grupo.tipoHuevo }}</span>
+            </label>
+            <span class="hi-grupo__contador">
+              {{ seleccionadosDelGrupo(grupo) }} / {{ grupo.items.length }}
+            </span>
+          </header>
+
+          <div class="hi-items">
+            @for (item of grupo.items; track item.catalogItemId) {
+              <label class="hi-check hi-item" [class.hi-item--on]="estaSeleccionado(item.catalogItemId)">
+                <input type="checkbox"
+                       [checked]="estaSeleccionado(item.catalogItemId)"
+                       [disabled]="saving"
+                       (change)="alternar(item.catalogItemId)" />
+                <span class="hi-item__texto">
+                  <span class="hi-item__nombre">{{ item.nombre }}</span>
+                  <span class="hi-item__meta">
+                    @if (item.codigo) { <span class="hi-item__cod">{{ item.codigo }}</span> }
+                    @if (item.um) { <span class="hi-item__um">{{ item.um }}</span> }
+                    @if (item.primeraPostura) {
+                      <span class="hi-item__tag" title="Solo se puede registrar dentro de la vigencia por semana de vida del lote">
+                        primera postura
+                      </span>
+                    }
+                  </span>
+                </span>
+              </label>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Fail-closed explícito: el operario tiene que enterarse ACÁ, no al día siguiente
+           cargando producción y encontrándose la tabla vacía. -->
+      @if (totalSeleccionados === 0) {
+        <p class="hi-aviso">
+          ⚠️ Sin ningún tipo seleccionado, este lote <strong>no podrá registrar clasificación de
+          huevos</strong> en el seguimiento diario.
+        </p>
+      }
+    }
+  </div>
+
+  <div class="modal-footer">
+    <span class="hi-total">{{ totalSeleccionados }} seleccionados</span>
+    <button type="button" class="btn-subtle" (click)="onCerrar()">Cancelar</button>
+    <button type="button" class="btn-primary" (click)="guardar()" [disabled]="saving || loading">
+      {{ saving ? 'Guardando…' : 'Guardar' }}
+    </button>
+  </div>
+</div>

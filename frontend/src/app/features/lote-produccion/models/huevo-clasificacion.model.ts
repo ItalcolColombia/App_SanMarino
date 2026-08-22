@@ -43,6 +43,42 @@ export interface HuevoCatalogGrupo {
   items: HuevoCatalogOption[];
 }
 
+// ===================== F7.3 · FILAS FIJAS DEL SEGUIMIENTO DIARIO =====================
+
+/**
+ * Una fila FIJA del bloque de clasificación: un ítem que el LOTE declaró producir. A diferencia de
+ * `HuevoCatalogOption` (que era una opción de un `<select>` que el usuario elegía), esto ya es una
+ * fila materializada — el operario solo escribe la cantidad.
+ */
+export interface HuevoFilaFija {
+  /** `catalogo_items.id`. Es también el `catalogItemId` del payload. */
+  catalogItemId: number;
+  codigo: string;
+  nombre: string;
+  /** 'Primera' | 'Pnc' | null. */
+  tipoHuevo: string | null;
+  /** 'UND' | 'KIL' | null. Si es KIL la fila admite decimales (D2). */
+  um: string | null;
+  primeraPostura: boolean;
+  /**
+   * El ítem salió del catálogo (o de la declaración del lote) pero el registro que se está
+   * EDITANDO ya lo tenía cargado. Se muestra igual, marcado, para no perder el dato en silencio.
+   */
+  huerfano: boolean;
+  /**
+   * El ítem es de primera postura y el registro está fuera de la vigencia por semana (F7.4).
+   * La fila se muestra deshabilitada y explicada, no oculta: que desaparezca una fila sin decir
+   * por qué es peor que verla en gris.
+   */
+  fueraDeVigencia: boolean;
+}
+
+/** Un grupo de filas fijas (Primera / Pnc / Sin categoría) con su subtotal. */
+export interface HuevoGrupoFilasFijas {
+  tipoHuevo: string;
+  filas: HuevoFilaFija[];
+}
+
 // ===================== REPORTES / INDICADORES (FASE 5) =====================
 
 /** Ítem del desglose semanal ya agrupado (una línea "codigo — nombre: cantidad"). */

@@ -69,7 +69,29 @@ public partial class MigracionService
             return porFecha;
         }
 
-        var catalogo = await CargarItemsHuevoEmpresaAsync(companyId, ct);
+        // F7.3 — la lista blanca del LOTE. Este es el SEGUNDO camino de escritura de `huevoItems`
+        // (el otro es el alta/edición manual) y produce exactamente el mismo jsonb, así que si no
+        // aplicara la misma regla la carga masiva sería la puerta de atrás de la restricción.
+        // Fail-closed igual que el formulario: sin declaración no se acepta ni una fila.
+        var permitidos = await _ctx.LoteHuevoItems.AsNoTracking()
+            .Where(lhi => lhi.LoteId == loteCtx.LoteId && lhi.Activo)
+            .Select(lhi => lhi.CatalogItemId)
+            .ToListAsync(ct);
+
+        if (permitidos.Count == 0)
+        {
+            errores.Add(new(0, "Ítem", null, HuevoItemsCalculos.MensajeLoteSinItemsDeclarados));
+            return porFecha;
+        }
+
+        var permitidosSet = permitidos.ToHashSet();
+
+        // El catálogo que indexa la hoja se ACOTA a los ítems declarados por el lote: así un nombre
+        // o código que exista en la empresa pero que el lote no produzca cae en el mismo mensaje de
+        // «no existe en el catálogo de huevo» que ya conoce el usuario, en vez de pasar silencioso.
+        var catalogo = (await CargarItemsHuevoEmpresaAsync(companyId, ct))
+            .Where(i => permitidosSet.Contains(i.Id))
+            .ToList();
         var porClave = new Dictionary<string, List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>>();
         foreach (var i in catalogo)
         {
@@ -80,7 +102,7 @@ public partial class MigracionService
         if (catalogo.Count == 0)
         {
             errores.Add(new(0, "Ítem", null,
-                "La empresa no tiene ítems de huevo en el catálogo (item_type = 'huevo'); no hay contra qué validar la hoja 'Huevos'."));
+                "Los tipos de huevo declarados en este lote ya no existen o no están activos en el catálogo de la empresa; revisá la asignación del lote."));
             return porFecha;
         }
 

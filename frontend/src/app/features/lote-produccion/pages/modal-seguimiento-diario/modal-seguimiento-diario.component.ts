@@ -11,6 +11,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { SilosService, LoteSiloDto } from '../../../silos/services/silos.service';
+import { LoteHuevoItemsService, LoteHuevoItemDto } from '../../../lote/services/lote-huevo-items.service';
 import {
   agruparStockPorItemSilo,
   claveItemSilo,
@@ -19,11 +20,13 @@ import {
 } from '../../../../shared/utils/inventario/stock-por-silo.funcion';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
-import { HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
+import { HuevoFilaFija, HuevoGrupoFilasFijas, HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
 import {
   agruparItemsHuevoPorTipo,
   esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
+  construirFilasFijasHuevo,
+  esItemEnKilos,
   mapearItemsHuevoACatalogo,
   sumarCantidadesHuevo
 } from '../../funciones/items-huevo-catalogo.funcion';
@@ -131,6 +134,24 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   silosDelLote: LoteSiloDto[] = [];
   private silosLoteLoadId = 0;
 
+  // ── F7.3 · filas FIJAS de clasificación de huevo ──────────────────────────────────
+  /** Grupos (Primera / Pnc / …) con una fila por cada tipo que el LOTE declaró producir. */
+  gruposFilasHuevo: HuevoGrupoFilasFijas[] = [];
+  /** Tipos declarados por el lote, tal como los devuelve el backend. */
+  private huevoItemsDelLote: LoteHuevoItemDto[] = [];
+  cargandoHuevoItemsDelLote = false;
+  /**
+   * D1 — total del registro que se está editando cuando viene del formato LEGACY (11 columnas) y
+   * no tiene desglose por ítems. `null` = no aplica. Evita mostrar «Total de huevos: 0» sobre un
+   * registro que sí tiene huevos.
+   */
+  totalHuevosLegacy: number | null = null;
+  /** El lote no declaró ningún tipo ⇒ fail-closed: no se puede clasificar. */
+  loteSinHuevoItems = false;
+  /** Falló el GET de los tipos del lote: no es lo mismo que «no declaró ninguno». */
+  errorHuevoItemsDelLote = false;
+  private huevoItemsLoteLoadId = 0;
+
   // Tipos de ítem (fijos para no-EC/PA; dinámicos conceptos para Ecuador/Panamá)
   tiposItem: string[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
   /** Ecuador/Panamá: catálogo item_inventario_ecuador y conceptos únicos. */
@@ -195,7 +216,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     private storage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
     private toast: ToastService,
-    private silosSvc: SilosService
+    private silosSvc: SilosService,
+    private huevoItemsSvc: LoteHuevoItemsService
   ) { }
 
   ngOnInit(): void {
@@ -235,10 +257,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       if (!this.clasificacionHuevoPorItems) return;
-      this.cargarItemsHuevo();
+      // F7.3 — las filas salen de lo que el LOTE declaró producir, no del catálogo de la empresa.
+      this.cargarHuevoItemsDelLote();
       // El flag llega async: si el modal ya estaba abierto, sincronizar filas y totales.
       if (this.editingSeguimiento) this.rehidratarHuevoItems();
-      else this.asegurarFilaHuevoInicial();
       this.recalcularTotalesHuevos();
     });
   }
@@ -700,190 +722,239 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   // ================== CLASIFICACIÓN DE HUEVOS POR ÍTEMS (flag de empresa) ==================
 
   /**
-   * Catálogo de ítems de huevo de la EMPRESA ACTIVA (`catalogo_items` con `item_type='huevo'`).
-   * Fuente: `GET /api/catalogo-alimentos/filter?typeItem=huevo` (ya scopeado por empresa/país y
-   * solo activos en el backend). Se carga una sola vez por instancia del modal.
+   * F7.3 — carga los tipos de huevo que el LOTE declaró producir. De ahí salen las filas FIJAS.
+   *
+   * Fail-closed: si el lote no declaró ninguno, no se ofrece nada y el bloque muestra el mensaje
+   * accionable. Un error de red se distingue explícitamente de «no declaró ninguno» — decirle al
+   * operario que el lote no tiene tipos cuando en realidad se cayó el GET lo mandaría a editar el
+   * lote para nada.
    */
-  private cargarItemsHuevo(): void {
-    if (this.cargandoItemsHuevo || this.huevoItemsById.size > 0) return;
-    this.cargandoItemsHuevo = true;
-    this.inventarioSvc.getCatalogoByType(ITEM_TYPE_HUEVO).pipe(
+  private cargarHuevoItemsDelLote(): void {
+    if (!this.clasificacionHuevoPorItems || !this.loteId) {
+      this.huevoItemsDelLote = [];
+      this.loteSinHuevoItems = false;
+      this.errorHuevoItemsDelLote = false;
+      this.reconstruirFilasHuevo();
+      return;
+    }
+
+    const loadId = ++this.huevoItemsLoteLoadId;
+    this.cargandoHuevoItemsDelLote = true;
+    this.errorHuevoItemsDelLote = false;
+
+    this.huevoItemsSvc.getByLote(this.loteId).pipe(
       catchError(err => {
-        console.error('Error al cargar ítems de huevo:', err);
-        return of([] as CatalogItemDto[]);
+        console.error('Error al cargar los tipos de huevo del lote:', err);
+        if (loadId === this.huevoItemsLoteLoadId) this.errorHuevoItemsDelLote = true;
+        return of(null);
       })
-    ).subscribe((items: CatalogItemDto[]) => {
-      this.cargandoItemsHuevo = false;
-      const opciones = mapearItemsHuevoACatalogo(items ?? []);
-      this.huevoItemsById.clear();
-      opciones.forEach(o => this.huevoItemsById.set(o.id, o));
-      this.refrescarGruposHuevoItems();
+    ).subscribe(items => {
+      // Cambió de lote mientras viajaba la respuesta: descartar, o se pintan las filas del anterior.
+      if (loadId !== this.huevoItemsLoteLoadId) return;
+      this.cargandoHuevoItemsDelLote = false;
+      if (items === null) { this.huevoItemsDelLote = []; this.loteSinHuevoItems = false; }
+      else {
+        this.huevoItemsDelLote = items;
+        this.loteSinHuevoItems = items.length === 0;
+      }
+      this.reconstruirFilasHuevo();
     });
   }
 
-  /** Rearma los `<optgroup>` sumando los ítems guardados que ya no estén en el catálogo. */
-  private refrescarGruposHuevoItems(): void {
-    const opciones = fusionarItemsHuevoGuardados(
-      Array.from(this.huevoItemsById.values()),
-      Array.from(this.huevoItemsGuardados.values())
+  /**
+   * Rearma las filas fijas y sincroniza el FormArray para que haya EXACTAMENTE un control por fila,
+   * en el mismo orden. Conserva las cantidades ya escritas (por `catalogItemId`, no por índice: el
+   * orden puede cambiar si el lote cambió su declaración).
+   */
+  private reconstruirFilasHuevo(): void {
+    const cantidadesPrevias = new Map<number, unknown>();
+    for (const c of this.huevoItemsArray.controls) {
+      const id = Number(c.get('catalogItemId')?.value) || 0;
+      if (id > 0) cantidadesPrevias.set(id, c.get('cantidad')?.value);
+    }
+
+    const semanaVida = semanaVidaLevante(this.fechaEncaset, this.form?.get('fechaRegistro')?.value ?? null);
+
+    this.gruposFilasHuevo = construirFilasFijasHuevo(
+      this.huevoItemsDelLote.map(i => ({
+        catalogItemId: i.catalogItemId,
+        codigo: i.codigo ?? '',
+        nombre: i.nombre,
+        tipoHuevo: i.tipoHuevo ?? null,
+        um: i.um ?? null,
+        primeraPostura: i.primeraPostura,
+        huerfano: false,
+        fueraDeVigencia: false
+      })),
+      Array.from(this.huevoItemsGuardados.values()),
+      semanaVida,
+      this.huevoPrimeraPosturaHastaSemana
     );
-    this.gruposHuevoItems = agruparItemsHuevoPorTipo(opciones);
+
+    // TRAMPA: no se reemplaza el FormArray (`setControl`) — `setupHuevosAutoCalculo` suscribe UNA
+    // sola vez su `valueChanges`, y cambiar la instancia dejaría el total congelado para siempre.
+    // Se vacía y se repuebla la MISMA instancia.
+    while (this.huevoItemsArray.length) this.huevoItemsArray.removeAt(0);
+    for (const fila of this.filasHuevoPlanas) {
+      const guardado = this.huevoItemsGuardados.get(fila.catalogItemId);
+      const cantidad = cantidadesPrevias.has(fila.catalogItemId)
+        ? cantidadesPrevias.get(fila.catalogItemId)
+        : (guardado?.cantidad ?? 0);
+      this.huevoItemsArray.push(this.crearFilaHuevo(fila.catalogItemId, Number(cantidad) || 0));
+    }
+    this.recalcularTotalesHuevos();
   }
 
-  /** Cantidad de ítems distintos ofrecidos por el catálogo (tope de filas). */
-  private get totalItemsHuevoOfrecidos(): number {
+  /** Todas las filas, sin agrupar, en el MISMO orden en que se pintan. */
+  private get filasHuevoPlanas(): HuevoFilaFija[] {
+    const filas: HuevoFilaFija[] = [];
+    for (const g of this.gruposFilasHuevo) filas.push(...g.filas);
+    return filas;
+  }
+
+  /**
+   * Índice del control en el FormArray para una fila. El template lo necesita porque las filas se
+   * pintan AGRUPADAS pero el FormArray es plano.
+   */
+  indiceFilaHuevo(catalogItemId: number): number {
+    const controls = this.huevoItemsArray.controls;
+    for (let i = 0; i < controls.length; i++) {
+      if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return i;
+    }
+    return -1;
+  }
+
+  /** D2 — los ítems que se PESAN admiten decimales; los que se cuentan, no. */
+  pasoCantidadHuevo(fila: HuevoFilaFija): string {
+    return esItemEnKilos(fila.um) ? '0.01' : '1';
+  }
+
+  /** Subtotal en vivo de un grupo (Primera / Pnc). */
+  subtotalGrupoHuevo(grupo: HuevoGrupoFilasFijas): number {
     let total = 0;
-    for (const g of this.gruposHuevoItems) total += g.items.length;
+    for (const fila of grupo.filas) {
+      const idx = this.indiceFilaHuevo(fila.catalogItemId);
+      if (idx < 0) continue;
+      const n = Number(this.huevoItemsArray.at(idx).get('cantidad')?.value);
+      if (isFinite(n) && n > 0) total += n;
+    }
     return total;
   }
 
+  /** ¿Hay alguna fila para pintar? Distinto de «el lote no declaró nada». */
+  get hayFilasHuevo(): boolean {
+    return this.gruposFilasHuevo.length > 0;
+  }
+
   /**
-   * Crea una fila de clasificación. `catalogItemId` NO lleva `required` a propósito: una fila vacía
-   * no debe bloquear el guardado (se descarta en el payload, igual que los ítems de alimento).
+   * Crea el control de UNA fila fija.
+   *
+   * F7.3 — `catalogItemId` ya NO es editable: cada fila ES un ítem que el lote declaró. Por eso
+   * desapareció la suscripción anti-duplicado (`onCambioItemHuevo`) que tenía la versión con
+   * `<select>`: con el ítem fijo por fila el duplicado es imposible por construcción, no por
+   * vigilancia. Se conserva como control del FormGroup porque es lo que arma el payload.
    */
   private crearFilaHuevo(catalogItemId: number | null = null, cantidad: number = 0): FormGroup {
-    const grp = this.fb.group({
+    return this.fb.group({
       catalogItemId: [catalogItemId],
       cantidad: [cantidad, [Validators.min(0)]]
     });
-    grp.get('catalogItemId')!.valueChanges.subscribe(valor => this.onCambioItemHuevo(grp, valor));
-    return grp;
-  }
-
-  /** Evita elegir el mismo ítem en dos filas: revierte la selección y avisa por Toast. */
-  private onCambioItemHuevo(fila: FormGroup, valor: unknown): void {
-    const id = Number(valor) || 0;
-    if (!id) return;
-    const duplicado = this.huevoItemsArray.controls
-      .some(c => c !== fila && Number(c.get('catalogItemId')?.value) === id);
-    if (!duplicado) return;
-    fila.get('catalogItemId')!.setValue(null, { emitEvent: false });
-    this.toast.warning(
-      'Ese ítem de huevo ya está en otra fila. Sumá la cantidad en la fila existente.',
-      'Ítem duplicado'
-    );
-  }
-
-  /** Agrega una fila vacía (tope: un ítem por fila, sin repetir). */
-  agregarFilaHuevo(): void {
-    const tope = this.totalItemsHuevoOfrecidos;
-    if (tope > 0 && this.huevoItemsArray.length >= tope) {
-      this.toast.warning('Ya hay una fila por cada ítem de huevo del catálogo.', 'Clasificación de huevos');
-      return;
-    }
-    this.huevoItemsArray.push(this.crearFilaHuevo());
-  }
-
-  eliminarFilaHuevo(index: number): void {
-    this.huevoItemsArray.removeAt(index);
   }
 
   /**
-   * Template: detalle del ítem elegido ("Primera · UND"). Devuelve un string primitivo —
-   * no aloca objetos/arrays por ciclo de detección de cambios.
+   * Edición: carga el desglose ya persistido (`metadata.huevoItems`, la fuente de verdad) y rearma
+   * las filas. Un ítem guardado que ya no está entre los declarados por el lote NO se pierde: se
+   * agrega como fila huérfana, marcada — la declaración del lote pudo cambiar después de que el
+   * registro se guardó.
    */
-  detalleItemHuevo(catalogItemId: unknown): string {
-    const id = Number(catalogItemId) || 0;
-    if (!id) return '';
-    const item = this.huevoItemsById.get(id);
-    const guardado = this.huevoItemsGuardados.get(id);
-    const tipo = item?.tipoHuevo ?? guardado?.tipoHuevo ?? '';
-    const um = item?.um ?? guardado?.um ?? '';
-    if (tipo && um) return `${tipo} · ${um}`;
-    return tipo || um || '';
-  }
-
-  /** Template: deshabilita en el select los ítems ya elegidos en otra fila (devuelve primitivo). */
-  itemHuevoUsadoEnOtraFila(catalogItemId: number, index: number): boolean {
-    const controls = this.huevoItemsArray.controls;
-    for (let i = 0; i < controls.length; i++) {
-      if (i === index) continue;
-      if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Template: ¿sigue vigente este ítem de huevo? Solo aplica a los tagueados «primera postura»
-   * (`Company.huevoPrimeraPosturaHastaSemana`, hoy semana 22 en Santa Reyes) — el resto de los
-   * ítems (Primera común / Pnc) no tiene vigencia y siempre devuelve `true`.
-   */
-  itemHuevoVigente(op: HuevoCatalogOption): boolean {
-    if (!op.primeraPostura) return true;
-    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
-    const semanaVida = semanaVidaLevante(this.fechaEncaset, fechaRegistro);
-    return esVigentePrimeraPostura(this.huevoPrimeraPosturaHastaSemana, semanaVida);
-  }
-
-  /** Registro nuevo con el flag activo: arranca con una fila lista para cargar. */
-  private asegurarFilaHuevoInicial(): void {
-    if (!this.clasificacionHuevoPorItems) return;
-    if (this.huevoItemsArray.length > 0) return;
-    this.huevoItemsArray.push(this.crearFilaHuevo());
-  }
-
-  /** Edición: reconstruye las filas desde `metadata.huevoItems` (fuente de verdad del desglose). */
   private rehidratarHuevoItems(): void {
     const guardados = leerHuevoItemsDeMetadata(this.editingSeguimiento?.metadata);
     this.huevoItemsGuardados.clear();
     guardados.forEach(i => this.huevoItemsGuardados.set(i.catalogItemId, i));
-    while (this.huevoItemsArray.length) this.huevoItemsArray.removeAt(0);
-    guardados.forEach(i => this.huevoItemsArray.push(this.crearFilaHuevo(i.catalogItemId, i.cantidad)));
-    this.refrescarGruposHuevoItems();
-    if (guardados.length === 0) this.asegurarFilaHuevoInicial();
+    this.reconstruirFilasHuevo();
   }
 
   /**
-   * Payload `huevoItems`: filas con ítem elegido, completadas con los datos del catálogo.
-   * La cantidad viaja ENTERA: el contrato del backend declara `int Cantidad` (un decimal haría
-   * fallar el binding del request con 400).
+   * Payload `huevoItems`: una entrada por fila con cantidad > 0, completada con los datos del ítem.
+   *
+   * Las filas en CERO se descartan: mandar 20 ítems en 0 ensuciaría el jsonb de todos los días y
+   * el desglose de los reportes con ruido. El total no cambia (0 no suma).
+   *
+   * La cantidad viaja ENTERA porque el contrato del backend declara `int Cantidad`. Los ítems que
+   * se PESAN (`um = 'KIL'`) se redondean igual, pero el operario ya fue avisado en `validarHuevoItems`
+   * en vez de perder los decimales en silencio (D2).
    */
   private construirHuevoItemsPayload(): HuevoItemSeguimiento[] {
     const filas: HuevoItemSeguimiento[] = [];
+    const porId = new Map(this.filasHuevoPlanas.map(f => [f.catalogItemId, f]));
+
     for (const control of this.huevoItemsArray.controls) {
       const catalogItemId = Number(control.get('catalogItemId')?.value) || 0;
       if (catalogItemId <= 0) continue;
       const cantidadNum = Math.round(Number(control.get('cantidad')?.value));
-      const item = this.huevoItemsById.get(catalogItemId);
+      if (!isFinite(cantidadNum) || cantidadNum <= 0) continue;
+
+      const fila = porId.get(catalogItemId);
       const guardado = this.huevoItemsGuardados.get(catalogItemId);
       filas.push({
         catalogItemId,
-        codigo: item?.codigo ?? guardado?.codigo ?? null,
-        nombre: item?.nombre ?? guardado?.nombre ?? null,
-        tipoHuevo: item?.tipoHuevo ?? guardado?.tipoHuevo ?? null,
-        cantidad: isFinite(cantidadNum) ? cantidadNum : 0,
-        um: item?.um ?? guardado?.um ?? null
+        codigo: fila?.codigo || guardado?.codigo || null,
+        nombre: fila?.nombre || guardado?.nombre || null,
+        tipoHuevo: fila?.tipoHuevo ?? guardado?.tipoHuevo ?? null,
+        cantidad: cantidadNum,
+        um: fila?.um ?? guardado?.um ?? null
       });
     }
     return filas;
   }
 
   /**
-   * Validación previa al guardado (solo con el flag activo). Devuelve `false` y avisa por Toast si
-   * hay ítems repetidos o filas con cantidad pero sin ítem elegido.
+   * Validación previa al guardado (solo con el flag activo).
+   *
+   * Con filas fijas ya no hay «fila sin ítem» ni ítems repetidos: el conjunto lo define el lote y
+   * cada fila es un ítem distinto por construcción. Lo que queda por chequear es lo que el operario
+   * SÍ puede escribir mal: cantidades negativas, decimales en un ítem que se cuenta (D2) y filas
+   * fuera de vigencia con cantidad (D5, que el backend ahora también rechaza).
    */
   private validarHuevoItems(): boolean {
     if (!this.clasificacionHuevoPorItems) return true;
 
-    const vistos = new Set<number>();
+    const porId = new Map(this.filasHuevoPlanas.map(f => [f.catalogItemId, f]));
+
     for (const control of this.huevoItemsArray.controls) {
       const id = Number(control.get('catalogItemId')?.value) || 0;
-      const cantidad = Number(control.get('cantidad')?.value) || 0;
+      if (!id) continue;
+      const bruto = Number(control.get('cantidad')?.value);
+      if (!isFinite(bruto) || bruto === 0) continue;
 
-      if (!id) {
-        if (cantidad > 0) {
-          this.toast.error('Seleccioná el ítem de huevo en todas las filas que tengan cantidad.', 'Clasificación de huevos');
-          return false;
-        }
-        continue; // fila vacía: se descarta en el payload
-      }
-      if (vistos.has(id)) {
-        this.toast.error('Hay un ítem de huevo repetido: dejá una sola fila por ítem.', 'Clasificación de huevos');
+      const fila = porId.get(id);
+      const nombre = fila?.nombre ?? `ítem ${id}`;
+
+      if (bruto < 0) {
+        this.toast.error(`La cantidad de «${nombre}» no puede ser negativa.`, 'Clasificación de huevos');
         return false;
       }
-      vistos.add(id);
-      if (cantidad < 0) {
-        this.toast.error('Las cantidades de huevos no pueden ser negativas.', 'Clasificación de huevos');
+
+      // D2 — antes esto se redondeaba en silencio: 12,5 kg se guardaban como 13 sin ninguna señal.
+      // Ahora se avisa. El contrato del backend sigue siendo entero, así que se pide el ajuste en
+      // vez de fingir que el decimal viaja.
+      if (!Number.isInteger(bruto)) {
+        this.toast.error(
+          esItemEnKilos(fila?.um)
+            ? `«${nombre}» se registra en kilos enteros: ${bruto} se guardaría como ${Math.round(bruto)}. Ajustá la cantidad.`
+            : `«${nombre}» se cuenta en unidades: la cantidad tiene que ser un número entero.`,
+          'Clasificación de huevos'
+        );
+        return false;
+      }
+
+      // D5 — el ítem de primera postura fuera de vigencia. El backend también lo rechaza desde
+      // V52/F7.3, pero avisar acá evita el viaje y da un mensaje con el nombre del ítem.
+      if (fila?.fueraDeVigencia) {
+        this.toast.error(
+          `«${nombre}» es de primera postura y ya no está vigente para la fecha del registro. Dejalo en 0.`,
+          'Clasificación de huevos'
+        );
         return false;
       }
     }
@@ -1036,8 +1107,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     // Alimento fijo pre-cargado (no removible) en Hembras y Machos — sin tener que "Agregar Ítem".
     this.asegurarAlimentoFijo(this.itemsHembrasArray);
     this.asegurarAlimentoFijo(this.itemsMachosArray);
-    // Clasificación por ítems (flag activo): arranca con una fila lista para cargar.
-    this.asegurarFilaHuevoInicial();
+    // F7.3 — las filas se rearman desde los tipos declarados por el lote, no se crea una vacía.
+    // D3: `gruposFilasHuevo` se reconstruye SIEMPRE acá. Antes `resetForm` limpiaba
+    // `huevoItemsGuardados` pero no los grupos, y como el componente no se destruye entre
+    // aperturas (el `@if (isOpen)` está dentro de su propio template), quedaban ítems fantasma
+    // del registro anterior.
+    this.reconstruirFilasHuevo();
     this.recalcularTotalesHuevos();
   }
 
@@ -1416,10 +1491,24 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private recalcularTotalesHuevos(): void {
     if (this.clasificacionHuevoPorItems) {
       const total = sumarCantidadesHuevo(this.huevoItemsArray.controls.map(c => c.get('cantidad')?.value));
+
+      // D1 — un registro LEGACY (cargado antes de la clasificación por ítems, o por migración
+      // masiva con las 11 columnas) no tiene `huevoItems`: la suma da 0 y la pantalla decía
+      // «Total de huevos: 0» aunque el registro sí tuviera huevos, porque las 11 columnas están
+      // ocultas con el flag activo. Se muestra el total REAL del registro y se marca que viene del
+      // formato viejo; el guardado sigue igual (sin filas cargadas no se toca la clasificación).
+      this.totalHuevosLegacy = null;
+      if (total === 0 && this.editingSeguimiento) {
+        const legacy = Number(this.editingSeguimiento.huevosTotales ?? 0);
+        if (isFinite(legacy) && legacy > 0) this.totalHuevosLegacy = legacy;
+      }
+
       this.totalHuevosClasificados = total;
       this.form.patchValue({ huevosIncubables: 0, huevosTotales: total }, { emitEvent: false });
       return;
     }
+
+    this.totalHuevosLegacy = null;
 
     const { incubables, total } = this.totalesClasificadoraFija();
     this.form.patchValue(

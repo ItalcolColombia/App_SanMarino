@@ -1,8 +1,10 @@
 import { CatalogItemDto } from '../../catalogo-alimentos/services/catalogo-alimentos.service';
-import { HuevoCatalogOption, TIPO_HUEVO_SIN_CATEGORIA } from '../models/huevo-clasificacion.model';
+import { HuevoCatalogOption, HuevoFilaFija, TIPO_HUEVO_SIN_CATEGORIA } from '../models/huevo-clasificacion.model';
 import { HuevoItemSeguimiento } from '../services/produccion.service';
 import {
   agruparItemsHuevoPorTipo,
+  construirFilasFijasHuevo,
+  esItemEnKilos,
   esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
   mapearItemsHuevoACatalogo,
@@ -167,6 +169,108 @@ describe('items-huevo-catalogo', () => {
 
     it('lista vacia da 0', () => {
       expect(sumarCantidadesHuevo([])).toBe(0);
+    });
+  });
+
+  // ===================== F7.3 · FILAS FIJAS =====================
+
+  describe('construirFilasFijasHuevo', () => {
+    const declarado = (catalogItemId: number, nombre: string, tipoHuevo: string | null, extra: Partial<HuevoFilaFija> = {}): HuevoFilaFija => ({
+      catalogItemId, codigo: String(catalogItemId), nombre, tipoHuevo, um: 'UND',
+      primeraPostura: false, huerfano: false, fueraDeVigencia: false, ...extra
+    });
+
+    it('agrupa Primera antes que Pnc y ordena por nombre dentro del grupo', () => {
+      const grupos = construirFilasFijasHuevo(
+        [
+          declarado(3, 'Zeta pnc', 'Pnc'),
+          declarado(1, 'Beta primera', 'Primera'),
+          declarado(2, 'Alfa primera', 'Primera')
+        ],
+        [], null, null);
+
+      expect(grupos.map(g => g.tipoHuevo)).toEqual(['Primera', 'Pnc']);
+      expect(grupos[0].filas.map(f => f.nombre)).toEqual(['Alfa primera', 'Beta primera']);
+    });
+
+    it('lote sin tipos declarados da CERO grupos: fail-closed, no cae al catalogo', () => {
+      // El punto de F7.3. Si esto empieza a devolver filas, el control que pidio el cliente se fue.
+      expect(construirFilasFijasHuevo([], [], null, null)).toEqual([]);
+    });
+
+    it('conserva un item GUARDADO que el lote ya no declara, marcado como huerfano', () => {
+      // El lote pudo cambiar su declaracion despues de que el registro se guardo. Perder ese dato
+      // en silencio al editar seria peor que mostrarlo con una marca.
+      const grupos = construirFilasFijasHuevo(
+        [declarado(1, 'Vigente', 'Primera')],
+        [{ catalogItemId: 99, codigo: 'H099', nombre: 'Ya no declarado', tipoHuevo: 'Pnc', um: 'UND' }],
+        null, null);
+
+      const todas = grupos.flatMap(g => g.filas);
+      expect(todas.length).toBe(2);
+      expect(todas.find(f => f.catalogItemId === 99)!.huerfano).toBeTrue();
+      expect(todas.find(f => f.catalogItemId === 1)!.huerfano).toBeFalse();
+    });
+
+    it('no duplica un item que esta declarado Y guardado', () => {
+      const grupos = construirFilasFijasHuevo(
+        [declarado(1, 'Rojo', 'Primera')],
+        [{ catalogItemId: 1, codigo: '1', nombre: 'Rojo', tipoHuevo: 'Primera', um: 'UND' }],
+        null, null);
+
+      expect(grupos.flatMap(g => g.filas).length).toBe(1);
+    });
+
+    it('marca fueraDeVigencia solo a los de primera postura y solo pasada la semana limite', () => {
+      const declarados = [
+        declarado(1, 'Primera postura', 'Primera', { primeraPostura: true }),
+        declarado(2, 'Primera comun', 'Primera')
+      ];
+
+      const vigente = construirFilasFijasHuevo(declarados, [], 22, 22).flatMap(g => g.filas);
+      expect(vigente.find(f => f.catalogItemId === 1)!.fueraDeVigencia).toBeFalse();
+
+      const vencido = construirFilasFijasHuevo(declarados, [], 23, 22).flatMap(g => g.filas);
+      expect(vencido.find(f => f.catalogItemId === 1)!.fueraDeVigencia).toBeTrue();
+      // El que NO es de primera postura nunca vence.
+      expect(vencido.find(f => f.catalogItemId === 2)!.fueraDeVigencia).toBeFalse();
+    });
+
+    it('sin limite configurado o sin semana calculable no vence nada (fail-open)', () => {
+      const declarados = [declarado(1, 'Primera postura', 'Primera', { primeraPostura: true })];
+
+      expect(construirFilasFijasHuevo(declarados, [], 99, null).flatMap(g => g.filas)[0].fueraDeVigencia).toBeFalse();
+      expect(construirFilasFijasHuevo(declarados, [], null, 22).flatMap(g => g.filas)[0].fueraDeVigencia).toBeFalse();
+    });
+
+    it('el item huerfano NUNCA se marca de primera postura ni fuera de vigencia', () => {
+      // No se conoce su metadata actual, y la vigencia solo decide que se OFRECE: nunca bloquea
+      // lo que ya estaba guardado.
+      const grupos = construirFilasFijasHuevo(
+        [],
+        [{ catalogItemId: 99, codigo: null, nombre: null, tipoHuevo: null, um: null }],
+        30, 22);
+
+      const fila = grupos.flatMap(g => g.filas)[0];
+      expect(fila.primeraPostura).toBeFalse();
+      expect(fila.fueraDeVigencia).toBeFalse();
+      expect(fila.nombre).toBe('Ítem 99');
+    });
+  });
+
+  describe('esItemEnKilos', () => {
+    it('reconoce KIL tolerando capitalizacion y espacios', () => {
+      expect(esItemEnKilos('KIL')).toBeTrue();
+      expect(esItemEnKilos(' kil ')).toBeTrue();
+    });
+
+    it('todo lo demas se cuenta en unidades', () => {
+      // D2: solo los que se PESAN admiten decimales. Un falso positivo aca dejaria pasar
+      // decimales a un contrato entero y volveria el redondeo silencioso.
+      expect(esItemEnKilos('UND')).toBeFalse();
+      expect(esItemEnKilos(null)).toBeFalse();
+      expect(esItemEnKilos(undefined)).toBeFalse();
+      expect(esItemEnKilos('')).toBeFalse();
     });
   });
 });

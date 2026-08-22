@@ -352,38 +352,137 @@ public partial class ProduccionService : IProduccionService
     /// (a) reglas puras (cantidad ≥ 0, id &gt; 0, sin repetidos) — <see cref="HuevoItemsCalculos.Validar"/>;
     /// (b) la empresa de la granja del lote debe tener <c>clasificacion_huevo_por_items = true</c>;
     /// (c) todos los <c>catalogItemId</c> deben existir en <c>catalogo_items</c> de esa empresa con
-    ///     <c>item_type = 'huevo'</c> (una sola query, comparación de conjuntos).
+    ///     <c>item_type = 'huevo'</c> y estar <b>activos</b> (una sola query, comparación de conjuntos);
+    /// (d) <b>F7.3</b> — todos deben estar entre los tipos que el LOTE declaró producir
+    ///     (<c>lote_huevo_items</c>). <b>Fail-closed:</b> un lote sin declarar rechaza todo;
+    /// (e) <b>D5</b> — un ítem de primera postura debe estar dentro de la vigencia por semana de
+    ///     vida del lote (<c>Company.HuevoPrimeraPosturaHastaSemana</c>).
     /// Lanza <see cref="InvalidOperationException"/> (el controller la traduce a 400) con el detalle.
     /// </summary>
-    private async Task<List<HuevoItemSeguimientoDto>> ValidarHuevoItemsAsync(int loteId, List<HuevoItemSeguimientoDto> huevoItems)
+    /// <param name="fechaRegistro">
+    /// Fecha del seguimiento, para calcular la semana de vida del lote. Necesaria desde D5: la
+    /// vigencia era 100 % UI y la fecha es editable dentro del mismo modal, así que se podía elegir
+    /// el ítem en semana 21 y guardarlo con fecha de semana 30.
+    /// </param>
+    private async Task<List<HuevoItemSeguimientoDto>> ValidarHuevoItemsAsync(
+        int loteId, List<HuevoItemSeguimientoDto> huevoItems, DateTime fechaRegistro)
     {
         var error = HuevoItemsCalculos.Validar(huevoItems);
         if (error != null) throw new InvalidOperationException(error);
 
         var companyId = await ResolverCompanyIdDeGranjaDelLoteAsync(loteId).ConfigureAwait(false);
 
-        var permite = await _context.Companies.AsNoTracking()
+        var empresa = await _context.Companies.AsNoTracking()
             .Where(c => c.Id == companyId)
-            .Select(c => (bool?)c.ClasificacionHuevoPorItems)
+            .Select(c => new { c.ClasificacionHuevoPorItems, c.HuevoPrimeraPosturaHastaSemana })
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
-        if (permite != true)
+        if (empresa?.ClasificacionHuevoPorItems != true)
             throw new InvalidOperationException(
                 "La empresa de este lote no tiene habilitada la clasificación de huevos por ítems de inventario; use los campos de clasificación estándar.");
 
         var ids = huevoItems.Select(i => i.CatalogItemId).Distinct().ToArray();
-        var existentes = await _context.CatalogItems.AsNoTracking()
-            .Where(ci => ci.CompanyId == companyId && ci.ItemType == "huevo" && ids.Contains(ci.Id))
-            .Select(ci => ci.Id)
+
+        // D4 — se exige `Activo`. Antes no se filtraba, así que un ítem dado de baja seguía siendo
+        // un id válido para guardar aunque el selector del front (CatalogItemService.GetByTypeAsync,
+        // que sí filtra `Activo`) jamás lo ofreciera. Los dos gates ahora coinciden.
+        var delCatalogo = await _context.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId && ci.ItemType == "huevo" && ci.Activo && ids.Contains(ci.Id))
+            .Select(ci => new { ci.Id, ci.Nombre, ci.Metadata })
             .ToListAsync()
             .ConfigureAwait(false);
 
-        var faltantes = ids.Except(existentes).ToArray();
+        var faltantes = ids.Except(delCatalogo.Select(ci => ci.Id)).ToArray();
         if (faltantes.Length > 0)
             throw new InvalidOperationException(
-                $"Los siguientes ítems no existen como ítem de huevo del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+                $"Los siguientes ítems no existen como ítem de huevo ACTIVO del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+
+        var nombrePorItem = delCatalogo.ToDictionary(ci => ci.Id, ci => ci.Nombre);
+
+        // F7.3 — la lista blanca del lote. Va DESPUÉS del catálogo para que el mensaje sea el más
+        // específico posible: primero "ese ítem no existe", recién después "existe pero este lote
+        // no lo produce".
+        var permitidos = await _context.LoteHuevoItems.AsNoTracking()
+            .Where(lhi => lhi.LoteId == loteId && lhi.Activo)
+            .Select(lhi => lhi.CatalogItemId)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var errorPermitidos = HuevoItemsCalculos.ValidarPermitidos(huevoItems, permitidos, nombrePorItem);
+        if (errorPermitidos != null) throw new InvalidOperationException(errorPermitidos);
+
+        // D5 — vigencia de primera postura, ahora también en el backend.
+        var errorVigencia = await ValidarVigenciaPrimeraPosturaAsync(
+            loteId, huevoItems,
+            delCatalogo.ToDictionary(
+                ci => ci.Id,
+                ci => (ci.Nombre, (System.Text.Json.JsonDocument?)ci.Metadata)),
+            empresa.HuevoPrimeraPosturaHastaSemana, fechaRegistro).ConfigureAwait(false);
+        if (errorVigencia != null) throw new InvalidOperationException(errorVigencia);
 
         return huevoItems;
+    }
+
+    /// <summary>
+    /// D5 — rechaza un ítem marcado <c>metadata.primeraPostura</c> registrado más allá de la semana
+    /// de vida configurada. Sin límite configurado o sin fecha de encaset no hay regla que aplicar
+    /// (fail-open, mismo criterio que <see cref="HuevoPrimeraPosturaCalculos.EsVigente"/>).
+    /// </summary>
+    private async Task<string?> ValidarVigenciaPrimeraPosturaAsync(
+        int loteId,
+        List<HuevoItemSeguimientoDto> huevoItems,
+        IReadOnlyDictionary<int, (string Nombre, System.Text.Json.JsonDocument? Metadata)> catalogo,
+        int? hastaSemana,
+        DateTime fechaRegistro)
+    {
+        if (hastaSemana is null) return null;
+
+        var dePrimeraPostura = huevoItems
+            .Where(i => catalogo.TryGetValue(i.CatalogItemId, out var ci) && EsPrimeraPostura(ci.Metadata))
+            .ToList();
+        if (dePrimeraPostura.Count == 0) return null;
+
+        var fechaEncaset = await _context.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteId)
+            .Select(l => (DateTime?)l.FechaEncaset)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (fechaEncaset is null) return null;
+
+        // Misma fórmula canónica que el resto del repo (HuevosLevanteCalculos.SemanaVida y el espejo
+        // del front): el día del encaset es la SEMANA 1.
+        var dias = (fechaRegistro.Date - fechaEncaset.Value.Date).Days;
+        if (dias < 0) return null;
+        var semanaVida = (dias / 7) + 1;
+
+        foreach (var item in dePrimeraPostura)
+        {
+            var nombre = catalogo.TryGetValue(item.CatalogItemId, out var ci) ? ci.Nombre : $"id {item.CatalogItemId}";
+            var msg = HuevoPrimeraPosturaCalculos.MensajeFueraDeVigencia(hastaSemana, semanaVida, nombre);
+            if (msg != null) return msg;
+        }
+
+        return null;
+    }
+
+    /// <summary>¿El ítem del catálogo está marcado como «huevo de primera postura»?</summary>
+    private static bool EsPrimeraPostura(System.Text.Json.JsonDocument? metadata)
+    {
+        if (metadata is null || metadata.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+            return false;
+
+        foreach (var clave in new[]
+                 {
+                     HuevoPrimeraPosturaCalculos.MetadataKeyPrimeraPostura,
+                     HuevoPrimeraPosturaCalculos.MetadataKeyPrimeraPosturaSnake
+                 })
+        {
+            if (metadata.RootElement.TryGetProperty(clave, out var v)
+                && v.ValueKind == System.Text.Json.JsonValueKind.True)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

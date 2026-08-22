@@ -1,0 +1,219 @@
+/* F7.3 — modal de tipos de huevo del lote.
+   El armazón (backdrop/panel/header/footer/botones) es el mismo que `modal-asignar-silos`, que es
+   el patrón canónico de asignación por lote del repo — se conserva idéntico a propósito para que
+   las dos pantallas se sientan la misma. Lo propio de acá son los bloques `.hi-*`. */
+:host {
+  --card-bg:  #ffffff;
+  --line:     var(--ital-green-100, #e9e6e3);
+  --text-900: var(--ital-text, #1f2937);
+  --text-600: var(--ital-muted, #6b7280);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+  z-index: 50;
+}
+
+.modal-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: var(--card-bg);
+  border-radius: .75rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+  z-index: 51;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+
+  h3 { font-size: 1.05rem; font-weight: 700; color: var(--ital-orange-dark); }
+}
+
+.modal-body { padding: 1.25rem; }
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.mas-hint {
+  margin-bottom: .9rem;
+  font-size: .8rem;
+  color: var(--text-600);
+}
+
+/* ── Grupos (Primera / Pnc / Sin categoría) ────────────────────────────────── */
+.hi-grupo {
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  overflow: hidden;
+}
+
+.hi-grupo__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .8rem;
+  background: var(--ital-cream, #faf8f5);
+  border-bottom: 1px solid var(--line);
+}
+
+.hi-grupo__titulo {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--text-900);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.hi-grupo__contador {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Ítems ─────────────────────────────────────────────────────────────────── */
+.hi-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: .3rem;
+  padding: .55rem;
+}
+
+.hi-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  cursor: pointer;
+
+  input { margin-top: .18rem; flex: none; cursor: pointer; }
+  input:disabled { cursor: not-allowed; }
+}
+
+.hi-check--grupo { cursor: pointer; }
+
+.hi-item {
+  padding: .4rem .5rem;
+  border: 1px solid transparent;
+  border-radius: .45rem;
+
+  &:hover { background: var(--ital-cream, #faf8f5); }
+}
+
+/* Marcar el seleccionado con borde, no solo con el tilde: con 21 ítems en grilla, el checkbox
+   solo se pierde de vista. */
+.hi-item--on {
+  background: var(--ital-orange-50, #fff5ef);
+  border-color: var(--ital-orange-100, #ffd9c2);
+}
+
+.hi-item__texto { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+
+.hi-item__nombre {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-900);
+  line-height: 1.25;
+}
+
+.hi-item__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .35rem;
+  font-size: .68rem;
+  color: var(--text-600);
+}
+
+.hi-item__cod { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.hi-item__um {
+  padding: 0 .3rem;
+  border: 1px solid var(--line);
+  border-radius: .25rem;
+}
+
+.hi-item__tag {
+  padding: 0 .3rem;
+  font-weight: 600;
+  color: var(--ital-orange-dark);
+  background: var(--ital-orange-50, #fff5ef);
+  border: 1px solid var(--ital-orange-100, #ffd9c2);
+  border-radius: .25rem;
+}
+
+/* Fail-closed: el aviso de «vas a guardar vacío» tiene que ser imposible de no ver. */
+.hi-aviso {
+  margin-top: .5rem;
+  padding: .6rem .75rem;
+  font-size: .78rem;
+  color: var(--text-900);
+  background: #fff8e6;
+  border: 1px solid #f5d78e;
+  border-radius: .5rem;
+}
+
+.hi-total {
+  margin-right: auto;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Botonera (idéntica a modal-asignar-silos) ─────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: .5rem .95rem;
+  font-size: .875rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ital-orange);
+  border: 1px solid var(--ital-orange-dark);
+  border-radius: .5rem;
+
+  &:hover:not(:disabled) { background: var(--ital-orange-dark); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+
+.btn-subtle {
+  display: inline-flex;
+  align-items: center;
+  padding: .5rem .95rem;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--text-900);
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+
+  &:hover:not(:disabled) { background: var(--ital-cream); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+
+.icon-btn {
+  padding: .3rem .45rem;
+  color: var(--text-600);
+  border-radius: .375rem;
+
+  &:hover { background: var(--ital-cream); color: var(--ital-orange-dark); }
+}
