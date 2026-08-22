@@ -1668,6 +1668,55 @@ Auditoría previa: 6 cortes en paralelo del flujo de Santa Reyes.
 - [~] **Sin smoke visual en navegador**: Santa Reyes no tiene lotes en local, así que no hay contra
       qué abrir el modal con datos reales. La verificación fue de código + invariantes en BD.
 
+### X17.7 · Smoke end-to-end contra el backend real (22-ago-2026)
+
+Pedido del usuario: «desde el registro de un lote hasta liquidar o cerrar un lote de producción con
+sus movimientos, ventas y traslados a plantas». Corrido contra `:5002` con el código nuevo, sobre
+`sanmarinoapplocal`.
+
+- [x] **Usuario de prueba DEDICADO**, a pedido del usuario: `smoke.santareyes@test.local`, rol
+      «Santa Reyes Administrador». No impersona a nadie — es cuenta nueva. El hash lo generó
+      `PasswordHasher<T>` de ASP.NET Identity, **la misma implementación que registra
+      `Program.cs:154`**, y el cifrado del login/`X-Secret-Up` copia exacto el derivado de
+      `EncryptionService` (PBKDF2, salt `sanmarino-salt`, 10k, SHA256, IV de 16 por delante). Nada
+      de cripto reimplementada «parecida».
+- [x] **El flujo completo pasa**: crear lote (201, raza validada contra la guía propia) → cerrar
+      levante (crea el LPP, fase Producción) → declarar 4 tipos de huevo → 3 seguimientos con
+      clasificación → traslado a planta → venta → cerrar el lote de producción (200).
+
+| Caso | Esperado | Resultado |
+|---|---|---|
+| Seguimiento con huevos **sin declarar tipos** | rechazo | ✅ 400 «Este lote no tiene tipos de huevo asignados…» |
+| Ítem **fuera de la lista** del lote | rechazo nombrándolo | ✅ 400 «El ítem «HUEVO CRIOLLO PRIMERAS POSTURAS SIN CLAS» no está entre los tipos que este lote produce» |
+| **D5** · primera postura en semana 23 (límite 22) | rechazo | ✅ 400 «solo se puede registrar hasta la semana 22… El registro es de la semana 23» |
+| Primera postura en semana 20 | guarda | ✅ 201 |
+| **D6** · traslado con ítem inexistente | rechazo por catálogo | ✅ 400 «no existen como ítem de huevo ACTIVO del catálogo» |
+| Traslado a planta / venta válidos | guardan `Completado` | ✅ 201 |
+| Sobregiro (999.999 de un ítem con 80) | rechazo | ✅ 400 «No hay suficientes huevos disponibles» |
+| Disponibilidad tras mover | 664: 8000−3000, 666: 150−100 | ✅ 5000 y 50, exacto |
+
+- [x] **Reportes, con datos REALES** (`verificar_huevo_items_reportes.sql`): `huevo_tot` == suma del
+      desglose (**8607 = 8607, 0 descuadres**), las 11 columnas legacy en 0, ningún ítem fuera de la
+      lista blanca, y el **espejo cuadrando exacto** con la suma de seguimientos (8607 = 8607) —
+      que es lo que alimenta el reporte contable. Sanmarino sigue en 3.632.634 = 3.632.634, sin tocar.
+- [x] 🔴 **El smoke encontró un defecto que la lectura de código no había visto** (commit `cdf0239`):
+      el backend **no completaba `codigo`/`nombre`/`tipoHuevo`/`um`** del desglose — confiaba en que
+      el cliente los mandara. El formulario los manda, así que por la UI nunca falla; pero la API
+      directa, un script o un cliente nuevo guardaban el snapshot con esos campos en NULL, y como
+      `fn_clasificacion_huevo_items_produccion` los lee DIRECTO del jsonb (sin join al catálogo), el
+      desglose semanal salía con filas sin nombre y la disponibilidad mostraba «(sin nombre)».
+      Verificado en vivo: el registro 674 (antes) quedó con los 4 campos vacíos; el 676 (después),
+      con el MISMO payload sin etiquetas, guardó `538 | HUEVO MANCHADO ROJO | Pnc | UND`.
+      Se completa desde las filas del catálogo que el gate ya tenía cargadas: **cero consultas nuevas**.
+- [i] **Ventana de fecha (V51) confirmada viva** en traslados: rechazó `2026-06-15` porque solo
+      admite el mes en curso + 15 días. El seguimiento diario NO tiene esa guarda y aceptó junio —
+      asimetría preexistente entre los dos endpoints, ajena a F7.3, anotada y no tocada.
+- [~] **Datos del smoke: se DEJAN en la base local a propósito.** Lote `SMOKE-SR-001` (lote 152,
+      LPP 10) con sus 3 seguimientos, 1 traslado a planta y 1 venta. Es el único lote de Santa Reyes,
+      así que sirve para abrir la pantalla y ver las filas fijas con datos. Borrarlo es un `DELETE`
+      del lote (cascade se lleva `lote_huevo_items`).
+- [x] **Backend `:5002` queda ARRIBA y actualizado**, como pidió el usuario para la sesión de móvil.
+
 - [x] **X17 cerrado.** Entorno: sin backend propio (`--artifacts-path`), sin procesos nuevos.
 
 ---
