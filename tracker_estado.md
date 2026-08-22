@@ -1974,3 +1974,30 @@ insuficiente al sincronizar, **aceptar el dia y marcar para cuadre** en vez de r
       es testeable
 - [ ] **F5.2 — la UI del selector de items en Flutter**: repos distintos, cero archivos compartidos
       con el backend. Es el trabajo de mayor plazo: conviene arrancarlo temprano y shippearlo tarde
+
+### 🟢 Alcance REDUCIDO por un dato (22ago26) — los 2 "huecos" no existen
+
+El usuario lo dijo y la BD lo confirma sin excepciones: *«ecuador y panama tiene es pollo engorde,
+no postura que es levante y produccion»*.
+
+| Empresa | Pais | Engorde | Reproductora | Levante | Produccion |
+|---|---|---|---|---|---|
+| Sanmarino | CO | 0 | 0 | 18 | 4 |
+| ItalcolEcuador | EC | 124 | 3 | 0 | 0 |
+| Demo | CO | 0 | 0 | 10 | 2 |
+| ItalcolPanama | PA | 67 | 121 | 0 | 0 |
+| Santa Reyes | CO | 0 | 0 | 1 | 1 |
+
+- [i] **Produccion en EC/PA y reproductora en Colombia NO son huecos: son combinaciones que la
+      operacion no tiene.** Cada modulo descuenta exactamente donde se usa. **F6 sale del alcance**
+      (construirlas seria superficie sin usuario). Si algun dia una empresa cruza de modelo, vuelven
+- [i] Consecuencia util: **el smoke de la app tiene que correr por pais** — engorde/reproductora solo
+      dan datos en EC/PA, levante/produccion solo en Colombia. Ya es lo que veniamos haciendo
+
+### Decisiones del usuario (cierran F0.2)
+- [x] Stock insuficiente al sincronizar → **aceptar el dia y marcar para cuadre**, no rechazarlo
+- [x] Resolver un cuadre → **solo marca visto**. No repone kilos: eso creaba una segunda forma de
+      mover el saldo y el repo ya tiene la regla de "una sola formula por numero"
+- [x] El `tipoAlimento` de texto libre → **lo reemplaza el selector** del catalogo. Es la unica forma
+      de mandar el id que dispara el descuento
+- [x] Produccion EC/PA → **fuera de alcance**, el comentario de `ProduccionService.cs:29-33` vale
