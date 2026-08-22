@@ -1796,3 +1796,23 @@ le pasaban al guard el consumo escalar. Afectaba a la app móvil, a la carga mas
 - [i] **Los tests cubren el cálculo, no el call site.** `Application.Tests` no referencia
       Infrastructure, así que ningún test detecta que mañana alguien vuelva a llamar al guard sin
       los directos. Para eso haría falta un test de integración del service, que hoy no existe
+
+### Verificacion end-to-end (sesion del movil, 22ago26)
+
+Lo anterior valida el calculo; esto valida que el **usuario real deja de ver el 400**. Se levanto un
+backend con el binario nuevo en **:5499** (`--artifacts-path` + `--contentRoot` propios; el de otra
+sesion en :5002 quedo intacto) y se corrio `zootecnicoapp/tool/smoke_backend.dart`, que usa el mismo
+codigo de la app movil.
+
+- [x] **El bug 1, medido antes/despues.** Reproductora + Panama + flag ON, alimento como escalar:
+      antes `FALLA 6 → El registro del 04/07/2026 no tiene alimento`; ahora
+      `OK 6 → seguimiento creado id=793`. Es el caso exacto que motivo el fix
+- [x] **El bug 2, medido.** Con el flag OFF, el segundo POST del mismo dia pasa de
+      `TipoFallo.servidor (500)` a `duplicado` con el texto redactado
+- [x] **Sin regresion en los 3 services que solo cambiaron por el `(decimal)x!`**: engorde Ecuador
+      (sin flag) y engorde Panama (con flag) siguen 8/8
+- [x] BD limpia: 0 filas `observaciones LIKE 'SMOKE%'` en las dos tablas · flag de Panama restaurado
+      a `true` · puerto 5499 liberado al terminar
+- [i] El smoke **no** cubre Produccion: sus dos call sites se corrigieron igual, pero la app movil
+      todavia no postea ese modulo (`endpointDeModulo` lo deja en null). Queda cubierto solo por los
+      tests del calculo hasta que la fase siguiente lo conecte
