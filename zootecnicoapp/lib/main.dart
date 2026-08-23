@@ -337,7 +337,7 @@ class _BottomNav extends StatelessWidget {
           color: on ? AppColors.green50 : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(on ? activo : inactivo, size: 22, color: on ? AppColors.green600 : AppColors.ink300),
           const SizedBox(height: 3),
           Text(label, style: TextStyle(

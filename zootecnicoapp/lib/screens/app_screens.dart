@@ -152,23 +152,31 @@ class _LoteCard extends StatelessWidget {
       ModuloSeguimiento.reproductora => (AppColors.reproductora, BadgeTone.neutral),
     };
 
-    return InkWell(
-      onTap: onRegistrar,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.s4),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border(
-            left: BorderSide(color: color, width: 4),
-            top: BorderSide(color: AppColors.line),
-            right: BorderSide(color: AppColors.line),
-            bottom: BorderSide(color: AppColors.line),
-          ),
-          boxShadow: AppColors.shadowSm,
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return Container(
+      // borderRadius + un Border con colores distintos por lado no lo soporta
+      // BoxDecoration (lanza "A borderRadius can only be given on borders with
+      // uniform colors" en paint()) — el radius va acá para la sombra, y el
+      // borde/relleno/clip del contenido bajan al ClipRRect+Container interno.
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppColors.shadowSm,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          onTap: onRegistrar,
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.s4),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(
+                left: BorderSide(color: color, width: 4),
+                top: BorderSide(color: AppColors.line),
+                right: BorderSide(color: AppColors.line),
+                bottom: BorderSide(color: AppColors.line),
+              ),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -204,6 +212,8 @@ class _LoteCard extends StatelessWidget {
               icon: Icons.add_rounded, onPressed: onRegistrar),
           ),
         ]),
+          ),
+        ),
       ),
     );
   }
@@ -676,33 +686,36 @@ class _SelectorSheetState extends State<_SelectorSheet> {
 
   Widget _opcion({required String emoji, required String titulo, required String sub,
     required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
+    // Ver nota en _LoteCard: borderRadius + Border de colores no uniformes no
+    // lo soporta BoxDecoration — el clip del radius baja a un ClipRRect.
+    return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border(
-            left: BorderSide(color: color, width: 4),
-            top: BorderSide(color: AppColors.line),
-            right: BorderSide(color: AppColors.line),
-            bottom: BorderSide(color: AppColors.line),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border(
+              left: BorderSide(color: color, width: 4),
+              top: BorderSide(color: AppColors.line),
+              right: BorderSide(color: AppColors.line),
+              bottom: BorderSide(color: AppColors.line),
+            ),
           ),
+          child: Row(children: [
+            Text(emoji, style: const TextStyle(fontSize: 26)),
+            const SizedBox(width: AppSpacing.s4),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(titulo, style: const TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink900,
+              )),
+              const SizedBox(height: 2),
+              Text(sub, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: AppColors.ink500)),
+            ])),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.ink200),
+          ]),
         ),
-        child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 26)),
-          const SizedBox(width: AppSpacing.s4),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(titulo, style: const TextStyle(
-              fontFamily: 'PlusJakartaSans', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink900,
-            )),
-            const SizedBox(height: 2),
-            Text(sub, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: AppColors.ink500)),
-          ])),
-          const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.ink200),
-        ]),
       ),
     );
   }
