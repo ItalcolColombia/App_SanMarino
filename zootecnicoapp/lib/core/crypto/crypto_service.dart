@@ -22,7 +22,7 @@ import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
 
-import '../config/api_config.dart';
+import 'package:zootecnicoapp/core/config/api_config.dart';
 
 class CryptoService {
   CryptoService({Random? random}) : _random = random ?? Random.secure();

@@ -8,10 +8,10 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:zootecnicoapp/core/local_db.dart';
+import 'package:zootecnicoapp/core/db/local_db.dart';
 import 'package:zootecnicoapp/core/api/inventario_api.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/models_inventario.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/models/models_inventario.dart';
 
 void main() {
   setUpAll(() {

@@ -11,9 +11,9 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
-import '../config/api_config.dart';
-import '../crypto/crypto_service.dart';
-import '../session/sesion_actual.dart';
+import 'package:zootecnicoapp/core/config/api_config.dart';
+import 'package:zootecnicoapp/core/crypto/crypto_service.dart';
+import 'package:zootecnicoapp/core/session/sesion_actual.dart';
 
 /// Por qué falló una petición. La app reacciona distinto a cada caso.
 enum TipoFallo {

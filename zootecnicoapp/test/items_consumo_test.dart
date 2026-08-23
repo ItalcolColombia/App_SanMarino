@@ -7,10 +7,10 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zootecnicoapp/core/items_consumo.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/models_inventario.dart';
-import 'package:zootecnicoapp/core/perfil_pais.dart';
+import 'package:zootecnicoapp/features/seguimiento/funciones/items_consumo.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/models/models_inventario.dart';
+import 'package:zootecnicoapp/core/reglas/perfil_pais.dart';
 
 void main() {
   ItemInventario item({

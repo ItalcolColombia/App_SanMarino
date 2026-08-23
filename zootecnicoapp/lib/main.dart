@@ -3,29 +3,33 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart';
-import 'theme/app_colors.dart';
-import 'theme/app_spacing.dart';
-import 'core/api/api_client.dart';
-import 'core/api/auth_api.dart';
-import 'core/api/inventario_api.dart';
-import 'core/api/lotes_api.dart';
-import 'core/api/seguimientos_api.dart';
-import 'core/models.dart';
-import 'core/models_inventario.dart';
-import 'core/local_db.dart';
-import 'core/platform_db/db_init.dart';
-import 'core/session/session_store.dart';
-import 'core/sync_service.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/app_screens.dart';
-import 'screens/seguimiento_screen.dart';
+import 'package:zootecnicoapp/design_system/app_theme.dart';
+import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
+import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
+import 'package:zootecnicoapp/core/api/api_client.dart';
+import 'package:zootecnicoapp/core/api/auth_api.dart';
+import 'package:zootecnicoapp/core/api/inventario_api.dart';
+import 'package:zootecnicoapp/core/api/lotes_api.dart';
+import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/models/models_inventario.dart';
+import 'package:zootecnicoapp/core/db/local_db.dart';
+import 'package:zootecnicoapp/core/platform/db_init.dart';
+import 'package:zootecnicoapp/core/session/session_store.dart';
+import 'package:zootecnicoapp/core/sync/sync_service.dart';
+import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
+import 'package:zootecnicoapp/features/auth/pages/login_page.dart';
+import 'package:zootecnicoapp/features/home/pages/home_page.dart';
+import 'package:zootecnicoapp/features/lotes/pages/lotes_page.dart';
+import 'package:zootecnicoapp/features/lotes/widgets/selector_lote.dart';
+import 'package:zootecnicoapp/features/perfil/pages/perfil_page.dart';
+import 'package:zootecnicoapp/features/sync/pages/sync_page.dart';
+import 'package:zootecnicoapp/features/seguimiento/pages/seguimiento_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // No-op fuera de web: sqflite no tiene backend nativo en el navegador, así
-  // que sólo ahí hace falta darle uno (ver core/platform_db/).
+  // que sólo ahí hace falta darle uno (ver core/platform/).
   inicializarFactoryWebSiCorresponde();
   // La sesión se lee del disco ANTES de pintar: así un usuario que ya entró
   // alguna vez no ve el login por un instante al abrir la app sin señal.
@@ -54,7 +58,7 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   final SyncService _sync = SyncService();
   final SessionStore _sesion = SessionStore.instance;
 
@@ -75,7 +79,17 @@ class _RootShellState extends State<RootShell> {
     super.initState();
     _sync.init();
     _sync.addListener(_onSync);
+    // Volver a la app es la señal más confiable de "puede que ahora haya red":
+    // el operario registra en el galpón, cierra, y abre de vuelta en la oficina.
+    WidgetsBinding.instance.addObserver(this);
     _restaurarSesion();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (_usuario == null) return;
+    if (_sync.enLinea && _sync.pendientes > 0) _sync.sincronizar();
   }
 
   void _onSync() {
@@ -91,6 +105,7 @@ class _RootShellState extends State<RootShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sync.removeListener(_onSync);
     _sync.dispose();
     super.dispose();
@@ -110,7 +125,12 @@ class _RootShellState extends State<RootShell> {
       _lotes = cacheados;
     });
 
-    if (_sync.enLinea) await _refrescarDesdeServidor(u, silencioso: true);
+    if (_sync.enLinea) {
+      // Lo que quedo de la sesion anterior se sube ahora, sin esperar a que
+      // el usuario toque el boton ni a que la conectividad parpadee.
+      if (_sync.pendientes > 0) _sync.sincronizar();
+      await _refrescarDesdeServidor(u, silencioso: true);
+    }
   }
 
   Future<void> _login(Usuario u) async {
@@ -233,12 +253,12 @@ class _RootShellState extends State<RootShell> {
     }
 
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => SeguimientoScreen(lote: destino!, usuario: u, sync: _sync),
+      builder: (_) => SeguimientoPage(lote: destino!, usuario: u, sync: _sync),
     ));
   }
 
   void _verSync() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => SyncScreen(sync: _sync)));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => SyncPage(sync: _sync)));
   }
 
   void _avisar(String mensaje) {
@@ -250,7 +270,7 @@ class _RootShellState extends State<RootShell> {
   Widget build(BuildContext context) {
     final u = _usuario;
     if (u == null) {
-      return LoginScreen(onLogin: _login, auth: _auth, mensajeInicial: _mensajeLogin);
+      return LoginPage(onLogin: _login, auth: _auth, mensajeInicial: _mensajeLogin);
     }
 
     return Scaffold(
@@ -258,18 +278,18 @@ class _RootShellState extends State<RootShell> {
       body: SafeArea(
         bottom: false,
         child: switch (_tab) {
-          0 => HomeScreen(
+          0 => HomePage(
             usuario: u, lotes: _lotes, sync: _sync,
             onNuevoSeguimiento: _nuevoSeguimiento,
             onVerLotes: () => setState(() { _tab = 1; _filtroLotes = null; }),
             onVerSync: _verSync,
             onPerfil: () => setState(() => _tab = 2),
           ),
-          1 => LotesScreen(
+          1 => LotesPage(
             usuario: u, lotes: _lotes, filtroInicial: _filtroLotes,
             onRegistrar: (l) => _nuevoSeguimiento(l.modulo, l),
           ),
-          _ => PerfilScreen(usuario: u, onLogout: _logout),
+          _ => PerfilPage(usuario: u, onLogout: _logout),
         },
       ),
       bottomNavigationBar: _BottomNav(
@@ -312,10 +332,10 @@ class _BottomNav extends StatelessWidget {
               child: Container(
                 width: 56, height: 56,
                 decoration: BoxDecoration(
-                  color: AppColors.orange500,
+                  color: AppColors.brand500,
                   shape: BoxShape.circle,
                   boxShadow: [BoxShadow(
-                    color: AppColors.orange500.withValues(alpha: 0.4),
+                    color: AppColors.brand500.withValues(alpha: 0.4),
                     blurRadius: 16, offset: const Offset(0, 6),
                   )],
                 ),

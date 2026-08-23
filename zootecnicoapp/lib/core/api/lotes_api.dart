@@ -11,8 +11,8 @@ library;
 
 import 'dart:convert';
 
-import '../models.dart';
-import 'api_client.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/api/api_client.dart';
 
 class LotesApi {
   LotesApi(this._api);

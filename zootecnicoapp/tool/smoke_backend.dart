@@ -21,8 +21,8 @@ import 'package:zootecnicoapp/core/api/auth_api.dart';
 import 'package:zootecnicoapp/core/api/lotes_api.dart';
 import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
 import 'package:zootecnicoapp/core/config/api_config.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/perfil_pais.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/reglas/perfil_pais.dart';
 import 'package:zootecnicoapp/core/session/sesion_actual.dart';
 
 int _fallos = 0;

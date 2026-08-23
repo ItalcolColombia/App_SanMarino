@@ -11,9 +11,9 @@ library;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../local_db.dart';
-import '../models.dart';
-import 'sesion_actual.dart';
+import 'package:zootecnicoapp/core/db/local_db.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/session/sesion_actual.dart';
 
 class SessionStore implements SesionActual {
   SessionStore._();

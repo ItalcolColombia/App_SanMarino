@@ -6,8 +6,8 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/modulos_del_menu.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/reglas/modulos_del_menu.dart';
 
 MenuNodo _grupo(String label, List<MenuNodo> hijos) =>
     MenuNodo(label: label, route: '', hijos: hijos);

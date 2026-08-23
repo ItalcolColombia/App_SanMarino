@@ -10,9 +10,9 @@ library;
 
 import 'dart:convert';
 
-import '../models.dart';
-import '../postura_calculos.dart';
-import 'api_client.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/reglas/postura_calculos.dart';
+import 'package:zootecnicoapp/core/api/api_client.dart';
 
 /// A dónde se postea cada módulo. La ruta se guarda **con la fila encolada**, no
 /// se deduce al enviar: si mañana cambia este mapeo, lo que el usuario ya

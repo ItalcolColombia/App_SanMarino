@@ -8,8 +8,8 @@ library;
 
 import 'dart:convert';
 
-import '../models_inventario.dart';
-import 'api_client.dart';
+import 'package:zootecnicoapp/core/models/models_inventario.dart';
+import 'package:zootecnicoapp/core/api/api_client.dart';
 
 class InventarioApi {
   InventarioApi(this._api);

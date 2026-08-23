@@ -7,8 +7,8 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/postura_calculos.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/reglas/postura_calculos.dart';
 
 void main() {
   final fecha = DateTime(2026, 8, 21);

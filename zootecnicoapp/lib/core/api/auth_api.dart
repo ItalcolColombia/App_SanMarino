@@ -4,11 +4,11 @@
 /// menú viene cifrado en la respuesta. El resto de la API es JSON plano.
 library;
 
-import '../config/api_config.dart';
-import '../models.dart';
-import '../modulos_del_menu.dart';
-import '../perfil_pais.dart';
-import 'api_client.dart';
+import 'package:zootecnicoapp/core/config/api_config.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/reglas/modulos_del_menu.dart';
+import 'package:zootecnicoapp/core/reglas/perfil_pais.dart';
+import 'package:zootecnicoapp/core/api/api_client.dart';
 
 class AuthApi {
   AuthApi(this._api);

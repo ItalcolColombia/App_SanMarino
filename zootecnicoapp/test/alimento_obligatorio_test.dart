@@ -6,8 +6,8 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zootecnicoapp/core/alimento_obligatorio.dart';
-import 'package:zootecnicoapp/core/models.dart';
+import 'package:zootecnicoapp/features/seguimiento/funciones/alimento_obligatorio.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
 
 void main() {
   String? motivo(

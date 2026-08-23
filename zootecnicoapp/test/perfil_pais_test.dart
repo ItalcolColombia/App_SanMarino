@@ -3,7 +3,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zootecnicoapp/core/perfil_pais.dart';
+import 'package:zootecnicoapp/core/reglas/perfil_pais.dart';
 
 void main() {
   group('control de agua (pH, ORP, temperatura)', () {

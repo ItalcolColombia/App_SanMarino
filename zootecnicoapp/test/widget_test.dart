@@ -1,6 +1,6 @@
 /// La pantalla de login se construye y valida antes de tocar la red.
 ///
-/// Se monta [LoginScreen] sola y no [SanMarinoApp]: el shell abre SQLite y
+/// Se monta [LoginPage] sola y no [SanMarinoApp]: el shell abre SQLite y
 /// escucha la conectividad en su `initState`, y ninguno de los dos plugins
 /// existe en un test unitario. Probar la app entera acá exigiría `sqflite_ffi` y
 /// un mock de conectividad para verificar algo que ya cubren los otros tests.
@@ -10,15 +10,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zootecnicoapp/core/api/api_client.dart';
 import 'package:zootecnicoapp/core/api/auth_api.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/screens/login_screen.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/features/auth/pages/login_page.dart';
 
 void main() {
   // No se le pega a ningún servidor: los casos de abajo cortan antes de la red.
   final auth = AuthApi(ApiClient());
 
   Widget montar({ValueChanged<Usuario>? onLogin, String? mensaje}) => MaterialApp(
-        home: LoginScreen(
+        home: LoginPage(
           onLogin: onLogin ?? (_) {},
           auth: auth,
           mensajeInicial: mensaje,

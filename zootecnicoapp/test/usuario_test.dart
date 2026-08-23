@@ -6,7 +6,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zootecnicoapp/core/api/auth_api.dart';
-import 'package:zootecnicoapp/core/models.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
 
 Usuario _usuario({bool descuentaInventarioDesdeMovil = false}) => Usuario(
       id: 'u1', nombre: 'Prueba', email: 'p@x.com', cargo: 'Admin', granja: '',

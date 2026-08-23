@@ -20,9 +20,9 @@ import 'package:zootecnicoapp/core/api/auth_api.dart';
 import 'package:zootecnicoapp/core/api/inventario_api.dart';
 import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
 import 'package:zootecnicoapp/core/config/api_config.dart';
-import 'package:zootecnicoapp/core/items_consumo.dart';
-import 'package:zootecnicoapp/core/models.dart';
-import 'package:zootecnicoapp/core/models_inventario.dart';
+import 'package:zootecnicoapp/features/seguimiento/funciones/items_consumo.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
+import 'package:zootecnicoapp/core/models/models_inventario.dart';
 import 'package:zootecnicoapp/core/session/sesion_actual.dart';
 
 int _fallos = 0;

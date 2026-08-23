@@ -7,7 +7,7 @@
 /// no hay plugins de sqflite ni de SharedPreferences.
 library;
 
-import '../models.dart';
+import 'package:zootecnicoapp/core/models/models.dart';
 
 /// Sesión vacía: sin usuario y con un id de equipo genérico.
 ///

@@ -6,7 +6,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zootecnicoapp/core/postura_calculos.dart';
+import 'package:zootecnicoapp/core/reglas/postura_calculos.dart';
 
 void main() {
   group('clasificadora fija: incubables = limpio + tratado', () {
