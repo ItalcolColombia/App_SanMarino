@@ -2265,4 +2265,8 @@ Ninguno es regresión: son huecos que ya existían y quedaron documentados en el
 - [ ] UI de filas agotadas: `agotadas()`/`reintentar()`/`ultimoError` existen y no se muestran.
 - [ ] `avisoPlataforma`/`duplicados`/`rechazados` se calculan y no llegan al usuario.
 - [ ] Pantalla de historial local (`seguimientos_local` es *write-only*).
-- [ ] **`SyncService` no tiene tests** — la pieza con más riesgo offline y la única sin cobertura.
+- [x] **`SyncService` con tests** (23ago26) — `test/sync_service_test.dart`, 31 casos: los 6
+      `TipoFallo`, la guarda de reentrada, el orden de la cola (I4), el endpoint congelado (I5) y las
+      filas agotadas (I17). Validados **con mutación**: se rompió una regla por vez y las 9 las
+      detectó el test que nombra su invariante. Se agregó una costura de tiempos al service
+      (`demoraDeteccion`/`demoraExito`, defaults idénticos) para que la suite no espere 3,9 s por caso.

@@ -33,9 +33,23 @@ enum CalidadConexion { wifiFuerte, wifiDebil, celular, offline;
 enum FaseRibbon { oculto, detectando, sincronizando, exito }
 
 class SyncService extends ChangeNotifier {
-  SyncService({LocalDb? db, SeguimientosApi? api})
-      : _db = db ?? LocalDb.instance,
+  SyncService({
+    LocalDb? db,
+    SeguimientosApi? api,
+    this.demoraDeteccion = const Duration(milliseconds: 900),
+    this.demoraExito = const Duration(seconds: 3),
+  })  : _db = db ?? LocalDb.instance,
         _api = api;
+
+  /// Cuánto dura la fase "detectando" del ribbon antes de empezar a subir.
+  ///
+  /// Es tiempo de UX, no técnico: el ribbon tiene que alcanzar a verse. Se puede
+  /// inyectar **sólo** para que los tests no esperen en vano; el default es el
+  /// valor real y la app nunca lo cambia.
+  final Duration demoraDeteccion;
+
+  /// Cuánto se queda el ribbon en "éxito" antes de colapsar. Mismo criterio.
+  final Duration demoraExito;
 
   final LocalDb _db;
 
@@ -125,7 +139,7 @@ class SyncService extends ChangeNotifier {
   Future<void> _flujoReconexion() async {
     _fase = FaseRibbon.detectando;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 900));
+    await Future.delayed(demoraDeteccion);
 
     if (!_autoSync) { _fase = FaseRibbon.oculto; notifyListeners(); return; }
 
@@ -221,7 +235,7 @@ class SyncService extends ChangeNotifier {
 
     _fase = FaseRibbon.exito;
     notifyListeners();
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(demoraExito);
     _fase = FaseRibbon.oculto;
     notifyListeners();
   }

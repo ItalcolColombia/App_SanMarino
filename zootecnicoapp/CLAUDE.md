@@ -187,7 +187,8 @@ justificalo por escrito.
 - `avisoPlataforma`, `duplicados` y `rechazados` se calculan y no llegan al usuario.
 - `seguimientos_local` es *write-only*: no hay pantalla de historial.
 - La ruta de silos está a medias a propósito (decisión F5.5): `manejaSilos` está fijo en `false`.
-- `SyncService` **no tiene tests**. Es la pieza con más riesgo offline y la única sin cobertura.
+- ~~`SyncService` no tiene tests.~~ **Cubierto** (23-ago-2026): `test/sync_service_test.dart`, 31 casos
+  sobre los 6 `TipoFallo`, la guarda de reentrada, el orden de la cola y las filas agotadas.
 
 ---
 
@@ -254,6 +255,27 @@ location.reload(true);
 - La cola offline se prueba con `sqflite_common_ffi` real (`cola_sync_test.dart`), no con mocks:
   es la pieza donde un bug cuesta el trabajo de campo de alguien.
 - Un test que documenta un fallo real lleva en el encabezado **qué fallo** previene.
+
+### Al probar la cola, dos trampas que ya rompieron tests
+
+**1. `encolar`, `reintentar` y la reconexión disparan la subida SIN esperarla.**
+Es a propósito: el usuario ya vio su confirmación y la red no puede bloquear la captura. Pero
+significa que `await sync.encolar(...)` vuelve **antes** de que la fila haya subido. Afirmar ahí falla
+de forma intermitente. Hay que esperar la condición (`esperarA` en `sync_service_test.dart`), no
+dormir un rato fijo.
+
+**2. `created_at` tiene precisión de milisegundo.**
+Dos filas encoladas en el mismo ms **empatan**, y el orden que devuelve `porEnviar()` entre ellas
+queda indefinido. Nunca afirmes sobre `filas.first`: buscá la fila por `loteId`. Si lo que querés
+probar es el orden, separá los encolados unos milisegundos.
+
+### Los tests de la cola se validaron con mutación
+
+No alcanza con que estén en verde: se rompió el código a propósito, una regla por vez (duplicado que
+frena la cola, rechazo de plataforma que cierra sesión, 401 que borra la fila, encolar que no marca
+el día…) y se verificó que **cada una la detecta el test que nombra su invariante**. 9 de 9. Si
+agregás una regla nueva a `SyncService`, hacé lo mismo: un test que no falla cuando rompés la regla
+no está protegiendo nada.
 
 ```bash
 flutter analyze     # 0 errores, 0 warnings, sin infos nuevos
