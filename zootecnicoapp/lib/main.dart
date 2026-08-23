@@ -21,6 +21,7 @@ import 'package:zootecnicoapp/design_system/motion/app_motion.dart';
 import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
 import 'package:zootecnicoapp/features/auth/pages/login_page.dart';
 import 'package:zootecnicoapp/features/home/pages/home_page.dart';
+import 'package:zootecnicoapp/features/lotes/funciones/lotes_activos.dart';
 import 'package:zootecnicoapp/features/lotes/pages/lotes_page.dart';
 import 'package:zootecnicoapp/features/lotes/widgets/selector_lote.dart';
 import 'package:zootecnicoapp/features/perfil/pages/perfil_page.dart';
@@ -71,6 +72,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   late final InventarioApi _inventarioApi = InventarioApi(_api);
 
   Usuario? _usuario;
+
+  /// Los lotes que se le OFRECEN al operario: sólo los abiertos.
+  ///
+  /// La caché de `lotes_cache` guarda todos, incluidos los cerrados — el
+  /// historial resuelve nombres contra ella. Acá viven sólo los que admiten
+  /// registro (ver `lotesActivos`).
   List<Lote> _lotes = const [];
   int _tab = 0;
   ModuloSeguimiento? _filtroLotes;
@@ -129,7 +136,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {
       _usuario = u;
-      _lotes = cacheados;
+      _lotes = lotesActivos(cacheados);
     });
 
     if (_sync.enLinea) {
@@ -178,7 +185,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _usuario = conModulos;
-        _lotes = lotes;
+        _lotes = lotesActivos(lotes);
       });
     } on ApiError catch (e) {
       if (!mounted) return;
@@ -285,6 +292,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     );
     if (destino == null || !mounted) return;
 
+    // Los cerrados ya no se ofrecen (`lotesActivos`), así que acá no debería
+    // llegar ninguno. Se deja igual: entre la última sincronización y este toque
+    // el lote pudo cerrarse, y es preferible el aviso a un rechazo del backend
+    // después de llenar el formulario.
     if (destino.cerrado) {
       _avisar('El lote ${destino.nombre} está cerrado: no admite registros nuevos.');
       return;

@@ -194,6 +194,13 @@ que no son huecos sino decisiones y límites:
   afuera de su propia app justo cuando más la necesitaba.
 - **El historial muestra sólo lo que salió de ESTE equipo.** Una tablet nueva no conoce los días que
   subió otro equipo de la misma granja; la pantalla lo dice en vez de dejar que el usuario lo suponga.
+- **Un lote cerrado no se ofrece** (`features/lotes/funciones/lotes_activos.dart`). No admite
+  registros nuevos —el backend los rechaza— y mostrarlo sólo hacía perder toques: el choque aparecía
+  recién al elegirlo. Se filtra en **un solo lugar**, donde `main.dart` arma `_lotes`, y con eso
+  desaparece de Inicio, Lotes y el selector a la vez. Medido en Ecuador: **de 124 lotes ofrecidos,
+  94 estaban cerrados**. ⚠️ Se filtra lo que se **ofrece**, no lo que se **guarda**: `lotes_cache`
+  sigue teniendo todos, porque el historial resuelve nombres contra esa caché y un lote que se cerró
+  después de haber registrado días tiene que seguir mostrando su nombre.
 - La ruta de silos sigue a medias **a propósito** (decisión de producto F5.5): `manejaSilos` está fijo
   en `false` y ninguna empresa con ese modelo tiene el flag encendido. `InventarioApi.silosDelLote`,
   `guardarSilosDeLote` y `silosDeLote` existen, sin usar. **No lo cablees sin decisión de producto.**

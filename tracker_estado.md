@@ -2272,6 +2272,13 @@ Ninguno es regresión: son huecos que ya existían y quedaron documentados en el
 - [x] **Pantalla de historial** — `LocalDb.historialLocal()` (lector nuevo, +5 tests) y
       `features/sync/pages/historial_page.dart`, agrupada por día. Entrada desde Perfil.
 - [i] **Silos**: sigue a medias A PROPÓSITO (decisión de producto F5.5). No cablear sin decisión.
+- [x] **Los lotes cerrados ya no se ofrecen** (23ago26) — no admiten registros nuevos, así que
+      mostrarlos sólo hacía perder toques: el choque aparecía recién al elegirlos.
+      `features/lotes/funciones/lotes_activos.dart` (+8 tests), filtrado en un solo punto ⇒
+      desaparecen de Inicio, Lotes y el selector a la vez. **Medido en Ecuador: de 124 ofrecidos, 94
+      estaban cerrados** (quedan 30). La caché guarda todos igual: el historial resuelve nombres
+      contra ella. La guarda de `_nuevoSeguimiento` se conserva por si el lote se cierra entre la
+      última sincronización y el toque.
 - [x] **`SyncService` con tests** (23ago26) — `test/sync_service_test.dart`, 31 casos: los 6
       `TipoFallo`, la guarda de reentrada, el orden de la cola (I4), el endpoint congelado (I5) y las
       filas agotadas (I17). Validados **con mutación**: se rompió una regla por vez y las 9 las
