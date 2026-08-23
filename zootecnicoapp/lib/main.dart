@@ -14,6 +14,7 @@ import 'core/api/seguimientos_api.dart';
 import 'core/models.dart';
 import 'core/models_inventario.dart';
 import 'core/local_db.dart';
+import 'core/platform_db/db_init.dart';
 import 'core/session/session_store.dart';
 import 'core/sync_service.dart';
 import 'screens/login_screen.dart';
@@ -23,6 +24,9 @@ import 'screens/seguimiento_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // No-op fuera de web: sqflite no tiene backend nativo en el navegador, así
+  // que sólo ahí hace falta darle uno (ver core/platform_db/).
+  inicializarFactoryWebSiCorresponde();
   // La sesión se lee del disco ANTES de pintar: así un usuario que ya entró
   // alguna vez no ve el login por un instante al abrir la app sin señal.
   await SessionStore.instance.cargar();

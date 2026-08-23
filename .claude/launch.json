@@ -46,6 +46,24 @@
       "cwd": "frontend",
       "port": 4300,
       "autoPort": false
+    },
+    {
+      "comment": "App movil Flutter (zootecnicoapp), compilada a web para poder validarla en el Browser pane. Apunta al backend :5002 por defecto (ApiConfig.baseUrl) -- el mismo que usa el web.",
+      "name": "zootecnicoapp-web",
+      "runtimeExecutable": "C:/src/flutter/bin/flutter.bat",
+      "runtimeArgs": ["run", "-d", "web-server", "--web-port", "4500", "--web-hostname", "127.0.0.1"],
+      "cwd": "zootecnicoapp",
+      "port": 4500,
+      "autoPort": false
+    },
+    {
+      "comment": "zootecnicoapp compilada (flutter build web) servida estatica -- sin DWDS/hot-reload, evita el loop de recarga que el modo `flutter run -d web-server` tiene sin la extension de Chrome. Requiere `flutter build web` previo.",
+      "name": "zootecnicoapp-web-static",
+      "runtimeExecutable": "C:/Users/SAN MARINO/AppData/Local/Programs/Python/Python313/python.exe",
+      "runtimeArgs": ["-m", "http.server", "4501", "--directory", "build/web"],
+      "cwd": "zootecnicoapp",
+      "port": 4501,
+      "autoPort": false
     }
   ]
 }

@@ -14,6 +14,10 @@ dependencies:
   # Base de datos local — la app es offline-first
   sqflite: ^2.4.1
   path: ^1.9.0
+  # SOLO para poder validar la app en un navegador durante desarrollo: sqflite no
+  # tiene backend nativo en web. En mobile/desktop no se inicializa (ver
+  # core/platform_db/), así que no cambia el build real.
+  sqflite_common_ffi_web: ^0.4.5+4
 
   # Detección de red para la cola de sincronización
   connectivity_plus: ^6.1.0
