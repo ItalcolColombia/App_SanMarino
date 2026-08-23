@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:zootecnicoapp/shared/formato.dart';
 
 import 'package:zootecnicoapp/core/models/models.dart';
-import 'package:zootecnicoapp/design_system/components/app_widgets.dart';
+import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
 
@@ -55,8 +55,8 @@ class _SelectorSheetState extends State<_SelectorSheet> {
         padding: const EdgeInsets.fromLTRB(AppSpacing.s5, AppSpacing.s3, AppSpacing.s5, AppSpacing.s5),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Center(child: Container(
-            width: 38, height: 4,
-            decoration: BoxDecoration(color: AppColors.ink200, borderRadius: BorderRadius.circular(2)),
+            width: AppSpacing.s8, height: AppSpacing.s1,
+            decoration: BoxDecoration(color: AppColors.ink200, borderRadius: BorderRadius.circular(AppRadius.pill)),
           )),
           const SizedBox(height: AppSpacing.s4),
           Row(children: [
@@ -80,63 +80,124 @@ class _SelectorSheetState extends State<_SelectorSheet> {
           ]),
           const SizedBox(height: AppSpacing.s4),
 
-          if (_modulo == null)
-            for (final m in widget.usuario.modulos) ...[
-              _opcion(
-                emoji: m.emoji, titulo: m.label,
-                sub: '${widget.lotes.where((l) => l.modulo == m).length} lotes asignados',
-                color: switch (m) {
-                  ModuloSeguimiento.levante      => AppColors.levante,
-                  ModuloSeguimiento.engorde      => AppColors.engorde,
-                  ModuloSeguimiento.produccion   => AppColors.produccion,
-                  ModuloSeguimiento.reproductora => AppColors.reproductora,
-                },
-                onTap: () {
-                  final ls = widget.lotes.where((l) => l.modulo == m).toList();
-                  if (ls.length == 1) { Navigator.of(context).pop(ls.first); }
-                  else { setState(() => _modulo = m); }
-                },
+          // Flexible + scroll: con la hoja en `isScrollControlled` y un usuario
+          // con muchos lotes, la Column se pasaba del alto de la pantalla y
+          // reventaba por overflow. Con pocas opciones sigue ajustándose al
+          // contenido, así que la hoja no crece de más.
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _modulo == null ? _opcionesModulo() : _opcionesLote(lotesModulo),
               ),
-              const SizedBox(height: AppSpacing.s2),
-            ]
-          else ...[
-            TextButton(
-              onPressed: () => setState(() => _modulo = null),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.ink500, alignment: Alignment.centerLeft,
-                padding: EdgeInsets.zero, minimumSize: Size.zero,
-              ),
-              child: const Text('← Cambiar módulo'),
             ),
-            const SizedBox(height: AppSpacing.s2),
-            if (lotesModulo.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.s6),
-                child: Text('No tienes lotes asignados para este módulo.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: AppColors.ink500)),
-              )
-            else
-              for (final l in lotesModulo) ...[
-                _opcionLote(l),
-                const SizedBox(height: AppSpacing.s2),
-              ],
-          ],
+          ),
         ]),
       ),
     );
   }
 
+  /// Paso 1: los módulos del usuario.
+  List<Widget> _opcionesModulo() {
+    final modulos = widget.usuario.modulos;
+    final items = <Widget>[];
+
+    for (var i = 0; i < modulos.length; i++) {
+      final m = modulos[i];
+      if (i > 0) items.add(const SizedBox(height: AppSpacing.s2));
+      items.add(EntradaEscalonada(
+        // La clave incluye el paso: sin ella las dos listas comparten posición
+        // y la de lotes entraría sin animar, de golpe.
+        key: ValueKey('modulo-${m.id}'),
+        indice: i,
+        child: _opcion(
+          emoji: m.emoji,
+          titulo: m.label,
+          sub: '${widget.lotes.where((l) => l.modulo == m).length} lotes asignados',
+          color: switch (m) {
+            ModuloSeguimiento.levante      => AppColors.levante,
+            ModuloSeguimiento.engorde      => AppColors.engorde,
+            ModuloSeguimiento.produccion   => AppColors.produccion,
+            ModuloSeguimiento.reproductora => AppColors.reproductora,
+          },
+          onTap: () {
+            final ls = widget.lotes.where((l) => l.modulo == m).toList();
+            if (ls.length == 1) { Navigator.of(context).pop(ls.first); }
+            else { setState(() => _modulo = m); }
+          },
+        ),
+      ));
+    }
+    return items;
+  }
+
+  /// Paso 2: los lotes del módulo elegido.
+  List<Widget> _opcionesLote(List<Lote> lotes) {
+    final items = <Widget>[_volver(), const SizedBox(height: AppSpacing.s2)];
+
+    if (lotes.isEmpty) {
+      items.add(_sinLotes());
+      return items;
+    }
+
+    for (var i = 0; i < lotes.length; i++) {
+      if (i > 0) items.add(const SizedBox(height: AppSpacing.s2));
+      items.add(EntradaEscalonada(
+        key: ValueKey('lote-${lotes[i].id}'),
+        indice: i,
+        child: _opcionLote(lotes[i]),
+      ));
+    }
+    return items;
+  }
+
+  Widget _volver() => Align(
+    alignment: Alignment.centerLeft,
+    child: TextButton.icon(
+      onPressed: () => setState(() => _modulo = null),
+      icon: const Icon(Icons.arrow_back_rounded, size: 16),
+      label: const Text('Cambiar módulo'),
+      style: TextButton.styleFrom(
+        // Volver es una acción de navegación → naranja, como todo lo accionable.
+        foregroundColor: AppColors.brand500,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s2, vertical: AppSpacing.s2),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(
+          fontFamily: 'Inter', fontSize: AppFontSize.sm, fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  );
+
+  /// Vacío del módulo: informativo, no un error — el usuario no hizo nada mal.
+  Widget _sinLotes() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
+    child: Column(children: [
+      Container(
+        width: AppSpacing.s9, height: AppSpacing.s9,
+        decoration: const BoxDecoration(color: AppColors.cream2, shape: BoxShape.circle),
+        child: const Icon(Icons.inbox_rounded, color: AppColors.ink300),
+      ),
+      const SizedBox(height: AppSpacing.s3),
+      const Text('No tienes lotes asignados para este módulo.',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontFamily: 'Inter', fontSize: AppFontSize.sm, color: AppColors.ink500)),
+    ]),
+  );
+
   Widget _opcion({required String emoji, required String titulo, required String sub,
     required Color color, required VoidCallback onTap}) {
     // Ver nota en _LoteCard: borderRadius + Border de colores no uniformes no
     // lo soporta BoxDecoration — el clip del radius baja a un ClipRRect.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: InkWell(
-        onTap: onTap,
+    // `PresionHundida` reemplaza al InkWell: da la realimentación táctil que se
+    // siente con guantes, donde el ripple pasa desapercibido.
+    return PresionHundida(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4, vertical: AppSpacing.s4),
           decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(
@@ -147,13 +208,13 @@ class _SelectorSheetState extends State<_SelectorSheet> {
             ),
           ),
           child: Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 26)),
+            Text(emoji, style: const TextStyle(fontSize: AppFontSize.xl)),
             const SizedBox(width: AppSpacing.s4),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(titulo, style: const TextStyle(
-                fontFamily: 'PlusJakartaSans', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink900,
+                fontFamily: 'PlusJakartaSans', fontSize: AppFontSize.base, fontWeight: FontWeight.w700, color: AppColors.ink900,
               )),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpacing.s1),
               Text(sub, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: AppColors.ink500)),
             ])),
             const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.ink200),
@@ -164,11 +225,10 @@ class _SelectorSheetState extends State<_SelectorSheet> {
   }
 
   Widget _opcionLote(Lote l) {
-    return InkWell(
+    return PresionHundida(
       onTap: () => Navigator.of(context).pop(l),
-      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4, vertical: AppSpacing.s4),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -177,7 +237,7 @@ class _SelectorSheetState extends State<_SelectorSheet> {
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(l.nombre, style: const TextStyle(
-              fontFamily: 'PlusJakartaSans', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink900,
+              fontFamily: 'PlusJakartaSans', fontSize: AppFontSize.base, fontWeight: FontWeight.w700, color: AppColors.ink900,
             )),
             Text('${l.granja} · ${l.galpon} · Día ${l.dia}', style: const TextStyle(
               fontFamily: 'Inter', fontSize: 12, color: AppColors.ink500,

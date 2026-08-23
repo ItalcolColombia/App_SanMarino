@@ -1,15 +1,22 @@
 /// Recuperación de contraseña: el backend envía una nueva por correo.
+///
+/// Comparte el fondo, la tarjeta, el aviso y el input con el login: son las
+/// mismas piezas que replican el login web, y viven en `login_page.dart` para no
+/// tener dos copias que se desincronicen.
 library;
 
 import 'package:flutter/material.dart';
 
-import 'package:zootecnicoapp/core/api/api_client.dart';
-import 'package:zootecnicoapp/core/api/auth_api.dart';
 import 'package:zootecnicoapp/design_system/components/app_widgets.dart';
 import 'package:zootecnicoapp/design_system/components/marca.dart';
+import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
+import 'package:zootecnicoapp/features/auth/pages/login_page.dart'
+    show AvisoAuth, CampoAuth, EncabezadoAuth, FondoAuth, TarjetaAuth, TonoAviso;
 
+/// Mismo tope que el login: la tarjeta no se estira en tablet.
+const double _anchoTarjeta = 420;
 
 class RecoveryPage extends StatefulWidget {
   const RecoveryPage({super.key});
@@ -28,6 +35,9 @@ class _RecoveryScreenState extends State<RecoveryPage> {
   void dispose() { _email.dispose(); super.dispose(); }
 
   Future<void> _enviar() async {
+    // Guarda de doble envío: sin esto, dos toques rápidos encolaban dos pedidos.
+    if (_cargando) return;
+
     if (!_email.text.contains('@')) {
       setState(() => _error = 'Ingresa un correo válido.');
       return;
@@ -42,102 +52,198 @@ class _RecoveryScreenState extends State<RecoveryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.cream,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6, vertical: AppSpacing.s7),
-            child: _enviado ? _exito() : _formulario(),
+      body: FondoAuth(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s5,
+                vertical: AppSpacing.s7,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _anchoTarjeta),
+                child: TarjetaAuth(
+                  child: Column(
+                    children: [
+                      // El tagline se omite acá: la tarjeta ya trae un título
+                      // propio y repetirlo alarga la pantalla sin aportar.
+                      const EntradaEscalonada(
+                        indice: 0,
+                        child: LogoMarca(mostrarTagline: false),
+                      ),
+                      const SizedBox(height: AppSpacing.s6),
+                      EntradaEscalonada(
+                        indice: 2,
+                        child: CambioSuave(
+                          claveDeEstado: _enviado,
+                          child: _enviado ? _exito() : _formulario(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _formulario() => Column(children: [
-    const LogoMarca(),
-    const SizedBox(height: AppSpacing.s7),
-    Container(
-      width: 56, height: 56,
-      decoration: BoxDecoration(
-        color: AppColors.brand50, borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Icon(Icons.vpn_key_outlined, size: 26, color: AppColors.brand500),
-    ),
-    const SizedBox(height: AppSpacing.s3),
-    const Text('Recuperar contraseña', style: TextStyle(
-      fontFamily: 'PlusJakartaSans', fontSize: 20, fontWeight: FontWeight.w800,
-      letterSpacing: -0.4, color: AppColors.ink900,
-    )),
-    const SizedBox(height: 4),
-    const Text('Ingresa tu correo y te enviaremos una nueva contraseña.',
-      textAlign: TextAlign.center,
-      style: TextStyle(fontFamily: 'Inter', fontSize: 13, height: 1.5, color: AppColors.ink500)),
-    const SizedBox(height: AppSpacing.s5),
+  Widget _formulario() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const EncabezadoAuth(titulo: 'Recuperar contraseña'),
+      const SizedBox(height: AppSpacing.s5),
 
-    if (_error != null) ...[
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(color: AppColors.dangerBg, borderRadius: BorderRadius.circular(AppRadius.sm)),
-        child: Text(_error!, style: const TextStyle(
-          fontFamily: 'Inter', fontSize: 13, color: Color(0xFF9A4035),
-        )),
+      const Center(child: _Emblema(
+        icono: Icons.vpn_key_outlined,
+        fondo: AppColors.brand50,
+        color: AppColors.brand500,
+      )),
+      const SizedBox(height: AppSpacing.s4),
+
+      const Text(
+        'Ingresa tu correo y te enviaremos una nueva contraseña.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: AppFontSize.sm,
+          height: 1.5,
+          color: AppColors.ink500,
+        ),
       ),
-      const SizedBox(height: AppSpacing.s3),
+      const SizedBox(height: AppSpacing.s5),
+
+      if (_error != null) ...[
+        // Un correo mal escrito se corrige solo: es un aviso, no un fallo grave.
+        AvisoAuth(mensaje: _error!, tono: TonoAviso.atencion),
+        const SizedBox(height: AppSpacing.s4),
+      ],
+
+      CampoAuth(
+        etiqueta: 'Correo electrónico',
+        controller: _email,
+        icono: Icons.mail_outline_rounded,
+        placeholder: 'usuario@empresa.com',
+        keyboardType: TextInputType.emailAddress,
+        textInputAction: TextInputAction.done,
+        autofillHints: const [AutofillHints.username, AutofillHints.email],
+      ),
+      const SizedBox(height: AppSpacing.s5),
+
+      AppButton(
+        // Naranja de marca: la variante `primary` de la primitiva sigue siendo
+        // verde y el verde está reservado para el éxito.
+        variant: AppButtonVariant.primary,
+        label: _cargando ? 'Enviando…' : 'Enviar nueva contraseña',
+        size: AppButtonSize.lg,
+        full: true,
+        loading: _cargando,
+        onPressed: _cargando ? null : _enviar,
+      ),
+      const SizedBox(height: AppSpacing.s2),
+
+      _VolverAlLogin(onPressed: _cargando ? null : () => Navigator.of(context).pop()),
     ],
+  );
 
-    AppField(label: 'Correo electrónico', controller: _email, required: true,
-      placeholder: 'usuario@empresa.com', keyboardType: TextInputType.emailAddress),
-    const SizedBox(height: AppSpacing.s4),
+  Widget _exito() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      // Verde: acá sí es éxito, que es lo único para lo que la regla de marca
+      // reserva ese color.
+      const Center(child: _Emblema(
+        icono: Icons.mark_email_read_outlined,
+        fondo: AppColors.successBg,
+        color: AppColors.green500,
+      )),
+      const SizedBox(height: AppSpacing.s4),
 
-    AppButton(label: 'Enviar nueva contraseña', size: AppButtonSize.lg, full: true,
-      loading: _cargando, onPressed: _cargando ? null : _enviar),
-    const SizedBox(height: AppSpacing.s3),
-
-    TextButton(
-      onPressed: () => Navigator.of(context).pop(),
-      style: TextButton.styleFrom(foregroundColor: AppColors.green600),
-      child: const Text('← Volver al login'),
-    ),
-  ]);
-
-  Widget _exito() => Column(children: [
-    const LogoMarca(),
-    const SizedBox(height: AppSpacing.s7),
-    Container(
-      width: 72, height: 72,
-      decoration: BoxDecoration(
-        color: AppColors.successBg, borderRadius: BorderRadius.circular(AppRadius.xl),
+      const Text(
+        '¡Revisa tu correo!',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: AppFontSize.lg,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.4,
+          color: AppColors.ink900,
+        ),
       ),
-      child: const Icon(Icons.check_rounded, size: 34, color: AppColors.green500),
-    ),
-    const SizedBox(height: AppSpacing.s4),
-    const Text('¡Revisa tu correo!', style: TextStyle(
-      fontFamily: 'PlusJakartaSans', fontSize: 22, fontWeight: FontWeight.w800,
-      letterSpacing: -0.4, color: AppColors.ink900,
-    )),
-    const SizedBox(height: AppSpacing.s2),
-    Text.rich(
-      textAlign: TextAlign.center,
-      TextSpan(
-        style: const TextStyle(fontFamily: 'Inter', fontSize: 14, height: 1.6, color: AppColors.ink500),
-        children: [
-          const TextSpan(text: 'Enviamos una nueva contraseña a '),
-          TextSpan(text: _email.text, style: const TextStyle(
-            fontWeight: FontWeight.w700, color: AppColors.ink900,
-          )),
-          const TextSpan(text: '.\nRevisa también la carpeta de spam.'),
-        ],
+      const SizedBox(height: AppSpacing.s2),
+
+      Text.rich(
+        textAlign: TextAlign.center,
+        TextSpan(
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: AppFontSize.sm,
+            height: 1.6,
+            color: AppColors.ink500,
+          ),
+          children: [
+            const TextSpan(text: 'Enviamos una nueva contraseña a '),
+            TextSpan(text: _email.text, style: const TextStyle(
+              fontWeight: FontWeight.w700, color: AppColors.ink900,
+            )),
+            const TextSpan(text: '.\nRevisa también la carpeta de spam.'),
+          ],
+        ),
       ),
-    ),
-    const SizedBox(height: AppSpacing.s5),
-    AppButton(label: 'Ir al login', size: AppButtonSize.lg, full: true,
-      onPressed: () => Navigator.of(context).pop()),
-    const SizedBox(height: AppSpacing.s2),
-    TextButton(
-      onPressed: () => setState(() => _enviado = false),
-      style: TextButton.styleFrom(foregroundColor: AppColors.ink500),
-      child: const Text('Intentar con otro correo'),
-    ),
-  ]);
+      const SizedBox(height: AppSpacing.s5),
+
+      AppButton(
+        variant: AppButtonVariant.primary,
+        label: 'Ir al login',
+        size: AppButtonSize.lg,
+        full: true,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      const SizedBox(height: AppSpacing.s2),
+
+      TextButton(
+        onPressed: () => setState(() => _enviado = false),
+        style: TextButton.styleFrom(foregroundColor: AppColors.ink500),
+        child: const Text('Intentar con otro correo'),
+      ),
+    ],
+  );
+}
+
+/// Círculo con el icono de la pantalla. Es el mismo bloque en el formulario y en
+/// el éxito, solo cambia el par icono/color.
+class _Emblema extends StatelessWidget {
+  const _Emblema({required this.icono, required this.fondo, required this.color});
+
+  final IconData icono;
+  final Color fondo;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: AppSpacing.s10,
+      height: AppSpacing.s10,
+      decoration: BoxDecoration(color: fondo, shape: BoxShape.circle),
+      child: Icon(icono, size: AppSpacing.s7, color: color),
+    );
+  }
+}
+
+/// Vuelta al login. Iba en verde, que la regla de marca reserva para el éxito;
+/// ahora toma el naranja de acción del tema.
+class _VolverAlLogin extends StatelessWidget {
+  const _VolverAlLogin({this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.arrow_back_rounded, size: 16),
+      label: const Text('Volver al login'),
+    );
+  }
 }

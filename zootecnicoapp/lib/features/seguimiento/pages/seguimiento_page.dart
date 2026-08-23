@@ -17,6 +17,9 @@ import 'package:flutter/material.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
 import 'package:zootecnicoapp/design_system/components/app_widgets.dart';
+import 'package:zootecnicoapp/design_system/motion/app_motion.dart';
+import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
+import 'package:zootecnicoapp/features/sync/widgets/sync_widgets.dart';
 import 'package:zootecnicoapp/features/seguimiento/widgets/selector_items_inventario.dart';
 import 'package:zootecnicoapp/features/seguimiento/funciones/alimento_obligatorio.dart';
 import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
@@ -44,10 +47,21 @@ class SeguimientoPage extends StatefulWidget {
 }
 
 class _SeguimientoScreenState extends State<SeguimientoPage> {
+  /// Cuánto queda la confirmación en pantalla antes de volver al listado. Sin
+  /// red el mensaje tiene una línea más para leer, así que dura un poco más.
+  /// No cambia qué se guardó ni el resultado que devuelve la pantalla.
+  static const Duration _esperaConRed = Duration(milliseconds: 900);
+  static const Duration _esperaSinRed = Duration(milliseconds: 1400);
+
   final Map<String, TextEditingController> _c = {};
   final Map<String, bool> _abierto = {'general': true};
   DateTime _fecha = DateTime.now();
   bool _guardado = false;
+
+  /// Si al momento de guardar había red. Se congela ahí y no se vuelve a mirar:
+  /// el mensaje tiene que describir lo que pasó cuando el operario apretó, no
+  /// el estado de la antena dos segundos después.
+  bool _sinRedAlGuardar = false;
 
   // ── F5: selector de ítems de inventario (sólo con el flag encendido) ──────
   final List<LineaConsumo> _itemsH = [];
@@ -55,7 +69,19 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
   List<ItemInventario> _catalogoAlimento = const [];
   Map<String, ExistenciaInventario> _existencias = const {};
 
-  TextEditingController ctl(String k) => _c.putIfAbsent(k, () => TextEditingController());
+  TextEditingController ctl(String k) => _c.putIfAbsent(k, () {
+    final c = TextEditingController();
+    // La barra de obligatorias del header y el badge de cada sección se
+    // calculan de estos campos: sin escuchar sus cambios el progreso quedaría
+    // congelado hasta que otra cosa dispare un setState.
+    if (_observados.contains(k)) c.addListener(_repintar);
+    return c;
+  });
+
+  void _repintar() {
+    if (mounted) setState(() {});
+  }
+
   bool abierto(String k) => _abierto[k] ?? false;
   void toggle(String k) => setState(() => _abierto[k] = !abierto(k));
   bool lleno(List<String> keys) => keys.any((k) => (_c[k]?.text ?? '').isNotEmpty);
@@ -65,6 +91,62 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
   /// Kill switch de F5: con el flag apagado esta pantalla es BYTE A BYTE la de
   /// antes — el selector ni se pinta ni se consulta el catálogo.
   bool get _usaSelectorItems => widget.usuario.descuentaInventarioDesdeMovil;
+
+  // ── Secciones obligatorias ─────────────────────────────────────────────────
+
+  /// Las secciones que el registro no puede dejar en blanco, con los campos que
+  /// en pantalla llevan `*`. Es la ÚNICA definición: de acá salen el badge
+  /// "Obligatorio" de cada sección Y la barra de progreso del header, para que
+  /// no puedan decir cosas distintas.
+  ///
+  /// `alimento` va con la lista vacía porque su condición no es "hay algo
+  /// escrito" sino la regla del backend, que resuelve [_alimentoCompleto].
+  Map<String, List<String>> get _obligatorias => switch (modulo) {
+    ModuloSeguimiento.levante || ModuloSeguimiento.engorde => const {
+      'alimento': <String>[],
+      'mort': ['mortalidadHembras', 'mortalidadMachos'],
+    },
+    ModuloSeguimiento.produccion || ModuloSeguimiento.reproductora => const {
+      'alimento': <String>[],
+      'hembras': ['mortalidadHembras', 'selH'],
+      'machos': ['mortalidadMachos', 'selM'],
+    },
+  };
+
+  /// Campos cuyo tecleo tiene que repintar el progreso. `late` para que se
+  /// arme recién cuando ya hay `widget` disponible.
+  late final Set<String> _observados = {
+    for (final campos in _obligatorias.values) ...campos,
+    'tipoAlimento', 'consumoKgHembras', 'consumoKgMachos',
+  };
+
+  bool _completa(String clave) => clave == 'alimento'
+      ? _alimentoCompleto
+      : lleno(_obligatorias[clave] ?? const []);
+
+  int get _obligatoriasListas => _obligatorias.keys.where(_completa).length;
+
+  /// La regla real del alimento, espejo de [AlimentoObligatorio]: algún consumo
+  /// POSITIVO y el tipo indicado. Se mira en positivo y no sólo "no vacío"
+  /// porque un 0 tipeado no alcanza y el guardado lo rebotaría igual.
+  bool get _alimentoCompleto {
+    if (_usaSelectorItems) {
+      return _itemsH.any((l) => l.valida) || _itemsM.any((l) => l.valida);
+    }
+    final kg = _numero('consumoKgHembras') + _numero('consumoKgMachos');
+    return kg > 0 && (_c['tipoAlimento']?.text ?? '').trim().isNotEmpty;
+  }
+
+  /// Lectura tolerante de un campo numérico, SÓLO para pintar el progreso: el
+  /// payload lo sigue armando [PayloadSeguimiento] con su propio parseo.
+  double _numero(String k) =>
+      double.tryParse((_c[k]?.text ?? '').trim().replaceAll(',', '.')) ?? 0;
+
+  /// El badge se apaga cuando la sección se completa: lo que queda en rojo es
+  /// exactamente lo que falta, y el punto verde de la sección toma la posta.
+  Widget? _badgeObligatorio(String clave) => _completa(clave)
+      ? null
+      : const AppBadge(label: 'Obligatorio', tone: BadgeTone.danger);
 
   @override
   void initState() {
@@ -221,14 +303,30 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     }
 
     if (!mounted) return;
-    setState(() => _guardado = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    // Se lee ACÁ, con el encolado ya resuelto: es lo que decide si la
+    // confirmación puede decir "Guardado" a secas o tiene que aclarar que el
+    // registro por ahora vive sólo en esta tablet.
+    final sinRed = !widget.sync.enLinea;
+    setState(() {
+      _guardado = true;
+      _sinRedAlGuardar = sinRed;
+    });
+    await Future.delayed(sinRed ? _esperaSinRed : _esperaConRed);
     if (mounted) Navigator.of(context).pop(true);
   }
 
   void _avisar(String mensaje) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(mensaje, style: const TextStyle(
+        fontFamily: 'Inter', fontSize: AppFontSize.sm,
+        fontWeight: FontWeight.w600, color: AppColors.cream,
+      )),
+      backgroundColor: AppColors.ink900,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(AppSpacing.s4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+    ));
   }
 
   Color get _acento => switch (modulo) {
@@ -248,8 +346,14 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(AppSpacing.s4, AppSpacing.s3, AppSpacing.s4, AppSpacing.s4),
+              // Con guantes se arrastra más de lo que se toca: bajar el teclado
+              // al desplazar evita tener que apuntar al botón "listo".
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
-                for (final w in _secciones()) ...[w, const SizedBox(height: AppSpacing.s3)],
+                for (final (i, seccion) in _secciones().indexed) ...[
+                  EntradaEscalonada(indice: i, child: _expandible(seccion)),
+                  const SizedBox(height: AppSpacing.s3),
+                ],
               ],
             ),
           ),
@@ -259,14 +363,27 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     );
   }
 
+  /// `AppSection` muestra su contenido con un `if (expanded)`: el alto salta de
+  /// golpe. `AnimatedSize` interpola ese salto sin tocar la primitiva
+  /// compartida — el chevron ya rota adentro, en la misma duración.
+  Widget _expandible(Widget seccion) => AnimatedSize(
+    duration: AppMotion.duracion(context, AppMotion.fast),
+    curve: AppMotion.simetrica,
+    alignment: Alignment.topCenter,
+    child: seccion,
+  );
+
+  // ── Header pegajoso ────────────────────────────────────────────────────────
+
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(AppSpacing.s4, AppSpacing.s3, AppSpacing.s4, AppSpacing.s3),
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.line)),
+        boxShadow: AppColors.shadowSm,
       ),
-      child: Column(children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -279,15 +396,18 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
           ),
           const SizedBox(width: AppSpacing.s3),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Seguimiento diario · ${modulo.label}'.toUpperCase(), style: TextStyle(
-              fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700,
-              letterSpacing: 0.8, color: _acento,
-            )),
-            Text(widget.lote.nombre, style: const TextStyle(
-              fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800,
-              letterSpacing: -0.4, color: AppColors.ink900,
-            )),
+            Text(modulo.label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Inter', fontSize: AppFontSize.xs, fontWeight: FontWeight.w700,
+                letterSpacing: 0.8, color: _acento, height: 1.1,
+              )),
+            Text(widget.lote.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: AppFontSize.lg, fontWeight: FontWeight.w800,
+                letterSpacing: -0.4, color: AppColors.ink900, height: 1.2,
+              )),
           ])),
+          const SizedBox(width: AppSpacing.s2),
           AppBadge(label: 'Día ${widget.lote.dia}', tone: switch (modulo) {
             ModuloSeguimiento.levante => BadgeTone.success,
             ModuloSeguimiento.engorde => BadgeTone.orange,
@@ -297,23 +417,90 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
         ]),
         const SizedBox(height: AppSpacing.s2),
         Row(children: [
-          _meta('Aves', _fmt(widget.lote.aves)),
-          const SizedBox(width: AppSpacing.s4),
-          _meta('Granja', widget.lote.granja),
-          const SizedBox(width: AppSpacing.s4),
-          _meta('Galpón', widget.lote.galpon),
+          Expanded(child: _ubicacion()),
+          // El estado de la red va en el header y no al pie: es lo que decide
+          // qué significa "Guardado" cuando el operario termine. Con todo al día
+          // no se pinta NADA —la ausencia es el mensaje, regla del design
+          // system—, y por eso el espaciador también se saltea.
+          ListenableBuilder(
+            listenable: widget.sync,
+            builder: (_, _) => widget.sync.todoAlDia
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(left: AppSpacing.s2),
+                    child: ConnectionChip(sync: widget.sync),
+                  ),
+          ),
         ]),
+        if (_obligatorias.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s3),
+          _progresoObligatorias(),
+        ],
       ]),
     );
   }
 
-  Widget _meta(String l, String v) => Row(children: [
-    Text('$l ', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: AppColors.ink500)),
-    Text(v, style: const TextStyle(
-      fontFamily: 'PlusJakartaSans', fontSize: 11, fontWeight: FontWeight.w700,
-      color: AppColors.ink900, fontFeatures: [FontFeature.tabularFigures()],
-    )),
-  ]);
+  /// Granja · galpón · aves en una sola línea: es contexto, no dato de carga.
+  Widget _ubicacion() {
+    const tenue = TextStyle(fontFamily: 'Inter', fontSize: AppFontSize.xs, color: AppColors.ink300);
+    const fuerte = TextStyle(
+      fontFamily: 'Inter', fontSize: AppFontSize.xs, fontWeight: FontWeight.w600,
+      color: AppColors.ink700, fontFeatures: [FontFeature.tabularFigures()],
+    );
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: widget.lote.granja, style: fuerte),
+        const TextSpan(text: '  ·  ', style: tenue),
+        TextSpan(text: 'Galpón ${widget.lote.galpon}', style: fuerte),
+        const TextSpan(text: '  ·  ', style: tenue),
+        TextSpan(text: '${_fmt(widget.lote.aves)} aves', style: fuerte),
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  /// Cuánto falta para que el día se pueda guardar. Naranja mientras es una
+  /// tarea pendiente; verde recién cuando está todo, que ahí sí es un éxito.
+  Widget _progresoObligatorias() {
+    final total = _obligatorias.length;
+    final listas = _obligatoriasListas;
+    final completo = listas == total;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text(
+          completo ? 'Secciones obligatorias completas' : 'Secciones obligatorias',
+          style: TextStyle(
+            fontFamily: 'Inter', fontSize: AppFontSize.xs, fontWeight: FontWeight.w600,
+            color: completo ? AppColors.green600 : AppColors.ink500,
+          ),
+        )),
+        Text('$listas/$total', style: TextStyle(
+          fontFamily: 'PlusJakartaSans', fontSize: AppFontSize.xs, fontWeight: FontWeight.w700,
+          color: completo ? AppColors.green600 : AppColors.ink700,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        )),
+      ]),
+      const SizedBox(height: AppSpacing.s1),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: total == 0 ? 0 : listas / total),
+          duration: AppMotion.duracion(context, AppMotion.base),
+          curve: AppMotion.entrada,
+          builder: (_, valor, _) => LinearProgressIndicator(
+            value: valor,
+            minHeight: AppSpacing.s1,
+            backgroundColor: AppColors.cream2,
+            color: completo ? AppColors.green500 : AppColors.brand500,
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  // ── Pie: acciones y confirmación ───────────────────────────────────────────
 
   Widget _footer() {
     return Container(
@@ -322,19 +509,86 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Row(children: [
-        if (_guardado) const AppSavedChip()
-        else AppButton(
-          label: 'Cancelar', variant: AppButtonVariant.ghost,
-          onPressed: () => Navigator.of(context).pop(),
+      // Las dos caras del pie no miden lo mismo: se cambian con un fundido y el
+      // alto se acompaña, en vez de dar el salto justo al confirmar.
+      child: AnimatedSize(
+        duration: AppMotion.duracion(context, AppMotion.fast),
+        curve: AppMotion.simetrica,
+        alignment: Alignment.topCenter,
+        child: CambioSuave(
+          claveDeEstado: _guardado,
+          child: _guardado ? _confirmacionGuardado() : _acciones(),
         ),
-        const SizedBox(width: AppSpacing.s2),
-        Expanded(child: AppButton(
-          label: _guardado ? 'Guardado' : 'Guardar registro',
-          icon: Icons.check_rounded,
-          full: true,
-          variant: modulo == ModuloSeguimiento.engorde ? AppButtonVariant.accent : AppButtonVariant.primary,
-          onPressed: _guardado ? null : _guardar,
+      ),
+    );
+  }
+
+  Widget _acciones() => Row(children: [
+    AppButton(
+      label: 'Cancelar', variant: AppButtonVariant.ghost,
+      onPressed: () => Navigator.of(context).pop(),
+    ),
+    const SizedBox(width: AppSpacing.s2),
+    // Naranja de marca: guardar es LA acción de esta pantalla. La sombra teñida
+    // la despega del pie blanco, que es donde el pulgar la busca sin mirar.
+    Expanded(child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppColors.shadowBrand,
+      ),
+      child: AppButton(
+        label: 'Guardar registro',
+        icon: Icons.check_rounded,
+        full: true,
+        variant: AppButtonVariant.primary,
+        onPressed: _guardar,
+      ),
+    )),
+  ]);
+
+  /// El mensaje dice la verdad de dónde quedó el registro. Sin señal NO es un
+  /// error —es el modo normal de trabajo en el galpón—, así que se pinta en el
+  /// tono informativo, nunca en rojo ni con íconos de alarma.
+  Widget _confirmacionGuardado() {
+    final (fondo, tinta, titulo, detalle) = _sinRedAlGuardar
+        ? (AppColors.infoBg, AppColors.info, 'Guardado en el equipo',
+            'Se envía al volver la señal')
+        : (AppColors.successBg, AppColors.green600, 'Guardado', null);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3, vertical: AppSpacing.s2),
+      constraints: const BoxConstraints(minHeight: AppTouch.min),
+      decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Row(children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: AppMotion.duracion(context, AppMotion.base),
+          curve: AppMotion.confirmacion,
+          builder: (_, t, hijo) => Transform.scale(
+            scale: t,
+            // La curva de confirmación pasa de 1 al rebotar: la opacidad se
+            // acota o `Opacity` revienta.
+            child: Opacity(opacity: t.clamp(0.0, 1.0), child: hijo),
+          ),
+          child: Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(color: tinta, shape: BoxShape.circle),
+            child: const Icon(Icons.check_rounded, size: 16, color: AppColors.surface),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s3),
+        Expanded(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titulo, style: TextStyle(
+              fontFamily: 'PlusJakartaSans', fontSize: AppFontSize.sm,
+              fontWeight: FontWeight.w700, color: tinta,
+            )),
+            if (detalle != null) Text(detalle, style: TextStyle(
+              fontFamily: 'Inter', fontSize: AppFontSize.xs, color: tinta, height: 1.3,
+            )),
+          ],
         )),
       ]),
     );
@@ -399,8 +653,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     icon: Icons.remove_circle_outline_rounded,
     expanded: abierto('mort'),
     onToggle: () => toggle('mort'),
-    filled: lleno(['mortalidadHembras', 'mortalidadMachos']),
-    trailing: const AppBadge(label: 'Obligatorio', tone: BadgeTone.danger),
+    filled: _completa('mort'),
+    trailing: _badgeObligatorio('mort'),
     children: [
       AppPairField(label: 'Mortalidad', required: true, suffix: 'aves',
         hController: ctl('mortalidadHembras'), mController: ctl('mortalidadMachos')),
@@ -474,10 +728,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     icon: Icons.grass_rounded,
     expanded: abierto('alimento'),
     onToggle: () => toggle('alimento'),
-    filled: _usaSelectorItems
-        ? (_itemsH.any((l) => l.valida) || _itemsM.any((l) => l.valida))
-        : lleno(['consumoKgHembras', 'consumoKgMachos']),
-    trailing: const AppBadge(label: 'Obligatorio', tone: BadgeTone.danger),
+    filled: _alimentoCompleto,
+    trailing: _badgeObligatorio('alimento'),
     children: _usaSelectorItems ? _selectorAlimentoChildren(acento) : [
       AppField(label: 'Tipo de alimento', required: true, controller: ctl('tipoAlimento'),
         placeholder: 'Ej: Iniciación, Engorde 1…'),
@@ -602,7 +854,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
       title: 'Hembras ♀',
       icon: Icons.female_rounded,
       expanded: abierto('hembras'), onToggle: () => toggle('hembras'),
-      filled: lleno(['mortalidadHembras', 'selH']),
+      filled: _completa('hembras'),
+      trailing: _badgeObligatorio('hembras'),
       children: [
         Row(children: [
           Expanded(child: AppField(label: 'Mortalidad', required: true, controller: ctl('mortalidadHembras'),
@@ -624,7 +877,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
       title: 'Machos ♂',
       icon: Icons.male_rounded,
       expanded: abierto('machos'), onToggle: () => toggle('machos'),
-      filled: lleno(['mortalidadMachos', 'selM']),
+      filled: _completa('machos'),
+      trailing: _badgeObligatorio('machos'),
       children: [
         Row(children: [
           Expanded(child: AppField(label: 'Mortalidad', required: true, controller: ctl('mortalidadMachos'),
@@ -735,7 +989,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
       title: 'Hembras ♀ — bajas',
       icon: Icons.female_rounded,
       expanded: abierto('hembras'), onToggle: () => toggle('hembras'),
-      filled: lleno(['mortalidadHembras', 'selH']),
+      filled: _completa('hembras'),
+      trailing: _badgeObligatorio('hembras'),
       children: [
         Row(children: [
           Expanded(child: AppField(label: 'Mortalidad', required: true, controller: ctl('mortalidadHembras'),
@@ -752,7 +1007,8 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
       title: 'Machos ♂ — bajas',
       icon: Icons.male_rounded,
       expanded: abierto('machos'), onToggle: () => toggle('machos'),
-      filled: lleno(['mortalidadMachos', 'selM']),
+      filled: _completa('machos'),
+      trailing: _badgeObligatorio('machos'),
       children: [
         Row(children: [
           Expanded(child: AppField(label: 'Mortalidad', required: true, controller: ctl('mortalidadMachos'),

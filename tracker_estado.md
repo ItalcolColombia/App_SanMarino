@@ -2212,3 +2212,57 @@ endpoint, cola propia en SQLite), asi que F7 no le aplicaba pese a que el plan l
 F1 a F7 completos (F6 fuera de alcance, decidido con el usuario: EC/PA no operan produccion
 postura, Colombia no tiene reproductora — construirlo seria superficie sin usuario). El plan
 `descuento_inventario_movil_plan.md` queda ejecutado de punta a punta.
+
+---
+
+## App móvil — rediseño visual, transiciones, offline y arquitectura (23ago26)
+
+Plan: [`fase_de_desarrollo/app_movil_rediseno_visual_y_arquitectura_plan.md`](fase_de_desarrollo/app_movil_rediseno_visual_y_arquitectura_plan.md)
+· Guía nueva: [`zootecnicoapp/CLAUDE.md`](zootecnicoapp/CLAUDE.md)
+
+Pedido del usuario: mejora visual + transiciones, que el offline funcione siempre, los logos del
+login web (el de Italfoods se elimina: **la web no lo usa en ningún lado**, 0 referencias medidas),
+app más profesional alineada a los patrones del web, y arquitectura definida y documentada.
+
+**Decisiones suyas:** color **híbrido** (marca en acentos/acciones, neutros cálidos se quedan) y
+**arquitectura feature-first completa**.
+
+### Arquitectura y offline — `bb953aa`
+
+- [x] **Reestructura feature-first**: `core/` (api, db, sync, session, models, reglas, calculos,
+      platform) · `design_system/` (tokens, components, motion) · `features/` (auth, home, lotes,
+      seguimiento, sync, perfil) · `shared/`. Los 3 archivos que concentraban todo se partieron por
+      pantalla real (`app_screens.dart` tenía **4 pantallas distintas** en 761 líneas).
+- [x] Imports intra-proyecto a `package:` — mover un archivo deja de romper sus propios imports.
+- [x] Regla de capas verificada: `core/` no importa `features/` ni `design_system/`. Por eso
+      `postura_calculos`/`perfil_pais`/`modulos_del_menu` se quedan en `core/` (los usa `core/api`).
+- [x] **Hueco offline 1 — pérdida de datos:** el chip «Guardado» se pintaba ANTES de que el INSERT
+      resolviera, sin `try/catch` en ninguna de las 3 capas. Si fallaba, el operario se iba
+      convencido de haber anotado el día y el registro no existía. Ahora encola → confirma.
+- [x] **Hueco 2 — la VPN contaba como «sin conexión»** (`switch(results.first)` con `_ => offline`;
+      en iOS/macOS la VPN se reporta como `other`). Un equipo con VPN corporativa **nunca** subía la
+      cola. Extraído a `calidadDesdeConectividad()` puro + 12 tests.
+- [x] **Hueco 3** — abrir la app con cola pendiente y red no sincronizaba sola. `_calidad` arranca
+      offline (fail-closed) + `WidgetsBindingObserver` sincroniza al volver a la app.
+- [x] **Hueco 4** — `sincronizar()` sin guarda de reentrada: dos disparos posteaban la misma fila.
+- [x] **Hueco 5** — una respuesta VACÍA borraba la caché (`delete` incondicional): un 200 con cuerpo
+      raro dejaba al operario con CERO lotes en el galpón. Guarda «lista vacía no reemplaza».
+- [x] `flutter analyze` 0/0 · `flutter test` **177/177** (12 nuevos).
+
+### Documentación
+
+- [x] **`zootecnicoapp/CLAUDE.md`** — mapa de capas y reglas de dependencia, convención de imports y
+      nombres, sistema de diseño con la regla de marca, sistema de movimiento, **contrato offline con
+      los 19 invariantes medidos**, 4 trampas de Flutter que ya costaron caro, y checklist de commit.
+
+### Pendientes medidos que quedan abiertos (del informe de offline)
+
+Ninguno es regresión: son huecos que ya existían y quedaron documentados en el `CLAUDE.md` de la app.
+
+- [ ] Cablear `fechasRegistradas` + `reemplazarRegistrosDelServidor` (construidos, sin un solo
+      caller): una tablet nueva no sabe qué días ya cargó el servidor.
+- [ ] Modo «sólo captura» tras un 401 sin red: hoy el login exige red y la cola queda invisible.
+- [ ] UI de filas agotadas: `agotadas()`/`reintentar()`/`ultimoError` existen y no se muestran.
+- [ ] `avisoPlataforma`/`duplicados`/`rechazados` se calculan y no llegan al usuario.
+- [ ] Pantalla de historial local (`seguimientos_local` es *write-only*).
+- [ ] **`SyncService` no tiene tests** — la pieza con más riesgo offline y la única sin cobertura.
