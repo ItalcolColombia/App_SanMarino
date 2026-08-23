@@ -57,6 +57,9 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
   final Map<String, bool> _abierto = {'general': true};
   DateTime _fecha = DateTime.now();
   bool _guardado = false;
+  /// El servidor (o este equipo) ya tiene el día elegido. Se avisa ANTES de que
+  /// llene el formulario, no al guardar.
+  bool _diaYaRegistrado = false;
 
   /// Si al momento de guardar había red. Se congela ahí y no se vuelve a mirar:
   /// el mensaje tiene que describir lo que pasó cuando el operario apretó, no
@@ -152,6 +155,21 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
   void initState() {
     super.initState();
     if (_usaSelectorItems) _cargarCatalogo();
+    _revisarDiaElegido();
+  }
+
+  /// Pregunta al servidor qué días ya tiene de este lote y revisa el elegido.
+  ///
+  /// Antes esto se sabía recién al guardar, y sólo con lo que hubiera
+  /// registrado ESTE equipo: en una tablet nueva el operario llenaba todo para
+  /// que el servidor lo rechazara horas después. La consulta no bloquea nada —
+  /// sin red se sigue con la caché.
+  Future<void> _revisarDiaElegido() async {
+    await widget.sync.refrescarDiasDelServidor(widget.lote);
+    final ya = await LocalDb.instance.yaHayRegistro(
+        modulo: modulo.id, loteId: widget.lote.id, fecha: _fecha);
+    if (!mounted || ya == _diaYaRegistrado) return;
+    setState(() => _diaYaRegistrado = ya);
   }
 
   /// Catálogo + existencias YA cacheados por la sincronización diaria
@@ -610,6 +628,14 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     onToggle: () => toggle('general'),
     filled: true,
     children: [
+      if (_diaYaRegistrado)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.s3),
+          child: AppInfoBox(
+            tone: InfoTone.warn,
+            text: 'Este día ya está registrado para ${widget.lote.nombre}. Si lo guardás, el servidor lo va a rechazar.',
+          ),
+        ),
       _fechaField(),
       AppField(label: 'Lote', controller: TextEditingController(text: widget.lote.nombre), readOnly: true),
       AppField(label: 'Observaciones', controller: ctl('observaciones'),
@@ -640,7 +666,10 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
         firstDate: minima,
         lastDate: DateTime.now(),
       );
-      if (d != null) setState(() => _fecha = d);
+      if (d != null) {
+        setState(() => _fecha = d);
+        _revisarDiaElegido();
+      }
     },
     child: AppField(
       label: 'Fecha', required: true, readOnly: true,

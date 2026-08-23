@@ -2259,12 +2259,19 @@ app más profesional alineada a los patrones del web, y arquitectura definida y 
 
 Ninguno es regresión: son huecos que ya existían y quedaron documentados en el `CLAUDE.md` de la app.
 
-- [ ] Cablear `fechasRegistradas` + `reemplazarRegistrosDelServidor` (construidos, sin un solo
-      caller): una tablet nueva no sabe qué días ya cargó el servidor.
-- [ ] Modo «sólo captura» tras un 401 sin red: hoy el login exige red y la cola queda invisible.
-- [ ] UI de filas agotadas: `agotadas()`/`reintentar()`/`ultimoError` existen y no se muestran.
-- [ ] `avisoPlataforma`/`duplicados`/`rechazados` se calculan y no llegan al usuario.
-- [ ] Pantalla de historial local (`seguimientos_local` es *write-only*).
+- [x] **Días que el servidor ya tiene, cableados** (23ago26) — `SyncService.refrescarDiasDelServidor`
+      se llama al abrir el formulario y avisa ANTES de llenarlo, no al guardar. Es por lote y a
+      demanda: el endpoint es uno por lote y en la sincronización diaria serían 124 peticiones.
+- [x] **Modo «sólo captura»** — un token vencido ya no expulsa. Se conserva la sesión, se puede
+      seguir registrando y viendo la cola, y sólo se suspende subir. Antes el login exigía red, así
+      que un 401 seguido de quedarse sin señal dejaba al operario afuera de su propia app.
+- [x] **UI de filas agotadas** — sección «Necesitan tu atención» con el mensaje real del servidor y
+      un botón Reintentar que llama `sync.reintentar(id)`.
+- [x] **Los avisos llegan al usuario** — resumen post-sync («N subidos · N ya estaban · N hay que
+      recargarlos»). `avisoPlataforma` ya estaba cableado: esa parte de la medición estaba vieja.
+- [x] **Pantalla de historial** — `LocalDb.historialLocal()` (lector nuevo, +5 tests) y
+      `features/sync/pages/historial_page.dart`, agrupada por día. Entrada desde Perfil.
+- [i] **Silos**: sigue a medias A PROPÓSITO (decisión de producto F5.5). No cablear sin decisión.
 - [x] **`SyncService` con tests** (23ago26) — `test/sync_service_test.dart`, 31 casos: los 6
       `TipoFallo`, la guarda de reentrada, el orden de la cola (I4), el endpoint congelado (I5) y las
       filas agotadas (I17). Validados **con mutación**: se rompió una regla por vez y las 9 las

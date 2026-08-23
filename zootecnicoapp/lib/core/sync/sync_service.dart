@@ -287,6 +287,35 @@ class SyncService extends ChangeNotifier {
     }
   }
 
+  /// Baja qué días de este lote ya tiene el servidor y los deja en la caché.
+  ///
+  /// Sin esto, `registros_conocidos` sólo sabe lo que registró **este equipo
+  /// desde que se instaló**. Una tablet nueva, un "borrar datos" o un segundo
+  /// equipo en la misma granja dejan que el operario llene veinte campos, vea
+  /// "Guardado" y el servidor lo rechace tres horas después.
+  ///
+  /// Es **por lote y a demanda**, no en la sincronización diaria: el endpoint es
+  /// uno por lote, y con 124 lotes asignados serían 124 peticiones cada mañana.
+  /// Se llama al abrir el formulario, que es cuando el dato sirve para algo.
+  ///
+  /// Falla en silencio: sin red se sigue con lo que haya en caché. Perder esta
+  /// consulta no puede impedir registrar el día.
+  Future<void> refrescarDiasDelServidor(Lote lote) async {
+    final api = _api;
+    if (api == null || !enLinea) return;
+    try {
+      final fechas = await api.fechasRegistradas(lote);
+      await _db.reemplazarRegistrosDelServidor(
+        modulo: lote.modulo.id,
+        loteId: lote.id,
+        fechas: fechas,
+      );
+    } on ApiError {
+      // Sin red o error del servidor: la caché local sigue siendo la verdad
+      // disponible. No es un fallo del formulario.
+    }
+  }
+
   /// Encola y devuelve inmediatamente: el usuario ya vio su confirmación.
   Future<void> encolar({
     required String tipo,

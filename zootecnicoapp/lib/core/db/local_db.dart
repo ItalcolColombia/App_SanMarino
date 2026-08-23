@@ -648,6 +648,36 @@ class LocalDb {
     remoteId: r['remote_id'] as int?,
   );
 
+  // ── Historial local ────────────────────────────────────────────────────────
+
+  /// Lo que ya se envió y el servidor aceptó, **más reciente primero**.
+  ///
+  /// `seguimientos_local` la escribe [confirmarEnviado] y hasta ahora no la leía
+  /// nadie: apenas un registro se sincronizaba desaparecía de la vista (la
+  /// pantalla de cola sólo muestra `pending_sync`), así que sin señal la única
+  /// pista de que el día ya estaba cargado era el rechazo al intentar cargarlo
+  /// de nuevo. Este es el lector que faltaba.
+  ///
+  /// [loteId] filtra por lote: es exactamente el prefijo del índice
+  /// `idx_seg_lote (lote_id, fecha)`. [limite] existe porque esta tabla sólo
+  /// crece — la pantalla muestra lo reciente, no el historial entero del equipo.
+  ///
+  /// Es una lectura pura: no borra, no marca y no toca la cola.
+  Future<List<SeguimientoLocal>> historialLocal({int? loteId, int limite = 200}) async {
+    final d = await db;
+    final rows = await d.query(
+      'seguimientos_local',
+      where: loteId == null ? null : 'lote_id = ?',
+      whereArgs: loteId == null ? null : [loteId],
+      // `fecha` es texto ISO, que ordena bien lexicográficamente. El desempate
+      // por `id` (AUTOINCREMENT) da orden estable entre dos registros del mismo
+      // día: sin él, dos filas empatadas podían intercambiarse entre lecturas.
+      orderBy: 'fecha DESC, id DESC',
+      limit: limite,
+    );
+    return rows.map(SeguimientoLocal.desdeFila).toList();
+  }
+
   // ── Guarda de caché ────────────────────────────────────────────────────────
 
   /// `true` si hay que SALTEAR el reemplazo: la respuesta vino vacía y en disco
@@ -722,5 +752,86 @@ class LocalDb {
       nucleoId: r['nucleo_id'] as String?,
       galponId: r['galpon_id'] as String?,
     )).toList();
+  }
+}
+
+/// Una fila de `seguimientos_local`: un registro que el servidor **ya aceptó**.
+///
+/// Vive acá y no en `core/models/` a propósito: no es vocabulario de dominio ni
+/// viaja al backend, es la forma de una tabla local y su único lector es la
+/// pantalla de historial. Si algún día lo consume algo más, ahí sí sube.
+///
+/// Todo el parseo es tolerante. El historial es de **sólo lectura**: una fila
+/// vieja o rara tiene que verse como se pueda, nunca tumbar la pantalla y
+/// esconder las otras 199 que sí están bien.
+class SeguimientoLocal {
+  const SeguimientoLocal({
+    required this.id,
+    required this.tipo,
+    required this.loteId,
+    required this.fecha,
+    required this.fechaTexto,
+    required this.payload,
+    this.createdAt,
+    this.remoteId,
+  });
+
+  /// Autoincremental de la tabla local. **No** es el id del servidor.
+  final int id;
+
+  /// El mismo `tipo` con el que se encoló: 'levante' | 'engorde' | 'produccion'
+  /// | 'reproductora' (y, si algún día se encolan, los movimientos).
+  final String tipo;
+
+  final int loteId;
+
+  /// Día del registro. `null` si la columna trae un texto que no se puede
+  /// parsear; en ese caso queda [fechaTexto], que es lo que se muestra.
+  ///
+  /// Ojo al leerla: la escribe `confirmarEnviado` copiando lo que guardó
+  /// `encolar` (`DateTime.toIso8601String()` en hora **local**, sin zona), no el
+  /// `_soloFecha` de `registros_conocidos`. Son dos formatos distintos.
+  final DateTime? fecha;
+  final String fechaTexto;
+
+  /// El JSON tal como se envió. Se conserva entero, pero los campos cambian por
+  /// módulo, país y empresa: la pantalla muestra lo identificatorio, no esto.
+  final Map<String, dynamic> payload;
+
+  /// Cuándo se confirmó el envío — no cuándo se capturó el día.
+  final DateTime? createdAt;
+
+  /// Id que devolvió el backend al aceptarlo. `null` cuando la confirmación no
+  /// trajo número: pasa con el duplicado (`TipoFallo.duplicado`, el servidor ya
+  /// lo tenía) y con las respuestas de cuerpo vacío. En los dos casos el
+  /// registro está a salvo del lado del servidor.
+  final int? remoteId;
+
+  bool get confirmadoConId => remoteId != null;
+
+  static SeguimientoLocal desdeFila(Map<String, Object?> r) {
+    final fecha = r['fecha'] as String? ?? '';
+    return SeguimientoLocal(
+      id: (r['id'] as int?) ?? 0,
+      tipo: r['tipo'] as String? ?? '',
+      loteId: (r['lote_id'] as int?) ?? 0,
+      fecha: DateTime.tryParse(fecha),
+      fechaTexto: fecha,
+      payload: _payloadOVacio(r['payload'] as String?),
+      createdAt: DateTime.tryParse(r['created_at'] as String? ?? ''),
+      remoteId: r['remote_id'] as int?,
+    );
+  }
+
+  /// Un payload ilegible no puede hacer fallar la lectura: lo que identifica a
+  /// la fila (módulo, lote, fecha) vive en las columnas, no en el JSON.
+  static Map<String, dynamic> _payloadOVacio(String? crudo) {
+    if (crudo == null || crudo.isEmpty) return const {};
+    try {
+      final v = jsonDecode(crudo);
+      return v is Map<String, dynamic> ? v : const {};
+    } catch (_) {
+      return const {};
+    }
   }
 }

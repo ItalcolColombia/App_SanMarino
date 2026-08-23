@@ -25,6 +25,7 @@ import 'package:zootecnicoapp/features/lotes/pages/lotes_page.dart';
 import 'package:zootecnicoapp/features/lotes/widgets/selector_lote.dart';
 import 'package:zootecnicoapp/features/perfil/pages/perfil_page.dart';
 import 'package:zootecnicoapp/features/sync/pages/sync_page.dart';
+import 'package:zootecnicoapp/features/sync/widgets/aviso_sesion_vencida.dart';
 import 'package:zootecnicoapp/features/seguimiento/pages/seguimiento_page.dart';
 
 Future<void> main() async {
@@ -75,6 +76,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   ModuloSeguimiento? _filtroLotes;
   String? _mensajeLogin;
 
+  /// El token venció, pero la sesión NO se destruye: la app queda en modo
+  /// **sólo captura**. Ver [_marcarSesionVencida].
+  bool _sesionVencida = false;
+
   @override
   void initState() {
     super.initState();
@@ -95,10 +100,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   void _onSync() {
     if (!mounted) return;
-    // El token venció mientras subía la cola: se vuelve al login SIN borrar los
-    // registros pendientes, que son trabajo del usuario y no se tocan.
-    if (_sync.requiereRelogin && _usuario != null) {
-      _volverAlLogin('Tu sesión venció. Ingresá de nuevo para subir lo que quedó pendiente.');
+    // El token venció mientras subía la cola. NO se expulsa al login: la app
+    // pasa a sólo captura y la cola queda intacta esperando (ver
+    // _marcarSesionVencida).
+    if (_sync.requiereRelogin && _usuario != null && !_sesionVencida) {
+      _marcarSesionVencida();
       return;
     }
     setState(() {});
@@ -182,7 +188,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         return;
       }
       if (e.tipo == TipoFallo.sesionVencida) {
-        _volverAlLogin('Tu sesión venció. Ingresá de nuevo.');
+        _marcarSesionVencida();
         return;
       }
       _avisar(e.mensaje);
@@ -228,14 +234,45 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     });
   }
 
-  void _volverAlLogin(String motivo) {
+  /// El token venció: la app pasa a **sólo captura** en vez de expulsar.
+  ///
+  /// Antes acá se cerraba la sesión y se volvía al login. El problema es que el
+  /// login **exige red**: si el token vencía y después el operario se quedaba
+  /// sin señal, quedaba afuera de su propia app — sin poder seguir registrando
+  /// el día y sin siquiera ver su cola pendiente, que es justo el momento en que
+  /// más necesita las dos cosas.
+  ///
+  /// Ahora la sesión se conserva y sigue pudiendo registrar; lo único que se
+  /// suspende es **subir**, que es lo que de verdad necesita un token válido
+  /// (`_sync.api = null` deja la cola quieta sin tocarla — invariante I14).
+  ///
+  /// No abre ninguna puerta: todo lo que se ve ya estaba en el SQLite del
+  /// equipo. Cerrar sesión a mano sigue borrando la sesión de verdad.
+  void _marcarSesionVencida() {
     _sync.api = null;
+    setState(() => _sesionVencida = true);
+  }
+
+  /// Vuelve a autenticar sin perder lo que hay en el equipo.
+  Future<void> _reingresar() async {
+    final u = await Navigator.of(context).push<Usuario>(
+      rutaModal((_) => LoginPage(
+            onLogin: (usuario) => Navigator.of(context).pop(usuario),
+            auth: _auth,
+            mensajeInicial: 'Tu sesión venció. Ingresá de nuevo para subir lo que anotaste.',
+          )),
+    );
+    if (u == null || !mounted) return;
+
+    await _sesion.guardar(u);
+    _sync.api = _segApi;
+    _sync.reanudar();
     setState(() {
-      _usuario = null;
-      _tab = 0;
-      _mensajeLogin = motivo;
+      _usuario = u;
+      _sesionVencida = false;
     });
-    _sesion.cerrar();
+    await _refrescarDesdeServidor(u);
+    if (_sync.enLinea) _sync.sincronizar();
   }
 
   Future<void> _nuevoSeguimiento(ModuloSeguimiento? modulo, Lote? lote) async {
@@ -281,25 +318,32 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       backgroundColor: AppColors.cream,
       body: SafeArea(
         bottom: false,
-        // La clave es el tab: sin ella el switcher no ve el cambio cuando las
-        // dos pantallas son del mismo tipo de widget.
-        child: CambioSuave(
-          claveDeEstado: _tab,
-          child: switch (_tab) {
-            0 => HomePage(
-              usuario: u, lotes: _lotes, sync: _sync,
-              onNuevoSeguimiento: _nuevoSeguimiento,
-              onVerLotes: () => setState(() { _tab = 1; _filtroLotes = null; }),
-              onVerSync: _verSync,
-              onPerfil: () => setState(() => _tab = 2),
+        child: Column(children: [
+          // Mientras esté puesto, nada de lo que anote el operario llega al
+          // servidor: va arriba de todo y en todas las pestañas.
+          if (_sesionVencida) AvisoSesionVencida(onReingresar: _reingresar),
+          Expanded(
+            // La clave es el tab: sin ella el switcher no ve el cambio cuando
+            // las dos pantallas son del mismo tipo de widget.
+            child: CambioSuave(
+              claveDeEstado: _tab,
+              child: switch (_tab) {
+                0 => HomePage(
+                  usuario: u, lotes: _lotes, sync: _sync,
+                  onNuevoSeguimiento: _nuevoSeguimiento,
+                  onVerLotes: () => setState(() { _tab = 1; _filtroLotes = null; }),
+                  onVerSync: _verSync,
+                  onPerfil: () => setState(() => _tab = 2),
+                ),
+                1 => LotesPage(
+                  usuario: u, lotes: _lotes, filtroInicial: _filtroLotes,
+                  onRegistrar: (l) => _nuevoSeguimiento(l.modulo, l),
+                ),
+                _ => PerfilPage(usuario: u, onLogout: _logout),
+              },
             ),
-            1 => LotesPage(
-              usuario: u, lotes: _lotes, filtroInicial: _filtroLotes,
-              onRegistrar: (l) => _nuevoSeguimiento(l.modulo, l),
-            ),
-            _ => PerfilPage(usuario: u, onLogout: _logout),
-          },
-        ),
+          ),
+        ]),
       ),
       bottomNavigationBar: _BottomNav(
         index: _tab,

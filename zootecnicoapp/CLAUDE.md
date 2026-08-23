@@ -178,17 +178,25 @@ justificalo por escrito.
 | **I18** | **Ningún camino de guardado pinta confirmación antes de que el `INSERT` haya resuelto.** Encolar primero, confirmar después. |
 | **I19** | La feature `seguimiento` nunca escribe en `core/db` directamente: escribe **sólo** vía `SyncService.encolar` (preserva I10). |
 
-### Pendientes conocidos (no son bugs nuevos: están medidos y documentados)
+### Comportamientos que hay que conocer antes de tocar esto
 
-- Los días que el servidor ya tiene (`fechasRegistradas` + `reemplazarRegistrosDelServidor`) están
-  construidos y **sin cablear**: una tablet nueva no sabe qué días ya se cargaron.
-- Tras un 401 sin red, la cola queda invisible: el login exige red y no hay modo «sólo captura».
-- Filas agotadas: `agotadas()`/`reintentar()`/`ultimoError` existen y no se muestran.
-- `avisoPlataforma`, `duplicados` y `rechazados` se calculan y no llegan al usuario.
-- `seguimientos_local` es *write-only*: no hay pantalla de historial.
-- La ruta de silos está a medias a propósito (decisión F5.5): `manejaSilos` está fijo en `false`.
-- ~~`SyncService` no tiene tests.~~ **Cubierto** (23-ago-2026): `test/sync_service_test.dart`, 31 casos
-  sobre los 6 `TipoFallo`, la guarda de reentrada, el orden de la cola y las filas agotadas.
+Los seis huecos de offline que estaban medidos acá **se cerraron el 23-ago-2026**. Queda lo que sigue,
+que no son huecos sino decisiones y límites:
+
+- **Los días que el servidor ya tiene se consultan por lote y a demanda**, al abrir el formulario —
+  no en la sincronización diaria. El endpoint es uno por lote: con 124 lotes asignados serían 124
+  peticiones cada mañana. Si alguna vez se necesita en bloque, hace falta un endpoint que reciba
+  varios lotes; no lo resuelvas llamando al actual en un `for`.
+- **Un token vencido NO expulsa: la app pasa a «sólo captura»** (`_marcarSesionVencida` en
+  `main.dart`). Se puede seguir registrando y viendo la cola; lo único suspendido es subir. No abre
+  ninguna puerta —todo lo que se ve ya estaba en el SQLite del equipo— y cerrar sesión a mano sigue
+  borrándola de verdad. Antes se cerraba la sesión y, como el login exige red, el operario quedaba
+  afuera de su propia app justo cuando más la necesitaba.
+- **El historial muestra sólo lo que salió de ESTE equipo.** Una tablet nueva no conoce los días que
+  subió otro equipo de la misma granja; la pantalla lo dice en vez de dejar que el usuario lo suponga.
+- La ruta de silos sigue a medias **a propósito** (decisión de producto F5.5): `manejaSilos` está fijo
+  en `false` y ninguna empresa con ese modelo tiene el flag encendido. `InventarioApi.silosDelLote`,
+  `guardarSilosDeLote` y `silosDeLote` existen, sin usar. **No lo cablees sin decisión de producto.**
 
 ---
 

@@ -15,6 +15,11 @@ import 'package:zootecnicoapp/design_system/components/marca.dart';
 import 'package:zootecnicoapp/design_system/motion/transiciones.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
 import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
+// Cruza de feature a propósito, por el mismo motivo declarado para
+// `features/sync/widgets/`: el estado de sincronización es global de la app, no
+// del dominio Perfil. Acá está la única lista de "DATOS" del usuario, así que es
+// donde el historial tiene que estar a mano.
+import 'package:zootecnicoapp/features/sync/pages/historial_page.dart';
 
 /// Lado del cuadrito de ícono de cada fila. Sale de la escala 4pt (32) para no
 /// introducir una medida suelta: de él se deriva el sangrado de los divisores.
@@ -66,6 +71,16 @@ class PerfilPage extends StatelessWidget {
               _textoUltimaSync(ultimaSync, sincronizadoHoy),
               tinteIcono: sincronizadoHoy ? AppColors.successBg : AppColors.warningBg,
               colorIcono: sincronizadoHoy ? AppColors.green600 : AppColors.warning,
+            ),
+            // Lo ya enviado vivía sólo en SQLite, sin pantalla: una vez que un
+            // registro se sincronizaba desaparecía de la vista del usuario.
+            _fila(
+              Icons.history_rounded,
+              'Historial de registros',
+              null,
+              onTap: () => Navigator.of(context).push(
+                rutaApp((_) => const HistorialPage(), nombre: 'historial'),
+              ),
             ),
             _fila(Icons.download_outlined, 'Descargar guías genéticas', null, onTap: () {}),
           ]),

@@ -373,4 +373,61 @@ void main() {
       expect((await db.silosDeLote(200)).single.siloId, 9);
     });
   });
+
+  group('el historial de lo ya enviado se puede leer', () {
+    // `seguimientos_local` se escribía y no la leía nadie: apenas un registro
+    // subía desaparecía de la vista, y sin señal la única pista de que un día
+    // ya estaba cargado era el rechazo al intentar cargarlo otra vez.
+
+    test('la fila que confirmó el envío queda en el historial', () async {
+      final id = await encolar();
+      await db.confirmarEnviado(id, remoteId: 555);
+
+      final h = await db.historialLocal();
+
+      expect(h.single.loteId, 1);
+      expect(h.single.tipo, 'engorde');
+      expect(h.single.remoteId, 555);
+      expect(h.single.confirmadoConId, isTrue);
+    });
+
+    test('sin id remoto sigue estando: el servidor lo tiene igual', () async {
+      // Pasa con el duplicado y con las respuestas de cuerpo vacío.
+      final id = await encolar();
+      await db.confirmarEnviado(id);
+
+      final h = await db.historialLocal();
+
+      expect(h.single.remoteId, isNull);
+      expect(h.single.confirmadoConId, isFalse,
+          reason: 'la pantalla lo muestra distinto, pero NO como un error');
+    });
+
+    test('lo más reciente va primero', () async {
+      final viejo = await encolar(loteId: 1, fecha: DateTime(2026, 8, 18));
+      final nuevo = await encolar(loteId: 2, fecha: DateTime(2026, 8, 20));
+      await db.confirmarEnviado(viejo, remoteId: 1);
+      await db.confirmarEnviado(nuevo, remoteId: 2);
+
+      final h = await db.historialLocal();
+
+      expect(h.map((e) => e.loteId).toList(), [2, 1]);
+    });
+
+    test('se puede filtrar por lote', () async {
+      final a = await encolar(loteId: 1);
+      final b = await encolar(loteId: 2);
+      await db.confirmarEnviado(a, remoteId: 1);
+      await db.confirmarEnviado(b, remoteId: 2);
+
+      expect((await db.historialLocal(loteId: 2)).single.loteId, 2);
+    });
+
+    test('lo que sigue en la cola NO aparece: el historial es lo ya enviado', () async {
+      await encolar();
+
+      expect(await db.historialLocal(), isEmpty);
+      expect(await db.contarPendientes(), 1);
+    });
+  });
 }

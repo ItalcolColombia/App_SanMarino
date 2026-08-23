@@ -52,6 +52,18 @@ class _ApiFalso extends SeguimientosApi {
   /// una condición de carrera desde adentro de la corrida.
   Future<void> Function()? alEnviar;
 
+  /// Lo que el servidor dice tener ya registrado para el lote.
+  Set<DateTime> fechasDelServidor = const {};
+  int llamadasFechas = 0;
+  ApiError? fallaFechas;
+
+  @override
+  Future<Set<DateTime>> fechasRegistradas(Lote lote) async {
+    llamadasFechas++;
+    if (fallaFechas != null) throw fallaFechas!;
+    return fechasDelServidor;
+  }
+
   @override
   Future<int?> enviar({
     required String endpoint,
@@ -614,6 +626,92 @@ void main() {
       expect(api.llamadas, isEmpty);
       expect(sync.fase, FaseRibbon.oculto);
       expect(await db.contarPendientes(), 1);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  group('los días que el servidor ya tiene', () {
+    // Sin esto, `registros_conocidos` sólo sabe lo que registró ESTE equipo:
+    // una tablet nueva deja llenar veinte campos para que el backend lo rechace
+    // horas después.
+    final lote = Lote(
+      id: 1,
+      nombre: 'L1',
+      granja: 'G',
+      galpon: 'g1',
+      modulo: ModuloSeguimiento.engorde,
+      dia: 10,
+      aves: 100,
+    );
+
+    test('los baja y quedan en la caché local', () async {
+      api.fechasDelServidor = {DateTime.utc(2026, 8, 19), DateTime.utc(2026, 8, 20)};
+      enLinea();
+
+      await sync.refrescarDiasDelServidor(lote);
+
+      expect(api.llamadasFechas, 1);
+      for (final d in [DateTime.utc(2026, 8, 19), DateTime.utc(2026, 8, 20)]) {
+        expect(
+          await db.yaHayRegistro(modulo: 'engorde', loteId: 1, fecha: d),
+          isTrue,
+          reason: 'el $d lo tiene el servidor: no se puede volver a cargar',
+        );
+      }
+    });
+
+    test('reemplaza lo que había: un día que el servidor ya no tiene se suelta',
+        () async {
+      api.fechasDelServidor = {DateTime.utc(2026, 8, 19)};
+      enLinea();
+      await sync.refrescarDiasDelServidor(lote);
+
+      api.fechasDelServidor = {DateTime.utc(2026, 8, 20)};
+      await sync.refrescarDiasDelServidor(lote);
+
+      expect(
+        await db.yaHayRegistro(
+            modulo: 'engorde', loteId: 1, fecha: DateTime.utc(2026, 8, 19)),
+        isFalse,
+        reason: 'el servidor dejó de tenerlo: el día vuelve a estar libre',
+      );
+      expect(
+        await db.yaHayRegistro(
+            modulo: 'engorde', loteId: 1, fecha: DateTime.utc(2026, 8, 20)),
+        isTrue,
+      );
+    });
+
+    test('sin red no consulta y no rompe nada', () async {
+      await sync.refrescarDiasDelServidor(lote);
+
+      expect(api.llamadasFechas, 0, reason: 'no hay a quién preguntarle');
+    });
+
+    test('sin sesión no consulta', () async {
+      sync.api = null;
+      enLinea();
+
+      await sync.refrescarDiasDelServidor(lote);
+
+      expect(api.llamadasFechas, 0);
+    });
+
+    test('si el servidor falla, la caché queda intacta y no se propaga el error',
+        () async {
+      await db.marcarRegistrado(
+          modulo: 'engorde', loteId: 1, fecha: fecha, origen: 'servidor');
+      api.fallaFechas = error(TipoFallo.servidor, 'error 500');
+      enLinea();
+
+      // No debe lanzar: perder esta consulta no puede impedir registrar el día.
+      await sync.refrescarDiasDelServidor(lote);
+
+      expect(
+        await db.yaHayRegistro(modulo: 'engorde', loteId: 1, fecha: fecha),
+        isTrue,
+        reason: 'lo que ya se sabía sigue estando',
+      );
     });
   });
 
