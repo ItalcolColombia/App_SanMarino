@@ -2393,14 +2393,27 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
       tecnicos sin columnas de comparacion y la validacion «raza/año obligatorios si hay guia»
       rechazaba razas que SI estaban cargadas
 
-## X18.2 · W4 — Bodega de salida por lista maestra (`SR-DEF-6` / F10.1)
-- [ ] Migracion data-only idempotente: sembrar para Santa Reyes las 5 listas maestras que le faltan
-      (`traslado_de_huevos_planta_destino` con la **bodega general**, `_tipo_destino`,
-      `_tipo_de_operacion`, `_venta_motivo`, `movimiento_de_aves_tipo_movimiento`)
-- [ ] Front: en `modal-traslado-huevos` el destino deja de ser exclusivo de **Venta**; en
-      **Traslado** se ofrece el mismo desplegable de la lista maestra. Cero texto libre
-- [i] **Medido en BD**: SR tiene **1 sola** lista maestra (`region_option_key`); Ecuador (company 3)
-      es la referencia poblada
+## X18.2 · W4 — Bodega de salida por lista maestra (`SR-DEF-6` / F10.1) — CERRADO
+- [x] Migracion data-only `20260824120000_SeedListasMaestrasTrasladoSantaReyes`: siembra para SR las
+      5 listas que le faltaban (`traslado_de_huevos_planta_destino` con **Bodega General**,
+      `_tipo_destino`, `_tipo_de_operacion`, `_venta_motivo`, `movimiento_de_aves_tipo_movimiento`)
+- [x] **Idempotencia probada corriendo el `Up()` DOS veces en una transaccion revertida**: 33→38→38
+      listas y 70→78→78 opciones (la 2a pasada no mueve nada); el `Down()` devuelve a 33/70 exacto.
+      Aplicada despues de verdad con `dotnet ef database update`
+- [x] 🔴 **El campo digitado era el de TRASLADO, no el de venta.** El de venta ya era un `<select>`;
+      el texto libre estaba en `modal-traslado-huevos.component.html:148`
+      (`<input type="text" formControlName="observaciones">` con label «Nombre Planta») — eso es lo
+      que el cliente reclama. Reemplazado por `<select>` alimentado de la lista maestra
+- [x] 🔴 **Se decide por DATO, no por empresa**: hay desplegable si la empresa tiene opciones
+      cargadas. Sanmarino y Demo tienen la lista **sin ninguna opcion** ⇒ volverles el campo
+      obligatorio y vacio les impedia registrar un traslado; sin opciones se conserva el input de
+      siempre. Habilitarlo en cualquier empresa = cargar sus destinos en `/config/master-lists`
+- [x] Escribe en el **mismo control** (`observaciones`) que el input que reemplaza ⇒ ni el DTO, ni la
+      columna, ni ningun lector cambian. `yarn build` 0 errores
+- [i] **Ojo, el plan viejo apuntaba al formulario equivocado**:
+      `santa_reyes_requerimientos_italapp_plan.md:61,85` mandaba a `traslado-huevos-form`, que es el
+      **huerfano** (ruta `/traslados-huevos/nuevo` sin un solo `routerLink` que la alcance). El vivo
+      es `modal-traslado-huevos`, que es el que se toco
 
 ## X18.3 · W3 — Comprobante de traslado de aves (`SR-DEF-5` / F9.2c)
 - [ ] Componente standalone nuevo — **es el primer comprobante del repo**. Patron copiado de
