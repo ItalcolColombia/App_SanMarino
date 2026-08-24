@@ -17,7 +17,7 @@ import { CityService }                                 from '../services/city/ci
   imports: [ReactiveFormsModule, RouterModule],
   templateUrl: './city-detail.component.html',
   styleUrls: ['./city-detail.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.Eager
 })
 export class CityDetailComponent implements OnInit {
   public id?: number;

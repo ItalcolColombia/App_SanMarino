@@ -18,7 +18,7 @@ import { DepartmentService } from '../services/department/department.service';
   imports: [ReactiveFormsModule, RouterModule],
   templateUrl: './department-detail.component.html',
   styleUrls: ['./department-detail.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.Eager
 })
 export class DepartmentDetailComponent implements OnInit {
   public id?: number;
