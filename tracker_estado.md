@@ -2493,6 +2493,30 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
 - [i] **Hallazgo preexistente NO tocado**: los `colspan` de `tabla-levante-completa` ya estaban mal
       antes de esto (dicen 15/15/8/8 y tienen 34/33/9/9 hojas). Corregirlo seria un cambio de
       comportamiento para todas las empresas ⇒ fuera de alcance, queda anotado
+
+### X18.4.1 · Verificacion de alineacion de las tablas (medida, no asumida)
+
+Se conto el ancho de cada tabla por los TRES caminos —suma de `colspan` de la fila 1, hojas de la
+fila 2, y celdas del cuerpo— en los dos estados del flag. Si los tres no dan lo mismo, la tabla sale
+corrida. Resultado (`OFF` → `ON`):
+
+| tabla | OFF (g/h/c) | ON (g/h/c) | |
+|---|---|---|---|
+| levante · `tabs-principal` | 36/36/36 | 25/25/25 | OK |
+| produccion · `tabla-lista-indicadores` | 57/57/57 | 39/39/39 | OK |
+| levante · `tabla-lista-indicadores` | 34/34/34 | 19/19/19 | OK |
+| levante · `tabla-lista-registro` | 22/22/22 | 12/12/12 | OK |
+| **produccion · `tabs-principal`** | **38/38/37** | **31/31/30** | ⚠️ preexistente |
+
+- [x] **Produccion y levante quedan alineados** respecto de este cambio: el delta cabecera↔cuerpo es
+      identico en los dos estados del flag en TODAS las tablas
+- [!] 🔴 **Defecto PREEXISTENTE en la grilla diaria de produccion**: el `<thead>` declara la columna
+      **«Estado»** (`@if (requiereValidacion)`, ~linea 265) y el `<tbody>` **no tiene su celda** —
+      despues de `observacionesPesaje` pasa directo a Acciones. Con la doble validacion encendida la
+      fila queda corrida una columna. **Verificado que NO lo introdujo este trabajo**: en `f49012b^`
+      (antes de tocar machos) la tabla ya estaba en th=38 / td=37. Levante SI tiene esa celda y esta
+      balanceado. Spawneado aparte (`task_88fd333d`), no se toco acá para no mezclar un arreglo de
+      otra feature con el barrido de machos
 - [x] Validacion: `yarn build` 0 errores · `yarn test` **637/637** (base 633, +4 nuevos)
 - [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
       del alcance de esta sesion salvo que sobre tiempo
