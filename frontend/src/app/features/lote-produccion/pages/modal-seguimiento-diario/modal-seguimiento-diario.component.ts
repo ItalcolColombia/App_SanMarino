@@ -38,27 +38,21 @@ import {
   EtapaCicloPostura
 } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
 import { semanaVidaLevante } from '../../../lote-levante/funciones/semana-vida-levante.funcion';
+import { CatalogItemExtended, MetadataSeguimientoNormalizada } from '../../models/seguimiento-metadata.model';
+import {
+  itemEcuadorToExtended as itemEcuadorToExtendedFn,
+  toKg as toKgFn,
+  pasoCantidadHuevo as pasoCantidadHuevoFn,
+  snakeCase as snakeCaseFn,
+  etapaCicloANumero as etapaCicloANumeroFn,
+  getEtapaLabel as getEtapaLabelFn,
+  todayYMD as todayYMDFn,
+  toYMD as toYMDFn,
+  ymdToIsoAtNoon as ymdToIsoAtNoonFn,
+  emptyMetadata as emptyMetadataFn
+} from '../../funciones/modal-seguimiento-diario-calculos.funcion';
 
-// Interfaz extendida localmente para incluir tipoItem y unidad
-interface CatalogItemExtended extends CatalogItemDto {
-  tipoItem?: string;
-  unidad?: string;
-}
-
-/** Metadata del seguimiento (puede venir como objeto o JSON string; soporta camelCase y snake_case). */
-export interface MetadataSeguimientoNormalizada {
-  itemsHembras: Array<{ tipoItem: string; catalogItemId: number; itemInventarioEcuadorId?: number; cantidad: number; unidad: string; siloId?: number | null }>;
-  itemsMachos: Array<{ tipoItem: string; catalogItemId: number; itemInventarioEcuadorId?: number; cantidad: number; unidad: string; siloId?: number | null }>;
-  consumoOriginalHembras?: number;
-  unidadConsumoOriginalHembras?: string;
-  consumoOriginalMachos?: number;
-  unidadConsumoOriginalMachos?: string;
-  tipoItemHembras?: string | null;
-  tipoItemMachos?: string | null;
-  tipoAlimentoHembras?: number | null;
-  tipoAlimentoMachos?: number | null;
-  [key: string]: unknown;
-}
+export type { MetadataSeguimientoNormalizada };
 
 /** Las 11 columnas fijas de la clasificadora (flujo histórico: Sanmarino / Ecuador / Panamá). */
 const CLASIFICADORA_KEYS = [
@@ -551,17 +545,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return false;
   }
 
-  private itemEcuadorToExtended(i: ItemInventarioDto): CatalogItemExtended {
-    return {
-      id: i.id,
-      codigo: i.codigo,
-      nombre: i.nombre,
-      tipoItem: (i.concepto ?? i.tipoItem ?? '').trim() || i.tipoItem,
-      unidad: (i.unidad ?? 'kg').trim() || 'kg',
-      activo: i.activo,
-      metadata: { type_item: i.tipoItem, concepto: i.concepto }
-    };
-  }
+  private itemEcuadorToExtended(i: ItemInventarioDto): CatalogItemExtended { return itemEcuadorToExtendedFn(i); }
 
   getCantidadDisponible(catalogItemId: number | null | undefined): { quantity: number; unit: string } | null {
     if (!catalogItemId) return null;
@@ -648,12 +632,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return true;
   }
 
-  /** Convierte cantidad a kg según la unidad declarada (g/gramos → /1000; resto se asume kg). */
-  private toKg(cantidad: number, unidad: string | null | undefined): number {
-    const u = String(unidad || 'kg').trim().toLowerCase();
-    if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
-    return cantidad;
-  }
+  /** Convierte cantidad a kg según la unidad declarada. Ver modal-seguimiento-diario-calculos.funcion.ts. */
+  private toKg(cantidad: number, unidad: string | null | undefined): number { return toKgFn(cantidad, unidad); }
 
   /**
    * Suma en kg ya asignada a este mismo ítem en OTRAS filas del formulario actual (hembras + machos),
@@ -830,9 +810,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   /** D2 — los ítems que se PESAN admiten decimales; los que se cuentan, no. */
-  pasoCantidadHuevo(fila: HuevoFilaFija): string {
-    return esItemEnKilos(fila.um) ? '0.01' : '1';
-  }
+  pasoCantidadHuevo(fila: HuevoFilaFija): string { return pasoCantidadHuevoFn(fila); }
 
   /** Subtotal en vivo de un grupo (Primera / Pnc). */
   subtotalGrupoHuevo(grupo: HuevoGrupoFilasFijas): number {
@@ -1029,24 +1007,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     } as MetadataSeguimientoNormalizada;
   }
 
-  private snakeCase(key: string): string {
-    return key.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
-  }
+  private snakeCase(key: string): string { return snakeCaseFn(key); }
 
-  private emptyMetadata(): MetadataSeguimientoNormalizada {
-    return {
-      itemsHembras: [],
-      itemsMachos: [],
-      consumoOriginalHembras: undefined,
-      unidadConsumoOriginalHembras: 'kg',
-      consumoOriginalMachos: undefined,
-      unidadConsumoOriginalMachos: 'kg',
-      tipoItemHembras: null,
-      tipoItemMachos: null,
-      tipoAlimentoHembras: null,
-      tipoAlimentoMachos: null
-    };
-  }
+  private emptyMetadata(): MetadataSeguimientoNormalizada { return emptyMetadataFn(); }
 
   private resetForm(): void {
     while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
@@ -1630,21 +1593,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return 3;
   }
 
-  /** Colapsa la etapa por raza al mismo rango 1/2/3 que persiste `form.etapa` (dato exportable, no aritmético). */
-  private etapaCicloANumero(etapa: EtapaCicloPostura): number {
-    if (etapa === ETAPA_CICLO_POSTURA) return 2;
-    if (etapa === ETAPA_CICLO_FUERA_DE_CICLO) return 3;
-    return 1; // Alistamiento / Levante / LevanteEnProduccion — no debería verse en este modal, pero no revienta
-  }
+  /** Colapsa la etapa por raza al mismo rango 1/2/3 que persiste `form.etapa`. Ver modal-seguimiento-diario-calculos.funcion.ts. */
+  private etapaCicloANumero(etapa: EtapaCicloPostura): number { return etapaCicloANumeroFn(etapa); }
 
-  getEtapaLabel(etapa: number): string {
-    const labels: { [key: number]: string } = {
-      1: 'Etapa 1 (Semana 26-33)',
-      2: 'Etapa 2 (Semana 34-50)',
-      3: 'Etapa 3 (Semana >50)'
-    };
-    return labels[etapa] || `Etapa ${etapa}`;
-  }
+  getEtapaLabel(etapa: number): string { return getEtapaLabelFn(etapa); }
 
   /**
    * Etiqueta mostrada en el hint del formulario. Con el flag ON recalcula la etapa completa
@@ -1660,63 +1612,14 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return this.getEtapaLabel(Number(this.form?.get('etapa')?.value) || 1);
   }
 
-  /** Hoy en formato YYYY-MM-DD (local, sin zona) para <input type="date"> */
-  private todayYMD(): string {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  }
+  /** Hoy en formato YYYY-MM-DD (local, sin zona) para <input type="date">. Ver modal-seguimiento-diario-calculos.funcion.ts. */
+  private todayYMD(): string { return todayYMDFn(); }
 
   /** Normaliza cadenas mm/dd/aaaa, dd/mm/aaaa, ISO o Date a YYYY-MM-DD (local) */
-  private toYMD(input: string | Date | null | undefined): string | null {
-    if (!input) return null;
-
-    if (input instanceof Date && !isNaN(input.getTime())) {
-      const y = input.getFullYear();
-      const m = String(input.getMonth() + 1).padStart(2, '0');
-      const d = String(input.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    const s = String(input).trim();
-
-    // YYYY-MM-DD
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/;
-    const m1 = s.match(ymd);
-    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
-
-    // mm/dd/aaaa o dd/mm/aaaa
-    const sl = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const m2 = s.match(sl);
-    if (m2) {
-      let a = parseInt(m2[1], 10);
-      let b = parseInt(m2[2], 10);
-      const yyyy = parseInt(m2[3], 10);
-      let mm = a, dd = b;
-      if (a > 12 && b <= 12) { mm = b; dd = a; }
-      const mmS = String(mm).padStart(2, '0');
-      const ddS = String(dd).padStart(2, '0');
-      return `${yyyy}-${mmS}-${ddS}`;
-    }
-
-    // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-
-    return null;
-  }
+  private toYMD(input: string | Date | null | undefined): string | null { return toYMDFn(input); }
 
   /** Convierte YYYY-MM-DD a ISO asegurando MEDIODÍA local → evita cruzar de día por zona horaria */
-  private ymdToIsoAtNoon(ymd: string): string {
-    const iso = new Date(`${ymd}T12:00:00`);
-    return iso.toISOString();
-  }
+  private ymdToIsoAtNoon(ymd: string): string { return ymdToIsoAtNoonFn(ymd); }
 
   // ================== INVENTARIO Y ALIMENTOS ==================
 
