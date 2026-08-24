@@ -2357,3 +2357,73 @@ por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 
 ## Verificacion final (al cerrar los 12)
 - [x] `dotnet build` 0/0 y `dotnet test` = 3135 (identico a la linea base)
 - [x] `yarn build` 0/0 y `yarn test` = 633 (identico a la linea base)
+
+---
+
+# X18 — Santa Reyes: cierre de definiciones del cliente (24-ago-2026)
+
+Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md)
+
+**Desbloqueado por el usuario en sesion**, con los 4 archivos del cliente adjuntos (`Items.xlsx`,
+`Lotes.xlsx`, `Granja.xlsx`, `Requerimientos de Italapp.docx`). Cierra `SR-DEF-1`, `SR-DEF-5` y
+`SR-DEF-6` de `TK-2026-000180`. Linea base: back **3135** tests, front **633** tests.
+
+## X18.0 · Decisiones del usuario (las 4, tomadas en sesion)
+- [x] **Machos**: no es un campo informativo nuevo en ventas — es **retirar machos tambien de
+      ventas**. Se extiende `ocultaMachosEnPostura`, no se crea flag nuevo
+- [x] **Lohmann Brown**: queda **sin guia genetica** (no se inventan sus 123 filas); solo se corrige
+      su clasificacion de grupo
+- [x] **Grafia de razas**: el sistema **tolera la grafia del ERP** por alias de lectura; no se
+      modifica el dato que vino del ERP
+- [x] **Enyemado/Decolorado sin codigo ERP**: quedan **sin codigo y ocultos**, no se ofrecen para
+      clasificar. Ni se borran ni se inventan codigos
+
+## X18.1 · W2 — Linea genetica — CERRADO
+- [x] 🔴 **Bug probado**: `LOHMANN BROWN` cae en el token `LOHMANN` y se clasifica **blanca (112
+      sem)**; el `Lotes.xlsx` del cliente dice **ROJA (102 sem)**. Afecta al lote 229. Fix: evaluar
+      Rojas/Criollas **primero** + token `BROWN`, en backend y en su espejo de front
+- [x] Alias de grafia ERP → guia (`BABCOK BROWN`→`Babcock Brown`, `HY LINE`→`Hy Line Brown`) en
+      calculo puro nuevo `RazaGuiaAliasCalculos`, aplicado en los **4** sitios que consultan la guia
+      propia (`GuiaGeneticaLookup.ExisteAsync`/`ObtenerFilasPropiasAsync`,
+      `GuiaGeneticaService.ObtenerCandidatosAsync`/`ObtenerAniosCrudoAsync`)
+- [x] 🔴 **El alias NO se aplica a la guia compartida** (`ProduccionAvicolaRaw`): Sanmarino, Panama y
+      Ecuador leen de ahi y el delta cero queda garantizado **por construccion**, no por revision
+- [x] Tests espejados: back **3161** (base 3135, +26) · front spec 19/19
+- [i] **Medido en BD**: 3 de las 4 razas de los lotes reales de SR no cruzaban con la guia ⇒ reportes
+      tecnicos sin columnas de comparacion y la validacion «raza/año obligatorios si hay guia»
+      rechazaba razas que SI estaban cargadas
+
+## X18.2 · W4 — Bodega de salida por lista maestra (`SR-DEF-6` / F10.1)
+- [ ] Migracion data-only idempotente: sembrar para Santa Reyes las 5 listas maestras que le faltan
+      (`traslado_de_huevos_planta_destino` con la **bodega general**, `_tipo_destino`,
+      `_tipo_de_operacion`, `_venta_motivo`, `movimiento_de_aves_tipo_movimiento`)
+- [ ] Front: en `modal-traslado-huevos` el destino deja de ser exclusivo de **Venta**; en
+      **Traslado** se ofrece el mismo desplegable de la lista maestra. Cero texto libre
+- [i] **Medido en BD**: SR tiene **1 sola** lista maestra (`region_option_key`); Ecuador (company 3)
+      es la referencia poblada
+
+## X18.3 · W3 — Comprobante de traslado de aves (`SR-DEF-5` / F9.2c)
+- [ ] Componente standalone nuevo — **es el primer comprobante del repo**. Patron copiado de
+      `liquidacion-reporte-panama` (`@Input()` + `print()` + `@media print`). **Sin libreria de PDF**
+- [ ] Fuente: `GET api/TrasladoNavigation/{id}`. Cerrar el gap de la interfaz TS
+      `MovimientoAvesCompleto`, que no declara `placa`/`conductor`/`sellos` aunque el back los envia
+- [ ] Boton de acceso por fila en el listado de movimientos de aves; respeta `ocultaMachosEnPostura`
+
+## X18.4 · W1 — Machos fuera de postura (`SR-DEF-1` / F5.3)
+- [ ] **W1.a captura** (donde puede contar doble): `modal-movimiento-aves` (incluye **Venta**),
+      `inventario-dashboard` (traslado y retiro), `traslado-aves-huevos`, `modal-registro-inicial`,
+      `lote-list`, `seguimiento-lote-levante-list`
+- [ ] **W1.b residuos** de los 2 modales ya gateados + verificar la anidacion sospechosa de
+      `errorSexajeMachos` en `modal-seguimiento-diario:268` y `modal-create-edit:411`
+- [ ] **W1.c tablas y tabs**: `tabs-principal` levante y produccion, listados de movimientos
+- [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
+      del alcance de esta sesion salvo que sobre tiempo
+- [i] **Nunca** se toca el modelo ni el payload: los saldos consumen esos campos. Engorde y
+      reproductora manejan machos legitimamente y no se tocan
+
+## X18.5 · Lo que NO cierra esta sesion
+- [!] `SR-DEF-3` (F8.1) — los 7 items PNC siguen sin codigo ERP (decision del usuario)
+- [!] `SR-DEF-4` (F8.3) — panel de eficiencia, depende de F8.1
+- [~] `F11.3` — pruebas asistidas con el cliente
+- [!] Guia genetica de `Lohmann Brown` — el cliente debe entregar los datos
+- [i] `ActualizarTrasladoHuevosAsync` sigue sin tocar `metadata->huevoItems` (gap preexistente)

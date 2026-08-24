@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
@@ -30,12 +31,16 @@ public static class GuiaGeneticaLookup
     /// <summary>¿Existe la combinación (raza, año) para la empresa, en cualquiera de las dos tablas?</summary>
     public static async Task<bool> ExisteAsync(ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio)
     {
+        // Alias SOLO para la guía propia (ver RazaGuiaAliasCalculos): la consulta a la compartida
+        // sigue usando razaNorm tal cual, para no cambiarle el resultado a ninguna otra empresa.
+        var razaPropia = RazaGuiaAliasCalculos.AliasGuiaPropia(razaNorm);
+
         var enPropia = await ctx.GuiaGeneticaSantaReyes
             .AsNoTracking()
             .AnyAsync(g =>
                 g.CompanyId == companyId &&
                 g.DeletedAt == null &&
-                g.Raza.Trim().ToLower() == razaNorm &&
+                g.Raza.Trim().ToLower() == razaPropia &&
                 g.AnioGuia.Trim() == anio);
         if (enPropia) return true;
 
@@ -70,12 +75,14 @@ public static class GuiaGeneticaLookup
         ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio,
         CancellationToken ct = default)
     {
+        var razaPropia = RazaGuiaAliasCalculos.AliasGuiaPropia(razaNorm);
+
         var propias = await ctx.GuiaGeneticaSantaReyes
             .AsNoTracking()
             .Where(g =>
                 g.CompanyId == companyId &&
                 g.DeletedAt == null &&
-                g.Raza.Trim().ToLower() == razaNorm &&
+                g.Raza.Trim().ToLower() == razaPropia &&
                 g.AnioGuia.Trim() == anio)
             .ToListAsync(ct);
 

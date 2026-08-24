@@ -47,6 +47,36 @@ describe('semanas-ciclo-postura (espejo de SemanasCicloPosturaCalculos)', () => 
       expect(esGrupoBlancaAzur(null)).toBeNull();
       expect(esGrupoBlancaAzur(undefined)).toBeNull();
     });
+
+    it('Lohmann Brown es ROJA, no blanca (regresion del fix del 24ago26)', () => {
+      // Contiene el token LOHMANN, pero el Lotes.xlsx del cliente la declara ROJA. Evaluando
+      // Blancas/Azur primero se clasificaba blanca y el ciclo cerraba en la 112 en vez de la 102.
+      expect(esGrupoBlancaAzur('Lohmann Brown')).toBe(false);
+      expect(esGrupoBlancaAzur('LOHMANN BROWN')).toBe(false);
+      expect(esGrupoBlancaAzur('  lohmann brown  ')).toBe(false);
+
+      // Y la blanca de la misma marca NO se ve afectada.
+      expect(esGrupoBlancaAzur('Lohmann LSL')).toBe(true);
+    });
+
+    it('tolera la grafia con la que el ERP del cliente escribe las razas', () => {
+      expect(esGrupoBlancaAzur('BABCOK BROWN')).toBe(false);
+      expect(esGrupoBlancaAzur('HY LINE')).toBe(false);
+      expect(esGrupoBlancaAzur('LOHMANN LSL')).toBe(true);
+    });
+  });
+
+  describe('obtenerEtapaCicloPostura — Lohmann Brown cierra con las rojas', () => {
+    it('102 es postura y 103 ya es fuera de ciclo', () => {
+      expect(obtenerEtapaCicloPostura('Lohmann Brown', 102)).toBe('Postura');
+      expect(obtenerEtapaCicloPostura('Lohmann Brown', 103)).toBe('FueraDeCiclo');
+      expect(obtenerEtapaCicloPostura('LOHMANN BROWN', 103)).toBe('FueraDeCiclo');
+    });
+
+    it('Lohmann LSL sigue cerrando en la 112, sin cambio', () => {
+      expect(obtenerEtapaCicloPostura('Lohmann LSL', 112)).toBe('Postura');
+      expect(obtenerEtapaCicloPostura('Lohmann LSL', 113)).toBe('FueraDeCiclo');
+    });
   });
 
   describe('obtenerEtapaCicloPostura — los 3 primeros cortes son iguales en ambos grupos', () => {

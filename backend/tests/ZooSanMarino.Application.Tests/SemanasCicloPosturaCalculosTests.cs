@@ -32,6 +32,42 @@ public class SemanasCicloPosturaCalculosTests
         Assert.Null(SemanasCicloPosturaCalculos.EsGrupoBlancaAzur(raza));
     }
 
+    /// <summary>
+    /// 🔴 Regresión del defecto corregido el 24-ago-2026: <c>"Lohmann Brown"</c> contiene el token
+    /// <c>LOHMANN</c> y se clasificaba BLANCA (fin de ciclo en la 112). El <c>Lotes.xlsx</c> del
+    /// cliente la declara <c>ROJA</c> ⇒ le corresponde el cierre en la 102. Afecta al lote 229.
+    /// </summary>
+    [Theory]
+    [InlineData("Lohmann Brown")]
+    [InlineData("LOHMANN BROWN")]
+    [InlineData("  lohmann brown  ")]
+    public void EsGrupoBlancaAzur_lohmann_brown_es_ROJA_no_blanca(string raza)
+    {
+        Assert.False(SemanasCicloPosturaCalculos.EsGrupoBlancaAzur(raza));
+    }
+
+    [Theory]
+    [InlineData(102, "Postura")]
+    [InlineData(103, "FueraDeCiclo")]
+    public void ObtenerEtapa_lohmann_brown_cierra_a_las_102_como_las_demas_rojas(int semanas, string esperada)
+    {
+        Assert.Equal(esperada, SemanasCicloPosturaCalculos.ObtenerEtapa("Lohmann Brown", semanas));
+        Assert.Equal(esperada, SemanasCicloPosturaCalculos.ObtenerEtapa("LOHMANN BROWN", semanas));
+    }
+
+    /// <summary>
+    /// Las grafías que traen los lotes desde el ERP del cliente (<c>BABCOK</c> sin la segunda C,
+    /// <c>HY LINE</c> sin apellido) tienen que clasificar igual que su nombre comercial completo.
+    /// </summary>
+    [Theory]
+    [InlineData("BABCOK BROWN", false)]
+    [InlineData("HY LINE", false)]
+    [InlineData("LOHMANN LSL", true)]
+    public void EsGrupoBlancaAzur_tolera_la_grafia_del_ERP(string raza, bool esperado)
+    {
+        Assert.Equal(esperado, SemanasCicloPosturaCalculos.EsGrupoBlancaAzur(raza));
+    }
+
     // ── Etapa por semana — cortes compartidos por los dos grupos ────────────
     [Theory]
     [InlineData(1, "Alistamiento")]

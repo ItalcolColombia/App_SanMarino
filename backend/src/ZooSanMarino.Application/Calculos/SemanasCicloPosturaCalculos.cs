@@ -37,21 +37,35 @@ public static class SemanasCicloPosturaCalculos
     /// <summary>Tokens que identifican el grupo Blancas/Azur (84 semanas de postura).</summary>
     private static readonly string[] TokensBlancaAzur = { "LOHMANN", "AZUR" };
 
-    /// <summary>Tokens que identifican el grupo Rojas/Criollas (74 semanas de postura).</summary>
-    private static readonly string[] TokensRojaCriolla = { "BABCOCK", "BABCOK", "HY LINE", "HYLINE", "CRIOLLA" };
+    /// <summary>
+    /// Tokens que identifican el grupo Rojas/Criollas (74 semanas de postura). <c>BROWN</c> está acá
+    /// porque nombra al ave marrón en las tres líneas que el cliente maneja (Babcock Brown, Hy Line
+    /// Brown, Lohmann Brown), y es lo que desempata a <c>Lohmann Brown</c> — ver
+    /// <see cref="EsGrupoBlancaAzur"/>.
+    /// </summary>
+    private static readonly string[] TokensRojaCriolla = { "BABCOCK", "BABCOK", "HY LINE", "HYLINE", "CRIOLLA", "BROWN" };
 
     /// <summary>
     /// ¿La raza pertenece al grupo Blancas/Azur? <c>null</c> si la raza es nula/vacía o no coincide
     /// con ningún token conocido — no se adivina el grupo: el caller debe tratarlo como
     /// indeterminado en vez de mostrar una etapa que podría estar mal.
+    ///
+    /// <para>
+    /// 🔴 <b>El orden importa y no se puede invertir.</b> Los tokens se buscan por
+    /// <c>Contains</c>, y <c>"Lohmann Brown"</c> contiene <c>"LOHMANN"</c>: evaluando primero
+    /// Blancas/Azur se clasificaba como blanca (84 semanas, fin de ciclo en la 112) cuando el
+    /// <c>Lotes.xlsx</c> del cliente la declara <c>ROJA</c> (74 semanas, fin de ciclo en la 102).
+    /// Rojas/Criollas va primero porque su token <c>BROWN</c> es el más específico: <c>Lohmann
+    /// LSL</c> (blanca) no lo tiene y sigue cayendo en <c>LOHMANN</c>, como siempre.
+    /// </para>
     /// </summary>
     public static bool? EsGrupoBlancaAzur(string? raza)
     {
         if (string.IsNullOrWhiteSpace(raza)) return null;
         var r = raza.Trim();
 
-        if (TokensBlancaAzur.Any(t => r.Contains(t, StringComparison.OrdinalIgnoreCase))) return true;
         if (TokensRojaCriolla.Any(t => r.Contains(t, StringComparison.OrdinalIgnoreCase))) return false;
+        if (TokensBlancaAzur.Any(t => r.Contains(t, StringComparison.OrdinalIgnoreCase))) return true;
 
         return null;
     }

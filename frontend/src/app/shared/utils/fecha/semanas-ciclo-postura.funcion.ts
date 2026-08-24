@@ -43,18 +43,28 @@ const FIN_LEVANTE = FIN_ALISTAMIENTO + SEMANAS_LEVANTE; // 24
 const FIN_LEVANTE_EN_PRODUCCION = FIN_LEVANTE + SEMANAS_LEVANTE_EN_PRODUCCION; // 28
 
 const TOKENS_BLANCA_AZUR = ['LOHMANN', 'AZUR'];
-const TOKENS_ROJA_CRIOLLA = ['BABCOCK', 'BABCOK', 'HY LINE', 'HYLINE', 'CRIOLLA'];
+/**
+ * `BROWN` nombra al ave marrón en las tres líneas que el cliente maneja (Babcock Brown, Hy Line
+ * Brown, Lohmann Brown) y es lo que desempata a `Lohmann Brown` — ver `esGrupoBlancaAzur`.
+ */
+const TOKENS_ROJA_CRIOLLA = ['BABCOCK', 'BABCOK', 'HY LINE', 'HYLINE', 'CRIOLLA', 'BROWN'];
 
 /**
  * ¿La raza pertenece al grupo Blancas/Azur (84 semanas de postura)? `null` si la raza es
  * nula/vacía o no coincide con ningún token conocido — no se adivina el grupo.
+ *
+ * 🔴 **El orden importa y no se puede invertir.** Los tokens se buscan por `includes`, y
+ * `"Lohmann Brown"` contiene `"LOHMANN"`: evaluando primero Blancas/Azur se clasificaba como
+ * blanca (84 semanas, fin de ciclo en la 112) cuando el `Lotes.xlsx` del cliente la declara `ROJA`
+ * (74 semanas, fin de ciclo en la 102). Rojas/Criollas va primero porque su token `BROWN` es el más
+ * específico: `Lohmann LSL` (blanca) no lo tiene y sigue cayendo en `LOHMANN`, como siempre.
  */
 export function esGrupoBlancaAzur(raza: string | null | undefined): boolean | null {
   if (!raza || !raza.trim()) return null;
   const r = raza.trim().toUpperCase();
 
-  if (TOKENS_BLANCA_AZUR.some(t => r.includes(t))) return true;
   if (TOKENS_ROJA_CRIOLLA.some(t => r.includes(t))) return false;
+  if (TOKENS_BLANCA_AZUR.some(t => r.includes(t))) return true;
 
   return null;
 }
