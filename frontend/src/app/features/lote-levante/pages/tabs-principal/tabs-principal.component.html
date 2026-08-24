@@ -66,18 +66,22 @@
                   <span class="info-kpi__label">Hembras inicio</span>
                   <span class="info-kpi__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }}</span>
                 </div>
-                <div class="info-kpi info-kpi--machos">
-                  <span class="info-kpi__label">Machos inicio</span>
-                  <span class="info-kpi__value">{{ resumenLevante.machosIniciales | number:'1.0-0' }}</span>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div class="info-kpi info-kpi--machos">
+                    <span class="info-kpi__label">Machos inicio</span>
+                    <span class="info-kpi__value">{{ resumenLevante.machosIniciales | number:'1.0-0' }}</span>
+                  </div>
+                }
                 <div class="info-kpi info-kpi--hembras">
                   <span class="info-kpi__label">Aves vivas (hembras)</span>
                   <span class="info-kpi__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }}</span>
                 </div>
-                <div class="info-kpi info-kpi--machos">
-                  <span class="info-kpi__label">Aves vivas (machos)</span>
-                  <span class="info-kpi__value">{{ resumenLevante.saldoMachos | number:'1.0-0' }}</span>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div class="info-kpi info-kpi--machos">
+                    <span class="info-kpi__label">Aves vivas (machos)</span>
+                    <span class="info-kpi__value">{{ resumenLevante.saldoMachos | number:'1.0-0' }}</span>
+                  </div>
+                }
                 <div class="info-kpi">
                   <span class="info-kpi__label">Mortalidad acum.</span>
                   <span class="info-kpi__value">{{ totalMortalidadAcumulada | number:'1.0-0' }}</span>
@@ -86,10 +90,12 @@
                   <span class="info-kpi__label">Selección (descarte) acum.</span>
                   <span class="info-kpi__value">{{ totalSeleccionAcumulada | number:'1.0-0' }}</span>
                 </div>
-                <div class="info-kpi">
-                  <span class="info-kpi__label">Error sexaje acum.</span>
-                  <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div class="info-kpi">
+                    <span class="info-kpi__label">Error sexaje acum.</span>
+                    <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
+                  </div>
+                }
                 <!-- 🔀 Feature 14 — Traslados acumulados en fase LEVANTE -->
                 @if ((resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0) {
                   <div class="info-kpi info-kpi--traslado-in">
@@ -97,7 +103,7 @@
                     <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }}</span>
                   </div>
                 }
-                @if ((resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0) {
+                @if (!ocultaMachosEnPostura && ((resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0)) {
                   <div class="info-kpi info-kpi--traslado-in">
                     <span class="info-kpi__label">↘ Ingreso Levante (M)</span>
                     <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</span>
@@ -109,7 +115,7 @@
                     <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }}</span>
                   </div>
                 }
-                @if ((resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0) {
+                @if (!ocultaMachosEnPostura && ((resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0)) {
                   <div class="info-kpi info-kpi--traslado-out">
                     <span class="info-kpi__label">↗ Salida Levante (M)</span>
                     <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</span>
@@ -131,41 +137,58 @@
                 </div>
                 <details class="info-lote-detalle">
                   <summary class="info-lote-detalle__summary">Ver detalle por concepto (hembras / machos)</summary>
-                  <div class="info-lote__grid">
+                  <div class="info-lote__grid" [class.info-lote__grid--sin-machos]="ocultaMachosEnPostura">
                     <div class="info-lote__header-row">
                       <span class="info-lote__col-label">Concepto</span>
                       <span class="info-lote__col-label">🐔 Hembras</span>
-                      <span class="info-lote__col-label">🐓 Machos</span>
+                      @if (!ocultaMachosEnPostura) {
+                        <span class="info-lote__col-label">🐓 Machos</span>
+                      }
                     </div>
                     <div class="info-lote__row info-lote__row--inicio">
                       <label class="info-lote__label">Inicio (historial)</label>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.hembrasIniciales | number:'1.0-0'" readonly disabled>
-                      <input type="text" class="info-lote__input" [value]="resumenLevante.machosIniciales | number:'1.0-0'" readonly disabled>
+                      @if (!ocultaMachosEnPostura) {
+                        <input type="text" class="info-lote__input" [value]="resumenLevante.machosIniciales | number:'1.0-0'" readonly disabled>
+                      }
                     </div>
                     <div class="info-lote__row info-lote__row--resta">
                       <label class="info-lote__label">Mort. caja</label>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaHembras | number:'1.0-0'" readonly disabled>
-                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaMachos | number:'1.0-0'" readonly disabled>
+                      @if (!ocultaMachosEnPostura) {
+                        <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaMachos | number:'1.0-0'" readonly disabled>
+                      }
                     </div>
                     <div class="info-lote__row info-lote__row--resta">
                       <label class="info-lote__label">Mortalidad acum.</label>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumHembras | number:'1.0-0'" readonly disabled>
-                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumMachos | number:'1.0-0'" readonly disabled>
+                      @if (!ocultaMachosEnPostura) {
+                        <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumMachos | number:'1.0-0'" readonly disabled>
+                      }
                     </div>
                     <div class="info-lote__row info-lote__row--resta">
                       <label class="info-lote__label">Descarte (sel) acum.</label>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumHembras | number:'1.0-0'" readonly disabled>
-                      <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumMachos | number:'1.0-0'" readonly disabled>
+                      @if (!ocultaMachosEnPostura) {
+                        <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumMachos | number:'1.0-0'" readonly disabled>
+                      }
                     </div>
+                    <!-- El error de sexaje DESAPARECE como concepto para estas empresas (mismo
+                         criterio de F5.2 en los formularios): se retira la fila entera, no solo
+                         el lado macho. -->
+                    @if (!ocultaMachosEnPostura) {
                     <div class="info-lote__row info-lote__row--resta">
                       <label class="info-lote__label">Error sexaje acum.</label>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumHembras | number:'1.0-0'" readonly disabled>
                       <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumMachos | number:'1.0-0'" readonly disabled>
                     </div>
+                    }
                     <div class="info-lote__row info-lote__row--saldo">
                       <label class="info-lote__label">Saldo actual (aves vivas)</label>
                       <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoHembras | number:'1.0-0'" readonly disabled>
-                      <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
+                      @if (!ocultaMachosEnPostura) {
+                        <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
+                      }
                     </div>
                   </div>
                 </details>
@@ -212,12 +235,18 @@
                       <th scope="col" class="th-diario">Semana</th>
                       <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
                       <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                      }
                       <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                      }
                       <!-- TK-2026-000021: las salidas del día se totalizan POR SEXO. -->
                       <th scope="col" class="th-diario th-diario--num th-diario--mort" title="Mortalidad + selección de hembras del día">TOTAL MORT+ SEL <span class="th-diario__sub">hembras / día</span></th>
-                      <th scope="col" class="th-diario th-diario--num th-diario--mort" title="Mortalidad + selección de machos del día">TOTAL MORT+ SEL <span class="th-diario__sub">machos / día</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num th-diario--mort" title="Mortalidad + selección de machos del día">TOTAL MORT+ SEL <span class="th-diario__sub">machos / día</span></th>
+                      }
                       @if (enriquecerTablaConHistoricoInventario) {
                         <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
                       }
@@ -229,28 +258,44 @@
                       }
                       <!-- TK-2026-000021: el saldo de aves vivas se abre por sexo. -->
                       <th scope="col" class="th-diario th-diario--num" title="Aves vivas hembras al cierre del día">Saldo <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario th-diario--num" title="Aves vivas machos al cierre del día">Saldo <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num" title="Aves vivas machos al cierre del día">Saldo <span class="th-diario__sub">machos</span></th>
+                      }
                       <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo acum. <span class="th-diario__sub">hembras (kg)</span></th>
-                      <th scope="col" class="th-diario th-diario--num">Consumo acum. <span class="th-diario__sub">machos (kg)</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num">Consumo acum. <span class="th-diario__sub">machos (kg)</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
                       <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
-                      <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                      }
                       <!-- TK-2026-000021: uniformidad y coeficiente de variación, que se capturan
                            en el registro diario pero no se estaban mostrando. -->
                       <th scope="col" class="th-diario th-diario--num" title="Uniformidad de hembras del pesaje del día">Uniformidad <span class="th-diario__sub">hembras (%)</span></th>
-                      <th scope="col" class="th-diario th-diario--num" title="Uniformidad de machos del pesaje del día">Uniformidad <span class="th-diario__sub">machos (%)</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num" title="Uniformidad de machos del pesaje del día">Uniformidad <span class="th-diario__sub">machos (%)</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--num" title="Coeficiente de variación de hembras">C.V. <span class="th-diario__sub">hembras (%)</span></th>
-                      <th scope="col" class="th-diario th-diario--num" title="Coeficiente de variación de machos">C.V. <span class="th-diario__sub">machos (%)</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num" title="Coeficiente de variación de machos">C.V. <span class="th-diario__sub">machos (%)</span></th>
+                      }
                       <!-- 🔀 Feature 13 — traslados por género (4 columnas dedicadas) -->
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Hembras recibidas por traslado">↘ Ing. <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
-                      <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
                       <!-- 🥚 TK-2026-000021: los huevos son tema de PRODUCCIÓN y salieron de esta
                            tabla. La captura sigue existiendo (el modal de registro, el detalle 👁️ y
@@ -281,11 +326,17 @@
                         <td [title]="f.semana == null ? 'Registro anterior al encasetamiento' : ''">{{ f.semana ?? '—' }}</td>
                         <td [title]="f.edadDia == null ? 'Registro anterior al encasetamiento' : ''">{{ f.edadDia ?? '—' }}</td>
                         <td>{{ f.seg.mortalidadHembras }}</td>
-                        <td>{{ f.seg.mortalidadMachos }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ f.seg.mortalidadMachos }}</td>
+                        }
                         <td>{{ f.seg.selH }}</td>
-                        <td>{{ f.seg.selM }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ f.seg.selM }}</td>
+                        }
                         <td class="num">{{ f.totalMortSelDiaH | number:'1.0-0' }}</td>
-                        <td class="num">{{ f.totalMortSelDiaM | number:'1.0-0' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.totalMortSelDiaM | number:'1.0-0' }}</td>
+                        }
                         @if (enriquecerTablaConHistoricoInventario) {
                           <td class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
                         }
@@ -296,42 +347,58 @@
                           <td class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.0-3') : '—' }}</td>
                         }
                         <td class="num">{{ f.saldoAvesH | number:'1.0-0' }}</td>
-                        <td class="num">{{ f.saldoAvesM | number:'1.0-0' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.saldoAvesM | number:'1.0-0' }}</td>
+                        }
                         <td>{{ f.tipoAlimentoCorto }}</td>
                         <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
-                        <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+                        }
                         <td class="num">{{ f.consumoDiaKg | number:'1.0-2' }}</td>
                         <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
                         <td class="num">{{ f.acumConsumoHKg | number:'1.0-2' }}</td>
-                        <td class="num">{{ f.acumConsumoMKg | number:'1.0-2' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.acumConsumoMKg | number:'1.0-2' }}</td>
+                        }
                         <td class="num">{{ f.pctRetiroSemana != null ? (f.pctRetiroSemana | number:'1.0-2') + '%' : '—' }}</td>
                         <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
-                        <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
+                        }
                         <td class="num">{{ f.seg.uniformidadH != null ? (f.seg.uniformidadH | number:'1.0-2') : '—' }}</td>
-                        <td class="num">{{ f.seg.uniformidadM != null ? (f.seg.uniformidadM | number:'1.0-2') : '—' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.seg.uniformidadM != null ? (f.seg.uniformidadM | number:'1.0-2') : '—' }}</td>
+                        }
                         <td class="num">{{ f.seg.cvH != null ? (f.seg.cvH | number:'1.0-2') : '—' }}</td>
-                        <td class="num">{{ f.seg.cvM != null ? (f.seg.cvM | number:'1.0-2') : '—' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td class="num">{{ f.seg.cvM != null ? (f.seg.cvM | number:'1.0-2') : '—' }}</td>
+                        }
                         <!-- 🔀 Feature 13 — traslados por género -->
                         <td class="num cell-mov cell-mov--entrada"
                           [class.cell-mov--valor]="(f.seg.trasladoIngresoHembras || 0) > 0"
                           [title]="(f.seg.trasladoIngresoHembras || 0) > 0 ? 'Ingreso hembras: ' + f.seg.trasladoIngresoHembras : ''">
                           {{ (f.seg.trasladoIngresoHembras || 0) > 0 ? ('+' + (f.seg.trasladoIngresoHembras | number:'1.0-0')) : '—' }}
                         </td>
+                        @if (!ocultaMachosEnPostura) {
                         <td class="num cell-mov cell-mov--entrada"
                           [class.cell-mov--valor]="(f.seg.trasladoIngresoMachos || 0) > 0"
                           [title]="(f.seg.trasladoIngresoMachos || 0) > 0 ? 'Ingreso machos: ' + f.seg.trasladoIngresoMachos : ''">
                           {{ (f.seg.trasladoIngresoMachos || 0) > 0 ? ('+' + (f.seg.trasladoIngresoMachos | number:'1.0-0')) : '—' }}
                         </td>
+                        }
                         <td class="num cell-mov cell-mov--salida"
                           [class.cell-mov--valor]="(f.seg.trasladoSalidaHembras || 0) > 0"
                           [title]="(f.seg.trasladoSalidaHembras || 0) > 0 ? 'Salida hembras: ' + f.seg.trasladoSalidaHembras : ''">
                           {{ (f.seg.trasladoSalidaHembras || 0) > 0 ? ('-' + (f.seg.trasladoSalidaHembras | number:'1.0-0')) : '—' }}
                         </td>
+                        @if (!ocultaMachosEnPostura) {
                         <td class="num cell-mov cell-mov--salida"
                           [class.cell-mov--valor]="(f.seg.trasladoSalidaMachos || 0) > 0"
                           [title]="(f.seg.trasladoSalidaMachos || 0) > 0 ? 'Salida machos: ' + f.seg.trasladoSalidaMachos : ''">
                           {{ (f.seg.trasladoSalidaMachos || 0) > 0 ? ('-' + (f.seg.trasladoSalidaMachos | number:'1.0-0')) : '—' }}
                         </td>
+                        }
                         <td class="num cell-mov cell-mov--venta"
                           [class.cell-mov--valor]="f.seg.ventaAvesCantidad"
                           [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">

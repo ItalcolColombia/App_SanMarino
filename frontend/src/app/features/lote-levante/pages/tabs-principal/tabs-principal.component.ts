@@ -65,6 +65,14 @@ export interface RegistroDiarioTablaFila {
   pctRetiroSemana: number | null;
 }
 
+/**
+ * Columnas de machos que se retiran de la grilla de registro diario con
+ * `ocultaMachosEnPostura`: mortalidad, selección, total mort+sel, saldo, consumo kg,
+ * consumo acumulado, peso promedio, uniformidad, C.V., ingreso y salida por traslado.
+ * Vive acá porque `colspanRegistroDiario` tiene que restarlas.
+ */
+const COLUMNAS_MACHOS_TABLA_DIARIA = 11;
+
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
@@ -128,6 +136,19 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    */
   mostrarColumnasHuevos = false;
 
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Celda del Excel que solo existe si la empresa maneja machos: devuelve `[]` o `[valor]` para
+   * usarse con spread. La cabecera y el dato se filtran con la MISMA condición y en la misma
+   * posición, así que **no se pueden desalinear** — que es el riesgo real de tocar dos arrays
+   * paralelos, y un Excel corrido no avisa: se ve bien y los números quedan bajo otro título.
+   */
+  private soloConMachos<T>(valor: T): T[] {
+    return this.ocultaMachosEnPostura ? [] : [valor];
+  }
+
   constructor(
     private storageService: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService
@@ -140,6 +161,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     // suscripción.
     this.companyConfig.getFlags().subscribe(flags => {
       this.mostrarColumnasHuevos = flags.capturaHuevosEnLevante;
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
     });
   }
 
@@ -166,7 +188,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     // TK-2026-000021: +1 por abrir «TOTAL MORT+SEL» en H/M, +1 por abrir «Saldo aves» en H/M,
     // +4 por uniformidad y C.V. de cada sexo; los huevos salieron de la grilla (siguen en el
     // Excel y en el detalle), así que ya no suman columnas acá.
-    return 32 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // SR-DEF-1: con machos ocultos se retiran 11 columnas de la grilla (mortalidad, selección,
+    // total mort+sel, saldo, consumo kg, consumo acum., peso, uniformidad, C.V., ingreso y salida
+    // por traslado). Sin descontarlas, la fila de "sin registros" se estira de más y deja la tabla
+    // torcida — el colspan es un número fijo, no se recalcula solo.
+    return 32
+      + (this.enriquecerTablaConHistoricoInventario ? 3 : 0)
+      - (this.ocultaMachosEnPostura ? COLUMNAS_MACHOS_TABLA_DIARIA : 0);
   }
 
   /** Cantidad de registros cuya fecha es anterior al encasetamiento del lote (REQ-011d). */
@@ -574,12 +602,26 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       ['Lote:', loteNombre || '—', '', 'Fase:', fase],
       ['Granja:', granjaNombre, '', 'Núcleo:', nucleoNombre, '', 'Galpón:', galponNombre],
       ['Raza:', raza, '', 'Fecha encasetamiento:', fechaEncaset ? this.formatDMY(fechaEncaset) : '—'],
-      ['Hembras encasetadas:', hembrasIni, '', 'Machos encasetados:', machosIni, '', 'Total encasetadas:', avesIni],
-      ['Aves vivas (H):', saldoH, '', 'Aves vivas (M):', saldoM, '', 'Total vivas:', saldoH + saldoM],
-      ['Mortalidad acum. (H):', totMortAcumH, '', 'Mortalidad acum. (M):', totMortAcumM],
-      ['Selección acum. (H):', totSelAcumH, '', 'Selección acum. (M):', totSelAcumM],
-      ['Ingreso traslados (H):', trasInH, '', 'Ingreso traslados (M):', trasInM, '', 'Total ingresos:', trasInH + trasInM],
-      ['Salida traslados (H):',  trasOutH, '', 'Salida traslados (M):',  trasOutM, '', 'Total salidas:',  trasOutH + trasOutM],
+      // Cabecera de contexto: con machos ocultos se muestra solo la columna de hembras. Los TOTALES
+      // se conservan tal cual — son el total de aves del lote, no un dato de machos.
+      this.ocultaMachosEnPostura
+        ? ['Hembras encasetadas:', hembrasIni, '', 'Total encasetadas:', avesIni]
+        : ['Hembras encasetadas:', hembrasIni, '', 'Machos encasetados:', machosIni, '', 'Total encasetadas:', avesIni],
+      this.ocultaMachosEnPostura
+        ? ['Aves vivas (H):', saldoH, '', 'Total vivas:', saldoH + saldoM]
+        : ['Aves vivas (H):', saldoH, '', 'Aves vivas (M):', saldoM, '', 'Total vivas:', saldoH + saldoM],
+      this.ocultaMachosEnPostura
+        ? ['Mortalidad acum. (H):', totMortAcumH]
+        : ['Mortalidad acum. (H):', totMortAcumH, '', 'Mortalidad acum. (M):', totMortAcumM],
+      this.ocultaMachosEnPostura
+        ? ['Selección acum. (H):', totSelAcumH]
+        : ['Selección acum. (H):', totSelAcumH, '', 'Selección acum. (M):', totSelAcumM],
+      this.ocultaMachosEnPostura
+        ? ['Ingreso traslados (H):', trasInH, '', 'Total ingresos:', trasInH + trasInM]
+        : ['Ingreso traslados (H):', trasInH, '', 'Ingreso traslados (M):', trasInM, '', 'Total ingresos:', trasInH + trasInM],
+      this.ocultaMachosEnPostura
+        ? ['Salida traslados (H):', trasOutH, '', 'Total salidas:', trasOutH + trasOutM]
+        : ['Salida traslados (H):',  trasOutH, '', 'Salida traslados (M):',  trasOutM, '', 'Total salidas:',  trasOutH + trasOutM],
       [],
       ['REGISTROS DIARIOS'],
       []
@@ -591,37 +633,38 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Semana',
       'Edad (días vida)',
       'Mortalidad hembras',
-      'Mortalidad machos',
+      ...this.soloConMachos('Mortalidad machos'),
       'Selección hembras',
-      'Selección machos',
-      'Error sexaje hembras',
-      'Error sexaje machos',
+      ...this.soloConMachos('Selección machos'),
+      // El error de sexaje desaparece como CONCEPTO (los dos géneros), igual que en los formularios.
+      ...this.soloConMachos('Error sexaje hembras'),
+      ...this.soloConMachos('Error sexaje machos'),
       'TOTAL MORT+ SEL hembras / día',
-      'TOTAL MORT+ SEL machos / día',
+      ...this.soloConMachos('TOTAL MORT+ SEL machos / día'),
       // 🔀 Feature 13 — traslados dedicados por género
       'Ingreso traslado hembras',
-      'Ingreso traslado machos',
+      ...this.soloConMachos('Ingreso traslado machos'),
       'Salida traslado hembras',
-      'Salida traslado machos',
+      ...this.soloConMachos('Salida traslado machos'),
       ...(this.enriquecerTablaConHistoricoInventario
         ? ['Despacho mixtas', 'Consumo bodega (kg)', 'Saldo alimento (kg)']
         : []),
       'Saldo hembras',
-      'Saldo machos',
+      ...this.soloConMachos('Saldo machos'),
       'Tipo alimento',
       'Consumo kg hembras',
-      'Consumo kg machos',
+      ...this.soloConMachos('Consumo kg machos'),
       'Consumo real día (kg)',
       'Consumo acumulado (kg)',
       'Consumo acum. hembras (kg)',
-      'Consumo acum. machos (kg)',
+      ...this.soloConMachos('Consumo acum. machos (kg)'),
       '% Retiro (Mort+Sel)/aves',
       'Peso prom. hembras (kg)',
-      'Peso prom. machos (kg)',
+      ...this.soloConMachos('Peso prom. machos (kg)'),
       'Uniformidad hembras (%)',
-      'Uniformidad machos (%)',
+      ...this.soloConMachos('Uniformidad machos (%)'),
       'C.V. hembras (%)',
-      'C.V. machos (%)',
+      ...this.soloConMachos('C.V. machos (%)'),
       'Observaciones',
       // 🥚 TK-2026-000021: los huevos son tema de PRODUCCIÓN y salieron de este seguimiento (tabla
       // y Excel). Lo que NO se toca: la captura en el registro diario, el desglose en el detalle
@@ -640,17 +683,17 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         f.semana ?? '—',
         f.edadDia ?? '—',
         s.mortalidadHembras ?? 0,
-        s.mortalidadMachos ?? 0,
+        ...this.soloConMachos(s.mortalidadMachos ?? 0),
         s.selH ?? 0,
-        s.selM ?? 0,
-        s.errorSexajeHembras ?? 0,
-        s.errorSexajeMachos ?? 0,
+        ...this.soloConMachos(s.selM ?? 0),
+        ...this.soloConMachos(s.errorSexajeHembras ?? 0),
+        ...this.soloConMachos(s.errorSexajeMachos ?? 0),
         f.totalMortSelDiaH,
-        f.totalMortSelDiaM,
+        ...this.soloConMachos(f.totalMortSelDiaM),
         s.trasladoIngresoHembras ?? 0,
-        s.trasladoIngresoMachos  ?? 0,
+        ...this.soloConMachos(s.trasladoIngresoMachos ?? 0),
         s.trasladoSalidaHembras  ?? 0,
-        s.trasladoSalidaMachos   ?? 0,
+        ...this.soloConMachos(s.trasladoSalidaMachos ?? 0),
         ...(this.enriquecerTablaConHistoricoInventario
           ? [
               f.despachoX ?? '',
@@ -659,21 +702,21 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
             ]
           : []),
         f.saldoAvesH,
-        f.saldoAvesM,
+        ...this.soloConMachos(f.saldoAvesM),
         f.tipoAlimentoCorto,
         s.consumoKgHembras ?? 0,
-        s.consumoKgMachos ?? 0,
+        ...this.soloConMachos(s.consumoKgMachos ?? 0),
         f.consumoDiaKg,
         f.acumConsumoKg,
         f.acumConsumoHKg,
-        f.acumConsumoMKg,
+        ...this.soloConMachos(f.acumConsumoMKg),
         f.pctRetiroSemana != null ? Math.round(f.pctRetiroSemana * 100) / 100 : '',
         s.pesoPromH != null ? s.pesoPromH : '',
-        s.pesoPromM != null ? s.pesoPromM : '',
+        ...this.soloConMachos(s.pesoPromM != null ? s.pesoPromM : ''),
         s.uniformidadH != null ? s.uniformidadH : '',
-        s.uniformidadM != null ? s.uniformidadM : '',
+        ...this.soloConMachos(s.uniformidadM != null ? s.uniformidadM : ''),
         s.cvH != null ? s.cvH : '',
-        s.cvM != null ? s.cvM : '',
+        ...this.soloConMachos(s.cvM != null ? s.cvM : ''),
         (s.observaciones || '').trim() || '—',
         s.createdByUserId ?? '—',
         s.createdAt ? this.formatDMY(s.createdAt) : '—',
