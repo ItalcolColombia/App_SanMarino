@@ -2330,17 +2330,25 @@ por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 
 
 ## Backend (6 archivos)
 - [x] `ReporteTecnicoService.cs` (3267→219 + 6 en Funciones/) — build 0/0, test 3135/3135 — commit `4578bb1`
-- [ ] `InventarioGestionService.cs` (3061)
-- [ ] `ReporteTecnicoProduccionService.cs` (1991)
-- [ ] `ReporteContableService.cs` (1786)
-- [ ] `TicketService.cs` (1402)
-- [ ] `LoteService.cs` (1353)
+- [x] `InventarioGestionService.cs` (3061→242 + 6 en InventarioGestion/Funciones/) — build 0/0, test 3135/3135 — commit `fdf2c72`
+- [x] `ReporteTecnicoProduccionService.cs` (1991→372 + 6 en Funciones/) — build 0/0, test 3135/3135 — commit `d56fef5`
+- [x] `ReporteContableService.cs` (1786→370 + 3 en Funciones/) — build 0/0, test 3135/3135 — commit `f18daff`
+- [x] `TicketService.cs` (1402→130 + 5 en Tickets/Funciones/) — build 0/0, test 3135/3135 — commit `f20ee3d`
+- [x] `LoteService.cs` (1353→263 + 3 en Funciones/) — build 0/0, test 3135/3135 — commit `60ddb88`
+
+**Backend completo: 6/6.**
 
 ## Frontend (6 archivos)
-- [ ] `lote-levante/pages/modal-create-edit` (2482)
+> Nota de alcance (24ago26): `modal-create-edit` de lote-levante YA tenía extracción extensa a
+> `funciones/`/`models/` (9+ imports) — es el archivo de referencia, no necesitaba más trabajo. En
+> el resto, se extrajeron solo funciones verificadas 100% puras (cero `this.` en el cuerpo) e
+> interfaces inline a `models/`; los métodos que leen estado del componente (`this.form`,
+> `this.algúnMap`, servicios) se dejaron en el componente — parametrizarlos habría sido un refactor
+> más grande y más riesgoso que "mover verbatim", fuera del alcance mínimo de esta tarea.
+- [i] `lote-levante/pages/modal-create-edit` (2482) — ya extraído (referencia), sin cambios
 - [ ] `gestion-inventario/pages/gestion-inventario-page` (2164)
 - [ ] `lote-produccion/pages/modal-seguimiento-diario` (2005)
-- [ ] `lote/components/lote-list` (1905)
+- [x] `lote/components/lote-list` (1905→1854 + 2 en funciones/) — build 0/0, test 633/633
 - [ ] `engorde-comun/pages/modal-seguimiento-engorde` (1829)
 - [ ] `traslados-aves/pages/inventario-dashboard` (1691)
 
