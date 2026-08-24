@@ -2318,3 +2318,32 @@ comportarse idéntico después, y el conteo de tests es el testigo (back 3.135, 
 - [x] `yarn build` 0/0 y `yarn test` = **633** (mismo número)
 - [x] 0 referencias residuales a las dos piezas
 - [x] `FallbackPolicy = RequireAuthenticatedUser` intacto
+
+---
+
+# Split de los 12 archivos largos de la auditoria (23-ago-2026)
+
+Plan: [`fase_de_desarrollo/split_archivos_largos_plan.md`](fase_de_desarrollo/split_archivos_largos_plan.md)
+
+Confirmado por el usuario: TODO lo que salio en la auditoria. Corte mecanico (verbatim), un commit
+por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 tests.
+
+## Backend (6 archivos)
+- [x] `ReporteTecnicoService.cs` (3267→219 + 6 en Funciones/) — build 0/0, test 3135/3135 — commit `4578bb1`
+- [ ] `InventarioGestionService.cs` (3061)
+- [ ] `ReporteTecnicoProduccionService.cs` (1991)
+- [ ] `ReporteContableService.cs` (1786)
+- [ ] `TicketService.cs` (1402)
+- [ ] `LoteService.cs` (1353)
+
+## Frontend (6 archivos)
+- [ ] `lote-levante/pages/modal-create-edit` (2482)
+- [ ] `gestion-inventario/pages/gestion-inventario-page` (2164)
+- [ ] `lote-produccion/pages/modal-seguimiento-diario` (2005)
+- [ ] `lote/components/lote-list` (1905)
+- [ ] `engorde-comun/pages/modal-seguimiento-engorde` (1829)
+- [ ] `traslados-aves/pages/inventario-dashboard` (1691)
+
+## Verificacion final (al cerrar los 12)
+- [ ] `dotnet build` 0/0 y `dotnet test` = 3135 (o mas, si algun split agrega tests de Calculos)
+- [ ] `yarn build` 0/0 y `yarn test` = 633 (idem)
