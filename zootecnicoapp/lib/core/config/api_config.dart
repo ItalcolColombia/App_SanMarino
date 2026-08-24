@@ -40,11 +40,25 @@ class ApiConfig {
     defaultValue: r'Q5#vF1@pG*0bT$yK9!r',
   );
 
-  /// Secreto de plataforma que exige `PlatformSecretMiddleware` en toda ruta
-  /// que no sea login (`PlatformSecret:SecretUpFrontend`).
+  /// Firma de plataforma que exige `PlatformSecretMiddleware` en toda ruta que no
+  /// sea login.
+  ///
+  /// **Es la de la APP, no la del web** (`PlatformSecret:SecretUpMovil`). Hasta
+  /// ago-2026 las dos compartían el mismo valor: el backend no podía distinguir
+  /// de dónde venía la petición, y rotarla dejaba sin servicio al web y a la app
+  /// a la vez. Con firma propia se puede revocar la app sola.
+  ///
+  /// El default es el de DESARROLLO. En producción se pasa por
+  /// `--dart-define=SECRET_UP=…` con el valor que el backend tenga en
+  /// `PlatformSecret__SecretUpMovil`. Si ese ambiente todavía no lo configuró, el
+  /// middleware sigue aceptando la firma del front y nada se rompe.
+  ///
+  /// Cuando el backend la rechaza responde `X-Auth-Failure: platform-secret`, que
+  /// la app trata como `plataformaRechazada`: avisa y **no** cierra sesión ni
+  /// borra la cola (invariante I7).
   static const String secretUp = String.fromEnvironment(
     'SECRET_UP',
-    defaultValue: r'Fr0nt#SeCr3t!SanM@r1n0X2',
+    defaultValue: r'Mov!ZhaerqG45JRiMCu7QBIC',
   );
 
   /// Llave con la que se cifra el secreto anterior (`PlatformSecret:EncryptionKey`).

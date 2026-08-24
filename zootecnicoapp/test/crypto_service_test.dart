@@ -70,8 +70,14 @@ void main() {
     });
 
     test('el SECRET_UP que exige el middleware de plataforma', () {
+      // Entrada FIJA, no `ApiConfig.secretUp`: lo que este vector prueba es que
+      // el AES de Dart produce byte a byte lo que .NET espera, no cuál es la
+      // firma desplegada. Atado al valor de configuración, el test se rompía
+      // cada vez que se rotaba el secreto —que es justo lo que tiene que poder
+      // hacerse— y el fallo no señalaba ningún problema real.
+      const firmaDeReferencia = r'Fr0nt#SeCr3t!SanM@r1n0X2';
       expect(
-        crypto.cifrar(ApiConfig.secretUp, ApiConfig.secretUpKey),
+        crypto.cifrar(firmaDeReferencia, ApiConfig.secretUpKey),
         'AAAAAAAAAAAAAAAAAAAAALtrEQRSR4WkFTY3DEbpyAlWvpsF4J+5x4kHfcX4etq3',
       );
     });
