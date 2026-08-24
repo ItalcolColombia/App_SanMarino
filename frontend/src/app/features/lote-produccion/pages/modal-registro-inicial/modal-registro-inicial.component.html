@@ -35,7 +35,7 @@
             <div class="info-icon">🐔</div>
             <div class="info-content">
               <span class="info-label">Aves disponibles para encasetar en producción</span>
-              <span class="info-value info-value--number">{{ avesDisponibles.saldoHembras | number:'1.0-0' }} H / {{ avesDisponibles.saldoMachos | number:'1.0-0' }} M</span>
+              <span class="info-value info-value--number">{{ avesDisponibles.saldoHembras | number:'1.0-0' }} H@if (!ocultaMachosEnPostura) { / {{ avesDisponibles.saldoMachos | number:'1.0-0' }} M}</span>
               <small class="info-hint">Si el lote pasó por Levante: saldo actual (inicio − mort. caja − mortalidad − descarte − error sexaje). Si se creó directo en producción: aves iniciales del lote.</small>
             </div>
           </div>
@@ -106,11 +106,13 @@
                   <input id="f-aves-h" type="number" min="0" formControlName="avesInicialesH" placeholder="0" />
                   <small class="ux-hint">Número total de hembras al inicio (sugerido según aves disponibles)</small>
                 </div>
-                <div class="form-field">
-                  <label for="f-aves-m">Aves Iniciales Machos</label>
-                  <input id="f-aves-m" type="number" min="0" formControlName="avesInicialesM" placeholder="0" />
-                  <small class="ux-hint">Número total de machos al inicio (sugerido según aves disponibles)</small>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div class="form-field">
+                    <label for="f-aves-m">Aves Iniciales Machos</label>
+                    <input id="f-aves-m" type="number" min="0" formControlName="avesInicialesM" placeholder="0" />
+                    <small class="ux-hint">Número total de machos al inicio (sugerido según aves disponibles)</small>
+                  </div>
+                }
                 <div class="form-field">
                   <label for="f-huevos">Huevos Iniciales</label>
                   <input id="f-huevos" type="number" min="0" formControlName="huevosIniciales" placeholder="0" />

@@ -7,6 +7,7 @@ import { TrasladosAvesService, DisponibilidadLoteDto, CrearTrasladoAvesDto } fro
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { FarmService } from '../../../farm/services/farm.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import {
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
@@ -48,14 +49,22 @@ export class TrasladoAvesComponent implements OnInit {
     private loteService: LoteService,
     private farmService: FarmService,
     private router: Router,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService
   ) {
     this.initForm();
   }
 
+  /** Empresas sin machos en postura: no se muestran ni se capturan en ninguna pantalla. */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
     this.cargarLotes();
     this.cargarGranjas();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
   }
 
   /** Ventana de fechas admitida para `fechaTraslado` (mes en curso ∪ últimos 15 días). */

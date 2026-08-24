@@ -274,7 +274,7 @@
                                 @if (m.cantidadHembras > 0) {
                                   <span class="aves-chip aves-chip--h">H {{ formatearNumero(m.cantidadHembras) }}</span>
                                 }
-                                @if (m.cantidadMachos > 0) {
+                                @if (m.cantidadMachos > 0 && !ocultaMachosEnPostura) {
                                   <span class="aves-chip aves-chip--m">M {{ formatearNumero(m.cantidadMachos) }}</span>
                                 }
                                 @if (m.cantidadMixtas > 0) {
@@ -366,7 +366,7 @@
                             @if (m.cantidadHembras > 0) {
                               <span class="aves-chip aves-chip--h">H {{ formatearNumero(m.cantidadHembras) }}</span>
                             }
-                            @if (m.cantidadMachos > 0) {
+                            @if (m.cantidadMachos > 0 && !ocultaMachosEnPostura) {
                               <span class="aves-chip aves-chip--m">M {{ formatearNumero(m.cantidadMachos) }}</span>
                             }
                             @if (m.cantidadMixtas > 0) {

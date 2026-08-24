@@ -28,15 +28,21 @@
             <!-- Aves vivas (saldo REAL) -->
             <div class="origen-card__stock">
               <span>🐔 Hembras vivas: <b>{{ hembrasDisponibles | number }}</b></span>
-              <span>🐓 Machos vivos: <b>{{ machosDisponibles | number }}</b></span>
+              @if (!ocultaMachosEnPostura) {
+                <span>🐓 Machos vivos: <b>{{ machosDisponibles | number }}</b></span>
+              }
             </div>
             <!-- Acumulados de traslados -->
             @if (resumenOrigen) {
               <div class="origen-card__trasladosrow">
                 <span class="mini-pill mini-pill--in">↘ Ingreso H: <b>{{ (resumenOrigen.levanteTrasladoIngresoHembras ?? 0) + (resumenOrigen.produccionTrasladoIngresoHembras ?? 0) }}</b></span>
-                <span class="mini-pill mini-pill--in">↘ Ingreso M: <b>{{ (resumenOrigen.levanteTrasladoIngresoMachos  ?? 0) + (resumenOrigen.produccionTrasladoIngresoMachos  ?? 0) }}</b></span>
+                @if (!ocultaMachosEnPostura) {
+                  <span class="mini-pill mini-pill--in">↘ Ingreso M: <b>{{ (resumenOrigen.levanteTrasladoIngresoMachos  ?? 0) + (resumenOrigen.produccionTrasladoIngresoMachos  ?? 0) }}</b></span>
+                }
                 <span class="mini-pill mini-pill--out">↗ Salida H: <b>{{ (resumenOrigen.levanteTrasladoSalidaHembras  ?? 0) + (resumenOrigen.produccionTrasladoSalidaHembras  ?? 0) }}</b></span>
-                <span class="mini-pill mini-pill--out">↗ Salida M: <b>{{ (resumenOrigen.levanteTrasladoSalidaMachos   ?? 0) + (resumenOrigen.produccionTrasladoSalidaMachos   ?? 0) }}</b></span>
+                @if (!ocultaMachosEnPostura) {
+                  <span class="mini-pill mini-pill--out">↗ Salida M: <b>{{ (resumenOrigen.levanteTrasladoSalidaMachos   ?? 0) + (resumenOrigen.produccionTrasladoSalidaMachos   ?? 0) }}</b></span>
+                }
               </div>
             }
           </div>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { CrearProduccionLoteRequest } from '../../services/produccion.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-modal-registro-inicial',
@@ -43,10 +44,17 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
     showCancel: false
   };
 
-  constructor(private fb: FormBuilder) { }
+  /** Empresas sin machos en postura: no se muestran ni se capturan en ninguna pantalla. */
+  ocultaMachosEnPostura = false;
+
+  constructor(private fb: FormBuilder, private companyConfig: ActiveCompanyConfigService) { }
 
   ngOnInit(): void {
     this.initializeForm();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
   }
 
   ngOnChanges(): void {

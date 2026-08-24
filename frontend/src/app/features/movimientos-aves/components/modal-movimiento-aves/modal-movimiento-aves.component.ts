@@ -10,6 +10,7 @@ import { MasterListService } from '../../../../core/services/master-list/master-
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import {
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
@@ -113,15 +114,29 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   fechaMovimientoMax = '';
   fechaMovimientoHint = '';
 
+  /**
+   * Empresas con este flag no manejan machos en postura en NINGUNA pantalla — incluida la de
+   * ventas (decisión del usuario, 24-ago-2026, que cierra `TK-2026-000180` / `SR-DEF-1`). El
+   * control `cantidadMachos` sigue existiendo y viajando en el payload: nace en `0`, que es un
+   * valor VÁLIDO para `Validators.required`, así que ocultarlo no bloquea el guardado ni cambia
+   * el DTO. Es ocultamiento de UI, igual que F5.1/F5.2.
+   */
+  ocultaMachosEnPostura = false;
+
   constructor(
     private fb: FormBuilder,
     private movimientosService: MovimientosAvesService,
     private farmService: FarmService,
     private masterListService: MasterListService,
     private countryFilterService: CountryFilterService,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService
   ) {
     this.initForm();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     const puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
     const hoy = new Date();
     const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);

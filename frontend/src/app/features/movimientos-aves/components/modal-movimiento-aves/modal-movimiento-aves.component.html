@@ -45,10 +45,12 @@
                 <span class="aves-stat__label">Hembras disp.</span>
                 <span class="aves-stat__value">{{ informacionLote()!.cantidadHembras | number }}</span>
               </div>
-              <div class="aves-stat">
-                <span class="aves-stat__label">Machos disp.</span>
-                <span class="aves-stat__value">{{ informacionLote()!.cantidadMachos | number }}</span>
-              </div>
+              @if (!ocultaMachosEnPostura) {
+                <div class="aves-stat">
+                  <span class="aves-stat__label">Machos disp.</span>
+                  <span class="aves-stat__value">{{ informacionLote()!.cantidadMachos | number }}</span>
+                </div>
+              }
               <div class="aves-stat aves-stat--total">
                 <span class="aves-stat__label">Total disp.</span>
                 <span class="aves-stat__value">{{ informacionLote()!.totalAves | number }}</span>
@@ -117,7 +119,7 @@
                   <span class="section-icon">🐔</span>
                   Cantidades a {{ esTipoVenta(formMovimiento.get('tipoMovimiento')?.value) ? 'vender' : 'trasladar' }}
                 </h3>
-                @if (informacionLote()?.tipoLote === 'Produccion') {
+                @if (informacionLote()?.tipoLote === 'Produccion' && !ocultaMachosEnPostura) {
                   <p class="info-note info-note--warning">
                     En Producción solo se puede mover hembras <strong>o</strong> machos, no ambos.
                   </p>
@@ -141,6 +143,7 @@
                       (input)="onCantidadProduccionChange('hembras')">
                     </div>
                     <!-- Machos -->
+                    @if (!ocultaMachosEnPostura) {
                     <div class="form-group form-group--ave">
                       <label class="form-label" for="cantM">
                         Machos
@@ -156,6 +159,7 @@
                         [readonly]="isReadOnly()"
                         (input)="onCantidadProduccionChange('machos')">
                       </div>
+                    }
                       <!-- Mixtas (solo levante) -->
                       @if (informacionLote()?.tipoLote !== 'Produccion') {
                         <div class="form-group form-group--ave"

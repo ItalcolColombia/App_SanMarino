@@ -2440,12 +2440,29 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
       sesion autenticada
 
 ## X18.4 · W1 — Machos fuera de postura (`SR-DEF-1` / F5.3)
-- [ ] **W1.a captura** (donde puede contar doble): `modal-movimiento-aves` (incluye **Venta**),
-      `inventario-dashboard` (traslado y retiro), `traslado-aves-huevos`, `modal-registro-inicial`,
-      `lote-list`, `seguimiento-lote-levante-list`
-- [ ] **W1.b residuos** de los 2 modales ya gateados + verificar la anidacion sospechosa de
-      `errorSexajeMachos` en `modal-seguimiento-diario:268` y `modal-create-edit:411`
-- [ ] **W1.c tablas y tabs**: `tabs-principal` levante y produccion, listados de movimientos
+- [x] **Decision que cierra `SR-DEF-1`**: el `.docx` decia «que en ventas aparezca campo machos sobre
+      el total de las aves» y se leia como un campo informativo NUEVO. El usuario aclaro lo
+      contrario: Santa Reyes **no maneja machos en ningun lado**, asi que en ventas se **retiran**.
+      Sin flag nuevo: se extiende `ocultaMachosEnPostura`
+- [x] **W1.a — `modal-movimiento-aves` (el de VENTAS y traslados)**: oculto el stat «Machos disp.»,
+      el input `cantidadMachos` con su badge de disponible, y la nota «solo hembras o machos, no
+      ambos» (no tiene sentido sin machos). Los chips `M` del listado, en tabla y en cards
+- [x] **W1.a — `seguimiento-lote-levante-list`**: input «Aves machos para produccion», machos
+      disponibles, la columna Machos del resumen y «Machos encasetados»
+- [x] **W1.a — `modal-registro-inicial`**: input «Aves Iniciales Machos» y el `H / M` del banner
+- [x] **W1.a — `traslado-aves-huevos`**: input «Cantidad de Machos», machos vivos, iniciales,
+      mortalidad y retiros acumulados
+- [x] **W1.b residuos** de `modal-traslado-aves-seguimiento`: «Machos vivos» y las pills de
+      ingreso/salida M
+- [x] 🔴 **La anidacion sospechosa de `errorSexajeMachos` NO era un bug** — verificada linea por
+      linea en `modal-seguimiento-diario:265-269` y `modal-create-edit:408-412`: el `@if` abre antes
+      del titulo y cierra despues del input de machos, las 3 lineas quedan adentro. Falsa alarma del
+      inventario; queda escrito para que nadie vuelva a perseguirla
+- [i] **Nada de esto toca el modelo ni el payload**: los controles siguen existiendo y nacen en `0`,
+      que es un valor VALIDO para `Validators.required` ⇒ ocultarlos no bloquea el guardado. Mismo
+      criterio que F5.1/F5.2
+- [ ] **W1.c pendiente**: `inventario-dashboard` (traslado, retiro y el prompt de ajuste manual),
+      `lote-list` (`machosL`, `cantidadMachos`), `tabs-principal` de levante y produccion
 - [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
       del alcance de esta sesion salvo que sobre tiempo
 - [i] **Nunca** se toca el modelo ni el payload: los saldos consumen esos campos. Engorde y
