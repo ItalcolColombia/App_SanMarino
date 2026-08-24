@@ -77,45 +77,73 @@
             <th rowspan="2" class="sticky-left sticky-col-3">Etapa</th>
             <th rowspan="2" class="sticky-left sticky-col-4">Reg.</th>
             <th rowspan="2" class="sticky-left sticky-col-5">Detalle</th>
-            <th colspan="12" class="grp">💀 Mortalidad / Selección</th>
-            <th colspan="6" class="grp">🔻 % Retiro (Real vs Guía)</th>
-            <th colspan="10" class="grp">🌾 Consumo</th>
+            <!-- Los colspan se achican con machos ocultos (SR-DEF-1): si no, el grupo abarca más
+                 columnas de las que existen y la cabecera queda corrida sobre el grupo vecino. -->
+            <th [attr.colspan]="ocultaMachosEnPostura ? 6 : 12" class="grp">💀 Mortalidad / Selección</th>
+            <th [attr.colspan]="ocultaMachosEnPostura ? 3 : 6" class="grp">🔻 % Retiro (Real vs Guía)</th>
+            <th [attr.colspan]="ocultaMachosEnPostura ? 6 : 10" class="grp">🌾 Consumo</th>
             <th colspan="14" class="grp">🥚 Producción Huevos</th>
-            <th colspan="6" class="grp">⚖️ Peso</th>
-            <th colspan="4" class="grp">🐔 Aves</th>
+            <th [attr.colspan]="ocultaMachosEnPostura ? 3 : 6" class="grp">⚖️ Peso</th>
+            <th [attr.colspan]="ocultaMachosEnPostura ? 2 : 4" class="grp">🐔 Aves</th>
           </tr>
           <tr>
             <!-- Mortalidad / selección -->
             <th class="grp">Mort H</th>
-            <th>Mort M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Mort M</th>
+            }
             <th>%Mort H</th>
-            <th>%Mort M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>%Mort M</th>
+            }
             <th>Guía Mort H</th>
-            <th>Guía Mort M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Guía Mort M</th>
+            }
             <th title="Diferencia directa: mortalidad real menos mortalidad de guía, en puntos porcentuales">Dif Mort H (pp)</th>
-            <th title="Diferencia directa: mortalidad real menos mortalidad de guía, en puntos porcentuales">Dif Mort M (pp)</th>
+            @if (!ocultaMachosEnPostura) {
+              <th title="Diferencia directa: mortalidad real menos mortalidad de guía, en puntos porcentuales">Dif Mort M (pp)</th>
+            }
             <th>Sel H</th>
             <th>%Sel H</th>
-            <th>Sel M</th>
-            <th>%Sel M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Sel M</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>%Sel M</th>
+            }
             <!-- % Retiro (Real vs Guía) -->
             <th class="grp">Sem H (Real)</th>
-            <th>Sem M (Real)</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Sem M (Real)</th>
+            }
             <th>Acum H (Real)</th>
             <th>Acum H (Guía)</th>
-            <th>Acum M (Real)</th>
-            <th>Acum M (Guía)</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Acum M (Real)</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>Acum M (Guía)</th>
+            }
             <!-- Consumo -->
             <th class="grp">Kg H</th>
-            <th>Kg M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Kg M</th>
+            }
             <th>Kg Total</th>
             <th>Prom/día Kg</th>
             <th>H Real (g/ave/d)</th>
             <th>H Guía (g/ave/d)</th>
             <th>Dif Cons H</th>
-            <th>M Real (g/ave/d)</th>
-            <th>M Guía (g/ave/d)</th>
-            <th>Dif Cons M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>M Real (g/ave/d)</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>M Guía (g/ave/d)</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>Dif Cons M</th>
+            }
             <!-- Huevos -->
             <th class="grp">Tot</th>
             <th>Guía Tot</th>
@@ -135,14 +163,24 @@
             <th class="grp">Peso H (kg)</th>
             <th>Guía H (kg)</th>
             <th>Dif Peso H</th>
-            <th>Peso M (kg)</th>
-            <th>Guía M (kg)</th>
-            <th>Dif Peso M</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>Peso M (kg)</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>Guía M (kg)</th>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <th>Dif Peso M</th>
+            }
             <!-- Aves -->
             <th class="grp">H ini</th>
-            <th>M ini</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>M ini</th>
+            }
             <th>H fin</th>
-            <th>M fin</th>
+            @if (!ocultaMachosEnPostura) {
+              <th>M fin</th>
+            }
           </tr>
         </thead>
         <tbody>
@@ -170,30 +208,50 @@
               </td>
               <!-- Mortalidad / selección -->
               <td class="grp">{{ ind.mortalidadHembras }}</td>
-              <td>{{ ind.mortalidadMachos }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.mortalidadMachos }}</td>
+              }
               <td>{{ ind.porcentajeMortalidadHembras | number:'1.0-2' }}%</td>
-              <td>{{ ind.porcentajeMortalidadMachos | number:'1.0-2' }}%</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.porcentajeMortalidadMachos | number:'1.0-2' }}%</td>
+              }
               <td>{{ ind.mortalidadGuiaHembras != null ? (ind.mortalidadGuiaHembras | number:'1.0-2') + '%' : '—' }}</td>
-              <td>{{ ind.mortalidadGuiaMachos != null ? (ind.mortalidadGuiaMachos | number:'1.0-2') + '%' : '—' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.mortalidadGuiaMachos != null ? (ind.mortalidadGuiaMachos | number:'1.0-2') + '%' : '—' }}</td>
+              }
               <!-- TK-2026-000023: diferencia DIRECTA (pp). Sin semáforo: los umbrales 5/15 de
                    `getDiferenciaClass` son de porcentaje relativo y no significan lo mismo sobre
                    puntos porcentuales. -->
               <td>{{ formatearPuntosPorcentuales(ind.diferenciaMortalidadHembras) }}</td>
-              <td>{{ formatearPuntosPorcentuales(ind.diferenciaMortalidadMachos) }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ formatearPuntosPorcentuales(ind.diferenciaMortalidadMachos) }}</td>
+              }
               <td>{{ ind.seleccionHembras }}</td>
               <td>{{ ind.porcentajeSeleccionHembras | number:'1.0-2' }}%</td>
-              <td>{{ ind.seleccionMachos }}</td>
-              <td>{{ ind.porcentajeSeleccionMachos | number:'1.0-2' }}%</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.seleccionMachos }}</td>
+              }
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.porcentajeSeleccionMachos | number:'1.0-2' }}%</td>
+              }
               <!-- % Retiro (Real vs Guía) -->
               <td class="grp">{{ ind.retiroSemanalHembrasReal != null ? (ind.retiroSemanalHembrasReal | number:'1.0-2') + '%' : '—' }}</td>
-              <td>{{ ind.retiroSemanalMachosReal != null ? (ind.retiroSemanalMachosReal | number:'1.0-2') + '%' : '—' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.retiroSemanalMachosReal != null ? (ind.retiroSemanalMachosReal | number:'1.0-2') + '%' : '—' }}</td>
+              }
               <td>{{ ind.retiroAcumuladoHembrasReal != null ? (ind.retiroAcumuladoHembrasReal | number:'1.0-2') + '%' : '—' }}</td>
               <td>{{ ind.retiroAcumuladoHembrasGuia != null ? (ind.retiroAcumuladoHembrasGuia | number:'1.0-2') + '%' : '—' }}</td>
-              <td>{{ ind.retiroAcumuladoMachosReal != null ? (ind.retiroAcumuladoMachosReal | number:'1.0-2') + '%' : '—' }}</td>
-              <td>{{ ind.retiroAcumuladoMachosGuia != null ? (ind.retiroAcumuladoMachosGuia | number:'1.0-2') + '%' : '—' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.retiroAcumuladoMachosReal != null ? (ind.retiroAcumuladoMachosReal | number:'1.0-2') + '%' : '—' }}</td>
+              }
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.retiroAcumuladoMachosGuia != null ? (ind.retiroAcumuladoMachosGuia | number:'1.0-2') + '%' : '—' }}</td>
+              }
               <!-- Consumo -->
               <td class="grp">{{ ind.consumoKgHembras | number:'1.0-2' }}</td>
-              <td>{{ ind.consumoKgMachos | number:'1.0-2' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.consumoKgMachos | number:'1.0-2' }}</td>
+              }
               <td>{{ ind.consumoTotalKg | number:'1.0-2' }}</td>
               <td>{{ ind.consumoPromedioDiarioKg | number:'1.0-2' }}</td>
               <td>
@@ -203,13 +261,17 @@
                 {{ ind.consumoGuiaHembras !== null && ind.consumoGuiaHembras !== undefined ? (ind.consumoGuiaHembras | number:'1.0-0') : '—' }}
               </td>
               <td [class]="getDiferenciaClass(ind.diferenciaConsumoHembras)">{{ formatearPorcentaje(ind.diferenciaConsumoHembras) }}</td>
-              <td>
-                {{ consumoRealGrAveDiaM(ind) !== null ? (consumoRealGrAveDiaM(ind) | number:'1.0-0') : '—' }}
-              </td>
-              <td>
-                {{ ind.consumoGuiaMachos !== null && ind.consumoGuiaMachos !== undefined ? (ind.consumoGuiaMachos | number:'1.0-0') : '—' }}
-              </td>
-              <td [class]="getDiferenciaClass(ind.diferenciaConsumoMachos)">{{ formatearPorcentaje(ind.diferenciaConsumoMachos) }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>
+                  {{ consumoRealGrAveDiaM(ind) !== null ? (consumoRealGrAveDiaM(ind) | number:'1.0-0') : '—' }}
+                </td>
+                <td>
+                  {{ ind.consumoGuiaMachos !== null && ind.consumoGuiaMachos !== undefined ? (ind.consumoGuiaMachos | number:'1.0-0') : '—' }}
+                </td>
+              }
+              @if (!ocultaMachosEnPostura) {
+                <td [class]="getDiferenciaClass(ind.diferenciaConsumoMachos)">{{ formatearPorcentaje(ind.diferenciaConsumoMachos) }}</td>
+              }
               <!-- Producción huevos -->
               <td class="grp">{{ ind.huevosTotales | number:'1.0-0' }}</td>
               <td>{{ ind.huevosTotalesGuia !== null && ind.huevosTotalesGuia !== undefined ? (ind.huevosTotalesGuia | number:'1.0-0') : '—' }}</td>
@@ -229,14 +291,24 @@
               <td class="grp">{{ ind.pesoPromedioHembras ? (ind.pesoPromedioHembras | number:'1.0-2') : '—' }}</td>
               <td>{{ ind.pesoGuiaHembras !== null && ind.pesoGuiaHembras !== undefined ? (ind.pesoGuiaHembras | number:'1.0-2') : '—' }}</td>
               <td [class]="getDiferenciaClass(ind.diferenciaPesoHembras)">{{ formatearPorcentaje(ind.diferenciaPesoHembras) }}</td>
-              <td>{{ ind.pesoPromedioMachos ? (ind.pesoPromedioMachos | number:'1.0-2') : '—' }}</td>
-              <td>{{ ind.pesoGuiaMachos !== null && ind.pesoGuiaMachos !== undefined ? (ind.pesoGuiaMachos | number:'1.0-2') : '—' }}</td>
-              <td [class]="getDiferenciaClass(ind.diferenciaPesoMachos)">{{ formatearPorcentaje(ind.diferenciaPesoMachos) }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.pesoPromedioMachos ? (ind.pesoPromedioMachos | number:'1.0-2') : '—' }}</td>
+              }
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.pesoGuiaMachos !== null && ind.pesoGuiaMachos !== undefined ? (ind.pesoGuiaMachos | number:'1.0-2') : '—' }}</td>
+              }
+              @if (!ocultaMachosEnPostura) {
+                <td [class]="getDiferenciaClass(ind.diferenciaPesoMachos)">{{ formatearPorcentaje(ind.diferenciaPesoMachos) }}</td>
+              }
               <!-- Aves -->
               <td class="grp">{{ ind.avesHembrasInicioSemana | number:'1.0-0' }}</td>
-              <td>{{ ind.avesMachosInicioSemana | number:'1.0-0' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.avesMachosInicioSemana | number:'1.0-0' }}</td>
+              }
               <td>{{ ind.avesHembrasFinSemana | number:'1.0-0' }}</td>
-              <td>{{ ind.avesMachosFinSemana | number:'1.0-0' }}</td>
+              @if (!ocultaMachosEnPostura) {
+                <td>{{ ind.avesMachosFinSemana | number:'1.0-0' }}</td>
+              }
             </tr>
             <!-- Detalle clasificadora (expandible) -->
             @if (isExpanded(ind.semana)) {

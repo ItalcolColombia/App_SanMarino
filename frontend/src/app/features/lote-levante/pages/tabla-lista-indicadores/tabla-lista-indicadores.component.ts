@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChange
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { exportarObjetosMultiHojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, IndicadorSemanalLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -118,8 +119,36 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   cargandoIndicadores = false;
   errorIndicadores: string | null = null;
 
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Claves de machos (y de error de sexaje, que desaparece como concepto) de las 2 hojas del
+   * Excel. **Explícitas y no por patrón**: una regex sobre la "M" se lleva por delante claves de
+   * hembras como `PorcMortSemH` o `PorcMortSemLote`, y el error solo se ve abriendo el archivo.
+   */
+  private static readonly CLAVES_MACHOS: readonly string[] = [
+    // Hoja "Seguimiento"
+    'MortalidadM', 'SeleccionM', 'ErrorSexajeH', 'ErrorSexajeM',
+    'ConsumoKgM', 'PesoPromM', 'UniformidadM', 'CvM',
+    // Hoja "Indicadores"
+    'AvesInicioM', 'AvesFinM', 'ConsumoDiaGrAveM', 'ConsumoGuiaGrAveM', 'ConsumoSemanaGM',
+    'GananciaSemM', 'PesoRealM', 'PesoGuiaM', 'DifPesoPctM', 'UnifRealM',
+    'PorcMortSemM', 'MortGuiaM', 'PorcSelSemM',
+    'PorcErrSexajeSemH', 'PorcErrSexajeSemM', 'PorcRetiroSemM'
+  ];
+
+  /** Quita las columnas de machos de las filas del Excel (objetos: borrar la clave no desalinea). */
+  private sinColumnasDeMachos(filas: any[]): any[] {
+    if (!this.ocultaMachosEnPostura) return filas;
+    const excluir = new Set(TablaListaIndicadoresComponent.CLAVES_MACHOS);
+    return filas.map(fila =>
+      Object.fromEntries(Object.entries(fila).filter(([clave]) => !excluir.has(clave))));
+  }
+
   constructor(
-    private seguimientoSvc: SeguimientoLoteLevanteService
+    private seguimientoSvc: SeguimientoLoteLevanteService,
+    private companyConfig: ActiveCompanyConfigService
   ) { }
 
   /** Descarga UN libro Excel con HOJAS SEPARADAS: "Seguimiento" (registros diarios) e "Indicadores". */
@@ -194,13 +223,19 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       PorcSelSemLote: i.seleccionSem,
       PorcRetiroSemLote: i.mortalidadMasSeleccion
     }));
+    const segFinal = this.sinColumnasDeMachos(seg);
+    const indFinal = this.sinColumnasDeMachos(ind);
     exportarObjetosMultiHojaExcel([
-      ...(seg.length ? [{ sheetName: 'Seguimiento', rows: seg }] : []),
-      ...(ind.length ? [{ sheetName: 'Indicadores', rows: ind }] : []),
+      ...(segFinal.length ? [{ sheetName: 'Seguimiento', rows: segFinal }] : []),
+      ...(indFinal.length ? [{ sheetName: 'Indicadores', rows: indFinal }] : []),
     ], { filenameFull: `levante-lote-${nombre}-seguimiento-indicadores-${stamp}.xlsx` });
   }
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     this.calcularIndicadores().catch(error => {
       console.error('Error calculando indicadores:', error);
     });
