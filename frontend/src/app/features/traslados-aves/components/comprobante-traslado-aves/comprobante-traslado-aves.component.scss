@@ -1,0 +1,115 @@
+// Comprobante de traslado de aves. Paleta corporativa Italfoods; el encabezado usa el rojo de
+// marca SanMarino (identidad del documento), no el naranja de accion — ver CLAUDE.md, regla de marca.
+:host {
+  --ital-orange: #F5821F;
+  --marca: #9e2a2b;
+  --ink: #2a2a2a;
+  --muted: #7a7368;
+  --line: #ece7df;
+  --cream: #faf8f5;
+  display: block;
+}
+
+.cta {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(40, 32, 20, 0.07);
+  color: var(--ink);
+}
+
+/* ── Encabezado ── */
+.cta__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.5rem;
+  background: linear-gradient(100deg, var(--marca), #6f1d1e);
+  color: #fff;
+}
+.cta__brand { display: flex; align-items: center; gap: 0.9rem; }
+.cta__icon { font-size: 2rem; line-height: 1; }
+.cta__title { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: 0.2px; }
+.cta__subtitle { margin: 0.15rem 0 0; font-size: 0.82rem; opacity: 0.92; }
+.cta__numero {
+  margin-left: 0.5rem; padding: 0.1rem 0.45rem;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.18);
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+.cta__actions { display: flex; gap: 0.5rem; }
+.cta__btn {
+  border: 0; border-radius: 9px; padding: 0.5rem 0.9rem;
+  font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  transition: transform 0.06s ease, filter 0.15s ease;
+  &:active { transform: translateY(1px); }
+  &:hover { filter: brightness(1.05); }
+}
+.cta__btn--print { background: var(--ital-orange); color: #fff; }
+.cta__btn--ghost { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+/* ── Cuerpo ── */
+.cta__body { padding: 1.25rem 1.5rem 1.5rem; display: grid; gap: 1.1rem; }
+
+.cta__block { border: 1px solid var(--line); border-radius: 12px; padding: 0.9rem 1rem; background: var(--cream); }
+.cta__block-title {
+  margin: 0 0 0.6rem; font-size: 0.72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+}
+
+.cta__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+.cta__block--col { margin: 0; }
+
+.cta__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem 1rem; margin: 0; }
+.cta__lista { display: grid; gap: 0.45rem; margin: 0; }
+
+.cta__item { display: grid; gap: 0.1rem; min-width: 0; }
+.cta__item dt { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.cta__item dd { margin: 0; font-size: 0.9rem; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── Cantidades ── */
+.cta__cantidades { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.cta__cantidad {
+  flex: 1 1 8rem; display: grid; gap: 0.15rem;
+  padding: 0.6rem 0.75rem; border-radius: 10px;
+  background: #fff; border: 1px solid var(--line);
+}
+.cta__cantidad-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.cta__cantidad-valor { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cta__cantidad--total { border-color: var(--marca); background: #fff6f5; }
+.cta__cantidad--total .cta__cantidad-valor { color: var(--marca); }
+
+.cta__obs { margin: 0; font-size: 0.88rem; line-height: 1.45; overflow-wrap: anywhere; }
+
+/* ── Firmas ── */
+.cta__firmas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 1.75rem; }
+.cta__firma { display: grid; gap: 0.35rem; justify-items: center; text-align: center; }
+.cta__firma-linea { width: 100%; border-top: 1px solid var(--ink); }
+.cta__firma span { font-size: 0.72rem; color: var(--muted); }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .cta__cols { grid-template-columns: 1fr; }
+  .cta__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cta__firmas { grid-template-columns: 1fr; gap: 2rem; }
+}
+
+/* ── Impresión ── */
+@media print {
+  @page { size: A4 portrait; margin: 1.2cm; }
+
+  .cta__actions { display: none !important; }
+  .cta {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    font-size: 11px;
+  }
+  // El encabezado va a color: sin esto el navegador lo imprime en blanco y el documento pierde
+  // la identidad de marca que lo hace reconocible como comprobante.
+  .cta__head { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cta__block { break-inside: avoid; background: #fff; }
+  .cta__firmas { break-inside: avoid; margin-top: 2.5rem; }
+}

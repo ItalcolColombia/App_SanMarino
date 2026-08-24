@@ -299,6 +299,10 @@
                                 class="act-btn act-btn--view" title="Ver detalle">
                                 Ver
                               </button>
+                              <button type="button" (click)="abrirComprobante(m)"
+                                class="act-btn act-btn--print" title="Comprobante imprimible del traslado">
+                                Comprobante
+                              </button>
                               <button type="button" (click)="editMovimiento(m)"
                                 class="act-btn act-btn--edit" title="Editar"
                                 [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
@@ -376,6 +380,7 @@
                       </div>
                       <div class="mov-card__actions">
                         <button type="button" (click)="viewDetail(m)" class="act-btn act-btn--view">Ver</button>
+                        <button type="button" (click)="abrirComprobante(m)" class="act-btn act-btn--print">Comprobante</button>
                         <button type="button" (click)="editMovimiento(m)" class="act-btn act-btn--edit"
                         [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">Editar</button>
                         <button type="button" (click)="deleteMovimiento(m)" class="act-btn act-btn--delete"
@@ -421,3 +426,25 @@
     (cancelled)="onCancelDelete()"
     (closed)="onConfirmationModalClose()">
   </app-confirmation-modal>
+
+  <!-- Comprobante imprimible del traslado (SR-DEF-5 / F9.2c) -->
+  @if (comprobanteOpen) {
+    <div class="comprobante-overlay" (click)="cerrarComprobante()">
+      <div class="comprobante-panel" (click)="$event.stopPropagation()">
+        @if (comprobanteLoading) {
+          <div class="comprobante-estado">Cargando comprobante…</div>
+        } @else if (comprobanteError) {
+          <div class="comprobante-estado comprobante-estado--error">
+            {{ comprobanteError }}
+            <button type="button" class="act-btn act-btn--view" (click)="cerrarComprobante()">Cerrar</button>
+          </div>
+        } @else if (comprobante) {
+          <app-comprobante-traslado-aves
+            [data]="comprobante"
+            [ocultaMachos]="ocultaMachosEnPostura"
+            (cerrar)="cerrarComprobante()">
+          </app-comprobante-traslado-aves>
+        }
+      </div>
+    </div>
+  }

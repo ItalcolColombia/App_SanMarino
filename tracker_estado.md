@@ -2415,12 +2415,29 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
       **huerfano** (ruta `/traslados-huevos/nuevo` sin un solo `routerLink` que la alcance). El vivo
       es `modal-traslado-huevos`, que es el que se toco
 
-## X18.3 · W3 — Comprobante de traslado de aves (`SR-DEF-5` / F9.2c)
-- [ ] Componente standalone nuevo — **es el primer comprobante del repo**. Patron copiado de
-      `liquidacion-reporte-panama` (`@Input()` + `print()` + `@media print`). **Sin libreria de PDF**
-- [ ] Fuente: `GET api/TrasladoNavigation/{id}`. Cerrar el gap de la interfaz TS
-      `MovimientoAvesCompleto`, que no declara `placa`/`conductor`/`sellos` aunque el back los envia
-- [ ] Boton de acceso por fila en el listado de movimientos de aves; respeta `ocultaMachosEnPostura`
+## X18.3 · W3 — Comprobante de traslado de aves (`SR-DEF-5` / F9.2c) — CERRADO
+- [x] `ComprobanteTrasladoAvesComponent` (standalone) — **es el primer comprobante del repo**. Patron
+      de `liquidacion-reporte-panama`: `@Input()` + `print()` + `@media print`. **Sin libreria de
+      PDF** — no hay ninguna en el repo (solo `xlsx` y ClosedXML/EPPlus, que son Excel) y el
+      navegador ya imprime a PDF
+- [x] Secciones: datos del movimiento, origen y destino, aves trasladadas, transporte
+      (placa/conductor/precinto, oculta si los 3 vienen vacios), observaciones y 3 firmas
+      (entrega / transporta / recibe)
+- [x] Gap del contrato cerrado: la interfaz TS `MovimientoAvesCompleto` **no declaraba**
+      `placa`/`conductor`/`sellos` aunque el backend los enviaba desde siempre ⇒ ninguna pantalla
+      podia leerlos
+- [x] Boton «Comprobante» por fila en `/movimientos-aves/lista` (tabla y cards mobile) — es el
+      listado que Santa Reyes SI tiene en `company_menus`. Trae el detalle con
+      `GET api/TrasladoNavigation/{id}`, el unico endpoint que resuelve origen y destino con nombres
+      mas transporte en una sola llamada
+- [x] Respeta `ocultaMachosEnPostura`: con el flag ON no imprime ni Machos ni Mixtas
+- [x] 🔴 **Regla de impresion de la pagina, no solo del comprobante**: sin ocultar `.ux-page` se
+      imprimia toda la pantalla de atras (sidebar, filtros y la tabla entera). El overlay se despega
+      a flujo normal al imprimir para que el comprobante ocupe la hoja solo
+- [x] Filas precalculadas en `ngOnChanges`, **no en getters**: un getter que arma arrays nuevos por
+      ciclo rompe la estabilidad de referencias que pide CLAUDE.md. `yarn build` 0 errores
+- [~] **Falta el smoke visual en navegador** (la impresion real y el salto de pagina): necesita
+      sesion autenticada
 
 ## X18.4 · W1 — Machos fuera de postura (`SR-DEF-1` / F5.3)
 - [ ] **W1.a captura** (donde puede contar doble): `modal-movimiento-aves` (incluye **Venta**),

@@ -55,6 +55,14 @@ export interface MovimientoAvesCompleto {
   esMovimientoInterno: boolean;
   esMovimientoEntreGranjas: boolean;
   tipoMovimientoDescripcion: string;
+  /**
+   * Datos de transporte. El backend los envía desde siempre en `MovimientoAvesCompletoDto`
+   * (`Placa`, `Conductor`, `Sellos`), pero esta interfaz no los declaraba, así que ninguna pantalla
+   * podía leerlos aunque viajaran en el JSON. Se agregan para el comprobante de traslado.
+   */
+  placa?: string;
+  conductor?: string;
+  sellos?: string;
 }
 
 export interface MovimientoAvesCompletoSearchRequest {

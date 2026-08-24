@@ -14,11 +14,14 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { ProduccionService } from '../../../lote-produccion/services/produccion.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { ComprobanteTrasladoAvesComponent } from '../../../traslados-aves/components/comprobante-traslado-aves/comprobante-traslado-aves.component';
+import { TrasladoNavigationService, MovimientoAvesCompleto } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-movimientos-aves-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent, ComprobanteTrasladoAvesComponent],
   templateUrl: './movimientos-aves-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimientos-aves-list.component.scss']
@@ -92,13 +95,23 @@ export class MovimientosAvesListComponent implements OnInit {
     return l?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
   }
 
+  // ================== Comprobante de traslado (SR-DEF-5 / F9.2c) ==================
+  comprobanteOpen = false;
+  comprobanteLoading = false;
+  comprobanteError: string | null = null;
+  comprobante: MovimientoAvesCompleto | null = null;
+  /** Empresas con el flag no manejan machos: el comprobante tampoco los imprime. */
+  ocultaMachosEnPostura = false;
+
   constructor(
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
     private galponSvc: GalponService,
     private produccionSvc: ProduccionService,
-    private movimientosService: MovimientosAvesService
+    private movimientosService: MovimientosAvesService,
+    private trasladoNavSvc: TrasladoNavigationService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   // ================== INIT ==================
@@ -110,6 +123,35 @@ export class MovimientosAvesListComponent implements OnInit {
       next: fs => (this.granjas = fs || []),
       error: () => (this.granjas = [])
     });
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+  }
+
+  /**
+   * Abre el comprobante imprimible del movimiento. Trae el detalle completo por
+   * `GET api/TrasladoNavigation/{id}`, que es el único endpoint que devuelve origen y destino
+   * resueltos (nombres de granja/lote) más placa/conductor/sellos en una sola llamada.
+   */
+  abrirComprobante(movimiento: MovimientoAvesDto): void {
+    this.comprobanteOpen = true;
+    this.comprobanteLoading = true;
+    this.comprobanteError = null;
+    this.comprobante = null;
+
+    this.trasladoNavSvc.getCompletoById(movimiento.id)
+      .pipe(finalize(() => (this.comprobanteLoading = false)))
+      .subscribe({
+        next: c => (this.comprobante = c),
+        error: () => (this.comprobanteError = 'No se pudo cargar el comprobante de este movimiento.')
+      });
+  }
+
+  cerrarComprobante(): void {
+    this.comprobanteOpen = false;
+    this.comprobante = null;
+    this.comprobanteError = null;
   }
 
   // ================== CARGA GALPONES ==================
