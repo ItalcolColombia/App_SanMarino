@@ -248,11 +248,13 @@
                 </div>
               }
             </div>
-            <p class="text-xs text-gray-500">
-              La fase de cada semana la fija la guía genética. En <strong>machos</strong> el alimento real no se
-              captura en el seguimiento diario: se usa la energía/proteína nominal de la fase, así que su desviación
-              refleja <strong>consumo</strong>, no formulación.
-            </p>
+            @if (!ocultaMachosEnPostura) {
+              <p class="text-xs text-gray-500">
+                La fase de cada semana la fija la guía genética. En <strong>machos</strong> el alimento real no se
+                captura en el seguimiento diario: se usa la energía/proteína nominal de la fase, así que su desviación
+                refleja <strong>consumo</strong>, no formulación.
+              </p>
+            }
           }
         } @else if (vista === 'clasificacion') {
           <!-- Hoja «CLAS Huevo»: % de clasificación por semana -->

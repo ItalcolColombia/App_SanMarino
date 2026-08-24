@@ -18,6 +18,7 @@ import { FarmService, Farm } from '../../core/services/farm/farm.service';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { interval, Subscription, forkJoin, of, BehaviorSubject, debounceTime, distinctUntilChanged, fromEvent } from 'rxjs';
 import { catchError, finalize, switchMap, takeUntil, throttleTime } from 'rxjs/operators';
+import { ActiveCompanyConfigService } from '../../core/services/company-config/active-company-config.service';
 
 export interface CompanyOption {
   id: number;
@@ -37,6 +38,10 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   private companyService = inject(CompanyService);
   private farmService = inject(FarmService);
   private tokenStorage = inject(TokenStorageService);
+  private companyConfig = inject(ActiveCompanyConfigService);
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
   private elementRef = inject(ElementRef);
 
   // ====== FILTROS (Empresa, Granja — usuario según sesión) ======
@@ -322,6 +327,10 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly REFRESH_INTERVAL = 30000; // 30 segundos
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     this.setupLazyLoading();
     this.loadFilterOptions();
     this.loadInitialData();

@@ -39,6 +39,8 @@ import {
   ReporteTecnicoSemanalLevanteResponse,
   ReporteTecnicoSemanalProduccionResponse
 } from '../../models/reporte-tecnico-semanal.model';
+import { filtrarColumnasMachos } from '../../funciones/filtrar-columnas-machos.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 type TipoReporte = 'LEVANTE' | 'PRODUCCION';
 /**
@@ -80,9 +82,22 @@ interface TabView {
   providers: [ReporteTecnicoLevanteFilterService]
 })
 export class ReporteTecnicoSemanalMainComponent implements OnInit {
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Columnas que la empresa realmente ve. Se filtra sobre el array de definiciones, que es la
+   * MISMA fuente de la cabecera, las celdas y el Excel: filtrando aca los tres quedan consistentes
+   * por construccion. Con el flag apagado devuelve la misma referencia.
+   */
+  private columnasVisibles<T extends { grupo: string; titulo: string }>(columnas: readonly T[]): T[] {
+    return filtrarColumnasMachos(columnas, this.ocultaMachosEnPostura) as T[];
+  }
+
   readonly filtros = inject(ReporteTecnicoLevanteFilterService);
   private readonly service = inject(ReporteTecnicoSemanalService);
   private readonly toast = inject(ToastService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
 
   tipoReporte: TipoReporte = 'LEVANTE';
   vista: VistaTab = 'tabla';
@@ -106,6 +121,10 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   tabActiva = 0;
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     this.filtros.loadFilterData();
   }
 
@@ -145,12 +164,12 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
         const resp = await firstValueFrom(this.service.generarLevante({ lotePosturaBaseId: loteBaseId }));
         this.respuestaLevante = resp;
         this.aplicarResultado(resp.loteBaseNombre, resp.tieneGuia, resp.consolidado, resp.tabs,
-          COLUMNAS_LEVANTE, construirGraficasLevante);
+          this.columnasVisibles(COLUMNAS_LEVANTE), construirGraficasLevante);
       } else {
         const resp = await firstValueFrom(this.service.generarProduccion({ lotePosturaBaseId: loteBaseId }));
         this.respuestaProduccion = resp;
         this.aplicarResultado(resp.loteBaseNombre, resp.tieneGuia, resp.consolidado, resp.tabs,
-          COLUMNAS_PRODUCCION, construirGraficasProduccion);
+          this.columnasVisibles(COLUMNAS_PRODUCCION), construirGraficasProduccion);
       }
       this.generado = true;
       if (this.tabs.every(t => t.filas.length === 0)) {

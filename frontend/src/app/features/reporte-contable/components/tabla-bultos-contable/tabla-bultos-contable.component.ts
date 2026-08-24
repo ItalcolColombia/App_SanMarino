@@ -1,7 +1,8 @@
 // src/app/features/reporte-contable/components/tabla-bultos-contable/tabla-bultos-contable.component.ts
-import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReporteContableSemanalDto, DatoDiarioContableDto } from '../../services/reporte-contable.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-tabla-bultos-contable',
@@ -12,6 +13,18 @@ import { ReporteContableSemanalDto, DatoDiarioContableDto } from '../../services
   styleUrls: ['./tabla-bultos-contable.component.scss']
 })
 export class TablaBultosContableComponent {
+  /** Empresas sin machos en postura: sus columnas no se pintan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  private readonly companyConfigMachos = inject(ActiveCompanyConfigService);
+
+  constructor() {
+    this.companyConfigMachos.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+  }
+
   @Input() reporteSemanal: ReporteContableSemanalDto | null = null;
 
   /**

@@ -271,8 +271,8 @@
                 <li>
                   Aves actuales:
                   <strong>{{ (resumenCierreLote.avesHembrasActuales + resumenCierreLote.avesMachosActuales) | number:'1.0-0' }}</strong>
-                  (H: {{ resumenCierreLote.avesHembrasActuales | number:'1.0-0' }} |
-                  M: {{ resumenCierreLote.avesMachosActuales | number:'1.0-0' }})
+                  (H: {{ resumenCierreLote.avesHembrasActuales | number:'1.0-0' }}@if (!ocultaMachosEnPostura) { |
+                  M: {{ resumenCierreLote.avesMachosActuales | number:'1.0-0' }}})
                 </li>
                 @if (resumenCierreLote.ultimoMotivo) {
                   <li>

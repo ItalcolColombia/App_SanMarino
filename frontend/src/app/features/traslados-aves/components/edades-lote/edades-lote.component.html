@@ -24,7 +24,9 @@
               <th scope="col">Ingreso al lote</th>
               <th scope="col">Encasetamiento</th>
               <th scope="col" class="is-num">🐔 Hembras</th>
-              <th scope="col" class="is-num">🐓 Machos</th>
+              @if (!ocultaMachosEnPostura) {
+                <th scope="col" class="is-num">🐓 Machos</th>
+              }
               <th scope="col" class="is-num">Edad (sem)</th>
               <th scope="col" class="is-num">Edad (días)</th>
             </tr>
@@ -45,7 +47,9 @@
                 <td>{{ f.fechaIngreso }}</td>
                 <td>{{ f.fechaEncaset }}</td>
                 <td class="is-num">{{ f.hembras != null ? (f.hembras | number:'1.0-0') : '—' }}</td>
-                <td class="is-num">{{ f.machos != null ? (f.machos | number:'1.0-0') : '—' }}</td>
+                @if (!ocultaMachosEnPostura) {
+                  <td class="is-num">{{ f.machos != null ? (f.machos | number:'1.0-0') : '—' }}</td>
+                }
                 <td class="is-num is-strong">{{ f.edadSemanas != null ? (f.edadSemanas | number:'1.0-0') : '—' }}</td>
                 <td class="is-num">{{ f.edadDias != null ? (f.edadDias | number:'1.0-0') : '—' }}</td>
               </tr>

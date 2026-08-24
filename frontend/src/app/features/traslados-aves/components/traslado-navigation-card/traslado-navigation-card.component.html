@@ -187,6 +187,7 @@
         </div>
       </div>
 
+      @if (!ocultaMachosEnPostura) {
       <div class="cantidad-item machos">
         <div class="cantidad-header">
           <span class="label">Machos</span>
@@ -197,6 +198,7 @@
           <div class="bar-fill" [style.width.%]="getPorcentajeMachos()"></div>
         </div>
       </div>
+      }
 
       <div class="cantidad-item mixtas">
         <div class="cantidad-header">

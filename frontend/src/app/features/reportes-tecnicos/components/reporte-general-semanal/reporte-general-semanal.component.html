@@ -8,23 +8,23 @@
           <th rowspan="2">Sem.</th>
           <th rowspan="2">Período</th>
           <th rowspan="2">Edad</th>
-          <th colspan="4">Saldo</th>
-          <th colspan="3">Mortalidad</th>
-          <th colspan="2">Consumo kg</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 2 : 4">Saldo</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 2 : 3">Mortalidad</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Consumo kg</th>
           <th colspan="2">Huevos</th>
           <th colspan="3">%Postura</th>
           <th colspan="3">Peso Huevo (g)</th>
-          <th colspan="2">Peso Ave (g)</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Peso Ave (g)</th>
           <th colspan="4">Calidad</th>
         </tr>
         <tr class="thead-sub">
-          <th>IniH</th><th>IniM</th><th>FinH</th><th>FinM</th>
-          <th>H</th><th>M</th><th>%</th>
-          <th>H</th><th>M</th>
+          <th>IniH</th>@if (!ocultaMachosEnPostura) {<th>IniM</th>}<th>FinH</th>@if (!ocultaMachosEnPostura) {<th>FinM</th>}
+          <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}<th>%</th>
+          <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}
           <th>Tot</th><th>Inc</th>
           <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
           <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
-          <th>H</th><th>M</th>
+          <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}
           <th>Unif</th><th class="col-guia">G</th><th>HTAA</th><th class="col-guia">G</th>
         </tr>
       </thead>
@@ -37,14 +37,14 @@
             </td>
             <td class="text-center">{{ row.edadSemanas }}</td>
             <td>{{ row.saldoInicioHembras | number }}</td>
-            <td>{{ row.saldoInicioMachos | number }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ row.saldoInicioMachos | number }}</td> }
             <td>{{ row.saldoFinHembras | number }}</td>
-            <td>{{ row.saldoFinMachos | number }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ row.saldoFinMachos | number }}</td> }
             <td>{{ row.mortalidadTotalHembras }}</td>
-            <td>{{ row.mortalidadTotalMachos }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ row.mortalidadTotalMachos }}</td> }
             <td>{{ fmt(row.porcMortalidadSemanal, 2) }}%</td>
             <td>{{ fmt(row.consKgHTotal) }}</td>
-            <td>{{ fmt(row.consKgMTotal) }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ fmt(row.consKgMTotal) }}</td> }
             <td>{{ row.huevosTotTotal | number }}</td>
             <td>{{ row.huevosIncTotal | number }}</td>
             <td [class]="semaforo(row.porcentajePosturaPromedio, row.porcentajePosturaGuia)">
@@ -58,7 +58,7 @@
             <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td>
             <td [class]="classDif(row.difPesoHuevo)">{{ fmt(row.difPesoHuevo) }}</td>
             <td>{{ fmt(row.pesoHPromedio) }}</td>
-            <td>{{ fmt(row.pesoMPromedio) }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ fmt(row.pesoMPromedio) }}</td> }
             <td [class]="semaforo(row.uniformidadPromedio, row.uniformidadGuia, 5)">
               {{ fmt(row.uniformidadPromedio) }}
             </td>

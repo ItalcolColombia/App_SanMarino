@@ -10,8 +10,8 @@
           <th rowspan="2">Edad</th>
           <th rowspan="2">SaldoH</th>
           <th rowspan="2">SaldoM</th>
-          <th colspan="3">Mortalidad</th>
-          <th colspan="2">Consumo kg</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 2 : 3">Mortalidad</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Consumo kg</th>
           <th colspan="2">Huevos</th>
           <th colspan="3">%Postura</th>
           <th colspan="2">Peso Huevo (g)</th>
@@ -19,8 +19,8 @@
           <th rowspan="2" class="col-guia">HTAA G</th>
         </tr>
         <tr class="thead-sub">
-          <th>H</th><th>M</th><th>%</th>
-          <th>H</th><th>M</th>
+          <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}<th>%</th>
+          <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}
           <th>Tot</th><th>Inc</th>
           <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
           <th class="col-real">Real</th><th class="col-guia">Guía</th>
@@ -33,9 +33,9 @@
             <td class="text-center">{{ row.semanaRelativa }}</td>
             <td class="text-center">{{ row.edadDias }}</td>
             <td>{{ row.saldoTotalHembras | number }}</td>
-            <td>{{ row.saldoTotalMachos | number }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ row.saldoTotalMachos | number }}</td> }
             <td>{{ row.mortalidadTotalHembras }}</td>
-            <td>{{ row.mortalidadTotalMachos }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ row.mortalidadTotalMachos }}</td> }
             <td>{{ fmt(row.porcMortalidadPromedio, 2) }}%</td>
             <td>{{ fmt(row.consKgHTotalKg) }}</td>
             <td>{{ fmt(row.consKgMTotalKg) }}</td>

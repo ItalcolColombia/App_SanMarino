@@ -160,7 +160,9 @@
                               </button>
                             </th>
                             <th>Hembras</th>
-                            <th>Machos</th>
+                            @if (!ocultaMachosEnPostura) {
+                              <th>Machos</th>
+                            }
                             <th>Cambio Total</th>
                             <th>Referencia</th>
                           </tr>
@@ -192,6 +194,7 @@
                                   </span>
                                 </div>
                               </td>
+                              @if (!ocultaMachosEnPostura) {
                               <td>
                                 <div class="cambio-cell">
                                   <span class="antes">{{ formatearNumero(registro.cantidadMachosAntes) }}</span>
@@ -204,6 +207,7 @@
                                   </span>
                                 </div>
                               </td>
+                              }
                               <td class="number-cell">
                                 <span class="total-cambio"
                           [class]="getDiferenciaClass(calcularDiferencia(

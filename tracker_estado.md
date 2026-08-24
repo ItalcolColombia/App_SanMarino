@@ -2467,13 +2467,32 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
 - [x] **W1.a — `inventario-dashboard` (el 4º formulario de traslado)**: los 2 inputs
       `cantidadMachos` (traslado entre lotes y retiro) y el `window.prompt` del ajuste manual, que
       con el flag ON ya no pregunta por machos y ajusta con 0
-- [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas de machos entre
-      `reportes-tecnicos`, `reporte-tecnico-produccion`, `reporte-contable`,
-      `reporte-diario-costos-postura`, `reporte-tecnico-semanal` y los 3 export a xlsx de
-      `tabs-principal`/`tabla-lista-indicadores`): **inventariado, no ejecutado**. Es volumen, no
-      dificultad; son columnas de LECTURA, no de captura, asi que no pueden «contar doble»
-- [~] **`tabs-principal` de levante y produccion**: mismas condiciones que W1.d — son tablas de
-      lectura. Quedan para la siguiente pasada
+- [x] **W1.c tablas y tabs — CERRADO**: `tabs-principal` de levante y produccion (KPIs, tarjetas de
+      resumen, tabla de descuentos y las grillas diarias), `tabla-lista-registro`, los 2
+      `modal-detalle-seguimiento` (en produccion se retira la **pestaña Machos entera**),
+      `modal-calculos`, las 2 liquidaciones, las 2 `graficas-principal`, `lote-produccion-list`, y
+      los listados de `traslados-aves` (`movimientos-list`, `registros-traslados`,
+      `historial-trazabilidad`, `edades-lote`, `traslado-navigation-card`) + `dashboard`
+- [x] **W1.d reportes y exportaciones — CERRADO**: `reportes-tecnicos` (pestaña «Semana Machos»
+      entera + 24 columnas + los 4 reportes compactos por galpon/general + `tabla-levante-completa`),
+      `reporte-tecnico-produccion` (cuadro y diaria), `reporte-contable` (aves y bultos),
+      `reporte-diario-costos-postura`, `reporte-tecnico-semanal` y
+      `reporte-tecnico-administrativo`. Los **3 export a xlsx** filtrados
+- [x] 🔴 **Lo delicado no eran las columnas, eran los COLSPAN.** Toda tabla con cabecera de 2 pisos
+      necesita achicar el grupo: si no, abarca mas columnas de las que existen y la cabecera queda
+      corrida sobre el grupo vecino. Ajustados en indicadores (produccion y levante), contable,
+      costos-postura, cuadro y diaria de produccion, y los 4 compactos. Y el `colspan` de la fila
+      «sin registros» es un **numero fijo**: hay que restarle las columnas ocultas a mano
+- [x] 🔴 **Los 3 export a Excel se filtran de forma que no se puedan desalinear**: por lista
+      EXPLICITA de claves donde las filas son objetos (indicadores), y con la MISMA condicion
+      aplicada en la misma posicion a cabecera y dato donde son arrays paralelos (`soloConMachos`,
+      y el parametro de `construirHojasCostosPostura`). Una regex sobre la «M» se lleva por delante
+      claves de hembras (`PorcMortSemH`, `PorcMortSemLote`) y el error solo se ve abriendo el archivo
+- [i] **Los TOTALES se conservan en todos lados** (total de aves, total general, cambio total): son
+      el total del lote, no un dato de machos
+- [i] **Hallazgo preexistente NO tocado**: los `colspan` de `tabla-levante-completa` ya estaban mal
+      antes de esto (dicen 15/15/8/8 y tienen 34/33/9/9 hojas). Corregirlo seria un cambio de
+      comportamiento para todas las empresas ⇒ fuera de alcance, queda anotado
 - [x] Validacion: `yarn build` 0 errores · `yarn test` **637/637** (base 633, +4 nuevos)
 - [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
       del alcance de esta sesion salvo que sobre tiempo

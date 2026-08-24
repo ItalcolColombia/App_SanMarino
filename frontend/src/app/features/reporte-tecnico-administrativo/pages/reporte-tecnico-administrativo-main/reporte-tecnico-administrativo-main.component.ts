@@ -21,6 +21,7 @@ import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-reporte-tecnico-administrativo-main',
@@ -73,10 +74,20 @@ export class ReporteTecnicoAdministrativoMainComponent implements OnInit, OnDest
     private loteService: LoteService,
     private farmService: FarmService,
     private nucleoService: NucleoService,
-    private galponService: GalponService
+    private galponService: GalponService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     this.cargarGranjas();
   }
 

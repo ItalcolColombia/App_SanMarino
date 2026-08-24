@@ -13,20 +13,26 @@
           <th colspan="15">HEMBRAS</th>
 
           <!-- MACHOS -->
+          @if (!ocultaMachosEnPostura) {
           <th colspan="15">MACHOS</th>
+          }
 
           <!-- NUTRICIONALES HEMBRAS -->
           <th colspan="8">NUTRICIONALES HEMBRAS</th>
 
           <!-- NUTRICIONALES MACHOS -->
+          @if (!ocultaMachosEnPostura) {
           <th colspan="8">NUTRICIONALES MACHOS</th>
+          }
 
           <th rowspan="2">OBS</th>
         </tr>
         <tr>
           <!-- Iniciales -->
           <th>H Ini</th>
+          @if (!ocultaMachosEnPostura) {
           <th>M Ini</th>
+          }
 
           <!-- Hembras -->
           <th>Hembra</th>
@@ -62,9 +68,12 @@
           <th>UnifH GUIA</th>
           <th>Kcal/AveH</th>
           <th>Prot/AveH</th>
+          @if (!ocultaMachosEnPostura) {
           <th>%Rel M/H</th>
+          }
 
           <!-- Machos -->
+          @if (!ocultaMachosEnPostura) {
           <th>SaldoM</th>
           <th>MortM</th>
           <th>SelM</th>
@@ -98,6 +107,7 @@
           <th>UnifM GUIA</th>
           <th>Kcal/AveM</th>
           <th>Prot/AveM</th>
+          }
 
           <!-- Nutricionales Hembras -->
           <th>AlimH GUIA</th>
@@ -111,6 +121,7 @@
           <th>Prot SemAcH GUIA</th>
 
           <!-- Nutricionales Machos -->
+          @if (!ocultaMachosEnPostura) {
           <th>AlimM GUIA</th>
           <th>Kcal SemM</th>
           <th>Kcal SemAcM</th>
@@ -120,6 +131,7 @@
           <th>Prot SemAcM</th>
           <th>Prot SemM GUIA</th>
           <th>Prot SemAcM GUIA</th>
+          }
         </tr>
       </thead>
       <tbody>
@@ -130,7 +142,9 @@
             <td>{{ formatDate(dato.fecha) }}</td>
             <td>{{ dato.edad }}</td>
             <td>{{ dato.hembraIni }}</td>
+            @if (!ocultaMachosEnPostura) {
             <td>{{ dato.machoIni }}</td>
+            }
             <!-- Hembras -->
             <td>{{ dato.hembra }}</td>
             <td>{{ dato.mortH }}</td>
@@ -165,8 +179,11 @@
             <td>{{ formatNumber(dato.unifHGUIA, 1) }}</td>
             <td>{{ formatNumber(dato.kcalAveH, 2) }}</td>
             <td>{{ formatNumber(dato.protAveH, 3) }}</td>
+            @if (!ocultaMachosEnPostura) {
             <td>{{ formatPercentage(dato.relMH) }}</td>
+            }
             <!-- Machos -->
+            @if (!ocultaMachosEnPostura) {
             <td>{{ dato.saldoMacho }}</td>
             <td>{{ dato.mortM }}</td>
             <td>{{ dato.selM }}</td>
@@ -200,6 +217,7 @@
             <td>{{ formatNumber(dato.unifMGUIA, 1) }}</td>
             <td>{{ formatNumber(dato.kcalAveM, 2) }}</td>
             <td>{{ formatNumber(dato.protAveM, 3) }}</td>
+            }
             <!-- Nutricionales Hembras -->
             <td>{{ dato.alimHGUIA ?? '-' }}</td>
             <td>{{ formatNumber(dato.kcalSemH, 2) }}</td>
@@ -211,6 +229,7 @@
             <td>{{ formatNumber(dato.protSemHGUIA, 3) }}</td>
             <td>{{ formatNumber(dato.protSemAcHGUIA, 3) }}</td>
             <!-- Nutricionales Machos -->
+            @if (!ocultaMachosEnPostura) {
             <td>{{ dato.alimMGUIA ?? '-' }}</td>
             <td>{{ formatNumber(dato.kcalSemM, 2) }}</td>
             <td>{{ formatNumber(dato.kcalSemAcM, 2) }}</td>
@@ -220,6 +239,7 @@
             <td>{{ formatNumber(dato.protSemAcM, 3) }}</td>
             <td>{{ formatNumber(dato.protSemMGUIA, 3) }}</td>
             <td>{{ formatNumber(dato.protSemAcMGUIA, 3) }}</td>
+            }
             <!-- Observaciones -->
             <td class="observaciones">{{ dato.observaciones ?? '-' }}</td>
           </tr>

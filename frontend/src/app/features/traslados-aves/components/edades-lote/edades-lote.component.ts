@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges, inject
+  ChangeDetectionStrategy, Component, Input, OnChanges, OnInit, SimpleChanges, inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { catchError, finalize, of } from 'rxjs';
@@ -7,6 +7,7 @@ import { catchError, finalize, of } from 'rxjs';
 import { TrasladosAvesService } from '../../services/traslados-aves.service';
 import { CohortesLoteDto, FilaEdadLote } from '../../models/cohorte-lote.model';
 import { construirFilasEdadesLote } from '../../funciones/construir-filas-edades-lote.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 /**
  * Bloque "Edades en el lote" (Fase 3 — cohortes).
@@ -32,7 +33,7 @@ import { construirFilasEdadesLote } from '../../funciones/construir-filas-edades
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./edades-lote.component.scss']
 })
-export class EdadesLoteComponent implements OnChanges {
+export class EdadesLoteComponent implements OnInit, OnChanges {
 
   /**
    * ID del lote receptor. En `postura` es el lote BASE (tabla `lotes`); en `engorde` es el
@@ -50,6 +51,10 @@ export class EdadesLoteComponent implements OnChanges {
   @Input() refreshTrigger = 0;
 
   private readonly trasladoSvc = inject(TrasladosAvesService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   /** Filas memoizadas (aves propias + cohortes). Referencia estable entre ciclos de CD. */
   filas: FilaEdadLote[] = [];
@@ -61,6 +66,13 @@ export class EdadesLoteComponent implements OnChanges {
 
   /** Evita que una respuesta vieja pise a una nueva (cambio rápido de lote). */
   private peticionSeq = 0;
+
+  ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['loteId'] && !changes['refreshTrigger'] && !changes['linea']) return;

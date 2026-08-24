@@ -12,6 +12,7 @@ import {
 } from '../../services/traslados-aves.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-movimientos-list',
@@ -42,10 +43,20 @@ export class MovimientosListComponent implements OnInit {
     private loteService: LoteService,
     private trasladoNavigationService: TrasladoNavigationService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     // No cargar nada al inicio, esperar selección de lote
   }
 
