@@ -3,8 +3,8 @@ using ZooSanMarino.Application.DTOs;
 namespace ZooSanMarino.Application.Interfaces;
 
 /// <summary>
-/// Reglas de autorización de DB Studio. La protección real vive acá (no en las policies de ASP.NET,
-/// que en este proyecto están neutralizadas por el AllowAllPolicyProvider).
+/// Reglas de autorización de DB Studio. La protección real vive acá: las policies de ASP.NET sólo
+/// exigen usuario autenticado (deny-by-default en Program.cs), no distinguen admin de no-admin.
 /// Lanza <see cref="UnauthorizedAccessException"/> cuando no hay permiso (el controller la mapea a 403).
 /// </summary>
 public interface IDbStudioAuthorization

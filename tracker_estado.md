@@ -2284,3 +2284,37 @@ Ninguno es regresión: son huecos que ya existían y quedaron documentados en el
       filas agotadas (I17). Validados **con mutación**: se rompió una regla por vez y las 9 las
       detectó el test que nombra su invariante. Se agregó una costura de tiempos al service
       (`demoraDeteccion`/`demoraExito`, defaults idénticos) para que la suite no espere 3,9 s por caso.
+
+---
+
+# Limpieza de código muerto de la auditoría (23-ago-2026)
+
+Plan: [`fase_de_desarrollo/limpieza_codigo_muerto_auditoria_plan.md`](fase_de_desarrollo/limpieza_codigo_muerto_auditoria_plan.md)
+
+Salió de la auditoría completa back+front. **Nada de esto está en un flujo vivo**: la app tiene que
+comportarse idéntico después, y el conteo de tests es el testigo (back 3.135, front 633).
+
+## Línea base medida ANTES de tocar nada (23ago26)
+- [x] `dotnet build` → 0 errores, 0 warnings
+- [x] `dotnet test` → 3.135 pasan / 0 fallan
+- [x] `yarn build` → 0 errores, 0 warnings (301 s)
+- [x] `yarn test` → 633 pasan
+
+## Caso 1 — formulario huérfano de levante (front)
+- [x] Borrar `features/lote-levante/pages/seguimiento-lote-form/` (`.ts`, `.html`, `.scss`) — 807 líneas
+- [x] `seguimiento-lote-levante-routing.module.ts`: quitar import + rutas `nuevo` y `editar/:id`
+      (+ se removió al pasar el import muerto de `SeguimientoLoteLevanteService`, que no se usaba)
+      (la ruta `''` → list **se conserva**)
+- [x] `seguimiento-lote-levante.module.ts`: quitar import + entrada en `imports`
+
+## Caso 2 — `AllowAllPolicyProvider` (back)
+- [x] `Program.cs`: eliminar la clase y su encabezado (cola del archivo)
+- [x] `IDbStudioAuthorization.cs`: corregir el doc-comment que afirma que las policies de ASP.NET
+      están "neutralizadas" — es falso desde que existe el deny-by-default
+- [x] Los comentarios históricos de `Program.cs` (523/536) se conservan
+
+## Verificación de no-regresión
+- [x] `dotnet build` 0/0 y `dotnet test` = **3.135** (mismo número)
+- [x] `yarn build` 0/0 y `yarn test` = **633** (mismo número)
+- [x] 0 referencias residuales a las dos piezas
+- [x] `FallbackPolicy = RequireAuthenticatedUser` intacto

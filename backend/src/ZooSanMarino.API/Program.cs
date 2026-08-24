@@ -974,27 +974,3 @@ internal static class CorsExtensions
         });
     }
 }
-
-// ─────────────────────────────────────
-// Policy Provider permisivo para DEV
-//    - Hace que cualquier [Authorize(Policy="...")] permita pasar.
-// ─────────────────────────────────────
-internal sealed class AllowAllPolicyProvider : IAuthorizationPolicyProvider
-{
-    private readonly AuthorizationPolicy _allowAll =
-        new AuthorizationPolicyBuilder().RequireAssertion(_ => true).Build();
-
-    private readonly DefaultAuthorizationPolicyProvider _fallback;
-
-    public AllowAllPolicyProvider(IOptions<AuthorizationOptions> options)
-        => _fallback = new DefaultAuthorizationPolicyProvider(options);
-
-    public Task<AuthorizationPolicy> GetDefaultPolicyAsync()
-        => Task.FromResult(_allowAll);
-
-    public Task<AuthorizationPolicy?> GetFallbackPolicyAsync()
-        => Task.FromResult<AuthorizationPolicy?>(_allowAll);
-
-    public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
-        => Task.FromResult<AuthorizationPolicy?>(_allowAll);
-}
