@@ -67,24 +67,48 @@
                       <th>Vivas H</th>
                       <th>Mort H</th>
                       <th>Sel H</th>
-                      <th>Err H</th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Err H</th>
+                      }
                       <th>% Mort H</th>
                       <th>Cons H (kg)</th>
                       <th>Peso H</th>
                       <th>Unif H (%)</th>
-                      <th>Vivas M</th>
-                      <th>Mort M</th>
-                      <th>Sel M</th>
-                      <th>Err M</th>
-                      <th>% Mort M</th>
-                      <th>Cons M (kg)</th>
-                      <th>Peso M</th>
-                      <th>Unif M (%)</th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Vivas M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Mort M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Sel M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Err M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>% Mort M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Cons M (kg)</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Peso M</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Unif M (%)</th>
+                      }
                       <th>Retiro H %</th>
                       <th>Retiro H Ac %</th>
-                      <th>Retiro M %</th>
-                      <th>Retiro M Ac %</th>
-                      <th>Rel M/H %</th>
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Retiro M %</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Retiro M Ac %</th>
+                      }
+                      @if (!ocultaMachosEnPostura) {
+                        <th>Rel M/H %</th>
+                      }
                     </tr>
                   </thead>
                   <tbody>
@@ -103,24 +127,48 @@
                         <td>{{ it.hembraViva ?? 0 | number:'1.0-0' }}</td>
                         <td>{{ it.mortH | number:'1.0-0' }}</td>
                         <td>{{ it.selH  | number:'1.0-0' }}</td>
-                        <td>{{ it.errH  | number:'1.0-0' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ it.errH  | number:'1.0-0' }}</td>
+                        }
                         <td>{{ (it.mortHPct ?? 0) | number:'1.0-2' }}</td>
                         <td>{{ (it.consKgH ?? 0) | number:'1.0-2' }}</td>
                         <td>{{ (it.pesoH ?? 0)   | number:'1.0-2' }}</td>
                         <td>{{ (it.unifH ?? 0)   | number:'1.0-1' }}</td>
-                        <td>{{ it.machoVivo ?? 0 | number:'1.0-0' }}</td>
-                        <td>{{ it.mortM | number:'1.0-0' }}</td>
-                        <td>{{ it.selM  | number:'1.0-0' }}</td>
-                        <td>{{ it.errM  | number:'1.0-0' }}</td>
-                        <td>{{ (it.mortMPct ?? 0) | number:'1.0-2' }}</td>
-                        <td>{{ (it.consKgM ?? 0)  | number:'1.0-2' }}</td>
-                        <td>{{ (it.pesoM ?? 0)    | number:'1.0-2' }}</td>
-                        <td>{{ (it.unifM ?? 0)    | number:'1.0-1' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ it.machoVivo ?? 0 | number:'1.0-0' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ it.mortM | number:'1.0-0' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ it.selM  | number:'1.0-0' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ it.errM  | number:'1.0-0' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.mortMPct ?? 0) | number:'1.0-2' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.consKgM ?? 0)  | number:'1.0-2' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.pesoM ?? 0)    | number:'1.0-2' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.unifM ?? 0)    | number:'1.0-1' }}</td>
+                        }
                         <td>{{ (it.retiroHPct ?? 0)  | number:'1.0-2' }}</td>
                         <td>{{ (it.retiroHAcPct ?? 0)| number:'1.0-2' }}</td>
-                        <td>{{ (it.retiroMPct ?? 0)  | number:'1.0-2' }}</td>
-                        <td>{{ (it.retiroMAcPct ?? 0)| number:'1.0-2' }}</td>
-                        <td>{{ (it.relMHPct ?? 0)    | number:'1.0-2' }}</td>
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.retiroMPct ?? 0)  | number:'1.0-2' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.retiroMAcPct ?? 0)| number:'1.0-2' }}</td>
+                        }
+                        @if (!ocultaMachosEnPostura) {
+                          <td>{{ (it.relMHPct ?? 0)    | number:'1.0-2' }}</td>
+                        }
                       </tr>
                     }
                   </tbody>

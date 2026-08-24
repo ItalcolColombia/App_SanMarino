@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SeguimientoLoteLevanteService } from '../../services/seguimiento-lote-levante.service';
 import { finalize } from 'rxjs/operators';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-modal-calculos',
@@ -48,10 +49,20 @@ export class ModalCalculosComponent implements OnInit {
   } | null = null;
 
   constructor(
-    private segSvc: SeguimientoLoteLevanteService
+    private segSvc: SeguimientoLoteLevanteService,
+    private companyConfig: ActiveCompanyConfigService
   ) { }
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     if (this.isOpen && this.loteId) {
       this.reloadCalculos();
     }

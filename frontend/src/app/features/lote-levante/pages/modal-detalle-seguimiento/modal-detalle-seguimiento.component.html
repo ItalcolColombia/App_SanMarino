@@ -59,10 +59,12 @@
                   <label class="detail-label">Sel H (retiradas)</label>
                   <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
                 </div>
+                @if (!ocultaMachosEnPostura) {
                 <div class="detail-field">
                   <label class="detail-label">Error sexaje hembras</label>
                   <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
                 </div>
+                }
                 <div class="detail-field">
                   <label class="detail-label">Consumo (kg)</label>
                   <input type="text" class="detail-input" [value]="(seguimiento.consumoKgHembras != null ? formatNumber(seguimiento.consumoKgHembras) + ' kg' : '—')" readonly disabled>
@@ -143,6 +145,7 @@
                 </div>
               </section>
             }
+            @if (!ocultaMachosEnPostura) {
             <!-- Machos -->
             <section class="detail-section">
               <h3 class="detail-section__title">Machos</h3>
@@ -210,6 +213,7 @@
                 </div>
               }
             </section>
+            }
             <!-- Agua (Ecuador / Panamá) -->
             <section class="detail-section" *appShowIfEcuadorPanama>
               <h3 class="detail-section__title">Información de agua</h3>

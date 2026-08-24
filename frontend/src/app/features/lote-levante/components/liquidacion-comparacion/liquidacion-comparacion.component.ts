@@ -2,6 +2,7 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LiquidacionComparacionService, LiquidacionTecnicaComparacionDto, LiquidacionTecnicaComparacionCompletaDto } from '../../services/liquidacion-comparacion.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-liquidacion-comparacion',
@@ -22,9 +23,19 @@ export class LiquidacionComparacionComponent implements OnInit, OnChanges {
   loading = false;
   error: string | null = null;
 
-  constructor(private liquidacionComparacionService: LiquidacionComparacionService) {}
+  constructor(private liquidacionComparacionService: LiquidacionComparacionService,
+              private companyConfig: ActiveCompanyConfigService) {}
+
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     if (this.loteId) {
       this.cargarComparacion();
     }

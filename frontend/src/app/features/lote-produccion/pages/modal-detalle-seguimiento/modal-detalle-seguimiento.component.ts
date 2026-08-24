@@ -22,6 +22,8 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
   isEcuadorOrPanama: boolean = false;
   /** Santa Reyes: los huevos se clasifican por ítem del catálogo (Primera/Pnc) en vez de las 11 columnas fijas. */
   clasificacionHuevoPorItems: boolean = false;
+  /** Empresas sin machos en postura: se retira la pestaña Machos entera (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   constructor(
     private produccionService: ProduccionService,
@@ -33,6 +35,7 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
     this.companyConfig.getFlags().subscribe(flags => {
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
     });
   }
 

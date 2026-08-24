@@ -18,7 +18,9 @@
             <!-- Tabs (misma estructura que modal crear) -->
             <input type="radio" name="detTab" id="det-tab-general" checked class="ux-tab-input" />
             <input type="radio" name="detTab" id="det-tab-hembras" class="ux-tab-input" />
+            @if (!ocultaMachosEnPostura) {
             <input type="radio" name="detTab" id="det-tab-machos" class="ux-tab-input" />
+            }
             <input type="radio" name="detTab" id="det-tab-huevos" class="ux-tab-input" />
             <input type="radio" name="detTab" id="det-tab-pesaje" class="ux-tab-input" />
             <input type="radio" name="detTab" id="det-tab-agua" class="ux-tab-input" [hidden]="!isEcuadorOrPanama" />
@@ -26,7 +28,9 @@
               <div class="ux-tabs" role="tablist">
                 <label class="ux-tab" for="det-tab-general" role="tab"><span class="tab-icon">📋</span><span>General</span></label>
                 <label class="ux-tab" for="det-tab-hembras" role="tab"><span class="tab-icon">♀️</span><span>Hembras</span></label>
+                @if (!ocultaMachosEnPostura) {
                 <label class="ux-tab" for="det-tab-machos" role="tab"><span class="tab-icon">♂️</span><span>Machos</span></label>
+                }
                 <label class="ux-tab" for="det-tab-huevos" role="tab"><span class="tab-icon">🥚</span><span>Huevos</span></label>
                 <label class="ux-tab" for="det-tab-pesaje" role="tab"><span class="tab-icon">⚖️</span><span>Pesaje Semanal</span></label>
                 <label class="ux-tab" for="det-tab-agua" role="tab" [hidden]="!isEcuadorOrPanama"><span class="tab-icon">💧</span><span>Agua</span></label>
@@ -88,6 +92,7 @@
                   </div>
                 </div>
               </section>
+              @if (!ocultaMachosEnPostura) {
               <!-- MACHOS -->
               <section id="panel-det-machos" class="ux-tab-panel" role="tabpanel">
                 <div class="tab-panel-header">
@@ -116,6 +121,7 @@
                   </div>
                 </div>
               </section>
+              }
               <!-- HUEVOS -->
               <section id="panel-det-huevos" class="ux-tab-panel" role="tabpanel">
                 <div class="tab-panel-header">
@@ -230,10 +236,12 @@
                     <label>Peso Hembras (kg)</label>
                     <div class="detail-value">{{ (seguimiento.pesoH ?? 0) | number:'1.0-2' }} kg</div>
                   </div>
-                  <div class="detail-field">
-                    <label>Peso Machos (kg)</label>
-                    <div class="detail-value">{{ (seguimiento.pesoM ?? 0) | number:'1.0-2' }} kg</div>
-                  </div>
+                  @if (!ocultaMachosEnPostura) {
+                    <div class="detail-field">
+                      <label>Peso Machos (kg)</label>
+                      <div class="detail-value">{{ (seguimiento.pesoM ?? 0) | number:'1.0-2' }} kg</div>
+                    </div>
+                  }
                   <div class="detail-field">
                     <label>Uniformidad (%)</label>
                     <div class="detail-value">{{ (seguimiento.uniformidad ?? 0) | number:'1.0-2' }}%</div>

@@ -240,9 +240,13 @@
                                 <select id="grupoSexoSelect" class="filter-step__select"
                                   [(ngModel)]="grupoSexoSeleccionado"
                                   (ngModelChange)="onGrupoSexoChange()">
-                                  <option value="ambos">Ambos (H+M)</option>
+                                  @if (!ocultaMachosEnPostura) {
+                                    <option value="ambos">Ambos (H+M)</option>
+                                  }
                                   <option value="hembras">Hembras</option>
-                                  <option value="machos">Machos</option>
+                                  @if (!ocultaMachosEnPostura) {
+                                    <option value="machos">Machos</option>
+                                  }
                                 </select>
                               </div>
                               <!-- Selector comparativo -->

@@ -38,6 +38,7 @@ import {
   construirEvolucionChartData,
   construirConsumoPesoChartData
 } from '../../funciones/liquidacion-tecnica-graficos.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-liquidacion-tecnica',
@@ -173,7 +174,8 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     private liquidacionService: LiquidacionTecnicaService,
     private comparacionService: LiquidacionComparacionService,
     private guiaGeneticaService: GuiaGeneticaService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private companyConfig: ActiveCompanyConfigService
   ) {
     this.form = this.fb.group({
       fechaHasta: [new Date()],
@@ -181,7 +183,16 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     });
   }
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     // NO cargar datos aquí, esperar a ngOnChanges
     // El componente se inicializa sin loteId, y ngOnChanges lo manejará
   }

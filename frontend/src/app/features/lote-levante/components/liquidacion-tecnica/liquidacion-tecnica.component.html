@@ -317,6 +317,7 @@
                 Err: {{ liquidacion()!.porcentajeErrorSexajeHembras | number:'1.0-2' }}%</small>
               </div>
             </div>
+            @if (!ocultaMachosEnPostura) {
             <div class="retiro-card retiro-machos">
               <div class="retiro-header">
                 <span class="retiro-icon">🐓</span>
@@ -329,6 +330,7 @@
                 Err: {{ liquidacion()!.porcentajeErrorSexajeMachos | number:'1.0-2' }}%</small>
               </div>
             </div>
+            }
           </div>
         </div>
       </section>
@@ -433,9 +435,13 @@
                     <th>Semana</th>
                     <th>Fecha</th>
                     <th>Mort H</th>
-                    <th>Mort M</th>
+                    @if (!ocultaMachosEnPostura) {
+                      <th>Mort M</th>
+                    }
                     <th>Sel H</th>
-                    <th>Sel M</th>
+                    @if (!ocultaMachosEnPostura) {
+                      <th>Sel M</th>
+                    }
                     <th>Consumo</th>
                     <th>Peso H</th>
                     <th>Unif H</th>
@@ -447,9 +453,13 @@
                       <td>{{ detalle.semana }}</td>
                       <td>{{ formatDate(detalle.fechaRegistro) }}</td>
                       <td>{{ detalle.mortalidadHembras || 0 }}</td>
-                      <td>{{ detalle.mortalidadMachos || 0 }}</td>
+                      @if (!ocultaMachosEnPostura) {
+                        <td>{{ detalle.mortalidadMachos || 0 }}</td>
+                      }
                       <td>{{ detalle.seleccionHembras || 0 }}</td>
-                      <td>{{ detalle.seleccionMachos || 0 }}</td>
+                      @if (!ocultaMachosEnPostura) {
+                        <td>{{ detalle.seleccionMachos || 0 }}</td>
+                      }
                       <td>{{ (detalle.consumoAlimento || 0) | number:'1.0-2' }}</td>
                       <td>{{ (detalle.pesoPromedioHembras || 0) | number:'1.0-2' }}</td>
                       <td>{{ (detalle.uniformidadHembras || 0) | number:'1.0-1' }}%</td>
@@ -471,7 +481,9 @@
                     <th>Edad</th>
                     <th>Raza</th>
                     <th>Mort H</th>
-                    <th>Mort M</th>
+                    @if (!ocultaMachosEnPostura) {
+                      <th>Mort M</th>
+                    }
                     <th>Cons H</th>
                     <th>Peso H</th>
                     <th>Uniformidad</th>
@@ -483,7 +495,9 @@
                       <td>{{ guia.edad || '—' }}</td>
                       <td>{{ guia.raza || '—' }}</td>
                       <td>{{ guia.mortSemH || '—' }}</td>
-                      <td>{{ guia.mortSemM || '—' }}</td>
+                      @if (!ocultaMachosEnPostura) {
+                        <td>{{ guia.mortSemM || '—' }}</td>
+                      }
                       <td>{{ guia.consAcH || '—' }}</td>
                       <td>{{ guia.pesoH || '—' }}</td>
                       <td>{{ guia.uniformidad || '—' }}</td>

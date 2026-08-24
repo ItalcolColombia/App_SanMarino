@@ -7,6 +7,7 @@ import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, IndicadorSemanalLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 interface PuntoGrafica {
   semana: number;
@@ -258,11 +259,21 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     return (v ?? 0) > 0 ? (v as number) : null;
   }
 
-  constructor(private seguimientoSvc: SeguimientoLoteLevanteService) {
+  constructor(private seguimientoSvc: SeguimientoLoteLevanteService,
+              private companyConfig: ActiveCompanyConfigService) {
     this.initChartOptions();
   }
 
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     void this.prepararDatosGraficas();
   }
 
