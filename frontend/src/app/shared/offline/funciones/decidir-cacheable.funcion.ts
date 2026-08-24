@@ -35,6 +35,10 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
   'galponsilo',
   'lotesilo',
 
+  // Huevo por lote (F7.3, Santa Reyes): el seguimiento diario de producción pinta sus filas FIJAS
+  // a partir de esta lista — mismo rol que `lotesilo`, sin ella el diario no sabe qué tipos ofrecer.
+  'lotehuevoitem',
+
   // Geografía: la usan los formularios de granja y de cliente.
   'countries',
   'cities',
