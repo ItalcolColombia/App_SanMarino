@@ -31,6 +31,7 @@ import { TablaDetalleDiarioContableComponent } from '../../components/tabla-deta
 import { TablaAvesContableComponent } from '../../components/tabla-aves-contable/tabla-aves-contable.component';
 import { TablaBultosContableComponent } from '../../components/tabla-bultos-contable/tabla-bultos-contable.component';
 import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimientos-huevos/tabla-movimientos-huevos.component';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-reporte-contable-main',
@@ -92,9 +93,17 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(private reporteContableService: ReporteContableService) {}
+  /** Empresas sin machos en postura: sus columnas no se pintan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  constructor(private reporteContableService: ReporteContableService,
+              private companyConfig: ActiveCompanyConfigService) {}
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     this.cargarFiltros();
   }
 

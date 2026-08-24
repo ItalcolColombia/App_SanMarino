@@ -508,7 +508,9 @@
                                       <th>Traslados</th>
                                       <th>Entradas</th>
                                       <th>Producto - Hembra</th>
-                                      <th>Producto - Macho</th>
+                                      @if (!ocultaMachosEnPostura) {
+                                        <th>Producto - Macho</th>
+                                      }
                                       <th>Saldo</th>
                                     </tr>
                                   </thead>
@@ -519,7 +521,9 @@
                                       <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.0-1' }}</td>
                                       <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.0-1' }}</td>
                                       <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.0-1' }}</td>
-                                      <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      @if (!ocultaMachosEnPostura) {
+                                        <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      }
                                       <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.0-1' }}</strong></td>
                                     </tr>
                                   </tbody>
@@ -541,7 +545,9 @@
                                       <th>Traslados</th>
                                       <th>Entradas</th>
                                       <th>Producto - Hembra</th>
-                                      <th>Producto - Macho</th>
+                                      @if (!ocultaMachosEnPostura) {
+                                        <th>Producto - Macho</th>
+                                      }
                                       <th>Saldo</th>
                                     </tr>
                                   </thead>
@@ -552,7 +558,9 @@
                                       <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.0-1' }}</td>
                                       <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.0-1' }}</td>
                                       <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.0-1' }}</td>
-                                      <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      @if (!ocultaMachosEnPostura) {
+                                        <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      }
                                       <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.0-1' }}</strong></td>
                                     </tr>
                                   </tbody>

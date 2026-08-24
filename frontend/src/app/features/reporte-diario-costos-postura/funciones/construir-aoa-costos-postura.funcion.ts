@@ -12,10 +12,14 @@ import { ReporteDiarioCostosPosturaReporte } from '../models/reporte-diario-cost
  *
  * Función PURA: sin `this`, sin DI, sin estado.
  */
-export function construirHojasCostosPostura(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel[] {
+/**
+ * @param ocultaMachos empresas sin machos en postura (SR-DEF-1): las columnas de machos —y las de
+ *   error de sexaje, que desaparece como concepto— no se emiten en el Excel.
+ */
+export function construirHojasCostosPostura(rep: ReporteDiarioCostosPosturaReporte, ocultaMachos = false): HojaAoaExcel[] {
   const hojas: HojaAoaExcel[] = [
-    hojaAves(rep),
-    hojaAlimento(rep)
+    hojaAves(rep, ocultaMachos),
+    hojaAlimento(rep, ocultaMachos)
   ];
 
   const filasProduccion = rep.filas.filter(f => f.fase === 'Produccion');
@@ -69,22 +73,30 @@ function marca(excluida: boolean): string {
   return excluida ? 'NO SUMA (duplicado con producción)' : '';
 }
 
-function hojaAves(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel {
+function hojaAves(rep: ReporteDiarioCostosPosturaReporte, ocultaMachos: boolean): HojaAoaExcel {
   const aoa: ExcelCell[][] = encabezado(rep, 'Reporte Diario Costos Postura — Aves');
 
   // Cabecera de dos pisos, igual que el diseño (grupo arriba, sexo abajo).
+  // `soloH` = la pareja Hembras/Machos se reduce a una sola columna; el grupo "Error de Sexaje"
+  // desaparece entero porque el concepto no existe para estas empresas.
+  const par = (grupo: string) => ocultaMachos ? [grupo] : [grupo, ''];
+  const sexos = () => ocultaMachos ? ['Hembras'] : ['Hembras', 'Machos'];
   aoa.push(['Fecha', 'Granja', 'Lote : Galpón', 'Fase', 'Edad (días)', 'Semana',
-    'Mortalidad', '', 'Selección', '', 'Error de Sexaje', '', 'Ventas', '', 'Observación']);
+    ...par('Mortalidad'), ...par('Selección'),
+    ...(ocultaMachos ? [] : ['Error de Sexaje', '']),
+    ...par('Ventas'), 'Observación']);
   aoa.push(['', '', '', '', '', '',
-    'Hembras', 'Machos', 'Hembras', 'Machos', 'Hembras', 'Machos', 'Hembras', 'Machos', '']);
+    ...sexos(), ...sexos(),
+    ...(ocultaMachos ? [] : ['Hembras', 'Machos']),
+    ...sexos(), '']);
 
   for (const f of rep.filas) {
     aoa.push([
       fechaCortaSinTz(f.fecha), f.granjaNombre, f.loteGalpon, f.fase, f.edadDias, f.semana,
-      f.mortalidadH, f.mortalidadM,
-      f.seleccionH, f.seleccionM,
-      f.errorSexajeH, f.errorSexajeM,
-      f.ventaAvesH, f.ventaAvesM,
+      ...(ocultaMachos ? [f.mortalidadH] : [f.mortalidadH, f.mortalidadM]),
+      ...(ocultaMachos ? [f.seleccionH] : [f.seleccionH, f.seleccionM]),
+      ...(ocultaMachos ? [] : [f.errorSexajeH, f.errorSexajeM]),
+      ...(ocultaMachos ? [f.ventaAvesH] : [f.ventaAvesH, f.ventaAvesM]),
       marca(f.excluidoDelTotal)
     ]);
   }
@@ -92,11 +104,14 @@ function hojaAves(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel {
   const t = rep.totales.aves;
   aoa.push([]);
   aoa.push(['TOTAL', '', '', '', '', '',
-    t.mortalidadH, t.mortalidadM,
-    t.seleccionH, t.seleccionM,
-    t.errorSexajeH, t.errorSexajeM,
-    t.ventaAvesH, t.ventaAvesM]);
-  aoa.push(['Total hembras', t.totalH, 'Total machos', t.totalM, 'Total general', t.total]);
+    ...(ocultaMachos ? [t.mortalidadH] : [t.mortalidadH, t.mortalidadM]),
+    ...(ocultaMachos ? [t.seleccionH] : [t.seleccionH, t.seleccionM]),
+    ...(ocultaMachos ? [] : [t.errorSexajeH, t.errorSexajeM]),
+    ...(ocultaMachos ? [t.ventaAvesH] : [t.ventaAvesH, t.ventaAvesM])]);
+  // El "Total general" se conserva: es el total de aves del lote, no un dato de machos.
+  aoa.push(ocultaMachos
+    ? ['Total hembras', t.totalH, 'Total general', t.total]
+    : ['Total hembras', t.totalH, 'Total machos', t.totalM, 'Total general', t.total]);
 
   return {
     sheetName: 'Aves',
@@ -105,30 +120,33 @@ function hojaAves(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel {
   };
 }
 
-function hojaAlimento(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel {
+function hojaAlimento(rep: ReporteDiarioCostosPosturaReporte, ocultaMachos: boolean): HojaAoaExcel {
   const aoa: ExcelCell[][] = encabezado(rep, 'Reporte Diario Costos Postura — Alimento');
 
   aoa.push(['Fecha', 'Granja', 'Lote : Galpón', 'Fase',
-    'Hembras', '', 'Machos', '', 'Observación']);
+    'Hembras', '', ...(ocultaMachos ? [] : ['Machos', '']), 'Observación']);
   aoa.push(['', '', '', '',
-    'Tipo alimento', 'Cantidad (kg)', 'Tipo alimento', 'Cantidad (kg)', '']);
+    'Tipo alimento', 'Cantidad (kg)',
+    ...(ocultaMachos ? [] : ['Tipo alimento', 'Cantidad (kg)']), '']);
 
   for (const f of expandirFilasAlimento(rep.filas)) {
     aoa.push([
       f.fechaFmt, f.granjaNombre, f.loteGalpon, f.fase,
       f.hembraNombre, f.hembraKg,
-      f.machoNombre, f.machoKg,
+      ...(ocultaMachos ? [] : [f.machoNombre, f.machoKg]),
       marca(f.excluidoDelTotal)
     ]);
   }
 
   const t = rep.totales;
   aoa.push([]);
-  aoa.push(['TOTAL CONSUMO (kg)', '', '', '', '', t.consumoKgH, '', t.consumoKgM]);
+  aoa.push(ocultaMachos
+    ? ['TOTAL CONSUMO (kg)', '', '', '', '', t.consumoKgH]
+    : ['TOTAL CONSUMO (kg)', '', '', '', '', t.consumoKgH, '', t.consumoKgM]);
   aoa.push([]);
   aoa.push(['Consumo por referencia de alimento']);
   aoa.push(['Sexo', 'Alimento', 'Cantidad (kg)']);
-  for (const a of t.alimentos) {
+  for (const a of t.alimentos.filter(x => !ocultaMachos || x.sexo === 'H')) {
     aoa.push([a.sexo === 'H' ? 'Hembras' : 'Machos', a.nombre, a.cantidadKg]);
   }
 

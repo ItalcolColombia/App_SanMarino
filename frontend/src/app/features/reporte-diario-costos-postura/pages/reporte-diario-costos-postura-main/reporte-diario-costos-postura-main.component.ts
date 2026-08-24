@@ -21,6 +21,7 @@ import {
   ReporteDiarioCostosPosturaReporte,
   ReporteDiarioCostosPosturaRequest
 } from '../../models/reporte-diario-costos-postura.model';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 type Pestana = 'aves' | 'alimento' | 'huevos';
 
@@ -54,6 +55,10 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
   private readonly service = inject(ReporteDiarioCostosPosturaService);
   private readonly farmService = inject(FarmService);
   private readonly toast = inject(ToastService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
+
+  /** Empresas sin machos en postura: no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   // ── Catálogos de filtros ────────────────────────────────────────────────
   private granjasTodas: GranjaOpcion[] = [];
@@ -90,6 +95,10 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
   alcanceExpandido = false;
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     this.cargarFilterData();
   }
 
@@ -252,7 +261,7 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
 
   exportarExcel(): void {
     if (!this.reporte || this.reporte.filas.length === 0) return;
-    const hojas = construirHojasCostosPostura(this.reporte);
+    const hojas = construirHojasCostosPostura(this.reporte, this.ocultaMachosEnPostura);
     exportarAoaMultiHojaExcel(hojas, {
       filenameFull: `Reporte_Diario_Costos_Postura_${dateStampCompact()}.xlsx`
     });

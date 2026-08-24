@@ -203,16 +203,16 @@
               <th class="rdc-th" rowspan="2">Fase</th>
               <th class="rdc-th" rowspan="2">Edad<br />(días)</th>
               <th class="rdc-th" rowspan="2">Sem.</th>
-              <th class="rdc-th rdc-th--mort" colspan="2">Mortalidad</th>
-              <th class="rdc-th rdc-th--grupo" colspan="2">Selección</th>
-              <th class="rdc-th rdc-th--grupo" colspan="2">Error de Sexaje</th>
-              <th class="rdc-th rdc-th--grupo" colspan="2">Ventas</th>
+              <th class="rdc-th rdc-th--mort" [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Mortalidad</th>
+              <th class="rdc-th rdc-th--grupo" [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Selección</th>
+              @if (!ocultaMachosEnPostura) { <th class="rdc-th rdc-th--grupo" colspan="2">Error de Sexaje</th> }
+              <th class="rdc-th rdc-th--grupo" [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Ventas</th>
             </tr>
             <tr>
-              <th class="rdc-th">Hembras</th><th class="rdc-th">Machos</th>
-              <th class="rdc-th">Hembras</th><th class="rdc-th">Machos</th>
-              <th class="rdc-th">Hembras</th><th class="rdc-th">Machos</th>
-              <th class="rdc-th">Hembras</th><th class="rdc-th">Machos</th>
+              <th class="rdc-th">Hembras</th>@if (!ocultaMachosEnPostura) {<th class="rdc-th">Machos</th>}
+              <th class="rdc-th">Hembras</th>@if (!ocultaMachosEnPostura) {<th class="rdc-th">Machos</th>}
+              @if (!ocultaMachosEnPostura) {<th class="rdc-th">Hembras</th><th class="rdc-th">Machos</th>}
+              <th class="rdc-th">Hembras</th>@if (!ocultaMachosEnPostura) {<th class="rdc-th">Machos</th>}
             </tr>
           </thead>
           <tbody>
@@ -226,13 +226,13 @@
                 <td class="rdc-td">{{ ent(f.edadDias) }}</td>
                 <td class="rdc-td">{{ ent(f.semana) }}</td>
                 <td class="rdc-td">{{ ent(f.mortalidadH) }}</td>
-                <td class="rdc-td">{{ ent(f.mortalidadM) }}</td>
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ ent(f.mortalidadM) }}</td> }
                 <td class="rdc-td">{{ ent(f.seleccionH) }}</td>
-                <td class="rdc-td">{{ ent(f.seleccionM) }}</td>
-                <td class="rdc-td">{{ ent(f.errorSexajeH) }}</td>
-                <td class="rdc-td">{{ ent(f.errorSexajeM) }}</td>
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ ent(f.seleccionM) }}</td> }
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ ent(f.errorSexajeH) }}</td> }
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ ent(f.errorSexajeM) }}</td> }
                 <td class="rdc-td">{{ ent(f.ventaAvesH) }}</td>
-                <td class="rdc-td">{{ ent(f.ventaAvesM) }}</td>
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ ent(f.ventaAvesM) }}</td> }
               </tr>
             }
           </tbody>
@@ -240,18 +240,18 @@
             <tr>
               <td class="rdc-td rdc-td--foot" colspan="6">Total</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.mortalidadH) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.mortalidadM) }}</td>
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.mortalidadM) }}</td> }
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.seleccionH) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.seleccionM) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.errorSexajeH) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.errorSexajeM) }}</td>
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.seleccionM) }}</td> }
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.errorSexajeH) }}</td> }
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.errorSexajeM) }}</td> }
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.ventaAvesH) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.ventaAvesM) }}</td>
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.ventaAvesM) }}</td> }
             </tr>
             <tr>
               <td class="rdc-td rdc-td--foot" colspan="6">Total bajas</td>
               <td class="rdc-td rdc-td--foot" colspan="4">Hembras: {{ ent(reporte.totales.aves.totalH) }}</td>
-              <td class="rdc-td rdc-td--foot" colspan="2">Machos: {{ ent(reporte.totales.aves.totalM) }}</td>
+              @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--foot" colspan="2">Machos: {{ ent(reporte.totales.aves.totalM) }}</td> }
               <td class="rdc-td rdc-td--foot" colspan="2">General: {{ ent(reporte.totales.aves.total) }}</td>
             </tr>
           </tfoot>
@@ -273,7 +273,7 @@
               <th class="rdc-th" rowspan="2">Lote : Galpón</th>
               <th class="rdc-th" rowspan="2">Fase</th>
               <th class="rdc-th rdc-th--grupo" colspan="2">Hembras</th>
-              <th class="rdc-th rdc-th--mort" colspan="2">Machos</th>
+              @if (!ocultaMachosEnPostura) { <th class="rdc-th rdc-th--mort" colspan="2">Machos</th> }
             </tr>
             <tr>
               <th class="rdc-th">Tipo alimento</th><th class="rdc-th">Cantidad (kg)</th>
@@ -290,8 +290,8 @@
                 <td class="rdc-td rdc-td--mort">{{ f.fase }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.hembraNombre ?? '—' }}</td>
                 <td class="rdc-td">{{ kg(f.hembraKg) }}</td>
-                <td class="rdc-td rdc-td--texto">{{ f.machoNombre ?? '—' }}</td>
-                <td class="rdc-td">{{ kg(f.machoKg) }}</td>
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td rdc-td--texto">{{ f.machoNombre ?? '—' }}</td> }
+                @if (!ocultaMachosEnPostura) { <td class="rdc-td">{{ kg(f.machoKg) }}</td> }
               </tr>
             }
           </tbody>
@@ -318,11 +318,13 @@
             </thead>
             <tbody>
               @for (a of reporte.totales.alimentos; track a.sexo + a.nombre) {
+                @if (!ocultaMachosEnPostura || a.sexo === 'H') {
                 <tr>
                   <td class="rdc-td rdc-td--mort">{{ a.sexo === 'H' ? 'Hembras' : 'Machos' }}</td>
                   <td class="rdc-td rdc-td--texto">{{ a.nombre }}</td>
                   <td class="rdc-td">{{ kg(a.cantidadKg) }}</td>
                 </tr>
+                }
               }
             </tbody>
             <tfoot class="rdc-foot">
