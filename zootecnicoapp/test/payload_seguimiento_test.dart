@@ -295,4 +295,47 @@ void main() {
       }
     });
   });
+
+  group('el ciclo que elige el operario VIAJA', () {
+    // El formulario pintaba el campo y el payload mandaba 'Normal' fijo: lo que
+    // el operario elegia se descartaba en silencio. Ofrecer un campo que no
+    // viaja es peor que no ofrecerlo.
+    final fecha = DateTime(2026, 8, 20);
+
+    test('levante manda lo tipeado', () {
+      final p = PayloadSeguimiento.levante(
+        loteId: 9, lotePosturaLevanteId: 55, fecha: fecha,
+        campos: const {'ciclo': 'Segundo'},
+        controlAgua: false, quintales: false);
+
+      expect(p['ciclo'], 'Segundo');
+    });
+
+    test('produccion manda lo tipeado', () {
+      final p = PayloadSeguimiento.produccion(
+        lotePosturaProduccionId: 3, fecha: fecha,
+        campos: const {'ciclo': 'Segundo'},
+        controlAgua: false);
+
+      expect(p['ciclo'], 'Segundo');
+    });
+
+    test('vacio cae a Normal, que es el default del negocio', () {
+      final p = PayloadSeguimiento.levante(
+        loteId: 9, lotePosturaLevanteId: 55, fecha: fecha,
+        campos: const {'ciclo': '   '},
+        controlAgua: false, quintales: false);
+
+      expect(p['ciclo'], 'Normal');
+    });
+
+    test('ausente cae a Normal', () {
+      final p = PayloadSeguimiento.levante(
+        loteId: 9, lotePosturaLevanteId: 55, fecha: fecha,
+        campos: const {},
+        controlAgua: false, quintales: false);
+
+      expect(p['ciclo'], 'Normal');
+    });
+  });
 }

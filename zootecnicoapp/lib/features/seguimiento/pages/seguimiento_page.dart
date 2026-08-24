@@ -695,7 +695,12 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
     ],
   );
 
-  Widget _pesoSec({String suffix = 'g', bool obligatorio = false, String? nota}) => AppSection(
+  /// ⚠️ El default es **kg**, no g. El web rotula este mismo campo
+  /// (`pesoPromH`/`pesoPromM`) como "Peso promedio (kg)" con step 0.01. Cuando
+  /// acá decía "g", el operario tipeaba 850 donde por web se tipea 0,85: el
+  /// mismo dato entrando con un factor 1000 de diferencia, sin conversión en
+  /// ningún lado. El peso del HUEVO sí va en gramos y está aparte.
+  Widget _pesoSec({String suffix = 'kg', bool obligatorio = false, String? nota}) => AppSection(
     title: 'Peso y uniformidad',
     icon: Icons.monitor_weight_outlined,
     expanded: abierto('peso'),
@@ -981,7 +986,7 @@ class _SeguimientoScreenState extends State<SeguimientoPage> {
       filled: lleno(['pesoH', 'pesoM']),
       children: [
         const AppInfoBox(text: 'Solo en el día de pesaje semanal asignado.'),
-        AppPairField(label: 'Peso aves', suffix: 'g',
+        AppPairField(label: 'Peso aves', suffix: 'kg',
           hController: ctl('pesoH'), mController: ctl('pesoM')),
         Row(children: [
           Expanded(child: AppField(label: 'Uniformidad global', suffix: '%', controller: ctl('uniformidad'),

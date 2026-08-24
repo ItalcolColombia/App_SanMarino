@@ -115,7 +115,7 @@ class PayloadSeguimiento {
     final p = <String, dynamic>{
       'loteId': loteId,
       'fechaRegistro': _fechaIso(fecha),
-      'ciclo': 'Normal',
+      'ciclo': _textoODefault(campos['ciclo'], 'Normal'),
       'mortalidadHembras': _entero(campos['mortalidadHembras']),
       'mortalidadMachos': _entero(campos['mortalidadMachos']),
       'selH': _entero(campos['selH']),
@@ -155,7 +155,7 @@ class PayloadSeguimiento {
     final p = <String, dynamic>{
       'loteId': loteId,
       'fechaRegistro': _fechaIso(fecha),
-      'ciclo': 'Normal',
+      'ciclo': _textoODefault(campos['ciclo'], 'Normal'),
       'mortalidadHembras': _entero(campos['mortalidadHembras']),
       'mortalidadMachos': _entero(campos['mortalidadMachos']),
       'selH': _entero(campos['selH']),
@@ -231,7 +231,7 @@ class PayloadSeguimiento {
     final p = <String, dynamic>{
       'lotePosturaProduccionId': lotePosturaProduccionId,
       'fechaRegistro': _fechaIso(fecha),
-      'ciclo': 'Normal',
+      'ciclo': _textoODefault(campos['ciclo'], 'Normal'),
       'tipoSeguimiento': 'produccion',
       // Producción nombra la mortalidad distinto que los otros tres módulos.
       'mortalidadH': _entero(campos['mortalidadHembras']),
@@ -311,4 +311,12 @@ class PayloadSeguimiento {
     final t = v?.trim();
     return (t == null || t.isEmpty) ? null : t;
   }
+
+  /// Lo que escribió el operario, o el valor por defecto si no escribió nada.
+  ///
+  /// Existe por el campo `ciclo`: el formulario lo pintaba y el payload mandaba
+  /// `'Normal'` fijo, así que lo que el operario elegía **no viajaba**. Ofrecer
+  /// un campo que se descarta es peor que no ofrecerlo.
+  static String _textoODefault(String? v, String porDefecto) =>
+      _textoONulo(v) ?? porDefecto;
 }
