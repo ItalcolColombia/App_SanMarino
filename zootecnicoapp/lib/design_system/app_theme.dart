@@ -1,0 +1,191 @@
+/// Tema global. Display = Plus Jakarta Sans · Texto = Inter.
+///
+/// ── Cambio de marca (23-ago-2026) ────────────────────────────────────────────
+/// El `primary` pasó de **verde** a **naranja Italcol `#F5821F`**. No es una
+/// preferencia estética: la regla de marca del repo (`CLAUDE.md` de la raíz)
+/// dice *«naranja = acciones; verde solo éxito»*, y el front web ya migró. La
+/// app móvil era lo único que seguía con el patrón viejo de verde-primario.
+///
+/// Si vas a agregar un componente nuevo: tomá el color del `colorScheme` o de
+/// `AppColors`, nunca un `Color(0x…)` literal.
+library;
+
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/material.dart';
+
+import 'package:zootecnicoapp/design_system/tokens/app_colors.dart';
+import 'package:zootecnicoapp/design_system/tokens/app_spacing.dart';
+
+class AppTheme {
+  AppTheme._();
+
+  static const String fontDisplay = 'PlusJakartaSans';
+  static const String fontText = 'Inter';
+
+  static ThemeData get light => ThemeData(
+    useMaterial3: true,
+    scaffoldBackgroundColor: AppColors.cream,
+    fontFamily: fontText,
+    colorScheme: const ColorScheme.light(
+      // Naranja de marca = acción primaria.
+      primary: AppColors.brand500,
+      onPrimary: Colors.white,
+      primaryContainer: AppColors.brand50,
+      onPrimaryContainer: AppColors.brand700,
+      // Dorado del logo como secundario/acento.
+      secondary: AppColors.gold500,
+      onSecondary: AppColors.ink900,
+      // El verde queda como estado de éxito, no como color de acción.
+      tertiary: AppColors.green500,
+      onTertiary: Colors.white,
+      surface: AppColors.surface,
+      onSurface: AppColors.ink900,
+      surfaceContainerHighest: AppColors.cream2,
+      outline: AppColors.ink200,
+      error: AppColors.danger,
+      onError: Colors.white,
+    ),
+
+    textTheme: const TextTheme(
+      // Display — Plus Jakarta Sans
+      displayLarge: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.xxxl, fontWeight: FontWeight.w800, height: 1.15, letterSpacing: -0.7, color: AppColors.ink900),
+      displayMedium: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.xxl, fontWeight: FontWeight.w800, height: 1.15, letterSpacing: -0.6, color: AppColors.ink900),
+      displaySmall: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.xl, fontWeight: FontWeight.w700, height: 1.3, letterSpacing: -0.5, color: AppColors.ink900),
+      headlineMedium: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.lg, fontWeight: FontWeight.w700, height: 1.3, color: AppColors.ink900),
+      headlineSmall: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.md, fontWeight: FontWeight.w600, height: 1.3, color: AppColors.ink900),
+      titleMedium: TextStyle(fontFamily: fontDisplay, fontSize: AppFontSize.base, fontWeight: FontWeight.w700, color: AppColors.ink900),
+      // Texto — Inter
+      bodyLarge: TextStyle(fontFamily: fontText, fontSize: AppFontSize.base, height: 1.5, color: AppColors.ink700),
+      bodyMedium: TextStyle(fontFamily: fontText, fontSize: AppFontSize.sm, height: 1.5, color: AppColors.ink700),
+      bodySmall: TextStyle(fontFamily: fontText, fontSize: AppFontSize.xs, height: 1.4, color: AppColors.ink500),
+      labelLarge: TextStyle(fontFamily: fontText, fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.ink900),
+      labelMedium: TextStyle(fontFamily: fontText, fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.ink700),
+      labelSmall: TextStyle(fontFamily: fontText, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: AppColors.ink500),
+    ),
+
+    cardTheme: CardThemeData(
+      color: AppColors.surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: BorderSide(color: AppColors.line),
+      ),
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      hintStyle: const TextStyle(fontFamily: fontText, fontSize: 15, color: AppColors.ink300),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: AppColors.lineStrong),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: AppColors.lineStrong),
+      ),
+      // El foco siempre es naranja — el acento marca "aquí estás escribiendo".
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: const BorderSide(color: AppColors.brand500, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.6),
+      ),
+    ),
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.brand500,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: AppColors.ink200,
+        disabledForegroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, AppTouch.min),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        textStyle: const TextStyle(fontFamily: fontText, fontWeight: FontWeight.w700, fontSize: 14),
+      ),
+    ),
+
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.brand600,
+        minimumSize: const Size(0, AppTouch.min),
+        side: const BorderSide(color: AppColors.brand200, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        textStyle: const TextStyle(fontFamily: fontText, fontWeight: FontWeight.w700, fontSize: 14),
+      ),
+    ),
+
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.brand600,
+        textStyle: const TextStyle(fontFamily: fontText, fontWeight: FontWeight.w600, fontSize: 13),
+      ),
+    ),
+
+    dividerTheme: DividerThemeData(color: AppColors.line, thickness: 1, space: 1),
+
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.cream,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      showDragHandle: true,
+      dragHandleColor: AppColors.ink200,
+    ),
+
+    appBarTheme: const AppBarTheme(
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleTextStyle: TextStyle(fontFamily: fontDisplay, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: AppColors.ink900),
+      iconTheme: IconThemeData(color: AppColors.ink700),
+    ),
+
+    checkboxTheme: CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected) ? AppColors.brand500 : Colors.transparent,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      side: BorderSide(color: AppColors.lineStrong, width: 1.5),
+    ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.all(Colors.white),
+      trackColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected) ? AppColors.brand500 : AppColors.ink200,
+      ),
+      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+    ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.brand500,
+      linearTrackColor: AppColors.cream2,
+      circularTrackColor: AppColors.cream2,
+    ),
+
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.ink900,
+      contentTextStyle: const TextStyle(fontFamily: fontText, fontSize: 13.5, color: Colors.white),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+      insetPadding: const EdgeInsets.all(AppSpacing.s4),
+    ),
+
+    /// Transición por defecto del sistema. Los push propios usan `rutaApp()`
+    /// de `motion/transiciones.dart`, que es más corta y consistente en web.
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
+  );
+}

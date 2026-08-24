@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Domain.Entities;
 
 // Namespace PLANO aunque el archivo esté en subcarpeta (convención de CLAUDE.md).
@@ -133,6 +134,6 @@ public partial class InventarioGestionService
         var motivo = StockConsumoValidacionCalculos.MotivoStockInsuficiente(
             lineas, disponible, string.IsNullOrWhiteSpace(galponId) ? null : $"el galpón {galponId.Trim()}");
 
-        if (motivo is not null) throw new InvalidOperationException(motivo);
+        if (motivo is not null) throw new StockInsuficienteException(motivo);
     }
 }

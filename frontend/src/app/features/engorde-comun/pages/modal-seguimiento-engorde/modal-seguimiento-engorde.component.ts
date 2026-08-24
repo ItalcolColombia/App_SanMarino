@@ -27,7 +27,8 @@ import {
   toKg,
   esUnidadDesconocidaParaGramos,
   cantidadOriginalAGramos,
-  normalizarIdCatalogoSeleccion
+  normalizarIdCatalogoSeleccion,
+  consumoKgDeFila as consumoKgDeFilaFn
 } from '../../funciones/inventario-calculos.funcion';
 import {
   normalizeJsonField,
@@ -371,11 +372,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
    * Kg que se guardarán en consumo para una fila de alimento (preview vivo bajo el campo Cantidad).
    * Devuelve un número (primitivo) → seguro para el template, no aloca en cada ciclo de CD.
    */
-  consumoKgDeFila(itemGroup: FormGroup): number {
-    const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
-    if (!Number.isFinite(cantidad) || cantidad <= 0) return 0;
-    return toKg(cantidad, String(itemGroup.get('unidad')?.value || 'kg'));
-  }
+  consumoKgDeFila(itemGroup: FormGroup): number { return consumoKgDeFilaFn(itemGroup); }
 
   agregarItemHembras(): void {
     const soloAlimento = this.hembrasSoloAlimento;

@@ -48,7 +48,7 @@ import {
 ],
   templateUrl: './city-list.component.html',
   styleUrls: ['./city-list.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.Eager
 })
 export class CityListComponent implements OnInit {
   faPlus  = faPlus;

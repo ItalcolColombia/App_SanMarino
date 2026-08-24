@@ -136,7 +136,7 @@ public partial class ProduccionService
         List<HuevoItemSeguimientoDto>? huevoItems = null;
         if (request.HuevoItems is { Count: > 0 })
         {
-            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems, request.FechaRegistro).ConfigureAwait(false);
             metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
         }
 
@@ -235,8 +235,12 @@ public partial class ProduccionService
         {
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(
                 ModuloSeguimiento.Produccion, lotePosturaProduccionId ?? loteId);
+            // Los kilos ya normalizados, no `request.ConsumoH`: el request trae la cantidad CON unidad
+            // y puede venir en gramos. Sin ellos, el cliente que manda el consumo como campo suelto
+            // (móvil, carga masiva, PWA) contaba cero y se comía un 400 «no tiene alimento».
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
+                consumoKgH, consumoKgM);
         }
 
         if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
@@ -257,7 +261,7 @@ public partial class ProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-                await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
+                await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr, fechaMovimiento: request.FechaRegistro);
                 await _context.SaveChangesAsync();
             }
             if (tx is not null) await tx.CommitAsync();
@@ -535,7 +539,7 @@ public partial class ProduccionService
         }
         else if (request.HuevoItems.Count > 0)
         {
-            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems, request.FechaRegistro).ConfigureAwait(false);
         }
 
         if (huevoItems != null)
@@ -626,7 +630,8 @@ public partial class ProduccionService
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
+                consumoKgH, consumoKgM);
         }
 
         if (!separaEd && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
@@ -649,7 +654,7 @@ public partial class ProduccionService
                 ? await _context.Database.BeginTransactionAsync()
                 : null;
             var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
+            await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr, fechaMovimiento: request.FechaRegistro);
             await _context.SaveChangesAsync().ConfigureAwait(false);
             if (tx is not null) await tx.CommitAsync();
             if (lotePosturaProduccionId.HasValue)
@@ -736,7 +741,8 @@ public partial class ProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{seguimientoId} (devolución por eliminación)";
-                await _colombiaConsumoB.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción");
+                // Fecha = día del BORRADO (hecho de HOY), no la fecha del seguimiento eliminado.
+                await _colombiaConsumoB.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción", fechaMovimiento: DateTime.UtcNow.Date);
             }
             _context.SeguimientoProduccion.Remove(e);
             await _context.SaveChangesAsync().ConfigureAwait(false);

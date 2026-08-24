@@ -35,4 +35,44 @@ public static class HuevoPrimeraPosturaCalculos
         if (semanaVida is null) return true;
         return semanaVida.Value <= hastaSemana.Value;
     }
+
+    /// <summary>
+    /// Mensaje de rechazo si el ítem de primera postura ya no está vigente a esa edad, o <c>null</c>
+    /// si sí lo está (o si no hay regla que aplicar).
+    ///
+    /// <para>
+    /// <b>D5 — por qué esto existe desde el 21-ago-2026.</b> Hasta acá <see cref="EsVigente"/> no
+    /// tenía UN SOLO llamador en <c>backend/src</c>: la vigencia era 100 % UI (un <c>[disabled]</c>
+    /// en el <c>&lt;option&gt;</c>). Y como la fecha del registro es EDITABLE dentro del mismo
+    /// modal, alcanzaba con elegir el ítem con fecha de semana 21 y corregir la fecha a semana 30:
+    /// la opción quedaba elegida y el guardado la aceptaba. O sea que la regla del cliente —«desde
+    /// el primer día de la semana 23 no usa más el ítem de primera postura»— no se cumplía por
+    /// ningún lado salvo la buena voluntad del operario.
+    /// </para>
+    ///
+    /// <para>
+    /// Sigue siendo fail-open donde no hay regla: sin límite configurado (toda empresa que no sea
+    /// Santa Reyes) o sin semana de vida calculable (lote sin fecha de encaset), no rechaza nada.
+    /// </para>
+    /// </summary>
+    /// <param name="hastaSemana"><c>Company.HuevoPrimeraPosturaHastaSemana</c>.</param>
+    /// <param name="semanaVida">Semana de vida del lote a la fecha del registro (1-based).</param>
+    /// <param name="nombreItem">Nombre legible del ítem, para que el mensaje diga cuál sobra.</param>
+    public static string? MensajeFueraDeVigencia(int? hastaSemana, int? semanaVida, string nombreItem)
+    {
+        if (EsVigente(hastaSemana, semanaVida)) return null;
+
+        return $"El ítem «{nombreItem}» es de primera postura y solo se puede registrar hasta la " +
+               $"semana {hastaSemana} de vida del lote. El registro es de la semana {semanaVida}.";
+    }
+
+    /// <summary>
+    /// Clave de <c>catalogo_items.metadata</c> que marca a un ítem como «huevo de primera postura».
+    /// El catálogo la escribe en camelCase; el lector tolera además snake_case (ver el espejo del
+    /// front, <c>items-huevo-catalogo.funcion.ts</c>).
+    /// </summary>
+    public const string MetadataKeyPrimeraPostura = "primeraPostura";
+
+    /// <summary>Variante snake_case de <see cref="MetadataKeyPrimeraPostura"/>, tolerada al leer.</summary>
+    public const string MetadataKeyPrimeraPosturaSnake = "primera_postura";
 }

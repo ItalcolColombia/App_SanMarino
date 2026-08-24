@@ -40,6 +40,15 @@ import {
 } from '../../funciones/ventana-fecha-movimiento.funcion';
 import { hintVentanaFechaRegistro } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 import {
+  formatFechaMovimiento as formatFechaMovimientoFn,
+  formatFechaIngresoStock as formatFechaIngresoStockFn,
+  fechaIngresoStockToYmd as fechaIngresoStockToYmdFn,
+  ubicacionRegistroMovimiento as ubicacionRegistroMovimientoFn,
+  otroExtremoMovimiento as otroExtremoMovimientoFn,
+  siloOptionLabel as siloOptionLabelFn
+} from '../../funciones/gestion-inventario-page-formato.funcion';
+import { RecepcionDestinoRow } from '../../models/recepcion-destino-row.model';
+import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
   InventarioGestionHistoricoFiltrosDto,
@@ -52,15 +61,6 @@ import {
 
 type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items' | 'cuadre';
 type TrasladoModo = 'mismaGranja' | 'interGranja';
-
-/** Fila del reparto de una recepción de tránsito entre galpones (o silos) de la granja destino. */
-interface RecepcionDestinoRow {
-  nucleoId: string | null;
-  galponId: string | null;
-  quantity: number | null;
-  /** Silo/bodega destino de esta fila (empresas con inventario por silo). */
-  siloId: number | null;
-}
 
 @Component({
   selector: 'app-gestion-inventario-page',
@@ -636,55 +636,19 @@ export class GestionInventarioPageComponent implements OnInit {
 
   trackByHistoricoMov = (_: number, m: InventarioGestionMovimientoDto) => m.id;
 
-  formatFechaMovimiento(iso: string): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es', { dateStyle: 'short' }) + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-  }
+  formatFechaMovimiento(iso: string): string { return formatFechaMovimientoFn(iso); }
 
   /** Fecha de ingreso en la grilla de stock (solo fecha, sin hora). */
-  formatFechaIngresoStock(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('es', { dateStyle: 'long' });
-  }
+  formatFechaIngresoStock(iso: string | null | undefined): string { return formatFechaIngresoStockFn(iso); }
 
   /** Convierte fecha del API a yyyy-MM-dd para input type="date". */
-  fechaIngresoStockToYmd(iso: string | null | undefined): string {
-    if (!iso) return '';
-    const head = String(iso).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (head) return `${head[1]}-${head[2]}-${head[3]}`;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  }
+  fechaIngresoStockToYmd(iso: string | null | undefined): string { return fechaIngresoStockToYmdFn(iso); }
 
-  /**
-   * Ubicación del movimiento (granja de registro + núcleo/galpón, o el silo si la empresa ubica
-   * por silo). El silo se decide por el DATO de la fila, no por el flag: así el histórico de una
-   * empresa que migró sigue mostrando bien las filas viejas y las nuevas.
-   */
-  ubicacionRegistroMovimiento(m: InventarioGestionMovimientoDto): string {
-    const g = m.granjaNombre ?? String(m.farmId);
-    if (m.siloId != null) return `${g} · Silo ${m.siloNombre ?? m.siloId}`;
-    const n = m.nucleoNombre ?? m.nucleoId ?? '';
-    const gp = m.galponNombre ?? m.galponId ?? '';
-    if (!n && !gp) return g;
-    return `${g} · Núc. ${n || '—'} · Galp. ${gp || '—'}`;
-  }
+  /** Ubicación del movimiento. Ver gestion-inventario-page-formato.funcion.ts. */
+  ubicacionRegistroMovimiento(m: InventarioGestionMovimientoDto): string { return ubicacionRegistroMovimientoFn(m); }
 
   /** Origen/destino según tipo: contraparte del traslado o procedencia. */
-  otroExtremoMovimiento(m: InventarioGestionMovimientoDto): string {
-    if (m.fromFarmId == null && !m.fromGranjaNombre) return '—';
-    const g = m.fromGranjaNombre ?? (m.fromFarmId != null ? String(m.fromFarmId) : '');
-    if (m.fromSiloId != null) return `${g} · Silo ${m.fromSiloNombre ?? m.fromSiloId}`;
-    const n = m.fromNucleoNombre ?? m.fromNucleoId ?? '';
-    const gp = m.fromGalponNombre ?? m.fromGalponId ?? '';
-    if (!n && !gp) return g;
-    return `${g} · Núc. ${n || '—'} · Galp. ${gp || '—'}`;
-  }
+  otroExtremoMovimiento(m: InventarioGestionMovimientoDto): string { return otroExtremoMovimientoFn(m); }
 
   /** Exporta el histórico cargado a CSV (abre en Excel con UTF-8). */
   exportHistoricoCsv(): void {
@@ -1051,11 +1015,7 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   /** Etiqueta del selector: la bodega se distingue del silo porque no cuelga de ningún galpón. */
-  siloOptionLabel(s: InventarioGestionSiloDto): string {
-    const erp = (s.codigoErpUbicacion ?? '').trim();
-    const sufijo = erp ? ` · ${erp}` : '';
-    return `${s.nombre}${sufijo}`;
-  }
+  siloOptionLabel(s: InventarioGestionSiloDto): string { return siloOptionLabelFn(s); }
 
   /**
    * INGRESO: ¿este ingreso se maneja a nivel GALPÓN? Se resuelve por la granja de destino

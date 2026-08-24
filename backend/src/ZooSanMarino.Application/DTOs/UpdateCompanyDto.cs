@@ -65,5 +65,7 @@ public record UpdateCompanyDto(
     bool?    SemanasCicloPosturaPorRaza = null,
     /// <summary>El catálogo de ítems de inventario sólo ofrece Alimento y Aves.</summary>
     bool?    LimitaTiposInventarioAlimentoYAves = null,
-    bool?    SeparaLotesPosturaPorEtapa         = null
+    bool?    SeparaLotesPosturaPorEtapa         = null,
+    /// <summary>La app móvil manda ítems reales de inventario. Kill switch de F5.</summary>
+    bool?    DescuentaInventarioDesdeMovil      = null
 );

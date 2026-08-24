@@ -497,6 +497,9 @@
                             <fa-icon [icon]="faWarehouse" aria-hidden="true"></fa-icon>
                           </button>
                         }
+                        @if (clasificacionHuevoPorItems) {
+                          <button (click)="abrirHuevoItems(l)" class="icon-btn" title="Tipos de huevo que produce el lote">🥚</button>
+                        }
                         <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
                           <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                         </button>
@@ -1550,5 +1553,15 @@
     [destino]="destinoSilos"
     (cerrar)="cerrarSilos()">
   </app-modal-asignar-silos>
+}
+
+<!-- F7.3 — qué tipos de huevo produce el lote (alimenta las filas fijas del diario de producción) -->
+@if (huevoItemsLote) {
+  <app-modal-asignar-huevo-items
+    [loteId]="huevoItemsLote.loteId"
+    [loteNombre]="huevoItemsLote.loteNombre"
+    (cerrar)="cerrarHuevoItems()"
+    (guardado)="cerrarHuevoItems()">
+  </app-modal-asignar-huevo-items>
 }
 </div>

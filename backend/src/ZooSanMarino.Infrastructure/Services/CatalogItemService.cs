@@ -45,7 +45,7 @@ public class CatalogItemService : ICatalogItemService
         {
             query = query.Where(x =>
                 EF.Functions.ILike(x.Nombre, $"%{q}%") ||
-                EF.Functions.ILike(x.Codigo, $"%{q}%"));
+                (x.Codigo != null && EF.Functions.ILike(x.Codigo, $"%{q}%")));
         }
 
         var total = await query.CountAsync(ct);
@@ -105,7 +105,9 @@ public class CatalogItemService : ICatalogItemService
 
     public async Task<CatalogItemDto?> CreateAsync(CatalogItemCreateRequest dto, CancellationToken ct = default)
     {
-        var codigo = dto.Codigo.Trim();
+        // Codigo es OPCIONAL: null/vacío se guarda como null (pendiente), no como "" — así el ítem
+        // se ve igual de "sin código" tanto recién creado por UI como sembrado por migración.
+        var codigo = string.IsNullOrWhiteSpace(dto.Codigo) ? null : dto.Codigo.Trim();
         var nombre = dto.Nombre.Trim();
 
         // Obtener CompanyId y PaisId de la sesión actual
@@ -122,9 +124,14 @@ public class CatalogItemService : ICatalogItemService
             throw new InvalidOperationException("No se puede crear un producto sin país activo en la sesión.");
         }
 
-        // Verificar que el código no exista para esta empresa y país
-        var exists = await _db.CatalogItems.AnyAsync(x => x.Codigo == codigo && x.CompanyId == companyId && x.PaisId == paisId, ct);
-        if (exists) return null; // conflicto de código duplicado
+        // Verificar que el código no exista para esta empresa y país. Sin código no hay nada que
+        // choque: el índice único de Postgres tampoco considera duplicados dos NULL, así que esta
+        // regla de aplicación queda coherente con la regla real de la base.
+        if (codigo is not null)
+        {
+            var exists = await _db.CatalogItems.AnyAsync(x => x.Codigo == codigo && x.CompanyId == companyId && x.PaisId == paisId, ct);
+            if (exists) return null; // conflicto de código duplicado
+        }
 
         var e = new CatalogItem
         {
@@ -178,11 +185,26 @@ public class CatalogItemService : ICatalogItemService
         e.Nombre = dto.Nombre.Trim();
         e.Activo = dto.Activo;
         e.Metadata = dto.Metadata ?? e.Metadata;
-        
+
         // Actualizar ItemType si se proporciona
         if (!string.IsNullOrWhiteSpace(dto.ItemType))
         {
             e.ItemType = dto.ItemType.Trim();
+        }
+
+        // Código: SOLO se puede completar mientras está vacío (p. ej. un ítem sembrado sin código
+        // real todavía). Una vez asignado es clave natural — igual que ya hacía el formulario
+        // (deshabilitaba el campo al editar) — así que un `dto.Codigo` que llegue acá se IGNORA si
+        // el ítem ya tiene uno, en vez de confiar en que el front nunca lo mande.
+        if (string.IsNullOrWhiteSpace(e.Codigo) && !string.IsNullOrWhiteSpace(dto.Codigo))
+        {
+            var nuevoCodigo = dto.Codigo.Trim();
+            var yaExiste = await _db.CatalogItems.AnyAsync(
+                x => x.Id != id && x.Codigo == nuevoCodigo && x.CompanyId == e.CompanyId && x.PaisId == e.PaisId, ct);
+            if (yaExiste)
+                throw new InvalidOperationException($"El código «{nuevoCodigo}» ya está en uso por otro ítem de esta empresa.");
+
+            e.Codigo = nuevoCodigo;
         }
 
         // Si el item no tiene empresa o país asignado, asignarlos desde la sesión
@@ -265,7 +287,7 @@ public class CatalogItemService : ICatalogItemService
         {
             query = query.Where(x =>
                 EF.Functions.ILike(x.Nombre, $"%{q}%") ||
-                EF.Functions.ILike(x.Codigo, $"%{q}%"));
+                (x.Codigo != null && EF.Functions.ILike(x.Codigo, $"%{q}%")));
         }
 
         var items = await query
@@ -304,7 +326,7 @@ public class CatalogItemService : ICatalogItemService
         {
             query = query.Where(x =>
                 EF.Functions.ILike(x.Nombre, $"%{search}%") ||
-                EF.Functions.ILike(x.Codigo, $"%{search}%"));
+                (x.Codigo != null && EF.Functions.ILike(x.Codigo, $"%{search}%")));
         }
 
         // Obtener todos los items activos (con filtro de búsqueda si aplica)

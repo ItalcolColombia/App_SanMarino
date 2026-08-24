@@ -8,9 +8,17 @@ namespace ZooSanMarino.Application.Tests;
 /// total, así que la decisión vive acá —pura, sin EF— y el hook queda de ~15 líneas.
 ///
 /// <para>
-/// Los dos invariantes que no se pueden romper: <b>fail-closed</b> (un <c>jti</c> sin fila no pasa) y
-/// <b>ventana de gracia</b> (un token sin <c>jti</c> sí pasa, o el despliegue desloguea a todo el
-/// mundo de golpe, tablets con capturas sin subir incluidas).
+/// Los dos invariantes que no se pueden romper: <b>fail-closed</b> (un <c>jti</c> sin fila no pasa)
+/// y <b>fail-open ante caída de base</b> (<see cref="EstadoSesion.NoVerificable"/> sí pasa, o un blip
+/// de RDS desloguea a todo el mundo de golpe, tablets con capturas sin subir incluidas).
+/// </para>
+///
+/// <para>
+/// <b>V39.13 — la ventana de gracia se cerró (21-ago-2026).</b> Hasta acá un token sin <c>jti</c>
+/// pasaba, porque al desplegar B1 todos los tokens vivos eran de antes. Con
+/// <c>JwtSettings__DurationInMinutes = 60</c> en la TaskDef, un día después no quedaba ninguno, así
+/// que ahora se rechaza. Los tests de abajo dejan escrito que <b>los dos casos son distintos</b>:
+/// sin <c>jti</c> se rechaza, sin base se acepta.
 /// </para>
 /// </summary>
 public class RevocacionSesionCalculosTests
@@ -21,14 +29,15 @@ public class RevocacionSesionCalculosTests
     // ───────────────────────── Evaluar ─────────────────────────
 
     [Fact]
-    public void T1_TokenSinJti_EsLegado_yPasa()
+    public void T1_TokenSinJti_EsLegado_yYaNoPasa()
     {
-        // Ventana de gracia: al desplegar B1 todos los tokens vivos son de antes.
+        // V39.13: la ventana de gracia se cerró. Un token sin `jti` no lo emitió este backend
+        // (AuthService es la única fábrica y siempre lo pone), así que no hay a quién proteger.
         var estado = RevocacionSesionCalculos.Evaluar(
             jti: null, hayFila: false, revokedAt: null, expiresAt: null, ahoraUtc: Ahora);
 
         Assert.Equal(EstadoSesion.Legado, estado);
-        Assert.True(RevocacionSesionCalculos.EsSesionValida(estado));
+        Assert.False(RevocacionSesionCalculos.EsSesionValida(estado));
     }
 
     [Theory]
@@ -39,6 +48,7 @@ public class RevocacionSesionCalculosTests
         // Un claim presente pero vacío es un token sin jti: no se puede buscar fila con eso.
         var estado = RevocacionSesionCalculos.Evaluar(jti, false, null, null, Ahora);
         Assert.Equal(EstadoSesion.Legado, estado);
+        Assert.False(RevocacionSesionCalculos.EsSesionValida(estado));
     }
 
     [Fact]
@@ -111,9 +121,13 @@ public class RevocacionSesionCalculosTests
         Assert.Equal("sesion-revocada", RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoRegistrada));
         Assert.Equal("token-expirado", RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Vencida));
 
+        // V39.13: el legado ya no pasa, así que TIENE que traer motivo — si no, la sesión moriría
+        // en el servidor y seguiría viva en la tablet, reintentando contra un 401 para siempre.
+        Assert.Equal("sesion-revocada", RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Legado));
+
         // Los que pasan no tienen motivo de fallo.
         Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Valida));
-        Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Legado));
+        Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
     }
 
     [Fact]
@@ -121,7 +135,11 @@ public class RevocacionSesionCalculosTests
     {
         // El front decide si cierra la sesión leyendo este valor: un null acá sería una sesión
         // que muere en el servidor y sigue viva en la tablet.
-        foreach (var estado in new[] { EstadoSesion.NoRegistrada, EstadoSesion.Revocada, EstadoSesion.Vencida })
+        foreach (var estado in new[]
+                 {
+                     EstadoSesion.NoRegistrada, EstadoSesion.Revocada, EstadoSesion.Vencida,
+                     EstadoSesion.Legado,
+                 })
             Assert.False(string.IsNullOrWhiteSpace(RevocacionSesionCalculos.MotivoParaCliente(estado)));
     }
 
@@ -219,20 +237,64 @@ public class RevocacionSesionCalculosTests
 
     // ───────────── Equivalencia con el comportamiento previo (exigencia del repo) ─────────────
 
+    // V39.13 - la ventana de gracia, cerrada (21-ago-2026)
+
     [Fact]
-    public void T15_ConTokenLegado_NadaCambiaRespectoDeHoy()
+    public void T15_ConTokenLegado_YaNoEntraPorNingunCamino()
     {
-        // Antes de B1 el backend aceptaba todo token bien firmado y no vencido. Con `jti = null`
-        // sigue haciendo exactamente eso, aunque la tabla esté vacía y aunque la fila no exista:
-        // es la prueba de que la ventana de gracia hace lo que dice.
+        // Hasta V39.13 un `jti = null` pasaba aunque la fila estuviera revocada Y vencida: la
+        // ventana de gracia cortocircuitaba todo. Ahora no entra por ninguna combinación.
         foreach (var hayFila in new[] { true, false })
         {
             var estado = RevocacionSesionCalculos.Evaluar(
                 jti: null, hayFila, revokedAt: Ahora.AddDays(-1), expiresAt: Ahora.AddDays(-1), ahoraUtc: Ahora);
 
             Assert.Equal(EstadoSesion.Legado, estado);
-            Assert.True(RevocacionSesionCalculos.EsSesionValida(estado));
-            Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(estado));
+            Assert.False(RevocacionSesionCalculos.EsSesionValida(estado));
+            Assert.Equal("sesion-revocada", RevocacionSesionCalculos.MotivoParaCliente(estado));
         }
+    }
+
+    [Fact]
+    public void T16_CaidaDeBase_SigueDejandoPasar_failOpen()
+    {
+        // El invariante que V39.13 NO podía romper. `SesionActivaService` devuelve este estado desde
+        // su `catch`: si RDS parpadea, el request sigue. Borrar la rama junto con la ventana de
+        // gracia -los dos casos compartían el valor `Legado`- habría convertido un blip de base en
+        // el deslogueo simultáneo de todas las tablets en campo.
+        Assert.True(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+        Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
+    }
+
+    [Fact]
+    public void T17_NoVerificable_NuncaSeCachea()
+    {
+        // Cachear un "no pude preguntar" hasta el `exp` sería una hora de barra libre para ese token
+        // por un solo error de red. Tiene que volver a preguntar en el request siguiente.
+        var ttl = RevocacionSesionCalculos.TtlCache(EstadoSesion.NoVerificable, Ahora.AddHours(1), Ahora);
+        Assert.Equal(TimeSpan.Zero, ttl);
+    }
+
+    [Fact]
+    public void T18_SinJtiYSinBase_SonEstadosDISTINTOS()
+    {
+        // El corazón de V39.13: separar los dos casos que compartían valor. Si alguien vuelve a
+        // fusionarlos, este test cae - sea cual sea la dirección en que los fusione.
+        Assert.NotEqual(EstadoSesion.Legado, EstadoSesion.NoVerificable);
+        Assert.False(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.Legado));
+        Assert.True(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+    }
+
+    [Fact]
+    public void T19_LosUnicosDosEstadosQuePasan_SonValidaYNoVerificable()
+    {
+        // Barrido exhaustivo del enum: deja el contrato cerrado y obliga a decidir explícitamente
+        // qué hace un estado nuevo el día que alguien agregue uno.
+        var pasan = Enum.GetValues<EstadoSesion>()
+            .Where(RevocacionSesionCalculos.EsSesionValida)
+            .OrderBy(e => e)
+            .ToArray();
+
+        Assert.Equal(new[] { EstadoSesion.Valida, EstadoSesion.NoVerificable }, pasan);
     }
 }

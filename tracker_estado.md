@@ -66,26 +66,44 @@ detalle con `git show e971871:tracker_estado.md`.
       `AddSesionesActivas` (V39) y `20260819120000_SeedTicketPlanItalappSantaReyes` (X3, caso
       Santa Reyes en ItalJira) — las tres migraciones ya corrieron en prod
       (`Database__RunMigrations=true`)
-- [ ] **A2 · V39.13 — cerrar la ventana de gracia** de los tokens sin `jti`: hoy `Evaluar` devuelve
-      `Legado` y los acepta. Va **después** de A1 y de verificar la revocación en prod.
-      ⚠️ Trampa: `SesionActivaService` devuelve `Legado` **también ante un fallo de BD** (fail-open
-      deliberado) — borrar esa rama sin distinguir los dos usos convierte una caída de BD en un
-      **logout masivo**. Commit propio y explícito.
-      *Releído el código hoy (`SesionActivaService.EvaluarAsync`): el diagnóstico sigue exacto —
-      `jti` vacío ⇒ retorna sin consultar nada, rama `Legado` intacta*
-- [ ] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
+- [x] **A2 · V39.13 — ventana de gracia CERRADA** (21-ago-2026, commit `def1fd4`). Un token sin
+      `jti` ahora recibe 401 con `errorCode: sesion-revocada`. La trampa que advertía este pendiente
+      se resolvió **separando los dos usos**: el fallo de BD dejó de compartir valor con `Legado` y
+      tiene estado propio (`EstadoSesion.NoVerificable`), que sigue dejando pasar y además nunca se
+      cachea. **Precondición verificada, no asumida:** `JwtSettings__DurationInMinutes = 60` en la
+      TaskDef viva (164) ⇒ un día después del despliegue de B1 (20-ago) no quedaba un solo token sin
+      `jti` vivo; y `AuthService` es la **única** fábrica de tokens de usuario del backend (un solo
+      `new JwtSecurityToken` en todo el repo, verificado por grep) y siempre emite `jti` + anota la
+      fila. Los PAT `sk_` van por su propio esquema y ni pasan por `EvaluarAsync`.
+      *Detalle → X14*
+- [x] **A4 · V30.7 · H1 Santa Reyes** — flags en `companies` + catálogo de ítems + silo en el form de
       ingreso a granja + homologación ERP + seed de las 5 guías genéticas (540 filas). **Detalle
-      granular y estado real → V52 (F0-F2)**
-- [ ] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
+      granular y estado real → V52 (F0-F2)**.
+      *CERRADA el 21-ago-2026: F0, F1 y F2 al 100 % (las guías resultaron **615** filas, no
+      540 — recontadas contra el Excel del cliente).*
+- [x] **A5 · V30.8 · H2** — semanas por raza (hoy hardcodeadas en
       `modal-seguimiento-diario.component.ts:1463`), consumo sólo hembras, ocultar machos y error de
       sexaje **en UI** (⚠️ no borrar del modelo: lo consumen los saldos), tipos de inventario.
-      **→ V52 (F3-F6)**
-- [ ] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
-      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**
-- [ ] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
+      **→ V52 (F3-F6)**.
+      *CERRADA: F3, F4 y F6 al 100 %; F5.1 y F5.2 hechas. Lo único que queda de H2 es F5.3,
+      que es una definición del cliente → `TK-2026-000180` / `SR-DEF-1`.*
+- [!] **A6 · V30.9 · H3** — huevos: incubables→sin clasificar, los 7 ítems, primera postura por raza
+      con vigencia ≤ semana 22, PNC por catálogo (⚠️ sin tocar las 11 columnas físicas). **→ V52 (F7-F8)**.
+      *F7.1, F7.2, F7.3, F7.4 y F8.2 hechas (F7.3 el 21-ago, X17). Quedan F8.1 —desbloqueada
+      parcialmente en X15: los ítems ya existen, faltan los códigos ERP— y F8.3 →
+      `TK-2026-000180` / `SR-DEF-3`, `SR-DEF-4`.*
+- [!] **A7 · V30.10 · H4** — traslados: aves (exponer `Placa`/`Conductor`/`Sellos` en postura — **ya
       existen en `MovimientoAves`**, falta la UI) y huevos (bodega destino desplegable) + no regresión
-      multipaís. **→ V52 (F9-F12)**
+      multipaís. **→ V52 (F9-F12)**.
+      *F9.1, F9.2, F9.2b, F10.2, F11.1, F11.2 y F12 hechas. Quedan F9.2c y F10.1, las dos del
+      cliente → `TK-2026-000180` / `SR-DEF-5`, `SR-DEF-6`; y F11.3, que necesita al cliente.*
 
+> **A4-A7 · estado al 21-ago-2026 (X14):** todo lo construible de V52 está construido, probado y
+> desplegado. Lo que queda son las **6 definiciones que faltan del cliente** (F5.3, F7.3, F8.1,
+> F8.3, F9.2c, F10.1), sembradas como caso `TK-2026-000180` (DUDAS, ABIERTO, Santa Reyes) con una
+> subtarea `BLOQUEADA` cada una. F8.1 además necesita un DATO, no una decisión: los códigos ERP de
+> los ítems nuevos del catálogo.
+>
 > **A4-A7 quedaron DESBLOQUEADAS el 20-ago-2026**: el usuario confirmó en sesión que B5 (aprobación
 > del cliente) y C7 (entrega de estructura física + códigos ERP) ya se dieron. Ejecución en curso,
 > ver **V52** (checklist granular F0-F12, calcado del desglose real ya sembrado en ItalJira
@@ -449,7 +467,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         `modal-silos-granja`, DTOs ya los aceptan), `LotePosturaBase.CodigoErp`
         (`lote-list`, `formControlName="codigoErp"`). Nada que construir; falta cargar los códigos
         REALES que entregó el cliente (dato, no código)
-- [~] **F2 · Guías genéticas** (10h)
+- [x] **F2 · Guías genéticas** (10h) — cerrada del todo el 21-ago-2026 (X14.7)
   - [x] F2.1 Carga de las 5 líneas (Babcock Brown, Hy Line Brown, Lohmann LSL, Criolla, Azur), sem 18-125
         — **corrección del usuario en sesión: va en una TABLA PROPIA**, no en
         `guia_genetica_sanmarino_colombia` (esa es compartida con postura y pollo engorde de otras
@@ -466,8 +484,8 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Verificado: 615/615 filas, round-trip Down→Up sin duplicar, `codigo_guia_genetica` calculado
         igual que `ExcelImportService.ComputeCodigo` (Raza+AnioGuia+Edad) para que una futura
         reimportación por Excel lo reconozca
-  - [~] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
-        — **mayormente hecho**, un chokepoint + 6 sitios de consumo:
+  - [x] F2.2 Asociación de la línea genética al lote + uso en indicadores y reportes
+        — un chokepoint + 6 sitios de consumo, **y los 5 que faltaban, cerrados el 21-ago (X14.7)**:
         - `GuiaGeneticaService` (backend de `api/guia-genetica`, el que alimenta el selector de raza
           en `modal-create-edit-lote`/`lote-list`): ahora mira primero `guia_genetica_santa_reyes` y
           cae a la compartida si la empresa no tiene filas propias — cubre los 6 métodos públicos
@@ -484,13 +502,19 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           **no se tocaron a propósito**: `LiquidacionTecnicaService` lee
           `seguimiento_diario_levante_reproductoras` — es de REPRODUCTORA, Santa Reyes no cría
           reproductoras (compra pollita de un día), no aplica
-        - ⚠️ **Gap conocido, no cerrado**: `ReporteTecnicoProduccionService` (3 sitios) y
-          `ReporteTecnicoService` (2 sitios) tienen consultas DIRECTAS a `ProduccionAvicolaRaw`
-          además de las que ya pasan por `IGuiaGeneticaService` — son archivos de 1000-2700 líneas
-          y al menos una de esas consultas (`ReporteTecnicoProduccionService.cs:~1107`) **no filtra
-          por `company_id`**, así que no es seguro tocarla sin antes entender si es a propósito o un
-          bug preexistente. Quedó sin tocar para no meter una regresión en un reporte financiero bajo
-          presión de tiempo — a retomar con más cuidado
+        - [x] **Gap CERRADO el 21-ago-2026** (commit `457be71`, detalle en X14.7). Era real y era
+          alcanzable: `ReporteTecnicoProduccionService` (3 sitios) y `ReporteTecnicoService` (2)
+          traían la guía con consultas DIRECTAS a `ProduccionAvicolaRaw`, así que para Santa Reyes
+          —cuya guía vive en la tabla dedicada— salían **sin una sola columna de comparación**. Y
+          Santa Reyes tiene `/reportes-tecnicos` habilitado en `company_menus`, o sea que no era
+          teórico. **No se unificaron las 5 consultas** (habría cambiado el SQL de las otras 3
+          empresas: no todas filtran `deleted_at`, y `Like` ≠ `==` con un guion bajo en la raza):
+          cada sitio pregunta primero por la guía propia y, si vuelve vacía, corre **su** consulta
+          de siempre intacta. Delta cero por construcción
+        - [i] **Corrección**: la nota original decía que
+          `ReporteTecnicoProduccionService.cs:~1107` **no filtra por `company_id`**. Es **falso**
+          contra el código de hoy — los 5 sitios filtran los cinco por
+          `p.CompanyId == _currentUser.CompanyId`. No hay fuga entre empresas ahí
         - Validado: `dotnet build` 0 errores (21 warnings preexistentes) · `dotnet test` **2936/2936**
           sin regresión
 - [x] **F3 · Semanas de producción por raza** (10h) — commit `6df9a98`
@@ -570,6 +594,7 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         mal — a definir con el cliente o el usuario antes de tocar código
         - Validado (F5.1+F5.2): `yarn build` 0 errores; cruce manual del nombre de la propiedad
           `ocultaMachosEnPostura` entre `.ts`/`.html` en los 2 formularios (11 usos cada uno)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-1` (X14.4)*
   - [x] **Gap cerrado (20-ago-2026, migración `20260820220645`):** F4 y F5.1+F5.2 construyeron y
         probaron la UI pero **ningún commit encendió los flags para Santa Reyes** — mismo "toggle
         sin efecto" que F0.1 advertía evitar. Verificado por consulta directa a `companies` en la
@@ -607,10 +632,12 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
   - [x] F7.2 Los 7 ítems: rojo, blanco, criollo, gallina feliz, Azur, Boneg, libre de jaula — **ya
         existían los 7** en `catalogo_items` (verificado F0.2, re-confirmado acá), no había nada que
         crear
-  - [ ] F7.3 Huevo de primera postura: selección de raza + definición al crear el lote — **sin
-        construir, ambigüedad real** (ver §8.3 del plan): el texto ("especificar los huevos que va a
-        producir" al crear el lote) no deja claro si pide una UI nueva en el alta de lote o si la
-        clasificación por ítems que ya existe en el seguimiento diario alcanza. No se adivina
+  - [x] F7.3 Huevo de primera postura: selección de tipos al crear/editar el lote — **CONSTRUIDO el
+        21-ago-2026 (X17)**. El cliente definió la ambigüedad en sesión: es la lectura (a) —lista
+        blanca por lote— y además **fail-closed**: «si no tiene asignado no aparece, ahí el usuario
+        tiene que editar el lote para agregarle los tipos de huevos, así controlamos mejor todo».
+        Tabla `lote_huevo_items` + filas FIJAS en el diario (se fue el `<select>` y el «agregar
+        ítem»). *Detalle → X17*
   - [x] F7.4 Vigencia: habilitada hasta el último día de semana 22, deshabilitada desde el primer día
         de semana 23 — `HuevoPrimeraPosturaCalculos.EsVigente` (backend, con tests xUnit) + espejo
         `esVigentePrimeraPostura` (`items-huevo-catalogo.funcion.ts`); ítems marcados
@@ -620,22 +647,25 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Reyes vía migración. **Alcance deliberado: solo UI** (no rechaza en el guardado) — mismo
         criterio "solo UI" que el resto de la familia de flags; extender a validación de guardado
         queda documentado en §8.2 del plan para cuando se confirme que hace falta
-- [ ] **F8 · Productos no conformes y panel de eficiencia** (7h)
-  - [ ] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara — sin construir. Catálogo
+- [!] **F8 · Productos no conformes y panel de eficiencia** (7h) — F8.2 hecha; F8.1 y F8.3
+      bloqueadas por el cliente (`TK-2026-000180`)
+  - [!] F8.1 Renombrar PNC: Manchado, Decolorado, Enyemado, Picado, Fárfara — sin construir. Catálogo
         actual (11 ítems `Pnc`) no cubre las 5 categorías por raza: falta "Enyemado" completo (0
         ítems, hallazgo ya conocido desde F0.2) y "Decolorado" solo existe para Rojo. No se inventan
         cantidades/nombres sin confirmar con el cliente
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-3` (X14.4)*
   - [x] F8.2 Retirar huevo tratado, peso promedio y tipo de alimento del registro de producción —
         `huevoTratado` ya estaba oculto (vive dentro del bloque `!clasificacionHuevoPorItems`);
         `pesoHuevo`/`tipoAlimento` **no tenían ningún gate** (gap real, encontrado auditando el
         template junto con F7) — envueltos en `@if (!clasificacionHuevoPorItems)` acá. Los controles
         conservan su valor por defecto (`0`/`'Standard'`), siguen siendo válidos para
         `Validators.required` y se guardan igual — cambio de UI, no de contrato
-  - [ ] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja — sin
+  - [!] F8.3 Panel de eficiencia con la nueva nomenclatura + cuadre suma huevos = total granja — sin
         construir. El texto fuente (párrafo 68 del .docx) es contradictorio con F7.1 tal como está
         escrito y no hay pantalla "Panel de eficiencia" en el repo hoy — ver §8.3 del plan. A
         confirmar con el cliente si es pantalla nueva o ajuste de nomenclatura sobre un reporte
         existente antes de tocar nada (son reportes financieros)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-4` (X14.4)*
 - [~] **F9 · Traslado de aves** (5h) — captura + listado hechos (20-ago-2026), comprobante sin tocar
   - [x] F9.1 Ocultar machos en el traslado de aves — el traslado real de postura NO es
         `traslado-form`/`trasladoRapido` (roto, ver hallazgo abajo): es
@@ -657,10 +687,11 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         Cantidad (H:/M:) y en la de Huevos para Detalle (L:/T:/S:) — se descartó agregar 3 columnas
         sueltas a una tabla que ya tenía 8 (quedaría muy ancha) y una fila expandible (más estado,
         sin necesidad real todavía)
-  - [ ] F9.2c **Comprobante — sin construir.** No existe una pantalla/printable de comprobante de
+  - [!] F9.2c **Comprobante — sin construir.** No existe una pantalla/printable de comprobante de
         traslado hoy (ninguna ruta ni componente con ese nombre); no está claro si el pedido es un
         PDF descargable, una vista de detalle imprimible, o el mismo listado alcanza. A definir antes
         de construir algo — mismo criterio que F5.3/F7.3/F8.3 (no adivinar UX)
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-5` (X14.4)*
   - [i] **Hallazgo de paso, fuera de Santa Reyes**: `POST api/MovimientoAves/traslado-rapido`
         (usado por `traslado-form.component`, ruta `/traslados-aves/traslados`) tiene el DTO del
         frontend completamente desalineado del que espera el backend (`loteOrigenId`/`loteDestinoId`
@@ -722,12 +753,13 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
           salvo que el procesamiento automático falle)
         - Validado: `dotnet build`/`dotnet test` (pendiente de correr en esta sesión tras el cambio,
           ver bloque de validación al pie) + migración aplicada y re-verificada en BD local
-  - [ ] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre) —
+  - [!] F10.1 Bodega de salida como desplegable (destinos de la granja, sin digitación libre) —
         **sigue sin resolver, ambigüedad real** (§9.3 del plan): "Traslado" (no Venta) hoy no
         captura destino en absoluto (`granjaDestinoId` se manda `undefined` siempre); la lista
         `traslado_de_huevos_planta_destino` (Venta→Planta) es una lista maestra de la EMPRESA, no
         por granja. No está claro si el pedido es agregar destino a "Traslado" o cambiar el alcance
         de esa lista — no se adivina, a confirmar con el cliente
+        *Bloqueado por el cliente -> `TK-2026-000180` / `SR-DEF-6` (X14.4)*
   - [x] F10.2 Tipos de huevo del traslado alineados al catálogo nuevo — cerrado como parte del fix
         de arriba (mismo selector de ítems de F7, reusado en los 2 formularios)
   - [x] **Lado de lectura, mismo bug (21-ago-2026, misma sesión, tras "seguí con lo que se pueda"):**
@@ -752,12 +784,32 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
         - Validado: `yarn build` 0 errores; balance de `<div>`/`@if` verificado con grep contra
           `git show HEAD:...` antes de compilar (mismo chequeo que atajó los 2 `</div>` de más de la
           tanda anterior)
-- [ ] **F11 · Pruebas** (8h)
-  - [ ] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas
-  - [ ] F11.2 No regresión sobre empresas productivas (Sanmarino, Panamá, Ecuador) — gate multipaís si toca `*SaldoAlimento*`/`fn_seguimiento_diario_*`
-  - [ ] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales
-- [ ] **F12 · Despliegue** (2h)
-  - [ ] F12.1 Despliegue a producción y verificación posterior (TaskDef↔imagen↔`/version.json`)
+- [~] **F11 · Pruebas** (8h) — F11.1 y F11.2 cerradas (21-ago-2026); F11.3 es del usuario
+  - [x] F11.1 Pruebas automatizadas de los cálculos y reglas nuevas — el backend ya las tenía
+        (`SemanasCicloPostura`, `HuevoPrimeraPostura`, `HuevoItems` 30 casos, `ItemInventarioTipo`,
+        `GuiaGeneticaRequisito`); **el front no tenía ninguna, y es donde viven los ESPEJOS**.
+        43 tests nuevos en 3 archivos (commit `7e3ebda`): paridad caso por caso con
+        `SemanasCicloPosturaCalculosTests.cs`, vigencia de primera postura 22/23 + fail-open, y el
+        invariante que V52 rompió DOS veces (F4 y F5): todo flag booleano que lee
+        `ActiveCompanyConfigService` tiene que existir en el catálogo de la pantalla de Empresas.
+        *Detalle → X14.2*
+  - [x] F11.2 No regresión sobre empresas productivas — **el gate multipaís NO aplica, medido**:
+        ningún archivo del rango `6e4fe7f..HEAD` define `fn_seguimiento_diario_*` ni
+        `fn_cuadre_alimento_*`, ni toca un `*SaldoAlimento*` (las 51 menciones son del diagnóstico
+        de solo lectura `verificar_cuadre_alimento_engorde.sql`, que las CONSULTA). Suites verdes:
+        `dotnet test` **3014/3014**, `ng test` **624/624**, `dotnet build` y `ng build` 0/0.
+        *Detalle → X14.3*
+  - [~] F11.3 Pruebas asistidas con el usuario de Santa Reyes sobre datos reales — **fuera del
+        repo**: es una sesión con el cliente, no hay código que escribir
+- [x] **F12 · Despliegue** (2h) — lo construido de V52 **ya está en producción**
+  - [x] F12.1 Verificado con el checklist obligatorio de CLAUDE.md §🚀 el 21-ago-2026: TaskDef viva
+        `sanmarino-back-task:164`, `rolloutState COMPLETED`, 1/1 running; imagen
+        `...backend:a62d8b4d...` = merge de PR #78, que es el HEAD de `origin/main-produccion`; y
+        `origin/main` está **0 commits adelante**. O sea F0-F10 (con sus 8 migraciones de Santa
+        Reyes) corren en prod, no es un rollback silencioso. ⚠️ Lo ÚNICO sin desplegar son los 3
+        commits de esta sesión (A2 + tests + tickets), a propósito: el usuario decidió el 21-ago
+        hacer el merge a `main-produccion` él mismo, en horario de baja operación, porque A2 es un
+        cambio de autenticación en caliente. *Detalle → X14.5*
 
 ---
 
@@ -1213,3 +1265,1095 @@ de levante sobrevive a la transicion porque es la historia de esa etapa.
       Levante, coherente con lo que dice su columna Fase/Etapa. Solo sale de la lista cuando la
       produccion existe de verdad
 - [x] **X13 cerrado.**
+
+---
+
+## X14 — Cierre de lo ejecutable que quedaba: A2, F11 y las 6 dudas del cliente (21-ago-2026)
+
+Sesion de continuacion: **«continua con lo que esta en el tracker sin cerrar para darle fin a todo
+en esta sesion»**. Se separo lo que dependia de codigo (se hizo) de lo que dependia del cliente (se
+registro en ItalJira, decision del usuario en sesion).
+
+### X14.1 · A2 — la ventana de gracia de los tokens sin `jti`, cerrada (commit `def1fd4`)
+
+- [x] **La trampa que el pendiente advertia era real, y no se resolvia borrando la rama.**
+      `SesionActivaService.EvaluarAsync` devolvia `EstadoSesion.Legado` en DOS situaciones sin
+      relacion: (a) token sin `jti`, o sea anterior a B1 — la ventana de gracia; y (b) **fallo de
+      base**, un fail-open deliberado para que una caida de RDS no desloguee a todas las tablets en
+      campo con sus capturas sin subir. Compartian el mismo valor del enum, asi que cerrar (a)
+      tocando `EsSesionValida` habria cerrado (b) tambien: un blip de RDS = logout masivo.
+      **Se separaron:** el fallo de base pasa a `EstadoSesion.NoVerificable`, que sigue dejando
+      pasar y ademas **nunca se cachea** (cachearlo hasta el `exp` seria una hora de barra libre
+      para ese token por un solo error de red)
+- [x] **Precondicion verificada, no asumida** — el pendiente decia «va despues de A1 y de verificar
+      la revocacion en prod»:
+      - `aws ecs describe-task-definition` sobre la TaskDef **viva** (164): `JwtSettings__DurationInMinutes = 60`.
+        B1 se desplego el 20-ago ⇒ al dia siguiente no quedaba un solo token sin `jti` vivo. La
+        ventana se apago sola, como estaba disenada
+      - `grep 'new JwtSecurityToken('` sobre todo `backend/src` ⇒ **1 sola coincidencia**
+        (`AuthService`), que siempre pone `jti` y llama a `RegistrarAsync`. No hay una segunda
+        fabrica de tokens que pudiera emitir uno sin `jti`
+      - Los PAT `sk_` van por el esquema `ServiceToken` (policy scheme «Smart» los desvia por
+        prefijo del header) y **no pasan** por `EvaluarAsync`. Tienen su propia revocacion
+- [x] **Que ve el usuario:** 401 con `errorCode: sesion-revocada`, que
+      `debe-cerrar-sesion-por-401.funcion.ts` ya sabe leer — cierra sesion y pide login, que emite
+      un token con `jti`. En la practica no deberia dispararse nunca
+- [x] Validado: `dotnet build` 0 errores / 0 warnings · `dotnet test` **3014/3014** (+4 tests: el
+      fail-open sigue pasando, `NoVerificable` no se cachea, los dos estados son distintos, y un
+      barrido exhaustivo del enum que obliga a decidir explicitamente que hace un estado nuevo el
+      dia que alguien agregue uno)
+- [~] **Queda del lado del usuario:** verificar la revocacion **en prod** con una sesion real
+      (revocar desde la pantalla y ver el 401 con motivo). No se puede hacer desde aca sin mintear
+      una sesion de un usuario real, que es exactamente lo que el clasificador de seguridad bloqueo
+      en F0.1 — y con razon
+- [i] **Ata con C2.** Ese pendiente (subir `JwtSettings__DurationInMinutes` a 960 en la TaskDef)
+      **ya no tiene el riesgo que tenia**: con A2 desplegado, un token de 16 h sigue siendo
+      revocable en menos de un minuto. C2 sigue siendo del usuario (es la TaskDef, no el repo)
+
+### X14.2 · F11.1 — las pruebas que faltaban estaban en el FRONT (commit `7e3ebda`)
+
+- [x] **El backend ya estaba cubierto**: de los 113 `Calculos` solo 5 no tienen test, y ninguno es
+      de V52. Los de Santa Reyes tienen los suyos (`SemanasCicloPostura` 7, `HuevoPrimeraPostura` 3,
+      `HuevoItems` 30, `ItemInventarioTipo` 5, `GuiaGeneticaRequisito` 9)
+- [x] **El gap real: las 3 funciones puras del front no tenian NI UN test**, y son justo los
+      ESPEJOS del backend — el lugar donde la regla «una sola formula por numero» se rompe sola.
+      43 tests nuevos:
+      - `semanas-ciclo-postura.funcion.spec.ts` — espejo caso por caso de
+        `SemanasCicloPosturaCalculosTests.cs`: cortes 8/24/28, cierre 102 (rojas/criollas) vs 112
+        (blancas/azur), `null` cuando la raza no se reconoce. El caso de **103 semanas** es el que
+        prueba que el grupo cambia el RESULTADO y no solo la etiqueta: fuera de ciclo para una roja,
+        postura para una blanca
+      - `items-huevo-catalogo.funcion.spec.ts` — `esVigentePrimeraPostura` (22 vigente / 23 no) y
+        su fail-open, que es el caso **«flag OFF = comportamiento previo identico»** que exige el
+        patron de features por empresa. Mas el mapeo del catalogo tolerando camelCase/snake_case, la
+        fusion de items descatalogados y el orden Primera > Pnc > Sin categoria
+      - `flags-empresa.funcion.spec.ts` — **el bug recurrente de V52 no fue de calculo, fue de
+        CABLEADO**: F4 y F5 encontraron que el flag no habia llegado a `ActiveCompanyConfigService`,
+        y F0.1 tuvo que cruzar a mano cinco `formControlName` contra el `.ts` porque Angular no
+        valida esa coincidencia al compilar. El test lo vuelve un fallo de build: todo flag booleano
+        que el runtime lee tiene que existir en el catalogo de la pantalla de Empresas. **Hoy pasa**
+        (los 15 booleanos de `CompanyFlags` estan en `FLAGS_EMPRESA`), asi que es una red, no un fix
+- [i] **Como se corre el front headless** (no estaba escrito en ningun lado):
+      `CHROME_BIN="C:/Program Files/Google/Chrome/Application/chrome.exe" npx ng test --watch=false --browsers=ChromeHeadless`
+      con el node portable en el PATH. Con `--include='**/x.spec.ts'` corre uno solo
+
+### X14.3 · F11.2 — el gate multipais NO aplica, y esta MEDIDO
+
+- [x] **Ningun archivo del rango `6e4fe7f..HEAD` (56 commits) define `fn_seguimiento_diario_*` ni
+      `fn_cuadre_alimento_*`, ni toca un `*SaldoAlimento*`.** Las 51 menciones que aparecen al
+      grepear el diff son del diagnostico de **solo lectura**
+      `verificar_cuadre_alimento_engorde.sql`, que las CONSULTA. Se verificó buscando
+      `CREATE OR REPLACE FUNCTION` / `DROP FUNCTION` en cada archivo cambiado, no por mencion del
+      nombre — la mencion sola habria dado un falso positivo
+- [x] Suites completas verdes: `dotnet build` **0/0** · `dotnet test` **3014/3014** ·
+      `ng build` **0 errores, 0 warnings** (203 s) · `ng test` **624/624** ·
+      `tsc -p tsconfig.spec.json` limpio · gate del `.sql`
+      (`verificar-sql-llega-por-migracion.js`) OK
+- [i] **Correccion a la nota de F2.2.** Decia que `ReporteTecnicoProduccionService.cs:~1107` **no
+      filtra por `company_id`**, y lo dejaba marcado como riesgo sin tocar. **Es falso contra el
+      codigo de hoy**: los 3 sitios de ese archivo (1107, 1374, 1718) y los 2 de
+      `ReporteTecnicoService` (1607, 2725) filtran los cinco por
+      `p.CompanyId == _currentUser.CompanyId`. No hay fuga de datos entre empresas ahi. Se deja
+      escrito para que nadie vuelva a gastar tiempo persiguiendola
+
+### X14.4 · Las 6 definiciones del cliente, en ItalJira (commit `9801f9d`)
+
+- [x] **Decision del usuario en sesion**: registrarlas en ItalJira en vez de adivinar la lectura.
+      Caso **`TK-2026-000180`** (`DUDAS`, `ABIERTO`, Santa Reyes, prioridad ALTA) con **6 subtareas
+      `BLOQUEADA`** — `SR-DEF-1..6`: F5.3 (machos sobre el total en ventas), F7.3 (primera postura
+      al crear el lote), F8.1 (productos no conformes), F8.3 (panel de eficiencia), F9.2c
+      (comprobante de traslado), F10.1 (bodega de salida)
+- [x] **Un caso con 6 subtareas y no 6 casos**: comparan solicitante, destinatario y condicion de
+      cierre — una sola reunion con Santa Reyes las responde todas. Es lo contrario del criterio de
+      `SeedTicketsAjusteEncasetamientoLote` (dos incidentes con reporte y arreglo propios); aca es
+      una sola conversacion
+- [x] **`BLOQUEADA` y no `BACKLOG`**: backlog dice «todavia no lo empezamos», bloqueada dice «no
+      depende de nosotros». Y tipo `DUDAS` y no `REQUERIMIENTO` porque el requerimiento ya existe
+      (`TK-2026-000172`): esto es lo que le FALTA para poder ejecutarse. Meterlas dentro del 172
+      habria escondido que el bloqueo esta del lado del cliente
+- [i] **F8.1 no se destraba con una decision, se destraba con un DATO.** Medido contra la base el
+      21-ago: el catalogo de huevo de Santa Reyes tiene 21 items — Manchado y Picado en 4 razas
+      (criollo/blanco/azur/rojo), **Decolorado solo en rojo**, **Farfara en un unico item generico
+      sin raza** y **Enyemado en ninguna**. Los codigos son codigos del **ERP del cliente** (537,
+      538, 539, 1944, 2124, 2125, 2521, 2522, 2523, 2697, 2698): inventar uno crea un item que el
+      ERP no reconoce y la conciliacion falla en silencio recien cuando se cargue produccion real
+- [x] Migracion data-only `20260821190000_SeedTicketDefinicionesPendientesSantaReyes` (Designer
+      clonado, ModelSnapshot intacto), identidad por email y empresa por nombre, fail-open con
+      `RAISE NOTICE`. Validada en BD local: **2 pasadas seguidas dejan 1 caso y 6 subtareas** (sin
+      duplicar) y el `Down` probado **dentro de una transaccion revertida** (borra las 7 filas, el
+      `ROLLBACK` las devuelve) — el patron que exige el propio CLAUDE.md antes de borrar nada
+
+### X14.5 · Estado del despliegue (F12)
+
+- [x] **Todo V52 ya corre en produccion.** Checklist obligatorio de CLAUDE.md §🚀 corrido el
+      21-ago: servicio `sanmarino-back-task-service-75khncfa` en TaskDef **164**,
+      `rolloutState COMPLETED`, 1/1 running; su imagen es
+      `...backend:a62d8b4db881a2770685cbe1ff0578b4b15c49a5`, que es el **merge de PR #78** y el HEAD
+      de `origin/main-produccion`; y `origin/main` esta **0 commits adelante**. No es un rollback
+      silencioso
+- [~] **Los 3 commits de esta sesion quedan en `main`, sin merge a produccion — decision del
+      usuario.** A2 es un cambio de autenticacion en caliente y el merge se hace en horario de baja
+      operacion. Pusheados a `origin/main` el mismo dia, asi que **no repiten el «Riesgo #1»** de
+      trabajo que vive solo en un disco
+
+### X14.6 · Lo que NO se cerro, y por que
+
+- [i] **F11.3** (pruebas asistidas con Santa Reyes sobre datos reales) — necesita al cliente
+- [i] **Los 6 de `TK-2026-000180`** — necesitan la respuesta del cliente
+- [i] **B1-B4, B6** (decisiones del usuario sobre alimento y aves reales), **C1-C13** (fuera del
+      repo: admin de Microsoft 365, TaskDef, secretos, escenarios de PWA con dos dispositivos) —
+      siguen igual, ninguno es codigo
+- [i] **Gap conocido de F10 que sigue abierto:** `ActualizarTrasladoHuevosAsync` (editar un traslado
+      `Pendiente`) sigue solo con las 11 columnas legacy. No se toco: el alta procesa en el mismo
+      request, asi que un traslado no queda `Pendiente` el tiempo suficiente para editarse salvo
+      que el procesamiento automatico falle. Queda escrito, no olvidado
+- [!] **4to formulario de traslado de huevos sin auditar**: `traslados-aves/pages/inventario-dashboard`
+      (~1800 lineas) tiene su propia reimplementacion sin selector de items. Spawneado aparte
+      (`task_b8e26e02`), sigue sin tocar
+
+### X14.7 · F2.2 — el ultimo hueco de la guia genetica, cerrado (commit `457be71`)
+
+- [x] **El gap era real y era ALCANZABLE, no teorico.** `GuiaGeneticaService`, `LoteService` y las
+      3 liquidaciones ya miraban las dos tablas, pero `ReporteTecnicoProduccionService` (3 sitios) y
+      `ReporteTecnicoService` (2) traen la guia con consultas PROPIAS y directas a
+      `ProduccionAvicolaRaw`. Para Santa Reyes, cuya guia vive en `guia_genetica_santa_reyes`, esas
+      consultas devuelven **cero filas**: el reporte sale sin una sola columna de comparacion contra
+      la guia. Y Santa Reyes **tiene `/reportes-tecnicos` habilitado** en `company_menus` — o sea que
+      el reporte se abre y sale vacio, no es un camino muerto
+- [x] **Por que NO se reemplazaron por `ObtenerFilasCompatiblesAsync`, que ya existia.** Porque las 5
+      consultas **no son iguales entre si**: las 2 de `ReporteTecnicoService` filtran `deleted_at` y
+      las 3 de `ReporteTecnicoProduccionService` **no**; y la unificada usa `==` donde las otras usan
+      `EF.Functions.Like` —que con un guion bajo en el nombre de la raza **no significa lo mismo**,
+      porque en `LIKE` el `_` es un comodin—. Sustituirlas habria cambiado el SQL de Sanmarino,
+      Panama y Ecuador, que no tienen guia propia y no deberian notar nada
+- [x] **La forma que si conserva el comportamiento**: `GuiaGeneticaLookup.ObtenerFilasPropiasAsync`
+      devuelve SOLO las filas de la guia propia, o lista vacia. Cada sitio pregunta primero por ella
+      y, si vuelve vacia, corre **SU** consulta de siempre, intacta, sin mover una coma. El delta
+      cero para quien no tiene guia propia queda garantizado **por construccion**, no por revision
+- [x] Verificado en BD: de las 5 empresas **solo Santa Reyes** tiene filas en
+      `guia_genetica_santa_reyes` (**615**); las otras 4 tienen **0**, o sea que el camino ejecutado
+      para ellas es literalmente el de antes. `dotnet build` 0/0 · `dotnet test` **3014/3014**
+- [i] **Correccion a la nota que dejo F2.2.** Decia que
+      `ReporteTecnicoProduccionService.cs:~1107` **no filtra por `company_id`** y lo marcaba como
+      posible fuga entre empresas. Es **falso** contra el codigo de hoy: los 5 sitios (1107, 1374,
+      1718 de uno; 1607 y 2725 del otro) filtran los cinco por
+      `p.CompanyId == _currentUser.CompanyId`. Se deja escrito para que nadie vuelva a gastar tiempo
+      persiguiendola
+
+- [x] **X14 cerrado.** Entorno: no se levanto backend propio (se uso `--artifacts-path` para no
+      pelear el `bin/` con el backend ajeno vivo en :5002 desde las 08:49); no quedan procesos
+      nuevos.
+
+---
+
+## X15 — Codigo ERP opcional (F8.1) + bug real de silos en produccion (21-ago-2026)
+
+Pedido directo del usuario en la misma sesion, fuera del flujo de tracker: "el primer punto dejalo
+opcional el codigo erp" (F8.1, `SR-DEF-3`) y un bug de silos en produccion descrito de memoria, sin
+reproducirlo — la causa se confirmo leyendo codigo, no adivinando.
+
+### X15.1 · `catalogo_items.codigo` ahora es opcional
+
+- [x] **Schema**: `catalogo_items.codigo` (antes `NOT NULL varchar(50)`) pasa a nullable —
+      migracion `CatalogoItemsCodigoOpcional`. El indice unico
+      `ux_catalogo_items_codigo_company_pais (company_id, pais_id, codigo)` NO se toco: en Postgres
+      cada `NULL` es distinto de cualquier otro en un indice unico estandar, verificado
+      empiricamente (2 filas con codigo `NULL`, mismo company/pais, insertan sin choque)
+- [x] **Backend**: `CatalogItem.Codigo` → `string?`. `CatalogItemService.CreateAsync` guarda `null`
+      cuando llega vacio (no `""`) y salta el chequeo de duplicado cuando no hay codigo (no hay con
+      que chocar). `CatalogItemService.UpdateAsync` suma la regla nueva: el codigo se puede
+      **completar UNA SOLA VEZ** mientras el item no tenga uno — una vez asignado es clave natural
+      y `dto.Codigo` que llegue despues se ignora, mismo criterio que ya aplicaba el formulario
+      (deshabilitar el campo al editar). Duplicado al completar → 409 (antes no habia forma de que
+      esto pasara, el codigo no era editable)
+- [x] **6 sitios con warning de nulabilidad nuevo, los 6 corregidos** (no quedo ninguno nuevo:
+      `dotnet build` 0/0): 4 `EF.Functions.ILike` con guard `!= null`, 3 asignaciones a DTOs
+      legacy (`FarmInventoryMovementDtos`) con `?? string.Empty` (son de modelo A/alimento, un
+      codigo nulo ahi no es un caso real hoy), y 2 tuplas de migracion Excel
+      (`(int, string?, string, string?)`) que SI necesitan nulable de verdad — son las que resuelven
+      items de huevo, que es justo el caso que ahora puede no tener codigo
+- [x] **Frontend**: quito `Validators.required` del campo Codigo; el `[readonly]` del input pasa de
+      `editing` a `editing && editing.codigo` (antes bloqueaba el campo SIEMPRE al editar, sin
+      importar si tenia codigo o no — hubiera sido imposible completarlo despues); tabla y detalle
+      muestran `—` cuando esta vacio
+- [x] **Seed**: 7 items de PNC que faltaban en el catalogo de Santa Reyes, con `codigo = NULL` —
+      Decolorado Blanco/Azur/Criollo (Rojo ya existia) y Enyemado en las 4 razas (no existia
+      ninguno). **Sigue el patron YA establecido por Manchado/Picado (exactamente esas 4 razas), no
+      inventa cobertura nueva** — Gallina Feliz/Bonegg/Libre de Jaula Certificado quedan afuera
+      porque tampoco las tienen Manchado/Picado. Farfara (hoy generico, sin raza) NO se toca:
+      partirlo en 4 es una decision de alcance, no una completitud de patron — sigue en
+      `TK-2026-000180`/`SR-DEF-3` junto con los codigos reales, que son del ERP del cliente y no se
+      inventan
+- [x] Validado: `dotnet build` 0/0 · `dotnet test` **3014/3014** · `ng build` 0 errores/0 warnings ·
+      `ng test` **624/624**. Migraciones aplicadas en BD local y verificadas: el ALTER corrido 2
+      veces sin error, el seed corrido 2 veces deja 18 filas sin duplicar (11 + 7), `Down` probado
+      dentro de una transaccion revertida (18→11, el `ROLLBACK` devuelve las 7)
+
+### X15.2 · Bug real: el consumo de silo en PRODUCCION no encontraba el silo asignado al lote
+
+- [x] **Causa confirmada, no adivinada** —
+      [`lote-produccion-list.component.ts:424`](frontend/src/app/features/lote-produccion/pages/lote-produccion-list/lote-produccion-list.component.ts:424):
+      al entrar a un lote desde el filtro de Produccion, `selectedLote.loteId` se poblaba con
+      `lppFromFilter.lotePosturaProduccionId` — el id de `lote_postura_produccion`, OTRA tabla — en
+      vez del `lote_id` BASE (`lotes.lote_id`). El modal de seguimiento diario usa
+      `[loteId]="selectedLote?.loteId"` para pedir los silos asignados al lote
+      (`GET .../lote-silos/{loteId}` → `lote_silos.lote_id`, que referencia el lote BASE, no el
+      LPP): con el id equivocado la consulta no encontraba ninguna fila, y el selector de silo del
+      consumo salia vacio — «no los coge», tal cual lo describio el usuario
+- [x] **Por que el mismo lote SI mostraba sus silos desde Levante.** `modal-create-edit`
+      (lote-levante) lee `getSilosDeLote(loteId)` con el `loteId` del `<select>` de lote, que ES el
+      lote base (`[ngValue]="l.loteId"` sobre la lista de lotes) — nunca tuvo el bug. Confirma que
+      la asignacion (`LoteSiloService`, backend) y el guardado del seguimiento
+      (`ProduccionService.ResolverYSanarLoteIdAsync`, que self-sana el `lote_id` correcto de cada
+      LPP) **siempre estuvieron bien**: el bug era 100% de ESTE componente, en la lectura para
+      mostrar opciones, no en la escritura ni en la validacion del backend
+- [x] **Por que "editar el silo, en produccion, solo llega hasta levante" es el MISMO bug, no uno
+      aparte.** El operario asigna el silo desde `lote-list` (correcto, usa el `lote_id` base) →
+      se ve bien desde Levante (correcto, mismo `lote_id`) → no se ve desde Produccion (el `loteId`
+      que la pantalla de Produccion le manda al modal es otro numero). Un solo root cause explica
+      las dos mitades de la descripcion
+- [x] **El fix reusa un mecanismo que YA existia** para otro campo:
+      `resolverLoteIdBaseLPP` — creado para el bloque de cohortes (`loteIdCohortes`), que YA hacia
+      el fetch async del LPP completo para sacar su `.loteId` real — ahora TAMBIEN corrige
+      `selectedLote.loteId` con el mismo valor resuelto, reasignando el objeto completo (no
+      mutando in-place) para que dispare `ngOnChanges` en el modal (el componente padre es
+      `ChangeDetectionStrategy.Eager`, no hay gotcha de OnPush acá) y vuelva a pedir los silos con
+      el id ya corregido
+- [i] **Barrido de todo el archivo para el mismo patron**: aparecen 2 sitios mas con
+      `loteId: lpp.lotePosturaProduccionId` (`openTrasladoAvesModal`, líneas ~1147/1160), pero son
+      **distintos a proposito** — ese feature ya tiene un campo `loteIdBase` separado y correcto
+      para quien necesite el id real; `loteId` ahi es la identidad propia del traslado, no algo que
+      la pantalla de silos consulte. No se tocaron
+- [i] **Hallazgo relacionado, fuera de alcance — NO tocado.**
+      `ValidacionSeguimientoService.Validar.cs:235` pasa `loteId: null` a
+      `ValidarStockConsumoAsync` en el flujo de **doble validacion** (`requiereValidacionSeguimientoDiario`),
+      que agrupa reservas por `{pais, granja, nucleo, galpon}` sin `LoteId` — un `null` ahi cae al
+      fallback "todos los silos de la granja son validos" (mas PERMISIVO, no mas restrictivo: es lo
+      opuesto al sintoma reportado). Verificado que **no aplica a Santa Reyes hoy**
+      (`requiere_validacion_seguimiento_diario = false`). Corregirlo bien exige repensar el agrupado
+      de reservas (podria abarcar mas de un lote a la vez) — no es un cambio de una linea, se deja
+      documentado y sin tocar
+- [x] Validado: `ng build` 0 errores/0 warnings · `ng test` **624/624** (sin tests nuevos: es un fix
+      de una linea en un flujo que depende de datos reales en BD — Santa Reyes no tiene silos
+      asignados todavia en el entorno local para poder escribir un spec que reproduzca el antes/despues
+      contra el backend real)
+
+- [x] **X15 cerrado.** Entorno: mismo criterio que X14 (sin backend propio, `--artifacts-path`).
+
+---
+
+## X17 — F7.3: los tipos de huevo los declara el LOTE, y el diario los pinta como filas fijas (21-ago-2026)
+
+**Desbloqueado por el cliente en sesión.** Era `TK-2026-000180` / `SR-DEF-2`, una de las 6 dudas que
+X14 había registrado. El usuario definió la ambigüedad y además eligió el modo estricto:
+
+> «cuando yo creo un lote puedo seleccionar los tipos de huevos que me dará el lote. Necesito que
+> esos tipos solo me aparezcan en la fase de producción, no todos los huevos… y en el seguimiento
+> diario ya no tendrá que ser un select, sino que aparecerían por defecto los huevos permitidos para
+> que coloquen su cantidad.»
+>
+> **Fail-closed, textual:** «no, si no tiene asignado no aparece; ahí el usuario tiene que editar el
+> lote para agregarle los tipos de huevos, así controlamos mejor todo.»
+
+Plan: [`fase_de_desarrollo/santa_reyes_items_huevo_por_lote_plan.md`](fase_de_desarrollo/santa_reyes_items_huevo_por_lote_plan.md).
+Auditoría previa: 6 cortes en paralelo del flujo de Santa Reyes.
+
+### X17.1 · El flujo de Santa Reyes, auditado antes de tocar nada
+
+- [i] 🔴 **El flujo NUNCA se ejercitó.** Santa Reyes tiene **0 lotes** y en toda la base hay **0
+      seguimientos con `metadata.huevoItems`**. Las otras 4 empresas tienen
+      `clasificacion_huevo_por_items = false`. O sea que todo lo que se construya detrás de ese flag
+      tiene **radio de impacto cero** sobre datos existentes — por eso el fail-closed que pidió el
+      usuario es seguro HOY y no lo sería dentro de seis meses.
+- [x] **Lo que ya estaba bien:** el guardado rechaza con 400 un ítem que no sea de huevo o de otra
+      empresa, y resuelve la empresa efectiva por `farms.company_id` (no por el token), como manda
+      CLAUDE.md §Features por EMPRESA regla 3.
+- [i] **Alcance: SOLO producción, con evidencia.** Levante no tiene modelo de ítems para huevos en
+      NINGUNA capa (11 columnas fijas), Santa Reyes tiene `captura_huevos_en_levante = false`, y
+      `SeguimientoLoteLevanteService.cs:98` excluye explícitamente a las empresas de ítems. Peor: el
+      arrastre de levante escribe las 11 columnas y `AplicarTotalesHuevoPorItems` **las pone en
+      cero** — son incompatibles hoy. Llevar la lista blanca a levante no es un parámetro, es otro
+      proyecto.
+- [i] ⚠️ **Trampa confirmada:** el form vivo de lote es `features/lote/components/lote-list/`.
+      `features/lote/page/lote-list/` + `modal-create-edit-lote` son huérfanos **que declaran el
+      MISMO selector `app-lote-list`** y encima parecen mejor escritos (usan `ConfirmDialogService`).
+      Tocar el que se ve más moderno es tocar código que no corre.
+
+### X17.2 · La lista blanca
+
+- [x] **Tabla `lote_huevo_items`**, réplica exacta de `lote_silos` (el patrón canónico de N:M por
+      lote, ya probado en prod). Cuelga de `lotes.lote_id` —el maestro, la única fila que existe en
+      las dos etapas— así que la declaración **sobrevive el cierre del levante** sin copiarse.
+      Verificado en BD: `UNIQUE` bloquea el duplicado, `RESTRICT` impide borrar un ítem del catálogo
+      que un lote declara, migración idempotente corrida 2 veces.
+- [x] **Sin columna `orden` a propósito:** el orden sale del catálogo (Primera → Pnc → resto), que ya
+      existe y ya está testeado. Una columna `orden` sería un segundo dueño del mismo número.
+- [x] **La regla es pura:** `HuevoItemsCalculos.ValidarPermitidos` — función NUEVA, no se tocó
+      `Validar`. `Validar` la comparten seguimiento, traslado y carga masiva; agregarle el parámetro
+      habría cambiado el comportamiento de los tres a la vez. **Un traslado no valida la lista
+      blanca a propósito**: mueve lo que YA se produjo, y exigir la lista de HOY dejaría huevos
+      reales atrapados si la declaración cambió después.
+- [x] **Los DOS caminos de escritura la aplican**: alta/edición manual (`ValidarHuevoItemsAsync`) y
+      **carga masiva por Excel** (`MigracionService.HuevosPostura`). Si solo se hubiera puesto en el
+      formulario, el Excel era la puerta de atrás de la restricción.
+- [x] **Frontend:** servicio + `modal-asignar-huevo-items` (espeja `modal-asignar-silos`) + botón 🥚
+      en la grilla de lotes, gateado por `clasificacionHuevoPorItems` (el flag no se leía en
+      `lote-list`, se agregó). El modal avisa explícitamente si se va a guardar vacío — el operario
+      tiene que enterarse ahí, no al día siguiente cargando producción.
+
+### X17.3 · Filas fijas en el diario de producción
+
+- [x] **Se fue el `<select>`, el «➕ agregar ítem» y el 🗑️.** El conjunto lo define el lote. Con eso
+      se cayó código que existía solo para vigilar la selección: `onCambioItemHuevo` (anti-duplicado),
+      `itemHuevoUsadoEnOtraFila`, `agregarFilaHuevo`, `eliminarFilaHuevo`, `totalItemsHuevoOfrecidos`
+      y `cargarItemsHuevo`/`refrescarGruposHuevoItems` (el catálogo entero ya no se pide). **El
+      duplicado pasó de imposible-por-vigilancia a imposible-por-construcción.**
+- [x] **UX:** filas agrupadas por Primera / Pnc con **subtotal por grupo** y total general en vivo.
+      Cada fila muestra nombre + código + unidad y un solo input.
+- [x] 🔴 **Trampa de FormArray esquivada:** `reconstruirFilasHuevo` **vacía y repuebla la MISMA
+      instancia**, nunca la reemplaza. `setupHuevosAutoCalculo` suscribe `valueChanges` UNA sola vez
+      — cambiar la instancia habría dejado el total congelado para siempre, sin error.
+- [x] Las cantidades ya escritas se conservan **por `catalogItemId`, no por índice**: el orden puede
+      cambiar si el lote cambió su declaración mientras el modal estaba abierto.
+- [x] Un ítem guardado que el lote ya no declara **no se pierde**: aparece como fila huérfana marcada.
+
+### X17.4 · Los 6 defectos de la auditoría, arreglados
+
+- [x] **D1 · «Total de huevos: 0» sobre un registro que sí tiene huevos.** Un registro legacy (11
+      columnas, o cargado por migración) abierto con el flag ON mostraba 0, porque las 11 columnas
+      están ocultas y el total por ítems arranca vacío. Ahora se muestra el total REAL con un aviso
+      de que viene del formato viejo.
+- [x] **D2 · El ítem en KILOS redondeaba en silencio.** `HUEVO RECUPERACION BOLSA KIL` (`um='KIL'`)
+      se pesa, pero el contrato es `int`: 12,5 kg se guardaban como 13 sin una sola señal. Ahora el
+      input usa `step` según la unidad y el guardado **avisa y frena** en vez de redondear callado.
+- [x] **D3 · Ítems fantasma entre aperturas.** `resetForm` limpiaba `huevoItemsGuardados` pero no los
+      grupos, y el componente no se destruye entre aperturas (el `@if (isOpen)` está dentro de su
+      propio template). Ahora `resetForm` reconstruye las filas siempre.
+- [x] **D4 · El backend aceptaba ítems INACTIVOS.** El front solo ofrece activos
+      (`CatalogItemService.GetByTypeAsync` filtra `Activo`) pero `ValidarHuevoItemsAsync` no lo
+      hacía: un ítem dado de baja seguía siendo un id válido para guardar. Los dos gates ahora
+      coinciden.
+- [x] **D5 · La vigencia de primera postura era 100 % UI.** `HuevoPrimeraPosturaCalculos.EsVigente`
+      **no tenía un solo llamador en `backend/src`** — la regla del cliente («desde el primer día de
+      la semana 23 no usa más el ítem») no se cumplía por ningún lado: la fecha es editable dentro
+      del mismo modal, así que alcanzaba con elegir el ítem en semana 21 y corregir la fecha a
+      semana 30. Ahora el backend la valida (`MensajeFueraDeVigencia`), y la fila se muestra
+      **deshabilitada y explicada**, no oculta.
+- [x] **D6 · El traslado de huevos no validaba catálogo ni flag.** Solo lo frenaba la disponibilidad,
+      y un ítem con `Cantidad = 0` la pasa (el chequeo es `solicitado > disponible`). Se alineó con
+      el gate del seguimiento — sin la lista blanca, por lo dicho en X17.2.
+
+### X17.5 · Reportes (lo que pidió el usuario: «que se valide en el reporte contable y otros»)
+
+- [i] **Los reportes NO leen `huevoItems`.** El contable, el técnico de producción, el diario de
+      costos, el técnico semanal y el espejo consumen `huevo_tot` y las 11 columnas: son **ciegos al
+      ítem**. Como el guardado por ítems deja `huevo_tot` = suma del desglose, la coherencia de
+      TODOS ellos se reduce a un solo invariante.
+- [x] **`backend/sql/verificar_huevo_items_reportes.sql`** (diagnóstico de solo lectura, exento del
+      gate por prefijo `verificar_`) chequea las 4 cosas: `huevo_tot` == suma del desglose, las 11
+      columnas en 0 en los registros por ítems, ningún ítem fuera de la lista blanca de su lote, y el
+      espejo cuadrando con la suma de seguimientos. **Corrido el 21-ago: 0 descuadres**, y el espejo
+      cuadra exacto en Agroavicola Sanmarino (3.632.634 = 3.632.634).
+
+### X17.6 · Validación
+
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **3031/3031** (+17: lista blanca
+      fail-closed, ítem fuera de lista nombrado, orden de grupos, y la coherencia
+      `EsVigente` ↔ `MensajeFueraDeVigencia` en todo el rango).
+- [x] `ng build` **0 errores / 0 warnings** · `ng test` **633/633** (+9 de `construirFilasFijasHuevo`
+      y `esItemEnKilos`).
+- [x] Gate del `.sql` OK · migración aplicada y re-corrida en BD local sin error.
+- [i] **Gate multipaís NO aplica:** no se tocó `fn_seguimiento_diario_*`, `fn_cuadre_alimento_*` ni
+      ningún `*SaldoAlimento*`.
+- [~] **Sin smoke visual en navegador**: Santa Reyes no tiene lotes en local, así que no hay contra
+      qué abrir el modal con datos reales. La verificación fue de código + invariantes en BD.
+
+### X17.7 · Smoke end-to-end contra el backend real (22-ago-2026)
+
+Pedido del usuario: «desde el registro de un lote hasta liquidar o cerrar un lote de producción con
+sus movimientos, ventas y traslados a plantas». Corrido contra `:5002` con el código nuevo, sobre
+`sanmarinoapplocal`.
+
+- [x] **Usuario de prueba DEDICADO**, a pedido del usuario: `smoke.santareyes@test.local`, rol
+      «Santa Reyes Administrador». No impersona a nadie — es cuenta nueva. El hash lo generó
+      `PasswordHasher<T>` de ASP.NET Identity, **la misma implementación que registra
+      `Program.cs:154`**, y el cifrado del login/`X-Secret-Up` copia exacto el derivado de
+      `EncryptionService` (PBKDF2, salt `sanmarino-salt`, 10k, SHA256, IV de 16 por delante). Nada
+      de cripto reimplementada «parecida».
+- [x] **El flujo completo pasa**: crear lote (201, raza validada contra la guía propia) → cerrar
+      levante (crea el LPP, fase Producción) → declarar 4 tipos de huevo → 3 seguimientos con
+      clasificación → traslado a planta → venta → cerrar el lote de producción (200).
+
+| Caso | Esperado | Resultado |
+|---|---|---|
+| Seguimiento con huevos **sin declarar tipos** | rechazo | ✅ 400 «Este lote no tiene tipos de huevo asignados…» |
+| Ítem **fuera de la lista** del lote | rechazo nombrándolo | ✅ 400 «El ítem «HUEVO CRIOLLO PRIMERAS POSTURAS SIN CLAS» no está entre los tipos que este lote produce» |
+| **D5** · primera postura en semana 23 (límite 22) | rechazo | ✅ 400 «solo se puede registrar hasta la semana 22… El registro es de la semana 23» |
+| Primera postura en semana 20 | guarda | ✅ 201 |
+| **D6** · traslado con ítem inexistente | rechazo por catálogo | ✅ 400 «no existen como ítem de huevo ACTIVO del catálogo» |
+| Traslado a planta / venta válidos | guardan `Completado` | ✅ 201 |
+| Sobregiro (999.999 de un ítem con 80) | rechazo | ✅ 400 «No hay suficientes huevos disponibles» |
+| Disponibilidad tras mover | 664: 8000−3000, 666: 150−100 | ✅ 5000 y 50, exacto |
+
+- [x] **Reportes, con datos REALES** (`verificar_huevo_items_reportes.sql`): `huevo_tot` == suma del
+      desglose (**8607 = 8607, 0 descuadres**), las 11 columnas legacy en 0, ningún ítem fuera de la
+      lista blanca, y el **espejo cuadrando exacto** con la suma de seguimientos (8607 = 8607) —
+      que es lo que alimenta el reporte contable. Sanmarino sigue en 3.632.634 = 3.632.634, sin tocar.
+- [x] 🔴 **El smoke encontró un defecto que la lectura de código no había visto** (commit `cdf0239`):
+      el backend **no completaba `codigo`/`nombre`/`tipoHuevo`/`um`** del desglose — confiaba en que
+      el cliente los mandara. El formulario los manda, así que por la UI nunca falla; pero la API
+      directa, un script o un cliente nuevo guardaban el snapshot con esos campos en NULL, y como
+      `fn_clasificacion_huevo_items_produccion` los lee DIRECTO del jsonb (sin join al catálogo), el
+      desglose semanal salía con filas sin nombre y la disponibilidad mostraba «(sin nombre)».
+      Verificado en vivo: el registro 674 (antes) quedó con los 4 campos vacíos; el 676 (después),
+      con el MISMO payload sin etiquetas, guardó `538 | HUEVO MANCHADO ROJO | Pnc | UND`.
+      Se completa desde las filas del catálogo que el gate ya tenía cargadas: **cero consultas nuevas**.
+- [i] **Ventana de fecha (V51) confirmada viva** en traslados: rechazó `2026-06-15` porque solo
+      admite el mes en curso + 15 días. El seguimiento diario NO tiene esa guarda y aceptó junio —
+      asimetría preexistente entre los dos endpoints, ajena a F7.3, anotada y no tocada.
+- [~] **Datos del smoke: se DEJAN en la base local a propósito.** Lote `SMOKE-SR-001` (lote 152,
+      LPP 10) con sus 3 seguimientos, 1 traslado a planta y 1 venta. Es el único lote de Santa Reyes,
+      así que sirve para abrir la pantalla y ver las filas fijas con datos. Borrarlo es un `DELETE`
+      del lote (cascade se lleva `lote_huevo_items`).
+- [x] **Backend `:5002` queda ARRIBA y actualizado**, como pidió el usuario para la sesión de móvil.
+
+### X17.8 · Smoke desde el FRONT, en el navegador (22-ago-2026)
+
+Mismo recorrido que X17.7 pero manejando la UI real contra `:4200` + `:5002`.
+**Encontró dos defectos que ni la lectura de código ni los 3.048 tests habían visto.**
+
+- [x] **Lo que se verificó en pantalla, con datos reales:**
+  - El botón **🥚 «Tipos de huevo que produce el lote»** aparece en la grilla de lotes, al lado del
+    de silos, y solo porque la empresa tiene el flag.
+  - El **modal de asignación** pinta los 28 ítems agrupados **Primera (2/10)** y **Pnc (2/18)**, con
+    contador por grupo, resaltado del seleccionado, la etiqueta «primera postura» en los 3 que
+    corresponde, la unidad **KIL** en `HUEVO RECUPERACION BOLSA KIL`, y **sin código** en los 7 PNC
+    que sembró X15 esperando los códigos ERP del cliente.
+  - El **seguimiento diario** muestra las **filas fijas**: 2 grupos, 4 filas, **sin `<select>` y sin
+    «agregar ítem»**. La fila de primera postura sale **apagada y explicada**
+    («primera postura fuera de vigencia», semana 33 > 22) — **D5 visible en pantalla**.
+  - **Subtotales en vivo**: Primera 1.200, Pnc 90, total 1.290. Guardó el registro 677 con
+    `huevo_tot` 1290 = suma del desglose y las 3 filas completas (código, nombre, tipo, unidad).
+  - El bloque legacy de las 11 columnas **no se pinta** con el flag encendido.
+- [x] 🔴 **DEFECTO 1 — las filas no cargaban al abrir el modal** (commit `e820ab3`).
+      El bloque se pintaba con su encabezado y **cero filas**, aunque el lote tuviera 4 tipos
+      declarados: no entraba ninguna de las 4 ramas del template (ni cargando, ni error, ni «lote
+      sin tipos», ni filas). Causa: `cargarHuevoItemsDelLote()` estaba cableado **solo** en
+      `loadCompanyFlags()`, que corre UNA vez en `ngOnInit` — ahí todavía no hay `loteId`, así que
+      tomaba el early-return, y **nada lo volvía a disparar**: `ngOnChanges` llamaba a
+      `cargarSilosDelLote()` pero no a este. Quedaba en el estado mudo: sin filas y **sin el mensaje
+      que le diría al operario que declare los tipos**. El fix es una línea, al lado de los silos y
+      por la misma razón (los tipos son del LOTE).
+      **Los tests no podían verlo**: las funciones puras estaban bien y con cobertura; lo que
+      faltaba era el disparador del ciclo de vida del componente.
+- [x] 🔴 **DEFECTO 2 — la clasificación de la grilla salía en cero** (ya arreglado en `cdf0239`,
+      X17.7). La grilla de registros tiene columnas **PRIMERA** y **PNC**, y ahí se vio el impacto
+      REAL del desglose sin etiquetas: registro 676 (después del fix) → total 77, **Pnc 77** ✓;
+      registros 674 y 675 (antes) → total correcto pero **Primera 0 y Pnc 0** ✗. Confirma que la
+      consecuencia del bug era exactamente la predicha: el total cuadra y la clasificación miente.
+- [i] **Al usuario de prueba le faltaba `user_farms`.** Con empresa y rol pero sin granja asignada,
+      el selector de granja sale vacío y no se ve ni un lote. No es un bug: es cómo funciona el
+      alcance por granja. Anotado porque cualquiera que cree un usuario a mano se lo va a comer.
+- [i] **La sesión deslizante corta a los 5 minutos de inactividad** y los pasos de un smoke manual
+      tienen huecos de minutos: la sesión se cayó dos veces a mitad del recorrido, con redirect a
+      `/login` sin aviso. Para la próxima: batear los pasos en pocas tandas.
+- [~] **Screenshots no disponibles**: el panel del navegador no estaba visible, así que la
+      verificación fue por árbol de accesibilidad y por consultas al DOM, no visual.
+- [x] Validado tras el fix: `ng test` verde, y el reporte de invariantes con los 4 registros ya
+      cargados desde la UI — **9897 = 9897, 0 descuadres**, espejo cuadrando.
+
+- [x] **X17 cerrado.** Entorno: sin backend propio (`--artifacts-path`), sin procesos nuevos.
+
+---
+
+## X18 — App movil ItalGranja (Flutter): login + SQLite + engorde/reproductora
+
+**Plan:** [`fase_de_desarrollo/app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md)
+
+Punto de partida: `zootecnicoapp/` ya tiene el design system traducido a Flutter (4.125 lineas,
+tema + widgets + 4 pantallas), pero corre con `_lotesDemo` hardcodeado y un `SyncService` que
+simula el envio con `Future.delayed`. Esta fase reemplaza la simulacion por el backend real.
+
+Perfil: **Ecuador y Panama resueltos por pais** (decision del usuario, 21ago26). Credenciales de
+smoke: `admin.ecuador@italcol.com` (company 3, pais 2).
+
+### Contrato del backend — medido, no supuesto
+- [x] Login cifrado ida y vuelta: AES-256-CBC + PBKDF2-SHA256/10000/`sanmarino-salt`, IV prepend,
+      base64. Verificado 200 contra `:5002` con el usuario real
+- [x] `X-Secret-Up` obligatorio fuera de `/auth/login`; su 401 se tipifica con
+      `X-Auth-Failure: platform-secret` y **no** debe cerrar la sesion ni vaciar la cola
+- [x] `GET /api/LoteAveEngorde` con los 4 headers → 200, 124 lotes (Ecuador)
+- [x] `GET /api/Auth/menu` → descifrado OK; `admin.ecuador` ve *Pollo Engorde* y **no**
+      *Reproductora Pollo Engorde* → confirma que los modulos se gatean por menu
+- [i] El controller `SeguimientoAvesEngordeEcuador` atiende a los 3 paises: la app postea ahi,
+      igual que el front web. La tabla `_ecuador` no existe
+
+### Implementacion
+- [x] `pubspec.yaml`: + `pointycastle`; fuentes Plus Jakarta Sans + Inter descargadas a `assets/fonts/`
+      (el pubspec las declaraba y no existian: `flutter test` no arrancaba)
+- [x] `core/crypto/crypto_service.dart` — espejo de `EncryptionService.cs`
+- [x] `core/config/api_config.dart` — baseUrl y llaves por `--dart-define`, defaults = back local
+- [x] `core/api/api_client.dart` — Dio + headers + los 6 tipos de fallo (`TipoFallo`)
+- [x] `core/api/auth_api.dart` · `lotes_api.dart` · `seguimientos_api.dart`
+- [x] `core/session/session_store.dart` + `sesion_actual.dart` (interfaz: el cliente HTTP no
+      depende de sqflite, por eso el smoke corre con `dart run`)
+- [x] `core/perfil_pais.dart` — agua (EC+PA) y quintales (solo PA), logica pura
+- [x] `core/modulos_del_menu.dart` — menu → modulos por `route`; match EXACTO (la ruta de
+      postura es prefijo literal de la de pollo engorde)
+- [x] `core/alimento_obligatorio.dart` — espejo de `AlimentoObligatorioCalculos.cs`: se valida
+      ANTES de encolar, si no el rechazo llega horas despues y el usuario ya no esta en el galpon
+- [x] `local_db.dart` v1→v2 con `onUpgrade`: `pending_sync` se ALTERA (tiene trabajo del usuario),
+      `lotes_cache` se recrea (es cache y cambia la PK a `(modulo, id)` — engorde y reproductora
+      numeran aparte y el id 12 existe en los dos)
+- [x] `sync_service.dart` — cola real: 201 ok · duplicado = resuelto · 401 segun cabecera ·
+      la cola NUNCA se borra al cerrar sesion
+- [x] `main.dart` — fuera `_lotesDemo`; arranque online/offline con sesion persistida
+- [x] `login_screen.dart` y `seguimiento_screen.dart` contra la API
+- [x] El date picker no ofrece fechas anteriores al encasetamiento (el backend las rechaza)
+
+### Validacion
+- [x] `flutter analyze` — **0 errores, 0 warnings** (5 `info` cosmeticos preexistentes del
+      design system). De paso: `app_theme.dart` no compilaba (faltaba el import de
+      `CupertinoPageTransitionsBuilder`) y la copia del design system se excluyo del analisis
+- [x] `flutter test` — **66/66**: crypto (vectores + robustez), perfil_pais, modulos_del_menu,
+      payload_seguimiento, alimento_obligatorio, widget del login
+- [x] Smoke `tool/smoke_backend.dart` — **8/8 en Ecuador y 8/8 en Panama**. Verificado en BD:
+      0 filas `SMOKE%` en las dos tablas; flag de Panama restaurado a `true`
+
+### Hallazgos del backend (NO corregidos — fuera del alcance, requieren OK + tests xUnit)
+- [!] **Reproductora y Produccion ignoran el consumo escalar al exigir alimento.**
+      `ValidarAlimentoObligatorio` recibe `kgHembrasDirecto`/`kgMachosDirecto` justo para el
+      cliente que no manda items de inventario (lo dice su propio doc-comment). Levante y los dos
+      engordes se los pasan; `SeguimientoDiarioLoteReproductoraService.cs:267,384` y
+      `ProduccionService.Seguimiento.cs:238,628` **no**. Con
+      `requiere_validacion_seguimiento_diario` ON (hoy solo ItalcolPanama) rechazan con 400 «no
+      tiene alimento» un registro que SI trae alimento. Medido: con el flag apagado en local el
+      mismo POST creo el id 791. Afecta al movil, a la carga masiva por Excel y a la PWA
+- [!] **El duplicado de reproductora vuelve como 500, no 400.**
+      `SeguimientoDiarioLoteReproductoraController.Create` no tiene el
+      `catch (DbUpdateException … 23505)` que si tiene el de engorde: sale el error crudo de
+      Postgres. Mitigado EN LA APP (detecta el duplicado por contenido, no por status), pero
+      cualquier otro cliente ve el 500
+
+### Pendiente de la proxima fase
+- [i] Levante y Produccion: la UI existe, falta el mapeo del payload (`endpointDeModulo` los
+      deja en null a proposito y la pantalla lo dice)
+- [i] Items de inventario con descuento de stock: exige el catalogo `item_inventario_ecuador`
+      con existencias por galpon
+- [i] Windows pide **Developer Mode** para compilar con plugins (`flutter pub get` lo advierte).
+      No bloquea `analyze` ni `test`, si el build de la APK
+
+---
+
+## Alimento obligatorio: Reproductora y Producción ignoraban el consumo escalar
+
+Plan: [`fase_de_desarrollo/alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md`](fase_de_desarrollo/alimento_obligatorio_consumo_escalar_reproductora_produccion_plan.md)
+Origen: [`app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md) §7 — los dos hallazgos del smoke de la app móvil.
+
+Con `requiere_validacion_seguimiento_diario` ON (hoy sólo **ItalcolPanama**, id 5), Reproductora y
+Producción rechazaban con 400 «no tiene alimento» un registro que **sí** traía alimento, porque no
+le pasaban al guard el consumo escalar. Afectaba a la app móvil, a la carga masiva por Excel y a la PWA.
+
+### Fix
+- [x] `AlimentoObligatorioCalculos.Capturado(metadata, kgHDirecto, kgMDirecto)` — la combinación
+      MAX metadata-vs-escalar baja a `Application/Calculos/` (Infrastructure no es testeable: el
+      proyecto de tests sólo referencia Application)
+- [x] `SeparacionSeguimientoHelper.ValidarAlimentoObligatorio` delega en el cálculo puro
+- [x] `SeguimientoDiarioLoteReproductoraService.cs` — pasar los directos en alta (`:267`) y edición (`:384`)
+- [x] `ProduccionService.Seguimiento.cs` — ídem en alta (`:238`) y edición (`:628`), con las
+      variables ya normalizadas a kg (`consumoKgH`/`consumoKgM`): el request trae `ConsumoH` **con
+      unidad** y puede venir en gramos
+- [x] Las 6 llamadas usan `(decimal)(x ?? 0)` en vez de `(decimal)x!`
+
+### Bug del patrón que se copiaba (encontrado al hacerlo)
+- [i] `(decimal)dto.ConsumoKgMachos!` sobre un `double?` **desenvuelve y lanza**
+      `InvalidOperationException("Nullable object must have a value.")` — verificado ejecutando la
+      expresión con el SDK 10.0.301. El `!` sólo calla al compilador. Como los controllers traducen
+      esa excepción a 400, el usuario veía una «validación» que decía *Nullable object must have a
+      value*. `consumoKgMachos` llega `null` de verdad (`ToDto` lo inicializa
+      `alimentosMachos.Count > 0 ? … : null` ⇒ todo Panamá mixto)
+- [x] Corregido también en los 3 services que ya pasaban los directos (Levante, Engorde,
+      Engorde Ecuador): es la misma línea y mordía justo al cliente de este trabajo
+
+### Duplicado de reproductora: 500 → 400
+- [x] `SeguimientoDiarioLoteReproductoraController.Create` — copiar el
+      `catch (DbUpdateException … 23505)` de `SeguimientoAvesEngordeEcuadorController`, **antes**
+      del `catch (Exception)` genérico
+
+### Tests y verificación
+- [x] `tests/ZooSanMarino.Application.Tests/AlimentoObligatorioConsumoEscalarTests.cs` — escalar sin
+      ítems cumple · sin nada rechaza con el **texto literal de hoy** · MAX no suma · flag OFF no
+      evalúa nada · machos `null` no lanza
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **3.049/3.049 verde**, 17 de ellos nuevos. No se mató el backend que otra
+      sesión tenía vivo en `:5002`: se compiló con `--artifacts-path` a un directorio aparte
+- [i] **Los tests cubren el cálculo, no el call site.** `Application.Tests` no referencia
+      Infrastructure, así que ningún test detecta que mañana alguien vuelva a llamar al guard sin
+      los directos. Para eso haría falta un test de integración del service, que hoy no existe
+
+### Verificacion end-to-end (sesion del movil, 22ago26)
+
+Lo anterior valida el calculo; esto valida que el **usuario real deja de ver el 400**. Se levanto un
+backend con el binario nuevo en **:5499** (`--artifacts-path` + `--contentRoot` propios; el de otra
+sesion en :5002 quedo intacto) y se corrio `zootecnicoapp/tool/smoke_backend.dart`, que usa el mismo
+codigo de la app movil.
+
+- [x] **El bug 1, medido antes/despues.** Reproductora + Panama + flag ON, alimento como escalar:
+      antes `FALLA 6 → El registro del 04/07/2026 no tiene alimento`; ahora
+      `OK 6 → seguimiento creado id=793`. Es el caso exacto que motivo el fix
+- [x] **El bug 2, medido.** Con el flag OFF, el segundo POST del mismo dia pasa de
+      `TipoFallo.servidor (500)` a `duplicado` con el texto redactado
+- [x] **Sin regresion en los 3 services que solo cambiaron por el `(decimal)x!`**: engorde Ecuador
+      (sin flag) y engorde Panama (con flag) siguen 8/8
+- [x] BD limpia: 0 filas `observaciones LIKE 'SMOKE%'` en las dos tablas · flag de Panama restaurado
+      a `true` · puerto 5499 liberado al terminar
+- [i] El smoke **no** cubre Produccion: sus dos call sites se corrigieron igual, pero la app movil
+      todavia no postea ese modulo (`endpointDeModulo` lo deja en null). Queda cubierto solo por los
+      tests del calculo hasta que la fase siguiente lo conecte
+
+---
+
+## X19 — App movil: Levante y Produccion, los dos modulos que faltaban (22ago26)
+
+**Plan:** [`fase_de_desarrollo/app_movil_italgranja_plan.md`](fase_de_desarrollo/app_movil_italgranja_plan.md)
+(el alcance de X18 los dejaba fuera: la UI existia, el mapeo no).
+
+Perfil de prueba: **Agroavicola Sanmarino** (company 1, Colombia, pais 1) — es donde viven los lotes
+de postura. Colombia no captura agua ni quintales, asi que ejercita el camino con los dos flags OFF.
+
+### Contrato — medido
+- [x] **Levante** postea a `/api/SeguimientoLoteLevante` con el MISMO request que engorde, mas
+      `lotePosturaLevanteId`. Manda los **dos** ids: el maestro (`lotes.lote_id`) como `loteId` y el
+      de la etapa aparte. Mandar solo el de la etapa da *«Lote '6' no existe»*
+- [x] **Produccion** postea a `/api/Produccion/seguimiento` con un contrato propio: `mortalidadH`
+      (no `mortalidadHembras`), consumo escalar + unidad, y `huevosTotales`/`huevosIncubables`/`etapa`
+      **obligatorios**
+- [i] **Un dia no puede tener registro de levante y de produccion a la vez** — el backend lo rechaza
+      con un mensaje que explica por que (el ciclo sumaria dos veces el mismo alimento y las mismas
+      aves). En el lote P-K345A se descartaron 25 fechas antes de encontrar una libre
+
+### Implementacion
+- [x] `core/postura_calculos.dart` — clasificadora (incubables = limpio + tratado; total = + las 9
+      no incubables) y etapa del ciclo. **Logica pura con tests**: los dos numeros viajan calculados
+      en el payload y el backend los persiste tal cual
+- [x] La etapa **ya no se elige**: era un desplegable editable que ademas decia «semana 25-33». El
+      rango real es **26**-33 / 34-50 / >50 (el calculo hace `max(26, …)`). Ahora se deriva del
+      encasetamiento y se muestra de solo lectura, como en el web
+- [x] `LotesApi.levante()` / `.produccion()`; mapeo compartido `loteDePostura`. **`hembrasL` NO sirve
+      aca**: en postura es la BASE, el saldo vivo es `avesHActual`/`avesMActual`
+- [x] `Lote.loteMaestroId` + SQLite **v3** (`ALTER` para quien venia de v2; los de v1 ya recrean la tabla)
+- [x] Alimento y quintales agregados a levante y produccion (mismo patron que engorde)
+- [x] **Codigo muerto eliminado:** el editor de items dinamicos (`_ItemsEditor`/`_ItemRow`/
+      `ItemSeguimiento`) ya no lo montaba ninguna seccion. Sigue intacto en la carpeta del design
+      system para cuando se implemente el descuento de stock
+
+### 4 bugs de la app que destapo el smoke
+- [x] **El motivo del 400 no se veia.** `SeguimientoLoteLevante` responde un **string JSON pelado**,
+      no `{message}`: el usuario leia «El servidor respondio 400» en vez del motivo
+- [x] **El id de produccion se perdia.** Devuelve un `int` pelado (`ActionResult<int>`), no el
+      registro: la fila de la cola quedaba sin `remote_id` y despues no se podia editar ni borrar
+- [x] **El listado de produccion se leia vacio.** Envuelve en `items` (paginado), no en `registros`.
+      Daba «0 dias registrados» y el smoke elegia una fecha ya tomada. Se pide `size: 0` = todos
+- [x] **Levante nombra el duplicado distinto:** *«Ya existe un seguimiento manual…»*. La deteccion
+      por contenido no lo cubria y la cola habria reintentado para siempre
+
+### Validacion
+- [x] `flutter analyze` **0 errores, 0 warnings** · `flutter test` **98/98** (32 nuevos)
+- [x] Smoke contra el backend real (`:5499`, binario propio; el de :5002 de otra sesion intacto):
+      **8/8 en levante y 8/8 en produccion**, mas engorde Ecuador y Panama **sin regresion**
+- [x] BD verificada: **0 filas `SMOKE%` en las cuatro tablas** de seguimiento; puerto liberado
+- [i] El registro de prueba de produccion se borra **por la API**, no por SQL: descuenta aves y
+      alimento, y un `DELETE` directo dejaria el inventario descuadrado
+
+### Limite conocido
+- [i] La etapa por **raza** de Santa Reyes (`semanas_ciclo_postura_por_raza`) no esta: necesita la
+      guia genetica, que el movil todavia no descarga. Para esa empresa el numero puede diferir del
+      que calcularia el web — hasta entonces, ese modulo se registra desde la web
+
+---
+
+## X20 — Descuento de inventario desde el movil (22ago26)
+
+**Plan:** [`fase_de_desarrollo/descuento_inventario_movil_plan.md`](fase_de_desarrollo/descuento_inventario_movil_plan.md)
+(432 lineas; salio de 2 workflows con verificacion adversarial — 9 bloqueantes encontrados y resueltos
+o declarados fuera de alcance).
+
+Decision del usuario: alcance **maximo** (los 4 modulos + los 2 huecos del backend) y, ante stock
+insuficiente al sincronizar, **aceptar el dia y marcar para cuadre** en vez de rechazarlo.
+
+### 🔴 El hallazgo que reordena el plan
+- [i] **El backend NO es el cuello de botella: es la app.** `grep itemsHembras|itemInventarioEcuadorId`
+      sobre `zootecnicoapp/lib/` da **0 resultados** — y es deliberado, lo dejamos asi en X18/X19
+      (`seguimientos_api.dart:126-127` lo dice por escrito). El gate de 4 condiciones falla en la
+      TERCERA para todo el trafico movil. **Se pueden implementar los 4 cambios de backend completos
+      y la app seguiria sin descontar un kilo.** El interruptor es F5, no F1-F4
+
+### Fase 0 hecha (esta sesion, commit `5ce6fe6`)
+- [x] Los 2 defectos de la cola que convertian cualquier rechazo en corrupcion silenciosa:
+      reintento infinito (`porEnviar` incluia `'error'` sin techo) y la marca del dia que sobrevivia
+      al rechazo del servidor
+- [x] `local_db.dart` tenia 400 lineas sin un solo test → **22 sobre SQLite real** (sqflite_ffi en
+      memoria). Uno fallo y tenia razon: la marca del dia vive en `SyncService`, no en `LocalDb`
+
+### Correcciones MEDIDAS a los diseños (no opinadas)
+- [i] `RegistrarConsumoNivelGranjaAsync` **SI** fecha el movimiento (`InventarioGestionService.cs:1697`).
+      El que NO fecha es el **INGRESO** (`:1757` hardcodea `DateTimeOffset.UtcNow`)
+- [i] Panama (5) tiene doble validacion ⇒ `separa = true` ⇒ **el camino directo que tocan estos
+      cambios NO corre en Panama**. Un smoke "de Panama" sobre la rama directa prueba otra cosa
+- [i] `SyncController.cs` tiene **52 lineas**, no 200: varias citas del diseño de `requiere_cuadre`
+      apuntan a lineas inexistentes. Reanclar por simbolo antes de implementar
+- [i] Linea base limpia: **0 negativos sobre 583 filas** de `inventario_gestion_stock`
+
+### Bloqueado: F0 necesita datos y decisiones que no puedo tomar yo
+- [~] **Mediciones contra PROD** (la BD local no sirve): lotes de produccion EC/PA sin nucleo/galpon
+      (cada uno pasaria de "guarda sin descontar" a **400 al guardar**), granjas con override de
+      `maneja_alimento_por_galpon`, lotes reproductora en empresa Colombia (en local: **cero**), y
+      `lotes.pais_id` NULL (en local 3 de 5 filas de produccion lo tienen ⇒ el camino que corre es el
+      fallback granja→departamento→pais, que ningun diseño prueba)
+- [!] **4 decisiones de negocio** (una ya respondida: preservar el dia). Ver el bloque de abajo
+
+### Lo que si se puede arrancar sin esperar
+- [ ] **F1 — calculo puro a `Application/Calculos/`**: `ItemConsumoCalculos`, `ConsumoDiffCalculos`,
+      `MetadataItemSeguimientoCalculos`, `FechaMovimientoSeguimientoCalculos`. Refactor puro, cero
+      cambio de comportamiento, solo agrega archivos. Hoy ese bucle esta inline TRES veces y ninguna
+      es testeable
+- [ ] **F5.2 — la UI del selector de items en Flutter**: repos distintos, cero archivos compartidos
+      con el backend. Es el trabajo de mayor plazo: conviene arrancarlo temprano y shippearlo tarde
+
+### 🟢 Alcance REDUCIDO por un dato (22ago26) — los 2 "huecos" no existen
+
+El usuario lo dijo y la BD lo confirma sin excepciones: *«ecuador y panama tiene es pollo engorde,
+no postura que es levante y produccion»*.
+
+| Empresa | Pais | Engorde | Reproductora | Levante | Produccion |
+|---|---|---|---|---|---|
+| Sanmarino | CO | 0 | 0 | 18 | 4 |
+| ItalcolEcuador | EC | 124 | 3 | 0 | 0 |
+| Demo | CO | 0 | 0 | 10 | 2 |
+| ItalcolPanama | PA | 67 | 121 | 0 | 0 |
+| Santa Reyes | CO | 0 | 0 | 1 | 1 |
+
+- [i] **Produccion en EC/PA y reproductora en Colombia NO son huecos: son combinaciones que la
+      operacion no tiene.** Cada modulo descuenta exactamente donde se usa. **F6 sale del alcance**
+      (construirlas seria superficie sin usuario). Si algun dia una empresa cruza de modelo, vuelven
+- [i] Consecuencia util: **el smoke de la app tiene que correr por pais** — engorde/reproductora solo
+      dan datos en EC/PA, levante/produccion solo en Colombia. Ya es lo que veniamos haciendo
+
+### Decisiones del usuario (cierran F0.2)
+- [x] Stock insuficiente al sincronizar → **aceptar el dia y marcar para cuadre**, no rechazarlo
+- [x] Resolver un cuadre → **solo marca visto**. No repone kilos: eso creaba una segunda forma de
+      mover el saldo y el repo ya tiene la regla de "una sola formula por numero"
+- [x] El `tipoAlimento` de texto libre → **lo reemplaza el selector** del catalogo. Es la unica forma
+      de mandar el id que dispara el descuento
+- [x] Produccion EC/PA → **fuera de alcance**, el comentario de `ProduccionService.cs:29-33` vale
+
+### F1, F2, F3 y F4 — hechos y verificados (22ago26)
+
+Los 4 backend siguieron el orden `F1 F2 F4 F3`: los tres primeros no tocan el camino EC/PA
+directo, F3 si (marcado "RIESGOSA" en el plan) y se dejo para el final con el patron ya probado.
+
+- [x] **F1 — calculo puro** (`ItemConsumoCalculos`, `ConsumoDiffCalculos`,
+      `FechaMovimientoSeguimientoCalculos`): extraccion pura desde `ProduccionService.cs` y los 3
+      services de diff, cero cambio de comportamiento (verificacion adversarial: equivalente,
+      solo divergencias cosmeticas). Tests nuevos en `ZooSanMarino.Application.Tests`.
+- [x] **F2 — fecha del movimiento**: `FechaMovimientoSeguimientoCalculos.Anclar` (ingreso 12:00Z,
+      consumo 18:00Z — evita el empate de `created_at` que usa la ventana de saldo). Propagado a
+      ~25 sitios (levante, produccion, engorde x2, reproductora, `ValidacionSeguimientoService`,
+      `MigracionService`). Verificado en vivo: movimiento fechado el dia del seguimiento, no el
+      del sync; ancla correcta.
+- [x] **F4 — atomicidad Colombia (nivel granja)**: `RegistrarConsumoNivelGranjaAsync` y
+      `RegistrarIngresoNivelGranjaAsync` reescritos sobre `DescontarStockAtomicoAsync`/
+      `SumarStockAtomicoAsync` (UPDATE condicional / INSERT ON CONFLICT — ya existian de una fase
+      anterior de silos). Verificado en vivo: descuento exacto, devolucion exacta al borrar, cero
+      diffs en `verificar_paridad_stock_clave_natural.sql`.
+- [x] **F3 — atomicidad EC/PA**: el hueco real. `RegistrarConsumoAsync`/`RegistrarIngresoAsync` se
+      aplicaban DESPUES del `SaveChangesAsync` del dia, dentro de un `try/catch` que solo logueaba
+      — con la app offline eso es *permanente* (el push saca la fila del outbox igual). Cambiado a
+      transaccion condicional (`await using ... CurrentTransaction is null ? Begin : null`)
+      envolviendo guardado + consumo/ajuste/devolucion, SIN try/catch: si algo falla, la excepcion
+      sube y el `await using` deshace todo, incluido el seguimiento.
+  - [x] 4 archivos: `SeguimientoLoteLevanteService.Crud.cs`, `SeguimientoAvesEngordeService.Crud.cs`
+        (Panama legacy), `SeguimientoAvesEngordeEcuadorService.Crud.cs` (el que la app usa de
+        verdad, EC+PA+CO), `SeguimientoDiarioLoteReproductoraService.cs`
+  - [i] `ValidacionSeguimientoService.Validar.cs` (el flujo de Confirmar de la doble validacion,
+        el que **si** usa Panama en operacion real) **ya tenia** este patron desde antes — no
+        necesito tocarlo. Bug real de F3 solo pega en EC/PA con `separa=false`, hoy eso es
+        Ecuador (Panama tiene doble validacion ON en las 3 tablas)
+  - [x] `dotnet build` 0/0, `dotnet test` 3124/3124 (sin tests nuevos: la logica es
+        EF/transaccion, no cae en `Calculos/` — su red es el smoke, como dice el plan)
+  - [x] Smoke en vivo contra backend aislado (`:5499`, DB local, puerto `:5002` de la otra sesion
+        intacto): Ecuador engorde con items reales — descuenta exacto (7.5kg), ancla a las
+        18:00Z, `DELETE` devuelve el stock exacto. Stock insuficiente (0kg disponibles) → 400 +
+        CERO seguimientos nuevos + stock sin tocar (antes: 200 + catch silencioso).
+  - [x] `verificar_cuadre_alimento_engorde.sql` antes/despues: diff = 0 filas, ningun galpon
+        nuevo ni descuadre que crecio (los 11 descuadres que muestra son preexistentes y
+        documentados, no de este cambio)
+- [x] F5 (la app emite items — el interruptor real del descuento) — hecho y verificado (22ago26)
+- [ ] F7 (`requiere_cuadre`) sigue sin arrancar
+
+### F5 — el interruptor, hecho (22ago26)
+
+- [x] **F5.1 — el flag.** `companies.descuenta_inventario_desde_movil` (migracion EF
+      idempotente `20260822183118_AddFlagDescuentaInventarioDesdeMovil`, default `false`).
+      Propagado a las 6 proyecciones de `CompanyDto`/`CompanyPaisDto`
+      (`CompanyService`, `CompanyService.Crud`, `CompanyResolver` x2, `CompanyPaisService`
+      x2, `AuthService.GenerateResponseAsync` x2 — el que de verdad llega al login). Del
+      lado Flutter: `Usuario.descuentaInventarioDesdeMovil` (constructor, campo, copyWith,
+      fromJson, toJson) + parseo en `AuthApi.usuarioDesdeRespuesta` desde
+      `companyPaises[0]`. Fail-closed en los dos lados: ausente o error ⇒ `false`.
+  - [i] **Hallazgo:** `CompanyPaisDto` (el que arma el login) **no proyectaba NINGUNO** de
+        los ~20 flags de `Company` — todos viven solo en `CompanyDto` (endpoints de admin).
+        Sin agregarlo ahi, el flag nunca habria llegado a la app.
+- [x] **F5.4 — decision de riesgo (con el usuario).** El plan pedia rechazar en el backend
+      cuando falta `itemInventarioEcuadorId` bajo Modelo B. Medido: el modal de
+      reproductora WEB (`modal-seguimiento-reproductora.component.ts`) manda HOY, en
+      produccion (Panama 121 lotes + Ecuador 3), el id de `item_inventario_ecuador`
+      metido en `catalogItemId` y nunca llena `itemInventarioEcuadorId` — el mismo bug que
+      el plan describe para F6.2/Colombia, pero en el componente que Panama usa de
+      verdad. Rechazar habria roto ese flujo en produccion. Decision del usuario:
+      corregir la falla latente en el BACKEND sin tocar la web, y aplicar el contrato
+      correcto en el MOVIL.
+  - [x] Backend: `ItemConsumoCalculos.NormalizarParaModeloB` (nueva, con 5 tests) — bajo
+        Modelo B, un `ItemConsumoKey` con `EsItemInventario=false` se normaliza a `true`
+        (mismo id, mismos kg): bajo ese modelo solo existe una tabla de origen posible,
+        asi que la marca en `false` era simplemente falsa, no una senal real de
+        `catalogo_items`. Sin rechazo, cero cambio de comportamiento para lo que ya
+        funciona. Conectado en `SeparacionSeguimientoHelper.Contexto` (la reserva de
+        doble validacion que usa Panama).
+  - [x] Movil: `ItemsConsumo.armar()` (ya construido en una fase anterior de esta sesion)
+        **ya** mandaba `itemInventarioEcuadorId` siempre que el pais lo usa — verificado
+        en vivo, no solo leido.
+- [x] **F5.2 — el selector real.** El editor de items del design system (commit
+      `1cdabbc`) era texto libre sin catalogo — no servia. Selector nuevo
+      (`widgets/selector_items_inventario.dart`): busca en el catalogo cacheado
+      (`InventarioApi.catalogo()`), muestra el disponible por (granja, nucleo, galpon)
+      cruzando `ExistenciaInventario`, un campo de cantidad por linea. Reemplaza el
+      campo `tipoAlimento` de texto libre + el consumo escalar SOLO cuando el flag esta
+      encendido (F0.2#4) — con el flag apagado la seccion de Alimento es BYTE A BYTE la
+      de antes.
+  - [i] **Hallazgo:** `Lote` (Dart) no llevaba `granjaId`/`nucleoId`/`galponId` — solo el
+        texto de pantalla. Sin la ubicacion real no se puede cruzar contra
+        `existencias_inventario`. Agregado a `Lote` + a los 3 mappers de `LotesApi` +
+        migracion local v5 (`ALTER TABLE lotes_cache ADD COLUMN`, cache regenerable).
+        La correctitud del descuento NO dependia de esto (el backend resuelve la
+        ubicacion desde el lote, nunca del cliente) — solo el AVISO de disponible en
+        pantalla.
+  - [i] Todo el resto de la capa (modelos `ItemInventario`/`ExistenciaInventario`,
+        `InventarioApi`, cache SQLite v4, `items_consumo.dart` con 25 tests) **ya estaba
+        construido** de una fase anterior de esta sesion, sin un solo caller en toda la
+        app — era groundwork esperando la pantalla. `grep ItemsConsumo lib/` daba 0 antes
+        de esto.
+- [x] **F5.5 — silo, declarado.** El selector manda `manejaSilos: false` siempre (comentario
+      en el codigo lo explica): ninguna empresa por silo tiene el flag encendido, y no lo
+      va a tener hasta que exista un selector de silo — no se construyo en esta pasada.
+- [x] Sincronizacion: `main.dart._refrescarCatalogoInventario` baja catalogo + existencias
+      (por cada granja de los lotes del usuario) SOLO si el flag esta encendido — una
+      empresa sin el flag no paga el peso de un catalogo que nunca ve.
+- [x] `dotnet build` 0/0, `dotnet test` 3129/3129 · `flutter analyze` 0 errores ·
+      `flutter test` 165/165 (10 nuevos: `usuario_test.dart` + 2 en `cola_sync_test.dart`)
+- [x] Smoke en vivo end-to-end con el CODIGO REAL de la app (`tool/smoke_f5_items.dart`,
+      nuevo): flag encendido a mano en la BD local para ItalcolEcuador (revertido despues),
+      `ItemsConsumo.armar()` arma `itemInventarioEcuadorId=4` de verdad, POST real a
+      `/SeguimientoAvesEngordeEcuador` descuenta 6.25 kg exactos, DELETE devuelve el stock
+      exacto (2520 → 2520). Puerto `:5002` de la otra sesion intacto.
+
+## F7 — requiere_cuadre, hecho y verificado (22ago26)
+
+Alcance decidido con el usuario: **solo el PWA web** (`POST /api/Sync/push`), no la app movil.
+Hallazgo previo a implementar: el mecanismo `requiere_cuadre` (constante, DTOs, y el manejo en
+`clasificar-resultado-push.funcion.ts` del lado Angular) **ya existia**, con el comentario "Todavia
+sin emisor" — la app Flutter de esta sesion NO pasa por `/api/Sync/push` (postea directo a cada
+endpoint, cola propia en SQLite), asi que F7 no le aplicaba pese a que el plan lo asumia.
+
+- [x] **La decision se toma ANTES del throw, no parseando el mensaje.** Nuevo
+      `StockInsuficienteException : InvalidOperationException` (hereda para que cualquier catch
+      existente lo siga atrapando igual) en los 6 sitios reales de "no hay stock" (EC/PA y
+      Colombia, pre-check y descuento atomico). `SyncPushService.AplicarUnaAsync` atrapa ESE tipo
+      especificamente — nunca compara texto — y sólo si el request `TraeItems(...)`.
+- [x] **El reintento sin items, con el kg vuelto al escalar.** Sacar el array entero (sin más)
+      dejaba el registro sin alimento y el guard de "alimento obligatorio" lo rechazaba igual —
+      F7 habria fallado en el 100% de los casos reales. `ItemConsumoCalculos.KgDeAlimento`/
+      `NombresDeAlimento` (nuevas, con tests) recomponen `consumoKgHembras`/`tipoAlimento` antes
+      de reintentar. Un helper por forma de request (levante/engorde comparten
+      `CreateSeguimientoLoteLevanteRequest`; reproductora y produccion tienen el suyo — produccion
+      es record posicional, `with` en vez de mutar).
+- [x] **Bug real encontrado por el smoke, no por lectura de codigo:** el primer intento deja su
+      entidad trackeada en el `ChangeTracker` ANTES del chequeo de stock (`SeguimientoAvesEngordeEcuadorService.Crud.cs`
+      hace `_ctx.Add(ent)` antes de `ValidarStockConsumoAsync` — a diferencia de levante/reproductora/
+      produccion, que validan antes de trackear). Sin `_ctx.ChangeTracker.Clear()` antes del
+      reintento, la SEGUNDA entidad se sumaba a la primera sin guardar y las dos violaban el
+      indice unico (lote, fecha) — el push volvia `rechazada / error_interno`, exactamente lo que
+      F7 existe para evitar. Se agrego el `Clear()` en los 4 reintentos (necesario en engorde,
+      defensivo en los otros tres).
+- [x] **Bandeja + resolver**, nuevo en `sync_operaciones`: columnas `detalle`, `cuadre_resuelto_at`,
+      `cuadre_resuelto_por` (migracion `20260822224615_AddCuadreASyncOperaciones`, idempotente) +
+      indice parcial para la bandeja. `GET /api/Sync/cuadres` (fail-closed por empresa activa) y
+      `POST /api/Sync/cuadres/{id}/resolver` — **solo marca visto**, no repone kilos (decision del
+      usuario, F0.2#3: reponer seria una segunda formula para el mismo numero). Nombre de ruta sin
+      "admin" (el WAF de prod devuelve 403 a cualquier path que lo contenga).
+- [x] **Gate de maquina** (`backend/scripts/verificar-cuadre-solo-en-sync.js`, nuevo, wireado en
+      `deploy-production.yml`): falla el CI si algo fuera de `Services/Sync/` asigna el estado
+      `requiere_cuadre` — el camino directo (F3) depende de lo contrario, que CUALQUIER falta de
+      stock deshaga todo el seguimiento.
+- [x] `dotnet build` 0/0, `dotnet test` 3134/3134 (+5 tests nuevos de `KgDeAlimento`/
+      `NombresDeAlimento`), los dos gates de maquina en verde.
+- [x] Smoke en vivo contra backend aislado (`:5499`, puerto `:5002` de la otra sesion intacto), 15
+      verificaciones sobre el camino de divergencia (POST real a `/api/Sync/push` con un item sin
+      stock): estado `requiere_cuadre`/`divergencia_stock`, el dia queda guardado (UN seguimiento,
+      no cero), CERO cambio de stock, el kg paso al escalar, `tipoAlimento` se reconstruyo del
+      nombre del item, reenviar el mismo `clientOpId` hace replay completo (con `detalle`, no solo
+      `errorCodigo`), aparece en la bandeja, resolver lo saca sin tocar stock, resolver dos veces
+      da 404. Camino feliz (stock suficiente) verificado aparte: sigue devolviendo `aplicada` y
+      descontando exacto — F7 no cambio el comportamiento normal.
+- [x] `verificar_cuadre_alimento_engorde.sql` antes/despues: diff = 0 filas.
+
+## Plan cerrado (22ago26)
+
+F1 a F7 completos (F6 fuera de alcance, decidido con el usuario: EC/PA no operan produccion
+postura, Colombia no tiene reproductora — construirlo seria superficie sin usuario). El plan
+`descuento_inventario_movil_plan.md` queda ejecutado de punta a punta.
+
+---
+
+## App móvil — rediseño visual, transiciones, offline y arquitectura (23ago26)
+
+Plan: [`fase_de_desarrollo/app_movil_rediseno_visual_y_arquitectura_plan.md`](fase_de_desarrollo/app_movil_rediseno_visual_y_arquitectura_plan.md)
+· Guía nueva: [`zootecnicoapp/CLAUDE.md`](zootecnicoapp/CLAUDE.md)
+
+Pedido del usuario: mejora visual + transiciones, que el offline funcione siempre, los logos del
+login web (el de Italfoods se elimina: **la web no lo usa en ningún lado**, 0 referencias medidas),
+app más profesional alineada a los patrones del web, y arquitectura definida y documentada.
+
+**Decisiones suyas:** color **híbrido** (marca en acentos/acciones, neutros cálidos se quedan) y
+**arquitectura feature-first completa**.
+
+### Arquitectura y offline — `bb953aa`
+
+- [x] **Reestructura feature-first**: `core/` (api, db, sync, session, models, reglas, calculos,
+      platform) · `design_system/` (tokens, components, motion) · `features/` (auth, home, lotes,
+      seguimiento, sync, perfil) · `shared/`. Los 3 archivos que concentraban todo se partieron por
+      pantalla real (`app_screens.dart` tenía **4 pantallas distintas** en 761 líneas).
+- [x] Imports intra-proyecto a `package:` — mover un archivo deja de romper sus propios imports.
+- [x] Regla de capas verificada: `core/` no importa `features/` ni `design_system/`. Por eso
+      `postura_calculos`/`perfil_pais`/`modulos_del_menu` se quedan en `core/` (los usa `core/api`).
+- [x] **Hueco offline 1 — pérdida de datos:** el chip «Guardado» se pintaba ANTES de que el INSERT
+      resolviera, sin `try/catch` en ninguna de las 3 capas. Si fallaba, el operario se iba
+      convencido de haber anotado el día y el registro no existía. Ahora encola → confirma.
+- [x] **Hueco 2 — la VPN contaba como «sin conexión»** (`switch(results.first)` con `_ => offline`;
+      en iOS/macOS la VPN se reporta como `other`). Un equipo con VPN corporativa **nunca** subía la
+      cola. Extraído a `calidadDesdeConectividad()` puro + 12 tests.
+- [x] **Hueco 3** — abrir la app con cola pendiente y red no sincronizaba sola. `_calidad` arranca
+      offline (fail-closed) + `WidgetsBindingObserver` sincroniza al volver a la app.
+- [x] **Hueco 4** — `sincronizar()` sin guarda de reentrada: dos disparos posteaban la misma fila.
+- [x] **Hueco 5** — una respuesta VACÍA borraba la caché (`delete` incondicional): un 200 con cuerpo
+      raro dejaba al operario con CERO lotes en el galpón. Guarda «lista vacía no reemplaza».
+- [x] `flutter analyze` 0/0 · `flutter test` **177/177** (12 nuevos).
+
+### Documentación
+
+- [x] **`zootecnicoapp/CLAUDE.md`** — mapa de capas y reglas de dependencia, convención de imports y
+      nombres, sistema de diseño con la regla de marca, sistema de movimiento, **contrato offline con
+      los 19 invariantes medidos**, 4 trampas de Flutter que ya costaron caro, y checklist de commit.
+
+### Pendientes medidos que quedan abiertos (del informe de offline)
+
+Ninguno es regresión: son huecos que ya existían y quedaron documentados en el `CLAUDE.md` de la app.
+
+- [x] **Días que el servidor ya tiene, cableados** (23ago26) — `SyncService.refrescarDiasDelServidor`
+      se llama al abrir el formulario y avisa ANTES de llenarlo, no al guardar. Es por lote y a
+      demanda: el endpoint es uno por lote y en la sincronización diaria serían 124 peticiones.
+- [x] **Modo «sólo captura»** — un token vencido ya no expulsa. Se conserva la sesión, se puede
+      seguir registrando y viendo la cola, y sólo se suspende subir. Antes el login exigía red, así
+      que un 401 seguido de quedarse sin señal dejaba al operario afuera de su propia app.
+- [x] **UI de filas agotadas** — sección «Necesitan tu atención» con el mensaje real del servidor y
+      un botón Reintentar que llama `sync.reintentar(id)`.
+- [x] **Los avisos llegan al usuario** — resumen post-sync («N subidos · N ya estaban · N hay que
+      recargarlos»). `avisoPlataforma` ya estaba cableado: esa parte de la medición estaba vieja.
+- [x] **Pantalla de historial** — `LocalDb.historialLocal()` (lector nuevo, +5 tests) y
+      `features/sync/pages/historial_page.dart`, agrupada por día. Entrada desde Perfil.
+- [i] **Silos**: sigue a medias A PROPÓSITO (decisión de producto F5.5). No cablear sin decisión.
+- [x] **Los lotes cerrados ya no se ofrecen** (23ago26) — no admiten registros nuevos, así que
+      mostrarlos sólo hacía perder toques: el choque aparecía recién al elegirlos.
+      `features/lotes/funciones/lotes_activos.dart` (+8 tests), filtrado en un solo punto ⇒
+      desaparecen de Inicio, Lotes y el selector a la vez. **Medido en Ecuador: de 124 ofrecidos, 94
+      estaban cerrados** (quedan 30). La caché guarda todos igual: el historial resuelve nombres
+      contra ella. La guarda de `_nuevoSeguimiento` se conserva por si el lote se cierra entre la
+      última sincronización y el toque.
+- [x] **`SyncService` con tests** (23ago26) — `test/sync_service_test.dart`, 31 casos: los 6
+      `TipoFallo`, la guarda de reentrada, el orden de la cola (I4), el endpoint congelado (I5) y las
+      filas agotadas (I17). Validados **con mutación**: se rompió una regla por vez y las 9 las
+      detectó el test que nombra su invariante. Se agregó una costura de tiempos al service
+      (`demoraDeteccion`/`demoraExito`, defaults idénticos) para que la suite no espere 3,9 s por caso.
+
+---
+
+# Limpieza de código muerto de la auditoría (23-ago-2026)
+
+Plan: [`fase_de_desarrollo/limpieza_codigo_muerto_auditoria_plan.md`](fase_de_desarrollo/limpieza_codigo_muerto_auditoria_plan.md)
+
+Salió de la auditoría completa back+front. **Nada de esto está en un flujo vivo**: la app tiene que
+comportarse idéntico después, y el conteo de tests es el testigo (back 3.135, front 633).
+
+## Línea base medida ANTES de tocar nada (23ago26)
+- [x] `dotnet build` → 0 errores, 0 warnings
+- [x] `dotnet test` → 3.135 pasan / 0 fallan
+- [x] `yarn build` → 0 errores, 0 warnings (301 s)
+- [x] `yarn test` → 633 pasan
+
+## Caso 1 — formulario huérfano de levante (front)
+- [x] Borrar `features/lote-levante/pages/seguimiento-lote-form/` (`.ts`, `.html`, `.scss`) — 807 líneas
+- [x] `seguimiento-lote-levante-routing.module.ts`: quitar import + rutas `nuevo` y `editar/:id`
+      (+ se removió al pasar el import muerto de `SeguimientoLoteLevanteService`, que no se usaba)
+      (la ruta `''` → list **se conserva**)
+- [x] `seguimiento-lote-levante.module.ts`: quitar import + entrada en `imports`
+
+## Caso 2 — `AllowAllPolicyProvider` (back)
+- [x] `Program.cs`: eliminar la clase y su encabezado (cola del archivo)
+- [x] `IDbStudioAuthorization.cs`: corregir el doc-comment que afirma que las policies de ASP.NET
+      están "neutralizadas" — es falso desde que existe el deny-by-default
+- [x] Los comentarios históricos de `Program.cs` (523/536) se conservan
+
+## Verificación de no-regresión
+- [x] `dotnet build` 0/0 y `dotnet test` = **3.135** (mismo número)
+- [x] `yarn build` 0/0 y `yarn test` = **633** (mismo número)
+- [x] 0 referencias residuales a las dos piezas
+- [x] `FallbackPolicy = RequireAuthenticatedUser` intacto
+
+---
+
+# Split de los 12 archivos largos de la auditoria (23-ago-2026)
+
+Plan: [`fase_de_desarrollo/split_archivos_largos_plan.md`](fase_de_desarrollo/split_archivos_largos_plan.md)
+
+Confirmado por el usuario: TODO lo que salio en la auditoria. Corte mecanico (verbatim), un commit
+por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 tests.
+
+## Backend (6 archivos)
+- [x] `ReporteTecnicoService.cs` (3267→219 + 6 en Funciones/) — build 0/0, test 3135/3135 — commit `4578bb1`
+- [x] `InventarioGestionService.cs` (3061→242 + 6 en InventarioGestion/Funciones/) — build 0/0, test 3135/3135 — commit `fdf2c72`
+- [x] `ReporteTecnicoProduccionService.cs` (1991→372 + 6 en Funciones/) — build 0/0, test 3135/3135 — commit `d56fef5`
+- [x] `ReporteContableService.cs` (1786→370 + 3 en Funciones/) — build 0/0, test 3135/3135 — commit `f18daff`
+- [x] `TicketService.cs` (1402→130 + 5 en Tickets/Funciones/) — build 0/0, test 3135/3135 — commit `f20ee3d`
+- [x] `LoteService.cs` (1353→263 + 3 en Funciones/) — build 0/0, test 3135/3135 — commit `60ddb88`
+
+**Backend completo: 6/6.**
+
+## Frontend (6 archivos)
+> Nota de alcance (24ago26): `modal-create-edit` de lote-levante YA tenía extracción extensa a
+> `funciones/`/`models/` (9+ imports) — es el archivo de referencia, no necesitaba más trabajo. En
+> el resto, se extrajeron solo funciones verificadas 100% puras (cero `this.` en el cuerpo) e
+> interfaces inline a `models/`; los métodos que leen estado del componente (`this.form`,
+> `this.algúnMap`, servicios) se dejaron en el componente — parametrizarlos habría sido un refactor
+> más grande y más riesgoso que "mover verbatim", fuera del alcance mínimo de esta tarea.
+- [i] `lote-levante/pages/modal-create-edit` (2482) — ya extraído (referencia), sin cambios
+- [x] `gestion-inventario/pages/gestion-inventario-page` (2164→2124 + 1 en funciones/ + 1 en models/) — build 0/0, test 633/633
+- [x] `lote-produccion/pages/modal-seguimiento-diario` (2005→1908 + 1 en funciones/ + 1 en models/) — build 0/0, test 633/633
+- [x] `lote/components/lote-list` (1905→1854 + 2 en funciones/) — build 0/0, test 633/633
+- [x] `engorde-comun/pages/modal-seguimiento-engorde` (1829→1826 + 1 fn en funciones/ existente) — ya muy refactorizado, solo 1 candidato nuevo — build 0/0, test 633/633
+- [x] `traslados-aves/pages/inventario-dashboard` (1691→1655 + 2 en funciones/) — build 0/0, test 633/633
+
+**Frontend completo: 5/5 tocados + 1 ya era referencia. Sweep de 12 archivos: CERRADO.**
+
+## Verificacion final (al cerrar los 12)
+- [x] `dotnet build` 0/0 y `dotnet test` = 3135 (identico a la linea base)
+- [x] `yarn build` 0/0 y `yarn test` = 633 (identico a la linea base)

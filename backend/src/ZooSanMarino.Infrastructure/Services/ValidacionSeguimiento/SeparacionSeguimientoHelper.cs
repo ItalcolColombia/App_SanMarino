@@ -36,17 +36,11 @@ public static class SeparacionSeguimientoHelper
         string modulo, bool loteEsMixto, JsonDocument? metadata, DateTime fechaRegistro,
         decimal kgHembrasDirecto = 0m, decimal kgMachosDirecto = 0m)
     {
-        var (h, m, g) = metadata is null
-            ? (0m, 0m, 0m)
-            : MetadataEngordeCalculos.ParseKgPorBloque(metadata.RootElement);
-
-        // MÁXIMO, no suma: cuando el registro trae las dos cosas son el MISMO alimento expresado dos
-        // veces (el formulario llena el campo suelto además de los ítems). Sumarlos duplicaría los kg.
-        // Para lo único que se usan acá es para decidir si hay alimento o no, así que el máximo basta
-        // y no inventa cantidades.
+        // La combinación metadata-vs-campo-suelto (MÁXIMO, no suma) vive en el cálculo puro: es la
+        // regla que los cinco módulos comparten y la que hay que poder cubrir con tests.
         var motivo = AlimentoObligatorioCalculos.Motivo(
             modulo, loteEsMixto,
-            new AlimentoCapturado(Math.Max(h, kgHembrasDirecto), Math.Max(m, kgMachosDirecto), g),
+            AlimentoObligatorioCalculos.Capturado(metadata?.RootElement, kgHembrasDirecto, kgMachosDirecto),
             DateOnly.FromDateTime(fechaRegistro));
 
         if (motivo is not null)
@@ -98,6 +92,13 @@ public static class SeparacionSeguimientoHelper
         var consumo = metadata is null
             ? new Dictionary<ItemConsumoKey, decimal>()
             : MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(metadata.RootElement);
+
+        // F5.4 — bajo Modelo B (EC/PA) un ítem con EsItemInventario=false no es del catálogo A: es
+        // item_inventario_ecuador mal etiquetado (ver ItemConsumoCalculos.NormalizarParaModeloB).
+        // Sin esto, la reserva de un lote reproductora Panamá/Ecuador queda con la marca de origen
+        // mintiendo, aunque el consumo real ya resuelva bien contra item_inventario_ecuador.
+        if (InventarioConsumoGate.ResolverModelo(paisId) == ModeloInventarioConsumo.ModeloB)
+            consumo = ItemConsumoCalculos.NormalizarParaModeloB(consumo);
 
         var aves = ReservaSeguimientoCalculos.LineasDeAves(
             mortalidadHembras, selHembras, errorSexajeHembras,

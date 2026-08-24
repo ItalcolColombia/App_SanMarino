@@ -123,6 +123,13 @@ jobs:
         working-directory: backend
         run: node scripts/verificar-sql-llega-por-migracion.js
 
+      # F7: requiere_cuadre sólo lo puede emitir SyncPushService (la decisión se toma ANTES del
+      # throw, reintentando sin ítems). Un segundo emisor copiado en el camino directo desandaría
+      # la atomicidad que F3 instaló ahí.
+      - name: Gate — requiere_cuadre solo lo emite SyncPushService
+        working-directory: backend
+        run: node scripts/verificar-cuadre-solo-en-sync.js
+
       - name: Resumen
         if: success()
         run: echo "### Gate de tests superado" >> "$GITHUB_STEP_SUMMARY"

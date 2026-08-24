@@ -1,8 +1,10 @@
 // src/ZooSanMarino.Infrastructure/Services/TrasladoHuevosService.cs
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -17,19 +19,22 @@ public class TrasladoHuevosService : ITrasladoHuevosService
     private readonly IDisponibilidadLoteService _disponibilidadService;
     private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ILogger<TrasladoHuevosService> _logger;
 
     public TrasladoHuevosService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
         IDisponibilidadLoteService disponibilidadService,
         IEspejoHuevoProduccionSyncService espejoHuevoSync,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<TrasladoHuevosService> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _disponibilidadService = disponibilidadService;
         _espejoHuevoSync = espejoHuevoSync;
         _httpContextAccessor = httpContextAccessor;
+        _logger = logger;
     }
 
     private static string? ResolverNombreUsuarioDesdeClaims(IHttpContextAccessor http)
@@ -45,6 +50,49 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             ?? user.FindFirst("email")?.Value;
     }
 
+    /// <summary>
+    /// D6 — los ítems del traslado tienen que existir como ítem de huevo del catálogo de la empresa
+    /// dueña de la granja del lote, y esa empresa tiene que clasificar por ítems.
+    ///
+    /// <para>
+    /// <b>Deliberadamente NO valida la lista blanca del lote (F7.3).</b> Un traslado mueve lo que YA
+    /// se produjo: si la declaración del lote cambió después de registrar la producción, exigir la
+    /// lista de HOY dejaría huevos reales atrapados sin poder moverlos. La contención correcta acá
+    /// es la disponibilidad, que se calcula sobre lo efectivamente producido.
+    /// </para>
+    /// </summary>
+    private async Task ValidarCatalogoHuevoItemsAsync(
+        int lotePosturaProduccionId, IReadOnlyCollection<HuevoItemSeguimientoDto> huevoItems)
+    {
+        var companyId = await _context.LotePosturaProduccion.AsNoTracking()
+            .Where(l => l.LotePosturaProduccionId == lotePosturaProduccionId)
+            .Join(_context.Farms.AsNoTracking(), l => l.GranjaId, f => f.Id, (_, f) => (int?)f.CompanyId)
+            .FirstOrDefaultAsync();
+
+        if (companyId is not > 0)
+            throw new InvalidOperationException(
+                $"No se pudo resolver la empresa de la granja del lote de producción {lotePosturaProduccionId}.");
+
+        var permite = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId.Value)
+            .Select(c => (bool?)c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync();
+        if (permite != true)
+            throw new InvalidOperationException(
+                "La empresa de este lote no tiene habilitada la clasificación de huevos por ítems; use las cantidades por tipo.");
+
+        var ids = huevoItems.Select(i => i.CatalogItemId).Distinct().ToArray();
+        var existentes = await _context.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId.Value && ci.ItemType == "huevo" && ci.Activo && ids.Contains(ci.Id))
+            .Select(ci => ci.Id)
+            .ToListAsync();
+
+        var faltantes = ids.Except(existentes).ToArray();
+        if (faltantes.Length > 0)
+            throw new InvalidOperationException(
+                $"Los siguientes ítems no existen como ítem de huevo ACTIVO del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+    }
+
     public async Task<TrasladoHuevosDto> CrearTrasladoHuevosAsync(CrearTrasladoHuevosDto dto, int usuarioId)
     {
         // Clasificación por ítems (Santa Reyes): sin flujo legacy equivalente — exige LPP porque es
@@ -58,6 +106,11 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             var errorValidacion = HuevoItemsCalculos.Validar(dto.HuevoItems);
             if (errorValidacion != null)
                 throw new InvalidOperationException(errorValidacion);
+
+            // D6 — este camino NO validaba contra el catálogo ni exigía el flag de empresa: lo único
+            // que lo frenaba era la disponibilidad, y un ítem con Cantidad = 0 la pasa (el chequeo es
+            // `solicitado > disponible`). Se alinea con el gate del seguimiento.
+            await ValidarCatalogoHuevoItemsAsync(dto.LotePosturaProduccionId!.Value, dto.HuevoItems!);
         }
 
         var cantidadesPorTipo = new Dictionary<string, int>
@@ -159,15 +212,39 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             CreatedAt = DateTime.UtcNow
         };
 
+        // Crear, numerar y procesar en UNA transacción. Los dos motivos son
+        // distintos y los dos son necesarios:
+        //
+        // 1. `numero_traslado` es UNIQUE y la entidad arranca con string.Empty.
+        //    Antes esto eran dos SaveChanges sueltos: el primero COMMITEABA la
+        //    fila con '' y recién el segundo escribía "HUE-…". Dos creates
+        //    concurrentes chocaban en ''. Dentro de la transacción el '' nunca
+        //    se hace visible, así que el segundo create espera y pasa. Es
+        //    exactamente el caso de una cola offline subiendo varios traslados
+        //    al recuperar señal.
+        //
+        // 2. Si el procesamiento falla, no puede quedar un traslado creado
+        //    "Pendiente" mientras el cliente recibe 201: el que lo cargó se va
+        //    convencido de que descontó los huevos y nadie se entera. Peor con
+        //    un cliente que reintenta —cada reintento crearía otro traslado—.
+        //    Todo o nada: si no se procesó, no existe, y reintentar es seguro.
+        await using var transaccion = await _context.Database.BeginTransactionAsync().ConfigureAwait(false);
+
         _context.TrasladoHuevos.Add(traslado);
         await _context.SaveChangesAsync();
 
-        // Generar número de traslado
         traslado.NumeroTraslado = traslado.GenerarNumeroTraslado();
         await _context.SaveChangesAsync();
 
-        // Procesar automáticamente el traslado (aplicar reducciones)
-        await ProcesarTrasladoAsync(traslado.Id);
+        if (!await ProcesarTrasladoAsync(traslado.Id).ConfigureAwait(false))
+        {
+            await transaccion.RollbackAsync().ConfigureAwait(false);
+            throw new InvalidOperationException(
+                "No se pudo aplicar el descuento de huevos: el traslado no se registró. " +
+                "Volvé a intentarlo; si sigue fallando, revisá la disponibilidad del lote.");
+        }
+
+        await transaccion.CommitAsync().ConfigureAwait(false);
 
         return await ToDtoAsync(traslado);
     }
@@ -199,8 +276,14 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             // al restar los traslados completados de los totales acumulados
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            // Antes acá había un `catch { return false; }` pelado: el motivo real
+            // se perdía y el POST devolvía 201 igual. Un traslado que no descontó
+            // y nadie puede diagnosticar es peor que uno que falla fuerte.
+            _logger.LogError(ex,
+                "Falló el procesamiento del traslado de huevos {TrasladoId} (lote {LoteId}, LPP {Lpp})",
+                trasladoId, traslado.LoteId, traslado.LotePosturaProduccionId);
             return false;
         }
     }

@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Entregable comprimido del design system: es la copia binaria de la carpeta
+# "San Marino Zootécnico — Design System/", cuyo código ya vive en lib/.
+*.zip

@@ -128,14 +128,15 @@ public partial class MigracionService
                     // clave viaja con EsItemInventario=true y el servicio la valida contra la empresa
                     // dueña de la granja antes de descontar.
                     var byItem = porItem.ToDictionary(kv => new ItemConsumoKey(kv.Key, true), kv => kv.Value);
-                    await _colombiaConsumo.AplicarConsumoAsync(ctxInv.FarmId, byItem, refStr, ct);
+                    await _colombiaConsumo.AplicarConsumoAsync(ctxInv.FarmId, byItem, refStr, ct, fechaMovimiento: fecha);
                     await _ctx.SaveChangesAsync(ct); // el servicio no commitea: participa de la tx externa
                 }
                 else if (_inventarioGestion is not null)
                 {
                     foreach (var kv in porItem)
                         await _inventarioGestion.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                            ctxInv.FarmId, ctxInv.NucleoId, ctxInv.GalponId, kv.Key, kv.Value, "kg", refStr, null), ct);
+                            ctxInv.FarmId, ctxInv.NucleoId, ctxInv.GalponId, kv.Key, kv.Value, "kg", refStr, null,
+                            FechaMovimiento: fecha), ct);
                 }
             }
             catch (Exception ex)

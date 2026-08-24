@@ -27,6 +27,29 @@ public static class StockAtomicoCalculos
     public const string MensajeCantidadNoPositiva = "La cantidad de consumo debe ser positiva.";
 
     /// <summary>
+    /// Mensaje de rechazo por saldo insuficiente en el consumo a NIVEL GRANJA (Colombia) —
+    /// <c>RegistrarConsumoNivelGranjaAsync</c>. Es un texto distinto del genérico
+    /// <see cref="MensajeStockInsuficiente"/> de Ecuador/Panamá: nombra el ítem, la granja, lo
+    /// disponible y lo requerido, porque así lo mostraba el service antes de F4.
+    ///
+    /// <para>
+    /// <b>Literal EXACTO, no reformular.</b> Se sube a un cálculo puro con test de igualdad byte a
+    /// byte precisamente para que nadie lo cambie sin darse cuenta al tocar el service — el front y
+    /// el reporte de la carga masiva lo muestran tal cual.
+    /// </para>
+    ///
+    /// <para>
+    /// F4 (22-ago-2026) la reutiliza en DOS momentos: en la pre-lectura (como hacía el código
+    /// original) y en la rama de la carrera —cuando el <c>UPDATE</c> atómico devuelve 0 filas porque
+    /// otra transacción se llevó el saldo entre la lectura y la escritura—, para que el reporte de la
+    /// carga masiva siga nombrando el ítem y la granja en los dos casos, no sólo en el primero.
+    /// </para>
+    /// </summary>
+    public static string MensajeStockInsuficienteNivelGranja(
+        string codigo, string nombre, int farmId, decimal disponible, decimal requerido) =>
+        $"Stock insuficiente para '{codigo} - {nombre}' (granja {farmId}): disponible {disponible:0.###}, requerido {requerido:0.###}.";
+
+    /// <summary>
     /// ¿La cantidad pedida es válida para operar? Se evalúa <b>antes</b> de tocar la base: un
     /// <c>UPDATE ... quantity - 0</c> afectaría una fila y se leería como éxito, y una cantidad
     /// negativa <i>sumaría</i> stock por un camino que dice "descontar".

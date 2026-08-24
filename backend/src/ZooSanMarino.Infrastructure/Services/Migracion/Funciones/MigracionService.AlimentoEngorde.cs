@@ -391,7 +391,20 @@ public partial class MigracionService
                             FechaMovimiento: m.Fecha);
                         // RegistrarConsumoAsync EXIGE núcleo+galpón para alimento, sin mirar el flag: en
                         // una granja de nivel granja hay que ir por la variante dedicada (la misma que
-                        // usa ColombiaInventarioConsumoService), que además no commitea sola.
+                        // usa ColombiaInventarioConsumoService).
+                        //
+                        // F4 (22-ago-2026): RegistrarConsumoNivelGranjaAsync AHORA commitea sola (abre su
+                        // propia EnTransaccionAsync si no hay una ambiente) — antes dependía del
+                        // SaveChangesAsync de abajo. Se revisó explícitamente si esto rompe el "todo o
+                        // nada" del bucle y la respuesta es que NO HABÍA tal garantía: ni este archivo ni
+                        // sus dos llamadores (MigracionService.Historicos.cs, .SeguimientoEngorde.cs)
+                        // abren una transacción ambiente (grep verificado, cero resultados), así que cada
+                        // iteración YA persistía su SaveChangesAsync por separado — el catch de abajo
+                        // reporta el fallo y sigue con el siguiente movimiento a propósito («a diferencia
+                        // del descuento del seguimiento, acá el fallo SE REPORTA»); envolver el bucle
+                        // entero en una transacción cambiaría ese comportamiento deliberado de reporte
+                        // parcial a todo-o-nada, que no es lo que este importador hace hoy. El
+                        // SaveChangesAsync que sigue queda como no-op inofensivo (nada pendiente).
                         if (await PorGalponAsync(m.Destino.FarmId))
                             await _inventarioGestion.RegistrarConsumoAsync(pedido, ct);
                         else

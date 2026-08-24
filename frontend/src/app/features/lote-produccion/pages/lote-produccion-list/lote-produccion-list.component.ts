@@ -498,15 +498,28 @@ export class LoteProduccionListComponent implements OnInit {
   }
 
   /**
-   * Resuelve el ID del lote BASE (tabla `lotes`) de un LPP para el bloque de cohortes.
-   * El filter-data sólo trae `lotePosturaProduccionId`; el id base vive en el LPP completo.
+   * Resuelve el ID del lote BASE (tabla `lotes`) de un LPP. El filter-data sólo trae
+   * `lotePosturaProduccionId`; el id base vive en el LPP completo.
+   *
+   * Alimenta DOS cosas con el mismo id: el bloque de cohortes (`loteIdBaseSeleccionado`) y
+   * `selectedLote.loteId`, que hasta acá se poblaba con `lotePosturaProduccionId` — el id de OTRA
+   * tabla. `[loteId]` del modal de seguimiento diario usa ese campo para pedir los silos asignados
+   * al lote (`lote_silos.lote_id`, que referencia el lote BASE, no el LPP): con el id equivocado la
+   * consulta no encontraba nada y el consumo de silo aparecía sin opciones en producción, aunque el
+   * mismo lote sí las mostrara desde levante (que ya usaba el id correcto). Reasignar
+   * `selectedLote` a un objeto nuevo dispara `ngOnChanges` en el modal (el componente es Eager) y
+   * recarga los silos con el id ya corregido.
    */
   private resolverLoteIdBaseLPP(lotePosturaProduccionId: number): void {
     this.lppSvc.getById(lotePosturaProduccionId).subscribe({
       next: lpp => {
         // Si el usuario ya cambió de lote, no pisar el valor nuevo.
         if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;
-        this.loteIdBaseSeleccionado = lpp?.loteId ?? null;
+        const loteIdBase = lpp?.loteId ?? null;
+        this.loteIdBaseSeleccionado = loteIdBase;
+        if (loteIdBase != null && this.selectedLote) {
+          this.selectedLote = { ...this.selectedLote, loteId: loteIdBase };
+        }
       },
       error: () => {
         if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;

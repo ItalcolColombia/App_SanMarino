@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
 
@@ -136,14 +137,17 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
         var catalogIds = distintas.Where(k => !k.EsItemInventario).Select(k => k.Id).ToArray();
         var directIds = distintas.Where(k => k.EsItemInventario).Select(k => k.Id).ToArray();
 
-        // Camino 1: catalogItemId → codigo (modelo A, catálogo Colombia).
+        // Camino 1: catalogItemId → codigo (modelo A, catálogo Colombia). Un catalogItem SIN código
+        // (p. ej. un ítem de huevo sembrado sin código ERP todavía) no tiene con qué bridgear a
+        // item_inventario_ecuador — se filtra igual que ya se filtraba implícito cuando Codigo era
+        // NOT NULL, y `Codigo!` queda seguro porque el `Where` ya lo garantiza no-nulo.
         var codigosPorCatalogItem = catalogIds.Length == 0
             ? new List<(int Id, string Codigo)>()
             : (await _db.CatalogItems.AsNoTracking()
-                .Where(c => catalogIds.Contains(c.Id))
+                .Where(c => catalogIds.Contains(c.Id) && c.Codigo != null)
                 .Select(c => new { c.Id, c.Codigo })
                 .ToListAsync(ct))
-              .Select(c => (c.Id, c.Codigo)).ToList();
+              .Select(c => (c.Id, Codigo: c.Codigo!)).ToList();
 
         var codigos = codigosPorCatalogItem.Select(c => c.Codigo).Distinct().ToArray();
 
@@ -214,13 +218,13 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 var enSilo = kv.Key.SiloId is > 0
                     ? $", silo «{nombresSilo.GetValueOrDefault(kv.Key.SiloId.Value, kv.Key.SiloId.Value.ToString())}»"
                     : string.Empty;
-                throw new InvalidOperationException(
+                throw new StockInsuficienteException(
                     $"Stock insuficiente para '{item?.Codigo} - {item?.Nombre}' (granja {farmId}{enSilo}): disponible {disponible:0.###} kg, requerido {kv.Value:0.###} kg.");
             }
         }
     }
 
-    public async Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default)
+    public async Task AplicarConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var positivos = byItem.Where(kv => kv.Value > 0).ToArray();
         if (positivos.Length == 0) return;
@@ -233,11 +237,11 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             if (!map.TryGetValue(kv.Key, out var itemBId))
                 throw ErrorItemSinEquivalente(kv.Key, companyId);
             await _gestion.RegistrarConsumoNivelGranjaAsync(
-                new InventarioGestionConsumoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, null, SiloId: kv.Key.SiloId), ct);
+                new InventarioGestionConsumoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, null, FechaMovimiento: fechaMovimiento, SiloId: kv.Key.SiloId), ct);
         }
     }
 
-    public async Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default)
+    public async Task AplicarDevolucionAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, string reference, string? reason, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var positivos = byItem.Where(kv => kv.Value > 0).ToArray();
         if (positivos.Length == 0) return;
@@ -253,11 +257,11 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             // guardado). Por eso no se revalida contra lote_silos: reasignar los silos del lote no
             // puede cambiar dónde se repone lo que ya se había consumido.
             await _gestion.RegistrarIngresoNivelGranjaAsync(
-                new InventarioGestionIngresoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, reason, SiloId: kv.Key.SiloId), ct);
+                new InventarioGestionIngresoRequest(farmId, null, null, itemBId, kv.Value, "kg", reference, reason, FechaMovimiento: fechaMovimiento, SiloId: kv.Key.SiloId), ct);
         }
     }
 
-    public async Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default)
+    public async Task AplicarDiffAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> oldByItem, IReadOnlyDictionary<ItemConsumoKey, decimal> newByItem, string reference, CancellationToken ct = default, DateTime? fechaMovimiento = null)
     {
         var allKeys = new HashSet<ItemConsumoKey>(oldByItem.Keys);
         foreach (var k in newByItem.Keys) allKeys.Add(k);
@@ -282,10 +286,10 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             // alimento seguiría descontado del silo equivocado.
             if (diff > 0)
                 await _gestion.RegistrarConsumoNivelGranjaAsync(
-                    new InventarioGestionConsumoRequest(farmId, null, null, itemBId, diff, "kg", reference + " (ajuste)", null, SiloId: key.SiloId), ct);
+                    new InventarioGestionConsumoRequest(farmId, null, null, itemBId, diff, "kg", reference + " (ajuste)", null, FechaMovimiento: fechaMovimiento, SiloId: key.SiloId), ct);
             else
                 await _gestion.RegistrarIngresoNivelGranjaAsync(
-                    new InventarioGestionIngresoRequest(farmId, null, null, itemBId, -diff, "kg", reference + " (devolución)", "Devolución por ajuste de seguimiento", SiloId: key.SiloId), ct);
+                    new InventarioGestionIngresoRequest(farmId, null, null, itemBId, -diff, "kg", reference + " (devolución)", "Devolución por ajuste de seguimiento", FechaMovimiento: fechaMovimiento, SiloId: key.SiloId), ct);
         }
     }
 }

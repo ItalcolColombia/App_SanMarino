@@ -3,6 +3,7 @@
 // Inventario: mismo patrón que SeguimientoAvesEngordeService — descuenta al crear, ajusta al editar, restituye al eliminar.
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -18,17 +19,20 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     private readonly IInventarioGestionService? _inventarioGestionService;
     /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
     private readonly IValidacionSeguimientoService? _validacion;
+    private readonly ILogger<SeguimientoDiarioLoteReproductoraService>? _logger;
 
     public SeguimientoDiarioLoteReproductoraService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         IInventarioGestionService? inventarioGestionService = null,
-        IValidacionSeguimientoService? validacion = null)
+        IValidacionSeguimientoService? validacion = null,
+        ILogger<SeguimientoDiarioLoteReproductoraService>? logger = null)
     {
         _ctx = ctx;
         _current = current;
         _inventarioGestionService = inventarioGestionService;
         _validacion = validacion;
+        _logger = logger;
     }
 
     private static SeguimientoLoteLevanteDto MapToDto(SeguimientoDiarioLoteReproductoraAvesEngorde e)
@@ -264,25 +268,36 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             // aunque el flag lo promete por escrito. Sin esto, un lote acumula días sin confirmar y el
             // alimento queda separado sin techo.
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Reproductora, dto.LoteId);
+            // Los kilos sueltos van SIEMPRE: la app móvil, la carga masiva por Excel y la PWA mandan
+            // el consumo como campo, no como ítems de inventario, y mirando sólo el metadata el guard
+            // rechazaba con «no tiene alimento» un registro que sí lo traía.
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
         }
 
         // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el consumo
         // iba después dentro de un catch que ni siquiera logueaba (Console.WriteLine): se podía cargar
         // un día de un alimento sin un solo kilo en el galpón y nadie se enteraba.
-        if (!separa && _inventarioGestionService != null && dto.Metadata != null)
+        var ubicacionPrev = (!separa && _inventarioGestionService != null && dto.Metadata != null)
+            ? await GetLoteUbicacionAsync(dto.LoteId)
+            : null;
+        var consumeModeloB = ubicacionPrev.HasValue &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId));
+        if (consumeModeloB)
         {
-            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
-            if (ubicacionPrev.HasValue &&
-                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
-            {
-                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
-                await _inventarioGestionService.ValidarStockConsumoAsync(
-                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(),
-                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
-            }
+            var (farmPrev, nucPrev, galPrev) = ubicacionPrev!.Value;
+            await _inventarioGestionService!.ValidarStockConsumoAsync(
+                farmPrev, nucPrev?.Trim(), galPrev?.Trim(),
+                ParseMetadataItemsToKg(dto.Metadata!.RootElement));
         }
+
+        // Modelo B (EC/PA): guardar el día y descontar el inventario en la MISMA transacción — si el
+        // consumo falla, la excepción sube y el `await using` deshace también el seguimiento (antes
+        // quedaba el día guardado con un catch que solo logueaba y el faltante quedaba invisible).
+        await using var txCreate = consumeModeloB && _ctx.Database.CurrentTransaction is null
+            ? await _ctx.Database.BeginTransactionAsync()
+            : null;
 
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
@@ -301,34 +316,25 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
 
         // Descontar inventario por ítems consumidos
-        if (!separa && _inventarioGestionService != null && dto.Metadata != null)
+        // Gate por PAÍS (S1) ya resuelto en consumeModeloB: solo Ecuador/Panamá descuentan del modelo
+        // B; para lotes Colombia no se invoca (evita el descuento cross-país silencioso por el
+        // fallback catalogItemId). Reusa la ubicación ya resuelta arriba (no cambia dentro del método).
+        if (consumeModeloB)
         {
-            try
-            {
-                var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                // Gate por PAÍS (S1): solo Ecuador/Panamá descuentan del modelo B; para lotes Colombia
-                // NO se invoca (evita el descuento cross-país silencioso por el fallback catalogItemId).
-                if (ubicacion.HasValue &&
-                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
-                {
-                    var (farmId, nucleoId, galponId) = ubicacion.Value;
-                    var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
-                    var refStr = $"Seguimiento reproductora #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-                    foreach (var kv in byItem)
-                        if (kv.Value > 0)
-                            // Fecha del movimiento = día del seguimiento (no el de la carga): en una
-                            // carga histórica de la primera semana, todos caían el mismo día y el
-                            // kardex del galpón quedaba ilegible.
-                            await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null,
-                                FechaMovimiento: dto.FechaRegistro.Date));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al registrar consumo inventario (reproductora): {ex.Message}");
-            }
+            var (farmId, nucleoId, galponId) = ubicacionPrev!.Value;
+            var byItem = ParseMetadataItemsToKg(dto.Metadata!.RootElement);
+            var refStr = $"Seguimiento reproductora #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+            foreach (var kv in byItem)
+                if (kv.Value > 0)
+                    // Fecha del movimiento = día del seguimiento (no el de la carga): en una
+                    // carga histórica de la primera semana, todos caían el mismo día y el
+                    // kardex del galpón quedaba ilegible.
+                    await _inventarioGestionService!.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                        farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null,
+                        FechaMovimiento: dto.FechaRegistro.Date));
         }
+
+        if (txCreate is not null) await txCreate.CommitAsync();
 
         return MapToDto(ent);
     }
@@ -382,7 +388,8 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                      && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
         if (separaUpd)
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
 
         // Capturar ítems anteriores antes de actualizar
         var oldByItemId = ent.Metadata != null
@@ -427,26 +434,32 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // persistir TODAS las columnas (incl. fecha y jsonb) y disparar el trigger de cruce.
         // Solo los INCREMENTOS consumen: la edición a la baja devuelve, y devolver nunca se queda sin
         // stock. Se comprueban ANTES de guardar, igual que en el alta.
-        if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        var ubicacionPrevUpd = (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+            ? await GetLoteUbicacionAsync(dto.LoteId)
+            : null;
+        var ajustaModeloB = ubicacionPrevUpd.HasValue &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrevUpd.Value.FarmId));
+        if (ajustaModeloB)
         {
-            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
-            if (ubicacionPrev.HasValue &&
-                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
+            var nuevos = dto.Metadata != null
+                ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
+                : new Dictionary<int, decimal>();
+            var incrementos = new Dictionary<int, decimal>();
+            foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(nuevos.Keys)))
             {
-                var nuevos = dto.Metadata != null
-                    ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
-                    : new Dictionary<int, decimal>();
-                var incrementos = new Dictionary<int, decimal>();
-                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(nuevos.Keys)))
-                {
-                    var diff = nuevos.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
-                    if (diff > 0) incrementos[itemId] = diff;
-                }
-                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
-                await _inventarioGestionService.ValidarStockConsumoAsync(
-                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(), incrementos);
+                var diff = nuevos.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                if (diff > 0) incrementos[itemId] = diff;
             }
+            var (farmPrev, nucPrev, galPrev) = ubicacionPrevUpd!.Value;
+            await _inventarioGestionService!.ValidarStockConsumoAsync(
+                farmPrev, nucPrev?.Trim(), galPrev?.Trim(), incrementos);
         }
+
+        // Modelo B (EC/PA): guardar la edición y ajustar el inventario en la MISMA transacción — si el
+        // ajuste falla, la excepción sube y el `await using` deshace también la edición del seguimiento.
+        await using var txUpdate = ajustaModeloB && _ctx.Database.CurrentTransaction is null
+            ? await _ctx.Database.BeginTransactionAsync()
+            : null;
 
         // Mismo patrón que SeguimientoAvesEngordeService.UpdateAsync.
         _ctx.Entry(ent).State = EntityState.Modified;
@@ -469,41 +482,36 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
 
         // Ajustar inventario: consumir diferencia positiva, devolver diferencia negativa
-        if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        // Gate por PAÍS (S1) ya resuelto en ajustaModeloB: solo Ecuador/Panamá ajustan el modelo B.
+        // Reusa la ubicación ya resuelta arriba (no cambia dentro del método).
+        if (ajustaModeloB)
         {
-            try
+            var (farmId, nucleoId, galponId) = ubicacionPrevUpd!.Value;
+            var newByItemId = dto.Metadata != null
+                ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
+                : new Dictionary<int, decimal>();
+            var allItemIds = new HashSet<int>(oldByItemId.Keys);
+            foreach (var k in newByItemId.Keys) allItemIds.Add(k);
+            var refStr = $"Seguimiento reproductora #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+            foreach (var itemId in allItemIds)
             {
-                var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                // Gate por PAÍS (S1): solo Ecuador/Panamá ajustan el modelo B.
-                if (ubicacion.HasValue &&
-                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
-                {
-                    var (farmId, nucleoId, galponId) = ubicacion.Value;
-                    var newByItemId = dto.Metadata != null
-                        ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
-                        : new Dictionary<int, decimal>();
-                    var allItemIds = new HashSet<int>(oldByItemId.Keys);
-                    foreach (var k in newByItemId.Keys) allItemIds.Add(k);
-                    var refStr = $"Seguimiento reproductora #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-                    foreach (var itemId in allItemIds)
-                    {
-                        var newQty = newByItemId.GetValueOrDefault(itemId);
-                        var oldQty = oldByItemId.GetValueOrDefault(itemId);
-                        var diff = newQty - oldQty;
-                        if (diff > 0)
-                            await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, diff, "kg", refStr + " (ajuste)", null));
-                        else if (diff < 0)
-                            await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento reproductora"));
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al actualizar inventario (reproductora): {ex.Message}");
+                var newQty = newByItemId.GetValueOrDefault(itemId);
+                var oldQty = oldByItemId.GetValueOrDefault(itemId);
+                var diff = newQty - oldQty;
+                if (diff > 0)
+                    // Fecha del movimiento = fecha del registro que se está editando (no "hoy"):
+                    // es una corrección del mismo día, igual que el alta.
+                    await _inventarioGestionService!.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                        farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, diff, "kg", refStr + " (ajuste)", null,
+                        FechaMovimiento: dto.FechaRegistro.Date));
+                else if (diff < 0)
+                    await _inventarioGestionService!.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                        farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento reproductora",
+                        FechaMovimiento: dto.FechaRegistro.Date));
             }
         }
+
+        if (txUpdate is not null) await txUpdate.CommitAsync();
 
         return MapToDto(ent);
     }
@@ -589,7 +597,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error al sincronizar las bajas del cruce con el maestro de aves: {ex.Message}");
+            _logger?.LogError(ex, "Error al sincronizar las bajas del cruce con el maestro de aves, lote reproductora {LoteReproductoraId}", loteReproductoraId);
         }
     }
 
@@ -635,28 +643,33 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             await _validacion!.LiberarAsync(ModuloSeguimiento.Reproductora, ent.Id);
 
         // Restituir stock antes de eliminar
-        if (!separaDel && _inventarioGestionService != null && ent.Metadata != null)
+        var ubicacionDel = (!separaDel && _inventarioGestionService != null && ent.Metadata != null)
+            ? await GetLoteUbicacionAsync(ent.LoteReproductoraAveEngordeId)
+            : null;
+        // Gate por PAÍS (S1): solo Ecuador/Panamá devuelven al modelo B.
+        var devuelveModeloB = ubicacionDel.HasValue &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionDel.Value.FarmId));
+
+        // Modelo B (EC/PA): la devolución de stock y el borrado del seguimiento van en la MISMA
+        // transacción — antes el try/catch dejaba borrar el registro aunque la devolución fallara
+        // (la evidencia del consumo desaparecía y el stock nunca volvía); ahora la excepción sube y el
+        // `await using` deshace todo.
+        await using var txDelete = devuelveModeloB && _ctx.Database.CurrentTransaction is null
+            ? await _ctx.Database.BeginTransactionAsync()
+            : null;
+
+        if (devuelveModeloB)
         {
-            try
-            {
-                var ubicacion = await GetLoteUbicacionAsync(ent.LoteReproductoraAveEngordeId);
-                // Gate por PAÍS (S1): solo Ecuador/Panamá devuelven al modelo B.
-                if (ubicacion.HasValue &&
-                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
-                {
-                    var (farmId, nucleoId, galponId) = ubicacion.Value;
-                    var byItem = ParseMetadataItemsToKg(ent.Metadata.RootElement);
-                    var refStr = $"Seguimiento reproductora #{id} (devolución por eliminación)";
-                    foreach (var kv in byItem)
-                        if (kv.Value > 0)
-                            await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento reproductora"));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al devolver inventario al eliminar seguimiento reproductora: {ex.Message}");
-            }
+            var (farmId, nucleoId, galponId) = ubicacionDel!.Value;
+            var byItem = ParseMetadataItemsToKg(ent.Metadata!.RootElement);
+            var refStr = $"Seguimiento reproductora #{id} (devolución por eliminación)";
+            foreach (var kv in byItem)
+                if (kv.Value > 0)
+                    // Devolución por ELIMINACIÓN: se fecha con el día del borrado (hecho de hoy),
+                    // no con la fecha del seguimiento original que se está eliminando.
+                    await _inventarioGestionService!.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                        farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento reproductora",
+                        FechaMovimiento: DateTime.UtcNow.Date));
         }
 
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Remove(ent);
@@ -670,6 +683,8 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
 
         await _ctx.SaveChangesAsync();
+
+        if (txDelete is not null) await txDelete.CommitAsync();
 
         // El trigger acaba de rehacer (o borrar) los días 1-7 de engorde: hay que devolver al maestro
         // las aves de los días que desaparecieron y descontar las de los que se regeneraron.

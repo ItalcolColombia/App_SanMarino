@@ -62,3 +62,27 @@ public class SyncPushResponse
 {
     public List<SyncOperacionResultado> Resultados { get; set; } = new();
 }
+
+/// <summary>
+/// F7 — una fila de la bandeja de cuadre: un push que se aplicó SIN descontar inventario porque no
+/// había stock. El día de campo está guardado (<see cref="EntidadId"/> lo identifica); lo que falta
+/// es que alguien revise el faltante y, si corresponde, cargue el ingreso de alimento a mano.
+/// </summary>
+public class CuadrePendienteDto
+{
+    public long Id { get; set; }
+
+    /// <summary>Uno de <c>SyncPushCalculos.Tipos</c> — de qué módulo es el registro.</summary>
+    public string Tipo { get; set; } = null!;
+
+    /// <summary>Id del seguimiento ya guardado (levante/engorde/producción/reproductora según <see cref="Tipo"/>).</summary>
+    public int? EntidadId { get; set; }
+
+    /// <summary>Qué ítem faltó, cuánto había y cuánto se pedía — texto para el humano.</summary>
+    public string? Detalle { get; set; }
+
+    /// <summary>Informativo: qué dispositivo lo capturó.</summary>
+    public string? DeviceId { get; set; }
+
+    public DateTime RecibidoAt { get; set; }
+}

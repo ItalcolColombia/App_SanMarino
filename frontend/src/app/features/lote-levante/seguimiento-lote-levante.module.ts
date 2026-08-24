@@ -6,7 +6,6 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { SeguimientoLoteLevanteRoutingModule } from './seguimiento-lote-levante-routing.module';
 
 import { SeguimientoLoteLevanteListComponent } from './pages/seguimiento-lote-levante-list/seguimiento-lote-levante-list.component';
-import { SeguimientoLoteLevanteFormComponent } from './pages/seguimiento-lote-form/seguimiento-lote-levante-form.component';
 
 @NgModule({
   declarations: [],
@@ -15,8 +14,7 @@ import { SeguimientoLoteLevanteFormComponent } from './pages/seguimiento-lote-fo
     FormsModule,
     ReactiveFormsModule,
     SeguimientoLoteLevanteRoutingModule,
-    SeguimientoLoteLevanteListComponent,
-    SeguimientoLoteLevanteFormComponent
+    SeguimientoLoteLevanteListComponent
   ]
 })
 export class SeguimientoLoteLevanteModule {}

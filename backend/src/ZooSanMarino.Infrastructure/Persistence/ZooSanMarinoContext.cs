@@ -28,6 +28,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<GalponSilo> GalponSilos => Set<GalponSilo>();
         /// <summary>N:M lote ↔ silo: de qué silos consume un lote en el seguimiento diario.</summary>
         public DbSet<LoteSilo> LoteSilos => Set<LoteSilo>();
+
+        /// <summary>F7.3 — qué tipos de huevo produce cada lote (lista blanca, solo producción).</summary>
+        public DbSet<LoteHuevoItem> LoteHuevoItems => Set<LoteHuevoItem>();
         public DbSet<Nucleo> Nucleos { get; set; } = null!;
         public DbSet<Galpon> Galpones { get; set; } = null!;
         public DbSet<Lote> Lotes { get; set; } = null!;

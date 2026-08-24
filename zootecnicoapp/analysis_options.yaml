@@ -9,6 +9,12 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # Copia de referencia del design system: es el origen de lib/, no código que
+    # se compile. Analizarla duplica cada hallazgo y esconde los de la app real.
+    - "San Marino Zootécnico — Design System/**"
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

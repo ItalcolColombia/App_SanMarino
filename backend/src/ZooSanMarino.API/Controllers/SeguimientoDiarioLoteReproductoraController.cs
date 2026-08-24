@@ -1,6 +1,8 @@
 // API para Seguimiento Diario Lote Reproductora Aves de Engorde (tabla seguimiento_diario_lote_reproductora_aves_engorde).
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -75,6 +77,13 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        // Va ANTES del `catch (Exception)`: C# evalúa en orden y el genérico se lo comía, así que el
+        // duplicado (mismo lote y día) salía como 500 con el mensaje crudo de Postgres. Mismo texto
+        // que SeguimientoAvesEngordeEcuadorController, para que el cliente lo reconozca igual.
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.SqlState == "23505")
+        {
+            return BadRequest(new { message = "Ya existe un registro de seguimiento diario para este lote en la fecha seleccionada. Solo puede haber un registro por lote por día.", detail = pg.Message });
         }
         catch (Exception ex)
         {

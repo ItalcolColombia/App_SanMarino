@@ -8,6 +8,19 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
 import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
+import {
+  hoyISO as hoyISOFn,
+  calcularTotalAves as calcularTotalAvesFn,
+  formatearFecha as formatearFechaFn,
+  formatearNumero as formatearNumeroFn,
+  normalize as normalizeFn,
+  calcularEdadDias as calcularEdadDiasFn,
+  toYMD as toYMDFn,
+  ymdToIsoNoon as ymdToIsoNoonFn,
+  obtenerTipoMovimientoClass as obtenerTipoMovimientoClassFn,
+  obtenerEstadoClass as obtenerEstadoClassFn
+} from '../../funciones/inventario-dashboard-formato.funcion';
+import { puedeAnularMovimientoAves as puedeAnularMovimientoAvesFn } from '../../funciones/inventario-dashboard-movimiento.funcion';
 import { ModalTrasladoLoteComponent } from '../../../lote/components/modal-traslado-lote/modal-traslado-lote.component';
 
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -589,11 +602,7 @@ export class InventarioDashboardComponent implements OnInit {
       && !mErr;
   }
 
-  private hoyISO(): string {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  }
+  private hoyISO(): string { return hoyISOFn(); }
 
   onLoteOrigenSeleccionado(lote: LoteDto | null): void {
     this.loteOrigenSeleccionado.set(lote);
@@ -768,46 +777,19 @@ export class InventarioDashboardComponent implements OnInit {
   }
 
   // ===================== Utilidades ==========================
-  calcularTotalAves(inv: InventarioAvesDto): number {
-    return (inv?.cantidadHembras || 0) + (inv?.cantidadMachos || 0);
-  }
+  calcularTotalAves(inv: InventarioAvesDto): number { return calcularTotalAvesFn(inv); }
 
-  formatearFecha(fecha: Date | string): string {
-    if (!fecha) return '—';
-    const d = typeof fecha === 'string' ? new Date(fecha) : fecha;
-    return d.toLocaleDateString('es-CO', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    });
-  }
+  formatearFecha(fecha: Date | string): string { return formatearFechaFn(fecha); }
 
-  formatearNumero(n: number): string {
-    return (n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
-  }
+  formatearNumero(n: number): string { return formatearNumeroFn(n); }
 
-  private normalize(s: string): string {
-    return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  }
+  private normalize(s: string): string { return normalizeFn(s); }
 
-  calcularEdadDias(fecha?: string | Date | null): number {
-    if (!fecha) return 0;
-    const inicio = new Date(fecha);
-    const hoy = new Date();
-    const msDia = 1000 * 60 * 60 * 24;
-    return Math.floor((hoy.getTime() - inicio.getTime()) / msDia) + 1;
-  }
+  calcularEdadDias(fecha?: string | Date | null): number { return calcularEdadDiasFn(fecha); }
 
-  private toYMD(input: Date | string): string {
-    const d = typeof input === 'string' ? new Date(input) : input;
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
+  private toYMD(input: Date | string): string { return toYMDFn(input); }
 
-  private ymdToIsoNoon(ymd: string): string {
-    return new Date(`${ymd}T12:00:00`).toISOString();
-  }
+  private ymdToIsoNoon(ymd: string): string { return ymdToIsoNoonFn(ymd); }
 
   // TrackBy
   trackByInventarioId(_: number, item: InventarioAvesDto): number { return item.id; }
@@ -1176,22 +1158,9 @@ export class InventarioDashboardComponent implements OnInit {
   }
 
 
-  obtenerTipoMovimientoClass(tipo: string): string {
-    const tipoLower = tipo?.toLowerCase() || '';
-    if (tipoLower.includes('traslado')) return 'badge--info';
-    if (tipoLower.includes('retiro') || tipoLower.includes('salida')) return 'badge--danger';
-    if (tipoLower.includes('entrada')) return 'badge--success';
-    if (tipoLower.includes('ajuste')) return 'badge--warning';
-    return 'badge--default';
-  }
+  obtenerTipoMovimientoClass(tipo: string): string { return obtenerTipoMovimientoClassFn(tipo); }
 
-  obtenerEstadoClass(estado: string): string {
-    const estadoLower = estado?.toLowerCase() || '';
-    if (estadoLower === 'completado') return 'badge--success';
-    if (estadoLower === 'pendiente') return 'badge--warning';
-    if (estadoLower === 'cancelado') return 'badge--danger';
-    return 'badge--default';
-  }
+  obtenerEstadoClass(estado: string): string { return obtenerEstadoClassFn(estado); }
 
   // 🔴 Helpers para el modal
   obtenerInventarioLoteSeleccionado(): InventarioAvesDto | null {
@@ -1477,12 +1446,7 @@ export class InventarioDashboardComponent implements OnInit {
   }
 
   /** Anular venta/traslado de aves: devuelve cantidades al inventario del lote (backend). */
-  puedeAnularMovimientoAves(m: TrasladoUnificado): boolean {
-    if (m.tipoTraslado !== 'Aves') return false;
-    const e = (m.estado ?? '').trim().toLowerCase();
-    if (e === 'cancelado') return false;
-    return m.id > 0;
-  }
+  puedeAnularMovimientoAves(m: TrasladoUnificado): boolean { return puedeAnularMovimientoAvesFn(m); }
 
   async anularMovimientoAves(m: TrasladoUnificado): Promise<void> {
     if (!this.puedeAnularMovimientoAves(m)) return;

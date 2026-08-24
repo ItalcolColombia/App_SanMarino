@@ -52,7 +52,7 @@ import { Observable } from 'rxjs';
   imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './country-list.component.html',
   styleUrls: ['./country-list.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  changeDetection: ChangeDetectionStrategy.Eager,
 })
 export class CountryListComponent implements OnInit {
   // Icons

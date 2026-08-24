@@ -116,7 +116,7 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             FarmId = m.FarmId,
             CatalogItemId = m.CatalogItemId,
             ItemType = m.ItemType ?? item.ItemType,  // Usar el del movimiento o del catálogo
-            Codigo = item.Codigo,
+            Codigo = item.Codigo ?? string.Empty,
             Nombre = item.Nombre,
             Quantity = m.Quantity,
             MovementType = m.MovementType.ToString(),
@@ -459,7 +459,7 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
                                   FarmId = m.FarmId,
                                   CatalogItemId = m.CatalogItemId,
                                   ItemType = m.ItemType ?? m.CatalogItem.ItemType,  // Usar el del movimiento o del catálogo
-                                  Codigo = m.CatalogItem.Codigo,
+                                  Codigo = m.CatalogItem.Codigo ?? string.Empty,
                                   Nombre = m.CatalogItem.Nombre,
                                   Quantity = m.Quantity,
                                   MovementType = m.MovementType.ToString(),
@@ -511,7 +511,7 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
         return new InventoryMovementDto {
             Id = m.Id, FarmId = m.FarmId, CatalogItemId = m.CatalogItemId,
             ItemType = m.ItemType ?? m.CatalogItem.ItemType,  // Usar el del movimiento o del catálogo
-            Codigo = m.CatalogItem.Codigo, Nombre = m.CatalogItem.Nombre,
+            Codigo = m.CatalogItem.Codigo ?? string.Empty, Nombre = m.CatalogItem.Nombre,
             Quantity = m.Quantity, MovementType = m.MovementType.ToString(),
             Unit = m.Unit, Reference = m.Reference, Reason = m.Reason,
             Origin = m.Origin, Destination = m.Destination,

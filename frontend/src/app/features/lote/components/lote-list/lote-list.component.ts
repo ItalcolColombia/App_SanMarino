@@ -31,6 +31,24 @@ import { GuiaGeneticaService } from '../../services/guia-genetica.service';
 import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
+import { ModalAsignarHuevoItemsComponent } from '../modal-asignar-huevo-items/modal-asignar-huevo-items.component';
+import {
+  calcularEdadDias as calcularEdadDiasFn,
+  calcularEdadSemanas as calcularEdadSemanasFn,
+  calcularFase as calcularFaseFn,
+  encasetHembrasLevante as encasetHembrasLevanteFn,
+  encasetMachosLevante as encasetMachosLevanteFn,
+  encasetHembrasProduccion as encasetHembrasProduccionFn,
+  encasetMachosProduccion as encasetMachosProduccionFn,
+  encasetTotal as encasetTotalFn,
+  estadoCierreLevante as estadoCierreLevanteFn,
+  estadoCierreProduccion as estadoCierreProduccionFn
+} from '../../funciones/lote-list-encasetamiento.funcion';
+import {
+  formatNumber as formatNumberFn,
+  normalize as normalizeFn,
+  textoOrNull as textoOrNullFn
+} from '../../funciones/lote-list-texto.funcion';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -141,7 +159,8 @@ export class ThousandSeparatorDirective {
     ModalTrasladoLoteComponent,
     FiltroSelectComponent,
     ConfirmationModalComponent,
-    ModalAsignarSilosComponent
+    ModalAsignarSilosComponent,
+    ModalAsignarHuevoItemsComponent
   ],
   templateUrl: './lote-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -231,6 +250,8 @@ export class LoteListComponent implements OnInit {
 
   /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
   manejaInventarioPorSilo = false;
+  /** F7.3 — la empresa clasifica el huevo por ítems del catálogo (habilita «Tipos de huevo»). */
+  clasificacionHuevoPorItems = false;
 
   /**
    * Flag: el listado suma las pestañas «Lotes en Levante» y «Lotes en Producción». Fail-closed:
@@ -507,6 +528,8 @@ export class LoteListComponent implements OnInit {
     this.companyConfig.getFlags().subscribe(flags => {
       this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
       this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
+      // F7.3 — el botón de tipos de huevo solo existe si la empresa clasifica por ítems.
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
 
       // Las pestañas por etapa son opcionales por empresa. Si el flag se apaga mientras el usuario
       // está parado en una de ellas, hay que devolverlo a la lista completa o se quedaría mirando
@@ -538,10 +561,7 @@ export class LoteListComponent implements OnInit {
   }
 
   /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
-  private textoOrNull(value: unknown): string | null {
-    const texto = value == null ? '' : String(value).trim();
-    return texto === '' ? null : texto;
-  }
+  private textoOrNull(value: unknown): string | null { return textoOrNullFn(value); }
 
   private initBaseForm(): void {
     this.baseForm = this.fb.group({
@@ -1511,104 +1531,44 @@ export class LoteListComponent implements OnInit {
     return opt ? opt.name : this.farmMap[this.selectedFarmId] || '';
   }
 
-  calcularEdadDias(fechaEncaset?: string | Date | null): number {
-    if (!fechaEncaset) return 0;
-    const inicio = new Date(fechaEncaset);
-    const hoy = new Date();
-    const msDia = 1000 * 60 * 60 * 24;
-    return Math.floor((hoy.getTime() - inicio.getTime()) / msDia) + 1;
-  }
+  calcularEdadDias(fechaEncaset?: string | Date | null): number { return calcularEdadDiasFn(fechaEncaset); }
 
-  /** Edad en semanas desde fechaEncaset. Día 0 = semana 1, días 7-13 = semana 2, etc. */
-  calcularEdadSemanas(fechaEncaset?: string | Date | null): number {
-    if (!fechaEncaset) return 1;
-    const inicio = new Date(fechaEncaset);
-    const hoy = new Date();
-    const msSem = 1000 * 60 * 60 * 24 * 7;
-    const semanas = Math.floor((hoy.getTime() - inicio.getTime()) / msSem);
-    return Math.max(1, semanas + 1); // primera semana = 1, no 0
-  }
+  /** Edad en semanas desde fechaEncaset. Ver lote-list-encasetamiento.funcion.ts. */
+  calcularEdadSemanas(fechaEncaset?: string | Date | null): number { return calcularEdadSemanasFn(fechaEncaset); }
 
-  /**
-   * Fase que se muestra en pantalla, tomada del ESTADO del lote y no de su edad.
-   *
-   * Un lote pasa a «Producción» solo cuando ocurrieron las dos cosas: su levante se cerró y existe
-   * el lote de producción. Mientras falte cualquiera de las dos sigue siendo «Levante», así que la
-   * palabra «Producción» no aparece hasta que el lote está de verdad en esa etapa.
-   *
-   * Antes esto era `edad < 26 semanas ? Levante : Producción`, que es correcto para un lote dado de
-   * alta al día y falso para todo lote cargado con historia: su encasetamiento es viejo, así que
-   * nacía mostrando «Producción» sin haber pasado nunca a producción. Medido en la base: 8 de los
-   * 16 lotes de Sanmarino, todos con el levante abierto y cero filas de producción.
-   *
-   * La resuelve el backend (`FaseLoteCalculos.ResolverFaseVisible`) y viaja en `faseActual`. Sin
-   * ese campo se devuelve «—»: es preferible no decir nada a volver a adivinar por la fecha.
-   */
-  calcularFase(l?: LoteDto | null): string {
-    const fase = (l?.faseActual ?? '').trim();
-    if (!fase) return '—';
-    return fase.toLowerCase() === 'produccion' ? 'Producción' : 'Levante';
-  }
+  /** Fase visible del lote (derivada del backend, no de la edad). Ver lote-list-encasetamiento.funcion.ts. */
+  calcularFase(l?: LoteDto | null): string { return calcularFaseFn(l); }
 
-  formatNumber(value: number | null | undefined): string {
-    if (value == null) return '0';
-    return value.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  }
+  formatNumber(value: number | null | undefined): string { return formatNumberFn(value); }
   formatOrDash(val?: number | null): string {
     return (val === null || val === undefined) ? '—' : this.formatNumber(val);
   }
 
-  // ─── Encasetamiento en las grillas de Levante y Producción ──────────────────
-  // Las columnas «Hembras encaset.» / «Machos encaset.» mostraban `avesHActual`/`avesMActual`, o
-  // sea el SALDO que el seguimiento diario va descontando: bajaban solas y sumaban MENOS que la
-  // columna «Aves encaset.» de al lado. El encasetamiento es histórico del lote y no se mueve.
-  // El desglose inicial vs. actual sigue completo en el panel de detalle de cada lote.
-  //
-  // ⚠️ La fuente es `hembrasL`/`machosL`, NO `avesHInicial`: en PRODUCCIÓN son dos eventos
-  // distintos y sólo el primero es el encasetamiento. `avesHInicial` son las aves con que arrancó
-  // producción, o sea las que sobrevivieron al levante — medido en P-K345B: encasetamiento 12.587
-  // (10.991 + 1.596) contra un inicio de producción de 11.526. Usar `avesHInicial` en una columna
-  // rotulada «encaset.» la dejaba sin cuadrar con el total de al lado.
-  // En LEVANTE los dos coinciden por construcción (el trigger espeja `aves_h_inicial = hembras_l`;
-  // verificado: 21 de 21 lotes), así que el respaldo sólo cubre filas sin base cargada.
-  // El desglose inicio-de-producción vs. actual sigue completo en el panel de detalle.
+  // Encasetamiento en las grillas de Levante y Producción — ver el porqué (hembrasL/machosL, nunca
+  // el saldo) en lote-list-encasetamiento.funcion.ts.
 
   /** Hembras con que se encasetó un lote de levante. */
-  encasetHembrasLevante(l: LotePosturaLevanteDto): number { return l.hembrasL ?? l.avesHInicial ?? 0; }
+  encasetHembrasLevante(l: LotePosturaLevanteDto): number { return encasetHembrasLevanteFn(l); }
 
   /** Machos con que se encasetó un lote de levante. */
-  encasetMachosLevante(l: LotePosturaLevanteDto): number { return l.machosL ?? l.avesMInicial ?? 0; }
+  encasetMachosLevante(l: LotePosturaLevanteDto): number { return encasetMachosLevanteFn(l); }
 
   /** Hembras con que se encasetó un lote que hoy está en producción. */
-  encasetHembrasProduccion(l: LotePosturaProduccionDto): number {
-    return l.hembrasL ?? l.avesHInicial ?? l.hembrasInicialesProd ?? 0;
-  }
+  encasetHembrasProduccion(l: LotePosturaProduccionDto): number { return encasetHembrasProduccionFn(l); }
 
   /** Machos con que se encasetó un lote que hoy está en producción. */
-  encasetMachosProduccion(l: LotePosturaProduccionDto): number {
-    return l.machosL ?? l.avesMInicial ?? l.machosInicialesProd ?? 0;
-  }
+  encasetMachosProduccion(l: LotePosturaProduccionDto): number { return encasetMachosProduccionFn(l); }
 
-  /**
-   * Total encasetado. Prefiere `avesEncasetadas` (la columna que el lote declara) y solo reconstruye
-   * desde el desglose si falta. **El fallback nunca usa el saldo**, que es lo que hacía que el total
-   * quedara por debajo de las aves realmente encasetadas.
-   */
+  /** Total encasetado. Ver lote-list-encasetamiento.funcion.ts. */
   encasetTotal(declarado: number | null | undefined, hembras: number, machos: number): number {
-    return (declarado ?? 0) > 0 ? declarado! : hembras + machos;
+    return encasetTotalFn(declarado, hembras, machos);
   }
 
   /** Normaliza estadoCierre para Levante (Abierto/Cerrado). Comparación insensible a mayúsculas. */
-  estadoCierreLevante(l: LotePosturaLevanteDto): 'Abierto' | 'Cerrado' {
-    const v = (l.estadoCierre ?? 'Abierto').toString().trim().toLowerCase();
-    return v === 'cerrado' ? 'Cerrado' : 'Abierto';
-  }
+  estadoCierreLevante(l: LotePosturaLevanteDto): 'Abierto' | 'Cerrado' { return estadoCierreLevanteFn(l); }
 
   /** Normaliza estadoCierre para Producción (Abierto/Cerrado). Comparación insensible a mayúsculas. */
-  estadoCierreProduccion(l: LotePosturaProduccionDto): 'Abierto' | 'Cerrado' {
-    const v = (l.estadoCierre ?? 'Abierta').toString().trim().toLowerCase();
-    return v === 'cerrada' ? 'Cerrado' : 'Abierto';
-  }
+  estadoCierreProduccion(l: LotePosturaProduccionDto): 'Abierto' | 'Cerrado' { return estadoCierreProduccionFn(l); }
 
   // *** Helpers de vivas (faltaban y causaban el error del template) ***
   vivasH(l: LoteDto): number | null {
@@ -1655,12 +1615,7 @@ export class LoteListComponent implements OnInit {
     }
   }
 
-  private normalize(s: string): string {
-    return (s || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-  }
+  private normalize(s: string): string { return normalizeFn(s); }
 
   trackByLote = (_: number, l: LoteDto) => l.loteId;
   trackByLoteLevante = (_: number, l: LotePosturaLevanteDto) => l.lotePosturaLevanteId;
@@ -1748,6 +1703,23 @@ export class LoteListComponent implements OnInit {
 
   cerrarSilos(): void {
     this.destinoSilos = null;
+  }
+
+  // ===================== F7.3 · Tipos de huevo que produce el lote =====================
+  /** Lote cuyo modal de tipos de huevo está abierto, o `null`. */
+  huevoItemsLote: LoteDto | null = null;
+
+  /**
+   * Abre la declaración de qué tipos de huevo produce el lote. El seguimiento diario de producción
+   * arma una fila fija por cada uno; sin ninguno declarado, ese lote no puede clasificar huevos
+   * (fail-closed, decisión del cliente).
+   */
+  abrirHuevoItems(lote: LoteDto): void {
+    this.huevoItemsLote = lote;
+  }
+
+  cerrarHuevoItems(): void {
+    this.huevoItemsLote = null;
   }
 
   openMoverUbicacion(lote: LoteDto): void {

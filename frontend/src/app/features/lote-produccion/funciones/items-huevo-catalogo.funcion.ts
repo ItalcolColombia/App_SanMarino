@@ -13,6 +13,8 @@ import { HuevoItemSeguimiento } from '../services/produccion.service';
 import {
   HuevoCatalogGrupo,
   HuevoCatalogOption,
+  HuevoFilaFija,
+  HuevoGrupoFilasFijas,
   ORDEN_TIPOS_HUEVO,
   TIPO_HUEVO_SIN_CATEGORIA
 } from '../models/huevo-clasificacion.model';
@@ -145,4 +147,87 @@ export function sumarCantidadesHuevo(cantidades: readonly unknown[]): number {
     total += n;
   }
   return total;
+}
+
+
+// ===================== F7.3 · FILAS FIJAS =====================
+
+/** Peso de ordenamiento de un tipo: los conocidos primero, lo desconocido al final. */
+function pesoTipo(tipo: string): number {
+  const idx = ORDEN_TIPOS_HUEVO.findIndex(t => t.toLowerCase() === tipo.toLowerCase());
+  return idx === -1 ? ORDEN_TIPOS_HUEVO.length : idx;
+}
+
+/**
+ * F7.3 — arma las filas FIJAS del seguimiento diario a partir de los ítems que el LOTE declaró
+ * producir. Reemplaza al `<select>` + «agregar ítem»: el conjunto ya no lo elige el operario.
+ *
+ * Espejo de `HuevoItemsCalculos.PesoTipoHuevo` (backend) en el orden de los grupos.
+ *
+ * @param declarados Ítems que el lote declara (`GET /api/LoteHuevoItem/{loteId}`).
+ * @param guardados  Ítems que el registro que se está EDITANDO ya tenía. Los que no estén entre los
+ *                   declarados se agregan igual, marcados `huerfano`: el lote pudo cambiar su
+ *                   declaración después de que el registro se guardó, y perder ese dato en silencio
+ *                   sería peor que mostrarlo con una marca.
+ * @param semanaVida Semana de vida del lote a la fecha del registro, para la vigencia de primera
+ *                   postura (F7.4). `null` = sin fecha calculable ⇒ no se bloquea nada.
+ * @param huevoPrimeraPosturaHastaSemana Límite de la empresa. `null` = sin regla.
+ */
+export function construirFilasFijasHuevo(
+  declarados: readonly HuevoFilaFija[],
+  guardados: readonly { catalogItemId: number; codigo?: string | null; nombre?: string | null; tipoHuevo?: string | null; um?: string | null }[],
+  semanaVida: number | null,
+  huevoPrimeraPosturaHastaSemana: number | null
+): HuevoGrupoFilasFijas[] {
+  const filas: HuevoFilaFija[] = declarados.map(d => ({
+    ...d,
+    huerfano: false,
+    fueraDeVigencia: d.primeraPostura && !esVigentePrimeraPostura(huevoPrimeraPosturaHastaSemana, semanaVida)
+  }));
+
+  const ids = new Set(filas.map(f => f.catalogItemId));
+  for (const g of guardados ?? []) {
+    const id = Number(g?.catalogItemId) || 0;
+    if (id <= 0 || ids.has(id)) continue;
+    ids.add(id);
+    filas.push({
+      catalogItemId: id,
+      codigo: String(g.codigo ?? '').trim(),
+      nombre: String(g.nombre ?? '').trim() || `Ítem ${id}`,
+      tipoHuevo: g.tipoHuevo?.trim() || null,
+      um: g.um?.trim() || null,
+      // Un ítem huérfano NO se marca como primera postura: no se conoce su metadata actual y la
+      // vigencia solo decide qué se OFRECE, nunca bloquea lo ya guardado.
+      primeraPostura: false,
+      huerfano: true,
+      fueraDeVigencia: false
+    });
+  }
+
+  const grupos = new Map<string, HuevoFilaFija[]>();
+  for (const f of filas) {
+    const clave = f.tipoHuevo?.trim() || TIPO_HUEVO_SIN_CATEGORIA;
+    const lista = grupos.get(clave);
+    if (lista) lista.push(f);
+    else grupos.set(clave, [f]);
+  }
+
+  return Array.from(grupos.entries())
+    .map(([tipoHuevo, fs]) => ({
+      tipoHuevo,
+      filas: [...fs].sort((a, b) => a.nombre.localeCompare(b.nombre))
+    }))
+    .sort((a, b) => {
+      const diff = pesoTipo(a.tipoHuevo) - pesoTipo(b.tipoHuevo);
+      return diff !== 0 ? diff : a.tipoHuevo.localeCompare(b.tipoHuevo);
+    });
+}
+
+/**
+ * D2 — ¿este ítem se mide en kilos? Los que sí admiten decimales en el input; los de unidades no.
+ * El catálogo de Santa Reyes tiene `HUEVO RECUPERACION BOLSA KIL` con `um = 'KIL'`: se pesa, no se
+ * cuenta, y hasta acá el front redondeaba 12,5 kg a 13 en silencio.
+ */
+export function esItemEnKilos(um: string | null | undefined): boolean {
+  return (um ?? '').trim().toUpperCase() === 'KIL';
 }

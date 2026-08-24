@@ -121,7 +121,7 @@ public partial class MigracionService
         var (alimentos, _) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var huevoItems = lotePosturaCtx?.ClasificacionHuevoPorItems == true && !esLevante
             ? await CargarItemsHuevoEmpresaAsync(companyId, ct)
-            : new List<(int Id, string Codigo, string Nombre, string? TipoHuevo)>();
+            : new List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>();
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");

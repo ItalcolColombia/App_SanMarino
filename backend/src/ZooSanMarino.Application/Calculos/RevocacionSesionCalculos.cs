@@ -5,7 +5,10 @@ namespace ZooSanMarino.Application.Calculos;
 /// <summary>Estado de una sesión frente a la tabla <c>sesiones_activas</c>.</summary>
 public enum EstadoSesion
 {
-    /// <summary>Token sin claim <c>jti</c>: emitido ANTES de B1. Ventana de gracia (ver la clase).</summary>
+    /// <summary>
+    /// Token sin claim <c>jti</c>: emitido ANTES de B1. <b>Ya NO pasa</b> — la ventana de gracia se
+    /// cerró el 21-ago-2026 (V39.13). Ver la nota de <see cref="Evaluar"/>.
+    /// </summary>
     Legado = 0,
 
     /// <summary>Hay <c>jti</c> y hay fila viva: la sesión existe y nadie la apagó.</summary>
@@ -19,6 +22,18 @@ public enum EstadoSesion
 
     /// <summary>La fila venció (<c>expires_at &lt;= ahora</c>).</summary>
     Vencida = 4,
+
+    /// <summary>
+    /// <b>No se pudo consultar la base.</b> Se acepta el token a propósito (<i>fail-open</i>): si RDS
+    /// se cae, rechazar todo convertiría una caída de base en el deslogueo simultáneo de todas las
+    /// tablets en campo. Es el único estado «indeterminado» y <b>nunca</b> se cachea.
+    ///
+    /// <para>
+    /// Existe porque hasta V39.13 este caso compartía valor con <see cref="Legado"/>, y cerrar la
+    /// ventana de gracia sin separarlos habría convertido un blip de RDS en un logout masivo.
+    /// </para>
+    /// </summary>
+    NoVerificable = 5,
 }
 
 /// <summary>
@@ -70,11 +85,26 @@ public static class RevocacionSesionCalculos
     /// ¿Sigue viva la sesión de este token?
     ///
     /// <para>
-    /// <b>Ventana de gracia.</b> <paramref name="jti"/> nulo o vacío ⇒ <see cref="EstadoSesion.Legado"/>,
-    /// que <b>se acepta</b>: al desplegar B1 todos los tokens vivos son de antes y no tienen <c>jti</c>.
-    /// Sin esto, el arranque de la tarea nueva desloguearía a todo el mundo de golpe —tablets en campo
-    /// con capturas sin subir incluidas—. Como el token viejo dura lo que duraba, la ventana se apaga
-    /// sola; cerrarla es un commit posterior y explícito, no un «cuando haya tiempo».
+    /// <b>Ventana de gracia — CERRADA el 21-ago-2026 (V39.13).</b> <paramref name="jti"/> nulo o vacío
+    /// ⇒ <see cref="EstadoSesion.Legado"/>, que ahora <b>se RECHAZA</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Al desplegar B1 (20-ago-2026, TaskDef <c>sanmarino-back-task:161</c>) todos los tokens vivos
+    /// eran de antes y no tenían <c>jti</c>: rechazarlos ese día habría deslogueado a todo el mundo de
+    /// golpe, tablets en campo con capturas sin subir incluidas. Por eso se aceptaron. La ventana se
+    /// apaga <b>sola</b> porque el token viejo dura lo que duraba —<c>JwtSettings__DurationInMinutes
+    /// = 60</c> en la TaskDef—, así que un día después ya no quedaba ni uno vivo, y hoy la única
+    /// fábrica de tokens de usuario (<c>AuthService</c>, un solo <c>new JwtSecurityToken</c> en todo
+    /// el backend) siempre emite <c>jti</c> y anota la fila. Un token sin <c>jti</c> a partir de acá
+    /// no es un rezagado: es un token que este backend no emitió.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Lo que NO se cerró.</b> El <i>fail-open</i> ante una caída de base sigue vivo y es otra
+    /// cosa: vive en <c>SesionActivaService</c> y devuelve <see cref="EstadoSesion.NoVerificable"/>.
+    /// Los dos casos compartían el valor <see cref="EstadoSesion.Legado"/> hasta V39.13; borrar la
+    /// rama sin separarlos convertía un blip de RDS en un logout masivo.
     /// </para>
     /// </summary>
     /// <param name="jti">Claim <c>jti</c> del token, o <c>null</c> si el token es anterior a B1.</param>
@@ -107,9 +137,13 @@ public static class RevocacionSesionCalculos
         return EstadoSesion.Valida;
     }
 
-    /// <summary>¿El estado deja pasar el request? Sólo <see cref="EstadoSesion.Valida"/> y el legado.</summary>
+    /// <summary>
+    /// ¿El estado deja pasar el request? Sólo <see cref="EstadoSesion.Valida"/> (la sesión existe y
+    /// nadie la apagó) y <see cref="EstadoSesion.NoVerificable"/> (no se pudo preguntar; fail-open
+    /// deliberado). <see cref="EstadoSesion.Legado"/> dejó de pasar el 21-ago-2026 — V39.13.
+    /// </summary>
     public static bool EsSesionValida(EstadoSesion estado) =>
-        estado is EstadoSesion.Valida or EstadoSesion.Legado;
+        estado is EstadoSesion.Valida or EstadoSesion.NoVerificable;
 
     /// <summary>
     /// <c>errorCode</c> que viaja al cliente en el cuerpo del 401. Nunca <c>null</c> para un estado
@@ -119,6 +153,10 @@ public static class RevocacionSesionCalculos
     {
         EstadoSesion.Revocada => MotivoRevocada,
         EstadoSesion.NoRegistrada => MotivoRevocada,
+        // V39.13: un token sin `jti` ya no pasa. Se le dice al cliente lo mismo que a una sesión
+        // apagada —«iniciá sesión de nuevo»—, que es exactamente lo que tiene que hacer: el login
+        // emite un token nuevo, con `jti` y con su fila.
+        EstadoSesion.Legado => MotivoRevocada,
         EstadoSesion.Vencida => MotivoExpirado,
         _ => null,
     };
@@ -177,6 +215,13 @@ public static class RevocacionSesionCalculos
     {
         if (estado == EstadoSesion.Valida)
             return TtlSesionValida;
+
+        // Un veredicto que no se pudo verificar no se cachea NUNCA: cachearlo hasta el `exp` sería
+        // convertir un blip de RDS en una hora de barra libre para ese token. `SesionActivaService`
+        // ni siquiera llega a esta línea en ese caso (retorna antes de tocar la caché); el cero está
+        // acá para que la regla viva en la parte pura y testeable.
+        if (estado == EstadoSesion.NoVerificable)
+            return TimeSpan.Zero;
 
         var restante = expiracionToken - ahoraUtc;
         return restante > TimeSpan.Zero ? restante : TimeSpan.Zero;

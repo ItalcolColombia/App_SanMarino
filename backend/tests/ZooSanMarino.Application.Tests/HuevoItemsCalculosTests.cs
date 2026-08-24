@@ -386,4 +386,104 @@ public class HuevoItemsCalculosTests
         Assert.Equal("Primera", fila.TipoHuevo);
         Assert.Equal("UND", fila.Um);
     }
+
+    // ── F7.3 · ValidarPermitidos — la lista blanca de ítems del LOTE ────────────────────
+
+    [Fact]
+    public void ValidarPermitidos_LoteSinItemsDeclarados_RECHAZA_failClosed()
+    {
+        // El corazón de F7.3, y la decisión explícita del cliente (21-ago-2026): «si no tiene
+        // asignado no aparece, el usuario tiene que editar el lote». Caer al catálogo completo acá
+        // sería exactamente el control que se pidió eliminar.
+        var error = HuevoItemsCalculos.ValidarPermitidos(
+            new List<HuevoItemSeguimientoDto> { Item(528, 100) },
+            permitidos: Array.Empty<int>());
+
+        Assert.Equal(HuevoItemsCalculos.MensajeLoteSinItemsDeclarados, error);
+    }
+
+    [Fact]
+    public void ValidarPermitidos_ItemFueraDeLaLista_RechazaNombrandoloConSuNombre()
+    {
+        // El mensaje tiene que decir QUÉ ítem sobra: «id 999» obliga al operario a ir a buscarlo.
+        var error = HuevoItemsCalculos.ValidarPermitidos(
+            new List<HuevoItemSeguimientoDto> { Item(528, 10), Item(999, 5) },
+            permitidos: new[] { 528 },
+            nombrePorItem: new Dictionary<int, string> { [999] = "HUEVO ENYEMADO ROJO" });
+
+        Assert.NotNull(error);
+        Assert.Contains("HUEVO ENYEMADO ROJO", error);
+    }
+
+    [Fact]
+    public void ValidarPermitidos_SinNombreConocido_CaeAlIdYNoRevienta()
+    {
+        var error = HuevoItemsCalculos.ValidarPermitidos(
+            new List<HuevoItemSeguimientoDto> { Item(999, 5) },
+            permitidos: new[] { 528 });
+
+        Assert.NotNull(error);
+        Assert.Contains("999", error);
+    }
+
+    [Fact]
+    public void ValidarPermitidos_TodosDentroDeLaLista_EsValido()
+    {
+        var error = HuevoItemsCalculos.ValidarPermitidos(
+            new List<HuevoItemSeguimientoDto> { Item(528, 10), Item(530, 5) },
+            permitidos: new[] { 528, 530, 531 });
+
+        Assert.Null(error);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ValidarPermitidos_SinItemsEnElRequest_EsValidoAunqueElLoteNoDeclareNada(bool nullEnVezDeVacio)
+    {
+        // Un lote sin declarar sigue pudiendo guardar un seguimiento SIN huevos. Rechazar acá
+        // bloquearía el registro diario entero por una clasificación que nadie mandó.
+        var items = nullEnVezDeVacio ? null : new List<HuevoItemSeguimientoDto>();
+
+        Assert.Null(HuevoItemsCalculos.ValidarPermitidos(items, Array.Empty<int>()));
+        Assert.Null(HuevoItemsCalculos.ValidarPermitidos(items, new[] { 528 }));
+    }
+
+    [Fact]
+    public void ValidarPermitidos_NoTocaLaSemanticaDeValidar()
+    {
+        // `Validar` la comparten seguimiento, traslado y carga masiva; `ValidarPermitidos` es una
+        // función APARTE justamente para no cambiarle el comportamiento a los tres a la vez. Si
+        // alguien fusiona las dos, este test cae.
+        var items = new List<HuevoItemSeguimientoDto> { Item(999, 5) };
+
+        Assert.Null(HuevoItemsCalculos.Validar(items));                                  // pura: id>0, cant>=0, sin repetir
+        Assert.NotNull(HuevoItemsCalculos.ValidarPermitidos(items, new[] { 528 }));       // lista blanca: sobra
+    }
+
+    // ── PesoTipoHuevo — orden de los grupos de las filas fijas ──────────────────────────
+
+    [Fact]
+    public void PesoTipoHuevo_PrimeraVaAntesQuePnc_YLoDesconocidoAlFinal()
+    {
+        Assert.True(HuevoItemsCalculos.PesoTipoHuevo("Primera") < HuevoItemsCalculos.PesoTipoHuevo("Pnc"));
+        Assert.True(HuevoItemsCalculos.PesoTipoHuevo("Pnc") < HuevoItemsCalculos.PesoTipoHuevo("Enyemado"));
+    }
+
+    [Fact]
+    public void PesoTipoHuevo_ToleraCapitalizacionYEspacios()
+    {
+        Assert.Equal(HuevoItemsCalculos.PesoTipoHuevo("Primera"), HuevoItemsCalculos.PesoTipoHuevo("  primera "));
+        Assert.Equal(HuevoItemsCalculos.PesoTipoHuevo("Pnc"), HuevoItemsCalculos.PesoTipoHuevo("PNC"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void PesoTipoHuevo_SinTipo_VaAlFinalNuncaIntercalado(string? tipo)
+    {
+        // Una categoría nueva del catálogo no se cuela entre Primera y Pnc sin que nadie lo decida.
+        Assert.Equal(HuevoItemsCalculos.OrdenTiposHuevo.Length, HuevoItemsCalculos.PesoTipoHuevo(tipo));
+    }
 }

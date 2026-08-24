@@ -94,7 +94,7 @@ public class FarmInventoryService : IFarmInventoryService
         {
             query = query.Where(x =>
                 EF.Functions.ILike(x.CatalogItem.Nombre, $"%{q}%") ||
-                EF.Functions.ILike(x.CatalogItem.Codigo, $"%{q}%"));
+                (x.CatalogItem.Codigo != null && EF.Functions.ILike(x.CatalogItem.Codigo, $"%{q}%")));
         }
 
         var items = await query
@@ -112,7 +112,7 @@ public class FarmInventoryService : IFarmInventoryService
             Id = x.Inventory.Id,
             FarmId = x.Inventory.FarmId,
             CatalogItemId = x.Inventory.CatalogItemId,
-            Codigo = x.Inventory.CatalogItem.Codigo,
+            Codigo = x.Inventory.CatalogItem.Codigo ?? string.Empty,
             Nombre = x.Inventory.CatalogItem.Nombre,
             Quantity = x.Inventory.Quantity,
             Unit = x.Inventory.Unit,
@@ -173,7 +173,7 @@ public class FarmInventoryService : IFarmInventoryService
             Id = x.Id,
             FarmId = x.FarmId,
             CatalogItemId = x.CatalogItemId,
-            Codigo = x.CatalogItem.Codigo,
+            Codigo = x.CatalogItem.Codigo ?? string.Empty,
             Nombre = x.CatalogItem.Nombre,
             Quantity = x.Quantity,
             Unit = x.Unit,
@@ -205,7 +205,7 @@ public class FarmInventoryService : IFarmInventoryService
             Id = x.Id,
             FarmId = x.FarmId,
             CatalogItemId = x.CatalogItemId,
-            Codigo = x.CatalogItem.Codigo,
+            Codigo = x.CatalogItem.Codigo ?? string.Empty,
             Nombre = x.CatalogItem.Nombre,
             Quantity = x.Quantity,
             Unit = x.Unit,

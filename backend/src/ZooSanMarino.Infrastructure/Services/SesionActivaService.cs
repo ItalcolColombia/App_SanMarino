@@ -76,7 +76,9 @@ public class SesionActivaService : ISesionActivaService
 
     public async Task<EstadoSesion> EvaluarAsync(string? jti, DateTime expiracionToken, CancellationToken ct)
     {
-        // Ventana de gracia: token anterior a B1. No se consulta nada.
+        // Token sin `jti`. Hasta V39.13 esto era la ventana de gracia del despliegue de B1 y pasaba;
+        // desde el 21-ago-2026 se RECHAZA (la decisión vive en RevocacionSesionCalculos, que es lo
+        // testeado). No se consulta nada: sin `jti` no hay fila que buscar.
         if (string.IsNullOrWhiteSpace(jti))
             return EstadoSesion.Legado;
 
@@ -116,9 +118,12 @@ public class SesionActivaService : ISesionActivaService
             // caída de base en el deslogueo simultáneo de todas las tablets en campo —con sus colas
             // de capturas sin subir—, que es peor que el riesgo que evita. Se acepta el token y se
             // loguea. No se cachea: al volver la BD, el request siguiente ya verifica de verdad.
+            // Estado PROPIO (`NoVerificable`, V39.13): hasta entonces compartía valor con `Legado`,
+            // y cerrar la ventana de gracia sin separarlos habría hecho que un blip de RDS
+            // deslogueara a todo el mundo — exactamente el desastre que esta rama existe para evitar.
             _logger.LogError(ex,
                 "No se pudo verificar la sesión contra la base. Se acepta el token (fail-open deliberado).");
-            return EstadoSesion.Legado;
+            return EstadoSesion.NoVerificable;
         }
 
         _cache.Set(clave, estado, RevocacionSesionCalculos.TtlCache(estado, ANormalizarUtc(expiracionToken), ahora));

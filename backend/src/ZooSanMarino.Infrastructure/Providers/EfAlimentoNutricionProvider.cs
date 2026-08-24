@@ -21,7 +21,7 @@ public class EfAlimentoNutricionProvider : IAlimentoNutricionProvider
         var item = await _ctx.Set<CatalogItem>()
             .AsNoTracking()
             .Where(i => i.Activo &&
-                   (EF.Functions.ILike(i.Codigo, tipoAlimento) || EF.Functions.ILike(i.Nombre, tipoAlimento))) // ILike = Postgres; si usas SQL Server, cambia por ToLower()
+                   ((i.Codigo != null && EF.Functions.ILike(i.Codigo, tipoAlimento)) || EF.Functions.ILike(i.Nombre, tipoAlimento))) // ILike = Postgres; si usas SQL Server, cambia por ToLower()
             .OrderByDescending(i => i.UpdatedAt)
             .FirstOrDefaultAsync(ct);
 

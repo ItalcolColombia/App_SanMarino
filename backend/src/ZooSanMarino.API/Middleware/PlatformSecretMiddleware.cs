@@ -26,8 +26,26 @@ public class PlatformSecretMiddleware
     /// <summary>Valor que marca un rechazo de plataforma (origen), NO de autenticación.</summary>
     public const string PlatformFailureValue = "platform-secret";
 
+    /// <summary>
+    /// Cabecera donde queda anotado QUÉ cliente resultó válido, para el resto del
+    /// pipeline (logs, auditoría). No la manda el cliente: la escribe este
+    /// middleware después de verificar la firma, así que no se puede falsear.
+    /// </summary>
+    public const string ClienteHeader = "X-Platform-Client";
+
+    public const string ClienteWeb = "web";
+    public const string ClienteMovil = "movil";
+
     private readonly RequestDelegate _next;
     private readonly string _expectedSecret;
+
+    /// <summary>
+    /// Firma propia de la app móvil. `null` cuando el ambiente todavía no la
+    /// configuró: en ese caso la app sigue entrando con la del front y nada se
+    /// rompe. Ver la nota de compatibilidad en <see cref="InvokeAsync"/>.
+    /// </summary>
+    private readonly string? _expectedSecretMovil;
+
     private readonly string _encryptionKey;
     private readonly ILogger<PlatformSecretMiddleware> _logger;
     private readonly EncryptionService _encryptionService;
@@ -41,6 +59,11 @@ public class PlatformSecretMiddleware
         _next = next;
         _expectedSecret = configuration["PlatformSecret:SecretUpFrontend"]
             ?? throw new InvalidOperationException("PlatformSecret:SecretUpFrontend no configurada");
+        // A propósito NO lanza si falta: un ambiente que todavía no la definió
+        // tiene que seguir andando. Se puede fijar por appsettings o por variable
+        // de entorno (`PlatformSecret__SecretUpMovil`), que es como se le pasa en
+        // producción sin commitearla.
+        _expectedSecretMovil = configuration["PlatformSecret:SecretUpMovil"];
         _encryptionKey = configuration["PlatformSecret:EncryptionKey"]
             ?? throw new InvalidOperationException("PlatformSecret:EncryptionKey no configurada");
         _logger = logger;
@@ -126,18 +149,40 @@ public class PlatformSecretMiddleware
             return;
         }
 
-        // Validar que el SECRET_UP desencriptado coincida con el esperado
-        if (decryptedSecretUp != _expectedSecret)
+        // Cada cliente tiene su propia firma. Antes había una sola compartida, así
+        // que el backend no podía distinguir de dónde venía la petición y rotarla
+        // dejaba sin servicio al web y a la app a la vez. Ahora se puede revocar
+        // la app sin tocar el front, y el log dice cuál falló.
+        //
+        // Compatibilidad: mientras un ambiente no defina la firma móvil, la app
+        // entra con la del front y todo sigue igual. Nada deja de andar por
+        // desplegar este cambio antes de configurar el secreto.
+        string? cliente = null;
+        if (decryptedSecretUp == _expectedSecret)
         {
+            cliente = ClienteWeb;
+        }
+        else if (!string.IsNullOrWhiteSpace(_expectedSecretMovil) &&
+                 decryptedSecretUp == _expectedSecretMovil)
+        {
+            cliente = ClienteMovil;
+        }
+
+        if (cliente is null)
+        {
+            // Nunca se loguea el secreto recibido, ni un prefijo: era un oráculo
+            // que filtraba de a diez caracteres el valor esperado en cada intento.
             _logger.LogWarning(
-                "Petición rechazada: SECRET_UP inválido desde {RemoteIpAddress}. Esperado: {ExpectedPrefix}..., Recibido: {ReceivedPrefix}...",
-                context.Connection.RemoteIpAddress,
-                _expectedSecret.Substring(0, Math.Min(10, _expectedSecret.Length)),
-                decryptedSecretUp.Substring(0, Math.Min(10, decryptedSecretUp.Length)));
-            
+                "Petición rechazada: firma de plataforma inválida desde {RemoteIpAddress} hacia {Path}",
+                context.Connection.RemoteIpAddress, path);
+
             await RechazarAsync(context, "SECRET_UP inválido");
             return;
         }
+
+        // Queda anotado para el resto del pipeline. Se sobrescribe cualquier valor
+        // que hubiera mandado el cliente: acá sólo escribe quien verificó la firma.
+        context.Request.Headers[ClienteHeader] = cliente;
 
         // SECRET_UP válido, continuar con la petición
         await _next(context);

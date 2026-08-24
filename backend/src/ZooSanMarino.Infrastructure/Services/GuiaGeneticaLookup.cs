@@ -51,6 +51,38 @@ public static class GuiaGeneticaLookup
     }
 
     /// <summary>
+    /// Filas de la guía <b>PROPIA</b> de la empresa (<c>guia_genetica_santa_reyes</c>), con la forma
+    /// de <c>ProduccionAvicolaRaw</c>. <b>Lista vacía</b> si la empresa no tiene guía propia — que
+    /// es el caso de todas menos Santa Reyes.
+    ///
+    /// <para>
+    /// <b>Para qué existe separada de <see cref="ObtenerFilasCompatiblesAsync"/>.</b> Los reportes
+    /// técnicos (<c>ReporteTecnicoService</c>, <c>ReporteTecnicoProduccionService</c>) traen la guía
+    /// con consultas propias a <c>ProduccionAvicolaRaw</c> que <b>no son todas iguales entre sí</b>:
+    /// unas filtran <c>deleted_at</c> y otras no, unas usan <c>LIKE</c> y otras <c>=</c>. Sustituirlas
+    /// por una consulta unificada las cambiaría a todas para Sanmarino, Panamá y Ecuador, que hoy no
+    /// tienen guía propia y no deberían notar absolutamente nada. Con este método el reporte pregunta
+    /// primero por la guía propia y, si no hay, corre <b>su</b> consulta de siempre, sin tocarla:
+    /// delta cero para quien no tiene guía propia, por construcción y no por revisión.
+    /// </para>
+    /// </summary>
+    public static async Task<List<ProduccionAvicolaRaw>> ObtenerFilasPropiasAsync(
+        ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio,
+        CancellationToken ct = default)
+    {
+        var propias = await ctx.GuiaGeneticaSantaReyes
+            .AsNoTracking()
+            .Where(g =>
+                g.CompanyId == companyId &&
+                g.DeletedAt == null &&
+                g.Raza.Trim().ToLower() == razaNorm &&
+                g.AnioGuia.Trim() == anio)
+            .ToListAsync(ct);
+
+        return propias.Select(ATransitoria).ToList();
+    }
+
+    /// <summary>
     /// Filas de guía de una raza+año, con la MISMA forma que devolvía siempre
     /// <c>ProduccionAvicolaRaw</c> (para no tocar el resto de liquidaciones/reportes que ya
     /// consumen esa forma). Si la empresa tiene la guía en la tabla dedicada, arma filas
@@ -62,32 +94,8 @@ public static class GuiaGeneticaLookup
     public static async Task<List<ProduccionAvicolaRaw>> ObtenerFilasCompatiblesAsync(
         ZooSanMarinoContext ctx, int companyId, string razaNorm, string anio)
     {
-        var propias = await ctx.GuiaGeneticaSantaReyes
-            .AsNoTracking()
-            .Where(g =>
-                g.CompanyId == companyId &&
-                g.DeletedAt == null &&
-                g.Raza.Trim().ToLower() == razaNorm &&
-                g.AnioGuia.Trim() == anio)
-            .ToListAsync();
-
-        if (propias.Count > 0)
-        {
-            return propias.Select(g => new ProduccionAvicolaRaw
-            {
-                Id = -g.Id, // negativo: nunca colisiona con un id real, y deja claro en un debug que es transitorio
-                CompanyId = g.CompanyId,
-                Raza = g.Raza,
-                AnioGuia = g.AnioGuia,
-                Edad = g.Edad.ToString(CultureInfo.InvariantCulture),
-                ProdPorcentaje = g.ProdPorcentaje?.ToString(CultureInfo.InvariantCulture),
-                RetiroAcH = g.RetiroAcH?.ToString(CultureInfo.InvariantCulture),
-                GrAveDiaH = g.GrAveDiaH?.ToString(CultureInfo.InvariantCulture),
-                CodigoGuiaGenetica = g.CodigoGuiaGenetica,
-                CreatedByUserId = g.CreatedByUserId,
-                CreatedAt = g.CreatedAt
-            }).ToList();
-        }
+        var propias = await ObtenerFilasPropiasAsync(ctx, companyId, razaNorm, anio);
+        if (propias.Count > 0) return propias;
 
         return await ctx.ProduccionAvicolaRaw
             .AsNoTracking()
@@ -98,4 +106,23 @@ public static class GuiaGeneticaLookup
                 p.AnioGuia != null && p.AnioGuia.Trim() == anio)
             .ToListAsync();
     }
+
+    /// <summary>
+    /// Proyección de una fila de la guía propia a la forma de <c>ProduccionAvicolaRaw</c>. La fila
+    /// es TRANSITORIA: no se agrega al contexto y no se guarda nunca.
+    /// </summary>
+    private static ProduccionAvicolaRaw ATransitoria(GuiaGeneticaSantaReyes g) => new()
+    {
+        Id = -g.Id, // negativo: nunca colisiona con un id real, y deja claro en un debug que es transitorio
+        CompanyId = g.CompanyId,
+        Raza = g.Raza,
+        AnioGuia = g.AnioGuia,
+        Edad = g.Edad.ToString(CultureInfo.InvariantCulture),
+        ProdPorcentaje = g.ProdPorcentaje?.ToString(CultureInfo.InvariantCulture),
+        RetiroAcH = g.RetiroAcH?.ToString(CultureInfo.InvariantCulture),
+        GrAveDiaH = g.GrAveDiaH?.ToString(CultureInfo.InvariantCulture),
+        CodigoGuiaGenetica = g.CodigoGuiaGenetica,
+        CreatedByUserId = g.CreatedByUserId,
+        CreatedAt = g.CreatedAt
+    };
 }

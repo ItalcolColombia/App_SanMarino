@@ -322,7 +322,7 @@ public partial class SeguimientoLoteLevanteService
                 .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
             cat ??= await _ctx.CatalogItems.AsNoTracking()
-                .Where(c => c.CompanyId == _current.CompanyId && c.Activo && EF.Functions.ILike(c.Codigo, code))
+                .Where(c => c.CompanyId == _current.CompanyId && c.Activo && c.Codigo != null && EF.Functions.ILike(c.Codigo, code))
                 .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
             if (cat != null)

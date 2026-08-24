@@ -225,15 +225,21 @@ public partial class ValidacionSeguimientoService
                 var porItem = AItemConsumo(grupo);
                 if (devolver)
                 {
+                    // Misma fecha que la confirmación que se está deshaciendo: el seguimiento original,
+                    // no el día en que alguien quita la validación.
                     await _colombiaConsumoB.AplicarDevolucionAsync(
-                        grupo.Key.FarmId, porItem, refStr, "Devolución por quitar la validación del seguimiento", ct);
+                        grupo.Key.FarmId, porItem, refStr, "Devolución por quitar la validación del seguimiento", ct,
+                        fechaMovimiento: reservas[0].FechaSeguimiento.ToDateTime(TimeOnly.MinValue));
                 }
                 else
                 {
                     // Se valida el stock ANTES de aplicar: si falta, la transacción entera se cae y el
                     // registro queda sin validar, que es el estado honesto.
                     await _colombiaConsumoB.ValidarStockConsumoAsync(grupo.Key.FarmId, porItem, null, ct);
-                    await _colombiaConsumoB.AplicarConsumoAsync(grupo.Key.FarmId, porItem, refStr, ct);
+                    // El movimiento se fecha en el DÍA DEL SEGUIMIENTO, no en el de la validación (mismo
+                    // criterio que el modelo B más abajo).
+                    await _colombiaConsumoB.AplicarConsumoAsync(grupo.Key.FarmId, porItem, refStr, ct,
+                        fechaMovimiento: reservas[0].FechaSeguimiento.ToDateTime(TimeOnly.MinValue));
                 }
                 total += kgGrupo;
                 continue;
@@ -253,9 +259,12 @@ public partial class ValidacionSeguimientoService
                 if (r.CantidadKg <= 0) continue;
                 if (devolver)
                 {
+                    // Misma fecha que la confirmación que se está deshaciendo: el seguimiento original,
+                    // no el día en que alguien quita la validación.
                     await _inventarioGestion!.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
                         r.FarmId, r.NucleoId?.Trim(), r.GalponId?.Trim(), r.ItemInventarioEcuadorId,
-                        r.CantidadKg, r.Unit, refStr, "Devolución por quitar la validación del seguimiento"));
+                        r.CantidadKg, r.Unit, refStr, "Devolución por quitar la validación del seguimiento",
+                        FechaMovimiento: r.FechaSeguimiento.ToDateTime(TimeOnly.MinValue)));
                 }
                 else
                 {

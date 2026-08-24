@@ -4,6 +4,8 @@
  * (mismos `Math.round`, mismo orden, mismo manejo de null).
  */
 
+import { FormGroup } from '@angular/forms';
+
 /**
  * Kilogramos por quintal (qq). Fuente de verdad = backend
  * `ReporteIndicadorPanamaCalculos.KgPorQuintal` (1 qq = 45.36 kg). Se replica el mismo
@@ -27,6 +29,16 @@ export function toKg(cantidad: number, unidad: string | null | undefined): numbe
   if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
   if (u === 'qq' || u === 'quintal' || u === 'quintales') return cantidad * KG_POR_QUINTAL;
   return cantidad;
+}
+
+/**
+ * Kg que se guardarán en consumo para una fila de alimento (preview vivo bajo el campo Cantidad).
+ * Devuelve un número (primitivo) → seguro para el template, no aloca en cada ciclo de CD.
+ */
+export function consumoKgDeFila(itemGroup: FormGroup): number {
+  const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
+  if (!Number.isFinite(cantidad) || cantidad <= 0) return 0;
+  return toKg(cantidad, String(itemGroup.get('unidad')?.value || 'kg'));
 }
 
 /** True si la unidad no es una variante conocida de kg/g (para conservar el `console.warn` legacy). */
