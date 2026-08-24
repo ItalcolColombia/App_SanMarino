@@ -318,6 +318,64 @@ y servir `build/web` (hay una config `zootecnicoapp-web-static` en `.claude/laun
 El backend local debe tener el puerto en `AllowedOrigins` de `appsettings.Development.json`, o CORS
 bloquea el login.
 
+### 🪤 Gradle: `Unable to establish loopback connection` (esta máquina)
+
+Si `flutter build apk` muere con ese mensaje, **no** pierdas tiempo con el hosts, IPv6 ni el JDK:
+ninguno tiene que ver. Diagnóstico medido el 23-ago-2026.
+
+Desde **JDK 17**, `Selector.open()` arma su pipe interno con un socket de **dominio UNIX (AF_UNIX)**,
+no con TCP. Ese socket se crea en el directorio que diga `jdk.net.unixdomain.tmpdir` o, en su
+defecto, la variable de entorno **`TEMP`**. En esta máquina `TEMP` apunta a `%LOCALAPPDATA%\Temp`, y
+ahí AF_UNIX hace `bind` pero **no** `connect` (`Invalid argument: connect`); hasta borrar el `.sock`
+da *"the file cannot be accessed by the system"*. Algo filtra esa carpeta. **En cualquier otro
+directorio el mismo socket conecta sin problema.**
+
+No hay forma de esquivarlo cambiando de selector: `WEPollSelectorImpl` y `WindowsSelectorImpl` piden
+AF_UNIX en duro (`new PipeImpl(sp, /* AF_UNIX */ true, false)`), y `PipeImpl.createListener()` sólo
+cae a TCP si falla el **bind** — que acá funciona.
+
+**El arreglo va en los DOS JVM**: el lanzador (lee `GRADLE_OPTS`) y el daemon (hereda el entorno).
+Poner sólo `org.gradle.jvmargs` en `~/.gradle/gradle.properties` **no alcanza**: el
+`android/gradle.properties` del proyecto redefine esa clave y el daemon nace sin la propiedad —
+arranca, pero el cliente no puede conectarse («A new daemon was started but could not be connected
+to», con `daemonOpts` sin `jdk.net.unixdomain.tmpdir`).
+
+```bash
+export JAVA_HOME="/c/Users/SAN MARINO/jdk-portable/jdk-17.0.20.1+1"
+export TEMP='C:\gtmp' TMP='C:\gtmp'          # el daemon lo hereda
+export GRADLE_OPTS="-Djdk.net.unixdomain.tmpdir=C:\\gtmp"
+flutter build apk --release
+```
+
+Verificación de un renglón, sin compilar nada (falla ⇒ es esto):
+
+```bash
+java -e 2>/dev/null; "$JAVA_HOME/bin/java.exe" -e 'try(var s=java.nio.channels.Selector.open()){}' 2>/dev/null \
+  || echo 'probá: java LoopTest.java con Selector.open()'
+```
+
+⚠️ **No lo metas en `android/gradle.properties`**: `C:\gtmp` no existe en otras máquinas y en
+Linux/macOS es una ruta inválida (`InvalidPathException`, que `createListener` **no** atrapa —
+sólo captura `IOException`/`UnsupportedOperationException`). Es un ajuste de máquina; va en el
+entorno o en `~/.gradle/`.
+
+### 📱 Correr en un teléfono físico
+
+`flutter devices` que sólo lista Windows/Chrome/Edge significa que el teléfono no está en modo
+depuración — **no** que falte un driver. Para distinguirlo, mirá qué ve Windows:
+
+```bash
+powershell -c "Get-PnpDevice -PresentOnly | Where-Object { \$_.FriendlyName -match 'Android|ADB|Samsung' } | Select-Object Status,Class,FriendlyName"
+```
+
+- Aparece como `WPD` / `SAMSUNG Mobile USB Composite Device` y **no** hay ninguna entrada ADB →
+  cable y driver están bien, falta habilitar **Opciones de desarrollador → Depuración USB** en el
+  teléfono y aceptar el diálogo *"¿Permitir depuración USB?"*.
+- No aparece nada → ahí sí es cable o puerto.
+
+`adb` vive en `C:\src\android-sdk\platform-tools\adb.exe` (el SDK **no** está en la ruta por defecto
+de `%LOCALAPPDATA%`).
+
 ---
 
 ## ✅ Checklist antes de commitear
