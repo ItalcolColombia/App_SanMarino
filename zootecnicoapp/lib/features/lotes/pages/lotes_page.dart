@@ -38,12 +38,17 @@ class LotesPage extends StatefulWidget {
     required this.usuario,
     required this.lotes,
     required this.onRegistrar,
+    this.onTrasladarHuevos,
     this.filtroInicial,
   });
 
   final Usuario usuario;
   final List<Lote> lotes;
   final ValueChanged<Lote> onRegistrar;
+
+  /// Solo se ofrece en lotes de PRODUCCION: es el unico modulo que produce
+  /// huevos para mover. Null = la accion no esta disponible.
+  final ValueChanged<Lote>? onTrasladarHuevos;
   final ModuloSeguimiento? filtroInicial;
 
   @override
@@ -112,7 +117,13 @@ class _LotesScreenState extends State<LotesPage> {
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.s3),
               itemBuilder: (_, i) => EntradaEscalonada(
                 indice: i,
-                child: _LoteCard(lote: v[i], onRegistrar: () => widget.onRegistrar(v[i])),
+                child: _LoteCard(
+                  lote: v[i],
+                  onRegistrar: () => widget.onRegistrar(v[i]),
+                  onTrasladarHuevos: widget.onTrasladarHuevos == null
+                      ? null
+                      : () => widget.onTrasladarHuevos!(v[i]),
+                ),
               ),
             ),
       ),
@@ -212,10 +223,11 @@ class _LotesScreenState extends State<LotesPage> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _LoteCard extends StatelessWidget {
-  const _LoteCard({required this.lote, required this.onRegistrar});
+  const _LoteCard({required this.lote, required this.onRegistrar, this.onTrasladarHuevos});
 
   final Lote lote;
   final VoidCallback onRegistrar;
+  final VoidCallback? onTrasladarHuevos;
 
   @override
   Widget build(BuildContext context) {
@@ -284,14 +296,22 @@ class _LoteCard extends StatelessWidget {
                 )),
               ]),
               const SizedBox(height: AppSpacing.s3),
-              Align(
-                alignment: Alignment.centerRight,
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                // Mover huevos solo tiene sentido en produccion, y es accion
+                // secundaria: la principal de la tarjeta sigue siendo el dia.
+                if (onTrasladarHuevos != null &&
+                    lote.modulo == ModuloSeguimiento.produccion) ...[
+                  AppButton(label: 'Trasladar huevos', size: AppButtonSize.sm,
+                    variant: AppButtonVariant.secondary,
+                    icon: Icons.egg_outlined, onPressed: onTrasladarHuevos),
+                  const SizedBox(width: AppSpacing.s2),
+                ],
                 // Naranja: registrar el día es LA acción de la tarjeta. El verde
                 // queda reservado al éxito y al color del módulo Levante.
-                child: AppButton(label: 'Registrar día', size: AppButtonSize.sm,
+                AppButton(label: 'Registrar día', size: AppButtonSize.sm,
                   variant: AppButtonVariant.primary,
                   icon: Icons.add_rounded, onPressed: onRegistrar),
-              ),
+              ]),
             ]),
           ),
         ),

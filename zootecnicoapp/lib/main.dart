@@ -11,6 +11,7 @@ import 'package:zootecnicoapp/core/api/auth_api.dart';
 import 'package:zootecnicoapp/core/api/inventario_api.dart';
 import 'package:zootecnicoapp/core/api/lotes_api.dart';
 import 'package:zootecnicoapp/core/api/seguimientos_api.dart';
+import 'package:zootecnicoapp/core/api/traslados_api.dart';
 import 'package:zootecnicoapp/core/models/models.dart';
 import 'package:zootecnicoapp/core/models/models_inventario.dart';
 import 'package:zootecnicoapp/core/db/local_db.dart';
@@ -27,6 +28,7 @@ import 'package:zootecnicoapp/features/lotes/widgets/selector_lote.dart';
 import 'package:zootecnicoapp/features/perfil/pages/perfil_page.dart';
 import 'package:zootecnicoapp/features/sync/pages/sync_page.dart';
 import 'package:zootecnicoapp/features/sync/widgets/aviso_sesion_vencida.dart';
+import 'package:zootecnicoapp/features/traslados/pages/traslado_huevos_page.dart';
 import 'package:zootecnicoapp/features/seguimiento/pages/seguimiento_page.dart';
 
 Future<void> main() async {
@@ -70,6 +72,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   late final LotesApi _lotesApi = LotesApi(_api);
   late final SeguimientosApi _segApi = SeguimientosApi(_api);
   late final InventarioApi _inventarioApi = InventarioApi(_api);
+  late final TrasladosApi _trasladosApi = TrasladosApi(_api);
 
   Usuario? _usuario;
 
@@ -282,6 +285,20 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     if (_sync.enLinea) _sync.sincronizar();
   }
 
+  /// Mover huevos del galpón a la planta. Sólo producción: es el único módulo
+  /// que los produce.
+  Future<void> _trasladarHuevos(Lote lote) async {
+    if (_usuario == null) return;
+    if (lote.cerrado) {
+      _avisar('El lote ${lote.nombre} está cerrado.');
+      return;
+    }
+    await Navigator.of(context).push(rutaModal(
+      (_) => TrasladoHuevosPage(lote: lote, sync: _sync, api: _trasladosApi),
+      nombre: 'traslado-huevos',
+    ));
+  }
+
   Future<void> _nuevoSeguimiento(ModuloSeguimiento? modulo, Lote? lote) async {
     final u = _usuario;
     if (u == null) return;
@@ -349,6 +366,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                 1 => LotesPage(
                   usuario: u, lotes: _lotes, filtroInicial: _filtroLotes,
                   onRegistrar: (l) => _nuevoSeguimiento(l.modulo, l),
+                  onTrasladarHuevos: _trasladarHuevos,
                 ),
                 _ => PerfilPage(usuario: u, onLogout: _logout),
               },
