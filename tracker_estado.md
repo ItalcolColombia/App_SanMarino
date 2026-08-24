@@ -2461,8 +2461,20 @@ Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fas
 - [i] **Nada de esto toca el modelo ni el payload**: los controles siguen existiendo y nacen en `0`,
       que es un valor VALIDO para `Validators.required` ⇒ ocultarlos no bloquea el guardado. Mismo
       criterio que F5.1/F5.2
-- [ ] **W1.c pendiente**: `inventario-dashboard` (traslado, retiro y el prompt de ajuste manual),
-      `lote-list` (`machosL`, `cantidadMachos`), `tabs-principal` de levante y produccion
+- [x] **W1.a — `lote-list` (el form VIVO de lotes)**: inputs «Cantidad machos» del lote base y
+      «🐓 # Aves Macho» del lote. Ya inyectaba `ActiveCompanyConfigService`, solo se sumo el flag al
+      bloque de `loadCompanyFlags()` que ya existia
+- [x] **W1.a — `inventario-dashboard` (el 4º formulario de traslado)**: los 2 inputs
+      `cantidadMachos` (traslado entre lotes y retiro) y el `window.prompt` del ajuste manual, que
+      con el flag ON ya no pregunta por machos y ajusta con 0
+- [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas de machos entre
+      `reportes-tecnicos`, `reporte-tecnico-produccion`, `reporte-contable`,
+      `reporte-diario-costos-postura`, `reporte-tecnico-semanal` y los 3 export a xlsx de
+      `tabs-principal`/`tabla-lista-indicadores`): **inventariado, no ejecutado**. Es volumen, no
+      dificultad; son columnas de LECTURA, no de captura, asi que no pueden «contar doble»
+- [~] **`tabs-principal` de levante y produccion**: mismas condiciones que W1.d — son tablas de
+      lectura. Quedan para la siguiente pasada
+- [x] Validacion: `yarn build` 0 errores · `yarn test` **637/637** (base 633, +4 nuevos)
 - [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
       del alcance de esta sesion salvo que sobre tiempo
 - [i] **Nunca** se toca el modelo ni el payload: los saldos consumen esos campos. Engorde y

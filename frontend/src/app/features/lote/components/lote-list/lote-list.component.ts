@@ -247,6 +247,8 @@ export class LoteListComponent implements OnInit {
 
   /** Flag de la empresa activa: muestra el bloque de centro de costo ERP. Fail-closed. */
   manejaCodigosErp = false;
+  /** Empresas sin machos en postura: no se capturan ni se muestran (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
   manejaInventarioPorSilo = false;
@@ -530,6 +532,8 @@ export class LoteListComponent implements OnInit {
       this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
       // F7.3 — el botón de tipos de huevo solo existe si la empresa clasifica por ítems.
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      // SR-DEF-1 — empresas sin machos en postura no los capturan ni los muestran en ningún lado.
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
 
       // Las pestañas por etapa son opcionales por empresa. Si el flag se apaga mientras el usuario
       // está parado en una de ellas, hay que devolverlo a la lista completa o se quedaría mirando

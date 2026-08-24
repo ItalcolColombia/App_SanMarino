@@ -50,6 +50,7 @@ import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/s
 import { SeguimientoLoteLevanteService, CreateSeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-produccion/services/lote-produccion.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import {
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
@@ -160,6 +161,9 @@ export class InventarioDashboardComponent implements OnInit {
     return !!this.selectedLoteId && !!this.loteCompleto();
   }
 
+  /** Empresas sin machos en postura: no se capturan ni se muestran (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private trasladosService: TrasladosAvesService,
     private farmService: FarmService,
@@ -176,9 +180,14 @@ export class InventarioDashboardComponent implements OnInit {
     // 🔴 Servicios para seguimiento diario
     private seguimientoLevanteService: SeguimientoLoteLevanteService,
     private produccionService: LoteProduccionService,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService
   ) {
     this.initTrasladoForm();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
 
     effect(() => {
       if (this.inventarioOrigen()) this.validarCantidades();
@@ -809,7 +818,10 @@ export class InventarioDashboardComponent implements OnInit {
     try {
       const hStr = window.prompt(`Nuevo valor de HEMBRAS para el lote ${loteId} (número entero):`, '0');
       if (hStr === null) return;
-      const mStr = window.prompt(`Nuevo valor de MACHOS para el lote ${loteId} (número entero):`, '0');
+      // Empresas sin machos en postura no lo preguntan: el ajuste va con 0 (SR-DEF-1).
+      const mStr = this.ocultaMachosEnPostura
+        ? '0'
+        : window.prompt(`Nuevo valor de MACHOS para el lote ${loteId} (número entero):`, '0');
       if (mStr === null) return;
 
       const cantidadHembras = Number(hStr);

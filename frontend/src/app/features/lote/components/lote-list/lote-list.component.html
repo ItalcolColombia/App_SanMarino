@@ -597,10 +597,12 @@
                 <label class="ux-label">Cantidad hembras <span class="req">*</span></label>
                 <input type="number" min="0" formControlName="cantidadHembras" class="ux-input" />
               </div>
-              <div>
-                <label class="ux-label">Cantidad machos <span class="req">*</span></label>
-                <input type="number" min="0" formControlName="cantidadMachos" class="ux-input" />
-              </div>
+              @if (!ocultaMachosEnPostura) {
+                <div>
+                  <label class="ux-label">Cantidad machos <span class="req">*</span></label>
+                  <input type="number" min="0" formControlName="cantidadMachos" class="ux-input" />
+                </div>
+              }
             </div>
             <div class="ux-actions">
               <button type="button" (click)="baseModalOpen = false; editingBase = null" class="btn-muted">Cancelar</button>
@@ -930,6 +932,7 @@
                           placeholder="0"
                           />
                         </div>
+                        @if (!ocultaMachosEnPostura) {
                         <div>
                           <label class="ux-label">🐓 # Aves Macho</label>
                           <input
@@ -942,6 +945,7 @@
                             placeholder="0"
                             />
                           </div>
+                        }
                           <!-- ======= PESOS: en gramos (g) ======= -->
                           <div>
                             <label class="ux-label">📈 Peso prom. llegada H <span class="muted">(g)</span></label>
