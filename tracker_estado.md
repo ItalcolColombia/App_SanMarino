@@ -2346,12 +2346,14 @@ por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 
 > `this.algúnMap`, servicios) se dejaron en el componente — parametrizarlos habría sido un refactor
 > más grande y más riesgoso que "mover verbatim", fuera del alcance mínimo de esta tarea.
 - [i] `lote-levante/pages/modal-create-edit` (2482) — ya extraído (referencia), sin cambios
-- [ ] `gestion-inventario/pages/gestion-inventario-page` (2164)
-- [ ] `lote-produccion/pages/modal-seguimiento-diario` (2005)
+- [x] `gestion-inventario/pages/gestion-inventario-page` (2164→2124 + 1 en funciones/ + 1 en models/) — build 0/0, test 633/633
+- [x] `lote-produccion/pages/modal-seguimiento-diario` (2005→1908 + 1 en funciones/ + 1 en models/) — build 0/0, test 633/633
 - [x] `lote/components/lote-list` (1905→1854 + 2 en funciones/) — build 0/0, test 633/633
-- [ ] `engorde-comun/pages/modal-seguimiento-engorde` (1829)
-- [ ] `traslados-aves/pages/inventario-dashboard` (1691)
+- [x] `engorde-comun/pages/modal-seguimiento-engorde` (1829→1826 + 1 fn en funciones/ existente) — ya muy refactorizado, solo 1 candidato nuevo — build 0/0, test 633/633
+- [x] `traslados-aves/pages/inventario-dashboard` (1691→1655 + 2 en funciones/) — build 0/0, test 633/633
+
+**Frontend completo: 5/5 tocados + 1 ya era referencia. Sweep de 12 archivos: CERRADO.**
 
 ## Verificacion final (al cerrar los 12)
-- [ ] `dotnet build` 0/0 y `dotnet test` = 3135 (o mas, si algun split agrega tests de Calculos)
-- [ ] `yarn build` 0/0 y `yarn test` = 633 (idem)
+- [x] `dotnet build` 0/0 y `dotnet test` = 3135 (identico a la linea base)
+- [x] `yarn build` 0/0 y `yarn test` = 633 (identico a la linea base)
