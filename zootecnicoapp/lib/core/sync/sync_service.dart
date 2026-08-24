@@ -324,6 +324,7 @@ class SyncService extends ChangeNotifier {
     required DateTime fecha,
     required Map<String, dynamic> payload,
     String? endpoint,
+    bool marcaElDia = true,
   }) async {
     await _db.encolar(
       tipo: tipo,
@@ -334,8 +335,15 @@ class SyncService extends ChangeNotifier {
       endpoint: endpoint,
     );
     // Se anota YA como registrado: sin red, este es el único dato que existe
-    // para impedir que el mismo día se cargue dos veces.
-    await _db.marcarRegistrado(modulo: tipo, loteId: loteId, fecha: fecha);
+    // para impedir que el mismo día se cargue dos veces (invariante I10).
+    //
+    // Sólo vale para el SEGUIMIENTO, que es uno por lote y por día. Un
+    // movimiento (traslado, venta) es N-por-día: marcarlo haría dos daños a la
+    // vez — el segundo traslado del día se descartaría como duplicado, y el
+    // seguimiento de ese lote quedaría marcado como cargado sin estarlo.
+    if (marcaElDia) {
+      await _db.marcarRegistrado(modulo: tipo, loteId: loteId, fecha: fecha);
+    }
     await _refrescarPendientes();
     notifyListeners();
     if (_autoSync && enLinea) sincronizar();

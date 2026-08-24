@@ -495,6 +495,45 @@ void main() {
       expect(sync.pendientes, 1);
     });
 
+    test('un MOVIMIENTO no marca el día: son N por día, no 1', () async {
+      // La marca existe para impedir cargar dos veces el mismo seguimiento.
+      // Aplicarla a un traslado haría dos daños: el segundo traslado del día se
+      // descartaría como duplicado, y el seguimiento de ese lote quedaría
+      // marcado como cargado sin estarlo.
+      await sync.encolar(
+        tipo: 'movimiento-huevos',
+        loteId: 7,
+        loteNombre: 'L7',
+        fecha: fecha,
+        payload: const {'totalHuevos': 100},
+        endpoint: '/traslados/huevos',
+        marcaElDia: false,
+      );
+
+      expect(
+        await db.yaHayRegistro(modulo: 'movimiento-huevos', loteId: 7, fecha: fecha),
+        isFalse,
+        reason: 'el día sigue libre: se pueden hacer más traslados',
+      );
+      expect(sync.pendientes, 1, reason: 'pero el traslado sí quedó en la cola');
+    });
+
+    test('dos movimientos del mismo lote y día conviven en la cola', () async {
+      for (var i = 0; i < 2; i++) {
+        await sync.encolar(
+          tipo: 'movimiento-huevos',
+          loteId: 7 + i, // ids distintos: el PK de la cola es tipo_lote_millis
+          loteNombre: 'L7',
+          fecha: fecha,
+          payload: const {'totalHuevos': 100},
+          endpoint: '/traslados/huevos',
+          marcaElDia: false,
+        );
+      }
+
+      expect(sync.pendientes, 2);
+    });
+
     test('sin red encola y NO intenta subir', () async {
       await sync.encolar(
         tipo: 'engorde',
