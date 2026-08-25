@@ -2809,3 +2809,43 @@ otro flag de empresa. Hubo que construir el mecanismo desde cero.
       una decisión por-llamada, no una política fija.
 - [x] **Limpieza**: las 2 filas de `sesiones_activas` borradas, backend detenido, puerto `:5002`
       verificado libre. Cero escritura de datos de negocio — todo el recorrido fue GET.
+
+---
+
+## X18.9 — Cierra el pendiente de X18.7: Reporte Técnico Semanal verificado en vivo (25-ago-2026)
+
+X18.7 había dejado la pestaña "Clasificación" de Reporte Técnico Semanal confirmada solo por
+código + tests: la vista "Detalle de lote" pide un `lotePosturaBaseId` explícito, y `SMOKE-SR-001`
+no tenía ninguno asignado (nació del flujo E2E de X17.7, no del wizard de lote base) — ninguno de
+los 10 lotes base sembrados de Santa Reyes tenía producción real para probar con datos de verdad.
+
+- [x] **Se resolvió por la vía correcta: el formulario real de lotes, no un `UPDATE` a mano.**
+      `lote-list.component.html` ya tiene un `<select formControlName="lotePosturaBaseId">` en el
+      form de edición — se editó `SMOKE-SR-001` desde la UI (`PUT /api/Lote/152`, 200) y se lo
+      vinculó a `LOTE 217` (`lote_postura_base_id=23`, misma granja La Esperanza).
+- [i] 🔴 **Efecto colateral no buscado, documentado para no sorprender la próxima vez**: vincular un
+      lote a su lote base le **renombra automáticamente** siguiendo la convención del base + letra
+      de sublote — `lotes.lote_nombre` pasó de `SMOKE-SR-001` a `LOTE 217A`. El lote de producción
+      (`lote_postura_produccion.lote_nombre`) NO cambió, sigue siendo `P-SMOKE-SR-001` (se ve en la
+      grilla diaria y en el chip del propio reporte) — mismo `lote_id=152`/`LPP=10` de siempre, solo
+      cambió la etiqueta del lote unificado.
+- [x] **Verificado en vivo con datos reales**: `Reporte Técnico Semanal → Detalle de lote →
+      Producción → LOTE 217` generó el resumen semanal real (semana 33, producción huevos 1.290 —
+      coincide exacto con el registro 677 ya conocido). El toggle de vista mostró **solo `["Tabla",
+      "Gráficas"]`** — sin "Clasificación" — confirmado por DOM, no por lectura visual, junto con
+      `clasificacionHuevoPorItems === true` y `tipoReporte === 'PRODUCCION'` leídos directo del
+      estado del componente.
+- [i] **Gotcha del smoke**: la página tiene DOS toggles Levante/Producción superpuestos —
+      `rsm-toggle__btn` (del componente `ResumenSemanalMainComponent`, la pestaña "Resumen semanal")
+      y `rts-toggle__btn` (el que importa, del `ReporteTecnicoSemanalMainComponent` de "Detalle de
+      lote"). Buscar el botón por texto sin acotar por clase pegó en el primero y el reporte generó
+      con Levante — sin datos, porque `SMOKE-SR-001`/`LOTE 217A` nunca tuvo seguimiento de levante.
+- [x] **Este vínculo de paso también deja usable el "LOTE BASE" del Reporte Contable** (misma
+      laguna de datos que tenía Técnico Semanal) para una futura verificación por UI — aunque ese
+      reporte ya quedó verificado de punta a punta en X18.8 pegándole directo al backend con
+      `lotePadreId`, sin necesitar el vínculo.
+- [x] **Dato de fixture se deja como quedó** (mismo criterio que el resto de `SMOKE-SR-001`, X17.7:
+      "sirve para abrir la pantalla y ver datos"): no se revirtió el `lotePosturaBaseId` ni el
+      rename — mejora la utilidad del lote de prueba para próximas sesiones, no la reduce.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos
+      `:5002`/`:4200` verificados libres.
