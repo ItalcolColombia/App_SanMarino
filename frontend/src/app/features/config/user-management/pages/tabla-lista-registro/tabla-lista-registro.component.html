@@ -123,49 +123,66 @@
                       {{ getStatusText(user.isActive) }}
                     </span>
                   </td>
-                  <!-- Acciones -->
+                  <!-- Acciones.
+                       «Ver detalle» queda SIEMPRE visible: es lo único que le queda a quien no
+                       tiene `usuarios.gestionar`. Los de escritura van gateados; los de sesiones
+                       por su propia key, que es la que el backend ya exige. -->
                   <td class="actions-cell">
                     <div class="actions-group">
                       <button
-                        (click)="onAssignFarmsClick(user)"
-                        class="action-btn farms-btn"
-                        [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
-                        title="Asignar granjas"
+                        (click)="onVerDetalleClick(user)"
+                        class="action-btn view-btn"
+                        [attr.aria-label]="'Ver detalle de ' + user.firstName + ' ' + user.surName"
+                        title="Ver detalle"
                         >
-                        <fa-icon [icon]="faBuilding"></fa-icon>
+                        <fa-icon [icon]="faEye"></fa-icon>
                       </button>
-                      <button
-                        (click)="onEditUserClick(user)"
-                        class="action-btn edit-btn"
-                        [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
-                        title="Editar usuario"
-                        >
-                        <fa-icon [icon]="faEdit"></fa-icon>
-                      </button>
-                      <button
-                        (click)="onResetPasswordClick(user)"
-                        class="action-btn reset-btn"
-                        [attr.aria-label]="'Restablecer contraseña de ' + user.firstName + ' ' + user.surName"
-                        title="Restablecer contraseña"
-                        >
-                        <fa-icon [icon]="faLock"></fa-icon>
-                      </button>
-                      <button
-                        (click)="onSesionesClick(user)"
-                        class="action-btn sessions-btn"
-                        [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
-                        title="Sesiones activas"
-                        >
-                        <fa-icon [icon]="faDesktop"></fa-icon>
-                      </button>
-                      <button
-                        (click)="deleteUser(user)"
-                        class="action-btn delete-btn"
-                        [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
-                        title="Eliminar usuario"
-                        >
-                        <fa-icon [icon]="faTrash"></fa-icon>
-                      </button>
+                      <ng-container *appHasPermission="PERM_GESTIONAR">
+                        <button
+                          (click)="onAssignFarmsClick(user)"
+                          class="action-btn farms-btn"
+                          [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
+                          title="Asignar granjas"
+                          >
+                          <fa-icon [icon]="faBuilding"></fa-icon>
+                        </button>
+                        <button
+                          (click)="onEditUserClick(user)"
+                          class="action-btn edit-btn"
+                          [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
+                          title="Editar usuario"
+                          >
+                          <fa-icon [icon]="faEdit"></fa-icon>
+                        </button>
+                        <button
+                          (click)="onResetPasswordClick(user)"
+                          class="action-btn reset-btn"
+                          [attr.aria-label]="'Restablecer contraseña de ' + user.firstName + ' ' + user.surName"
+                          title="Restablecer contraseña"
+                          >
+                          <fa-icon [icon]="faLock"></fa-icon>
+                        </button>
+                      </ng-container>
+                      <ng-container *appHasPermission="PERM_SESIONES">
+                        <button
+                          (click)="onSesionesClick(user)"
+                          class="action-btn sessions-btn"
+                          [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
+                          title="Sesiones activas"
+                          >
+                          <fa-icon [icon]="faDesktop"></fa-icon>
+                        </button>
+                      </ng-container>
+                      <ng-container *appHasPermission="PERM_GESTIONAR">
+                        <button
+                          (click)="deleteUser(user)"
+                          class="action-btn delete-btn"
+                          [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
+                          title="Eliminar usuario"
+                          >
+                          <fa-icon [icon]="faTrash"></fa-icon>
+                        </button>
+                      </ng-container>
                     </div>
                   </td>
                 </tr>
@@ -216,52 +233,69 @@
                   }
                 </div>
               </div>
+              <!-- Los MISMOS gates que la tabla de escritorio. Esta copia es la que se usa en campo,
+                   así que dejarla sin gatear dejaría la app abierta justo donde más se usa. -->
               <div class="card-actions">
                 <button
-                  (click)="onAssignFarmsClick(user)"
-                  class="action-btn farms-btn"
-                  [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
-                  title="Asignar granjas"
+                  (click)="onVerDetalleClick(user)"
+                  class="action-btn view-btn"
+                  [attr.aria-label]="'Ver detalle de ' + user.firstName + ' ' + user.surName"
+                  title="Ver detalle"
                   >
-                  <fa-icon [icon]="faBuilding"></fa-icon>
-                  <span>Granjas</span>
+                  <fa-icon [icon]="faEye"></fa-icon>
+                  <span>Detalle</span>
                 </button>
-                <button
-                  (click)="onEditUserClick(user)"
-                  class="action-btn edit-btn"
-                  [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
-                  title="Editar usuario"
-                  >
-                  <fa-icon [icon]="faEdit"></fa-icon>
-                  <span>Editar</span>
-                </button>
-                <button
-                  (click)="onResetPasswordClick(user)"
-                  class="action-btn reset-btn"
-                  [attr.aria-label]="'Restablecer contraseña de ' + user.firstName + ' ' + user.surName"
-                  title="Restablecer contraseña"
-                  >
-                  <fa-icon [icon]="faLock"></fa-icon>
-                  <span>Contraseña</span>
-                </button>
-                <button
-                  (click)="onSesionesClick(user)"
-                  class="action-btn sessions-btn"
-                  [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
-                  title="Sesiones activas"
-                  >
-                  <fa-icon [icon]="faDesktop"></fa-icon>
-                  <span>Sesiones</span>
-                </button>
-                <button
-                  (click)="deleteUser(user)"
-                  class="action-btn delete-btn"
-                  [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
-                  title="Eliminar usuario"
-                  >
-                  <fa-icon [icon]="faTrash"></fa-icon>
-                  <span>Eliminar</span>
-                </button>
+                <ng-container *appHasPermission="PERM_GESTIONAR">
+                  <button
+                    (click)="onAssignFarmsClick(user)"
+                    class="action-btn farms-btn"
+                    [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
+                    title="Asignar granjas"
+                    >
+                    <fa-icon [icon]="faBuilding"></fa-icon>
+                    <span>Granjas</span>
+                  </button>
+                  <button
+                    (click)="onEditUserClick(user)"
+                    class="action-btn edit-btn"
+                    [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
+                    title="Editar usuario"
+                    >
+                    <fa-icon [icon]="faEdit"></fa-icon>
+                    <span>Editar</span>
+                  </button>
+                  <button
+                    (click)="onResetPasswordClick(user)"
+                    class="action-btn reset-btn"
+                    [attr.aria-label]="'Restablecer contraseña de ' + user.firstName + ' ' + user.surName"
+                    title="Restablecer contraseña"
+                    >
+                    <fa-icon [icon]="faLock"></fa-icon>
+                    <span>Contraseña</span>
+                  </button>
+                </ng-container>
+                <ng-container *appHasPermission="PERM_SESIONES">
+                  <button
+                    (click)="onSesionesClick(user)"
+                    class="action-btn sessions-btn"
+                    [attr.aria-label]="'Sesiones activas de ' + user.firstName + ' ' + user.surName"
+                    title="Sesiones activas"
+                    >
+                    <fa-icon [icon]="faDesktop"></fa-icon>
+                    <span>Sesiones</span>
+                  </button>
+                </ng-container>
+                <ng-container *appHasPermission="PERM_GESTIONAR">
+                  <button
+                    (click)="deleteUser(user)"
+                    class="action-btn delete-btn"
+                    [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
+                    title="Eliminar usuario"
+                    >
+                    <fa-icon [icon]="faTrash"></fa-icon>
+                    <span>Eliminar</span>
+                  </button>
+                </ng-container>
               </div>
             </div>
           }

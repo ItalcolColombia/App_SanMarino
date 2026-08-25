@@ -19,12 +19,22 @@ public partial class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeServic
     private readonly ICurrentUser? _current;
     private readonly ICompanyResolver _companyResolver;
 
+    /// <summary>
+    /// Dueño de la mutación de stock. «Cuadrar galpón» delega en él el lado del inventario en vez de
+    /// escribirlo acá: valida empresa, país y granja asignada, respeta la unidad del catálogo y deja
+    /// el <c>AjusteStock</c> con el mismo formato que cualquier otro ajuste manual. Dos caminos
+    /// distintos para mover el mismo número es como este módulo se rompió antes.
+    /// </summary>
+    private readonly IInventarioGestionService _inventario;
+
     public CuadreAlimentoEngordeService(
-        ZooSanMarinoContext db, ICurrentUser? current, ICompanyResolver companyResolver)
+        ZooSanMarinoContext db, ICurrentUser? current, ICompanyResolver companyResolver,
+        IInventarioGestionService inventario)
     {
         _db = db;
         _current = current;
         _companyResolver = companyResolver;
+        _inventario = inventario;
     }
 
     /// <summary>Proyección cruda de la función SQL. Nombres en snake_case, como exige EF con SqlQueryRaw.</summary>
@@ -159,7 +169,10 @@ public partial class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeServic
                 CuadreAlimentoEngordeCalculos.DescribirConAjustes(
                     descuadre, r.filas_negativas, ajustesKg, delGalpon.Count),
                 ajustesKg,
-                delGalpon.Count);
+                delGalpon.Count,
+                // Se publica porque `descuadre` YA viene corregido por él: sin este número, quien
+                // recalcule el invariante desde saldo/stock/movPost obtiene otra cosa que la fila.
+                reservadoKg);
         }).ToList();
 
         // El resumen se calcula SIEMPRE sobre el total; el filtro solo recorta el detalle, para que

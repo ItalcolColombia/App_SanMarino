@@ -13,16 +13,22 @@ import { AsignarUsuarioGranjaComponent } from './components/asignar-usuario-gran
 import { ModalResetPasswordComponent } from './components/modal-reset-password/modal-reset-password.component';
 import { SesionesUsuarioComponent } from './components/sesiones-usuario/sesiones-usuario.component';
 import { UserListItem } from '../../../core/services/user/user.service';
+import { HasPermissionDirective } from '../../../core/auth/has-permission.directive';
 
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent, SesionesUsuarioComponent],
+  imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent, SesionesUsuarioComponent, HasPermissionDirective],
   templateUrl: './user-management.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./user-management.component.scss']
 })
 export class UserManagementComponent implements OnInit {
+  /**
+   * Permiso de ESCRITURA del módulo. El botón «Nuevo Usuario» vive acá, en el componente PADRE, y
+   * no en la tabla: gatear solo el hijo dejaría el alta abierta.
+   */
+  readonly PERM_GESTIONAR = 'usuarios.gestionar';
   // Iconos
   faUserPlus = faUserPlus;  faUser = faUser;  faUsers = faUsers;  faIdCard = faIdCard;
   faEnvelope = faEnvelope;  faPhone = faPhone; faSave = faSave;   faTimes = faTimes;
@@ -49,6 +55,14 @@ export class UserManagementComponent implements OnInit {
   sesionesModalOpen = false;
   selectedUserForSesiones: UserListItem | null = null;
 
+  /**
+   * Modo SOLO LECTURA del modal de usuario. Es lo único que le queda a quien no tiene
+   * `usuarios.gestionar`, y es lo que hace que «sin el permiso solo pueden ver el detalle»
+   * signifique algo: hasta hoy la única forma de mirar un usuario era abrir el formulario que
+   * también lo edita.
+   */
+  modalSoloLectura = false;
+
   constructor(private library: FaIconLibrary) {
     library.addIcons(
       faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
@@ -67,11 +81,20 @@ export class UserManagementComponent implements OnInit {
 
   navigateToCreate(): void {
     this.editingUser = null;
+    this.modalSoloLectura = false;
     this.modalOpen = true;
   }
 
   navigateToEdit(user: UserListItem): void {
     this.editingUser = user;
+    this.modalSoloLectura = false;
+    this.modalOpen = true;
+  }
+
+  /** Abre el MISMO modal, pero sin poder escribir nada. Disponible para cualquier sesión. */
+  verDetalleUsuario(user: UserListItem): void {
+    this.editingUser = user;
+    this.modalSoloLectura = true;
     this.modalOpen = true;
   }
 
@@ -117,12 +140,16 @@ export class UserManagementComponent implements OnInit {
 
   openModal(user?: UserListItem): void {
     this.editingUser = user || null;
+    this.modalSoloLectura = false;
     this.modalOpen = true;
   }
 
   closeModal(): void {
     this.modalOpen = false;
     this.editingUser = null;
+    // Se resetea al cerrar: si no, abrir «Ver detalle» y después «Editar» dejaría el formulario
+    // deshabilitado sin motivo visible.
+    this.modalSoloLectura = false;
   }
 
   onUserSaved(user: UserListItem): void {

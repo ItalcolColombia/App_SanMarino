@@ -2849,3 +2849,197 @@ los 10 lotes base sembrados de Santa Reyes tenía producción real para probar c
       rename — mejora la utilidad del lote de prueba para próximas sesiones, no la reduce.
 - [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos
       `:5002`/`:4200` verificados libres.
+
+---
+
+## EC1 — Ecuador: el cuadre de alimento que no cierra + 3 permisos (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md`](fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md)
+
+Cuatro reportes de **Lady Malave** (ItalcolEcuador). Medido sobre la copia de **producción**
+restaurada en local el 25-ago-2026.
+
+### EC1.0 — Diagnóstico (hecho antes de escribir una línea de código)
+- [x] **Causa raíz del descuadre de G0044 encontrada y atribuida al kilo**: `EliminarIngresoAsync`
+      **no revierte el stock** (lo dice su propio doc-comment) mientras el controller documenta lo
+      contrario. La usuaria borró la remisión **63705 duplicada** (mov `12983`, 5.000 kg, ítem 5): el
+      histórico quedó `anulado=true` —la tabla diaria dejó de contarlo, correcto— pero
+      `inventario_gestion_stock` conservó los 5.000 kg. Descuadre `-5.000,00` exacto.
+- [x] **El mismo defecto, duplicado**, en `EliminarTrasladoAsync` (deja origen corto y destino largo).
+- [x] **La forma correcta ya existe en el mismo service**: `AnularMovimientoHistoricoAsync`
+      (`DELETE /movimientos/{id}`) sí revierte, en transacción, y rechaza si no hay stock. Explica por
+      qué el ítem 4 del mismo galpón sí cerró en 0: se borró por ese camino.
+- [x] **Alcance medido**: Ecuador **1** galpón descuadrado (5.000,0 kg) — el reportado —; Panamá
+      **12** (55.866,5 kg) + 16 con días en rojo. Panamá **no** entra en esta entrega.
+- [x] **Lady Malave identificada**: `ladymalave@ecuitalcol.com`, rol «Ecuador Administrador»
+      (`role_id=10`, 2 usuarios), 18 permisos efectivos.
+- [x] **Punto 4 mapeado**: `registros.fecha_retroactiva` existe, **ya está habilitado** en
+      `company_permissions` para ItalcolEcuador; **solo falta** la fila de `role_permissions`.
+- [x] **Punto 3 mapeado**: Gestión de Usuarios no tiene **ningún** gate (ni front ni back);
+      `Program.cs:536` ya lleva escrito el `TODO(seguridad)` de endurecer `CanManageUsers`.
+- [x] 🔴 **Punto 2 contradice su supuesto**: el desarrollo existe (commit `a9fd721`) pero **no tiene
+      permiso propio**; el gate del form de engorde es `editar_registro`, que **ella ya tiene**, y el
+      módulo de lotes de postura no tiene ningún `appHasPermission`. Cruzadas todas las keys de gate
+      del front contra sus 18 permisos, lo único que le falta del alcance es
+      `liquidacion.aplicar_correccion`, que no es de aves. **Pregunta abierta al usuario.**
+
+### EC1.1 — F1: eliminar un ingreso/traslado devuelve el stock
+- [x] `ReversionMovimientoInventarioCalculos` (puro) + 12 tests xUnit. El signo lo decide el TIPO;
+      un tipo desconocido es `NoSoportado`, **no** `Ninguno` (fail-closed).
+- [x] `EliminarIngresoAsync` revierte stock en transacción y rechaza con 400 si los kilos ya se
+      consumieron — mismo patrón probado de `AnularMovimientoHistoricoAsync`.
+- [x] `EliminarTrasladoAsync` revierte **los dos extremos**; primero las puntas que descuentan, para
+      que el error nombre la que realmente bloquea.
+- [x] 🔴 **Trampa cazada**: `TrasladoInterGranjaPendiente` PARECE una salida y no descuenta stock al
+      crearse (descuenta al recibir). Devolverle stock al borrarlo habría **inventado** alimento.
+      Tiene su propio test.
+- [x] Doc-comments del controller alineados con lo que el código hace (antes prometían la reversión
+      que el service no hacía).
+
+### EC1.2 — F2: «Cuadrar galpón» desde la pestaña de Cuadre
+- [x] `movement_type` `AjusteCuadreTablaEntrada`/`Salida` → `tipo_evento`
+      `INV_AJUSTE_CUADRE_ENTRADA`/`_SALIDA` en `fn_tipo_evento_inventario`. **Dos tipos con signo
+      propio** en vez de uno con cantidad firmada: `AjusteStock` guarda `Math.Abs` y por eso perdió
+      el signo para siempre — no se repite el error.
+- [x] `fn_seguimiento_diario_engorde` **v17**: las 5 CTE (`apert_mov`, `hist_full`, `hist_alimento`,
+      `docs_por_fecha`, `fechas_universo`) leen los tipos nuevos. Espejo `.sql` actualizado.
+- [x] `fn_cuadre_alimento_engorde`: los cuenta en `mov_post` (un ajuste fechado después del último
+      seguimiento no cabe en la tabla, igual que un ingreso).
+- [x] **Migración `20260825150000_FnAjusteCuadreAlimentoEngordeV17`** con las 3 funciones + su `Down`
+      (el `.sql` es el espejo; la migración es el vehículo).
+- [x] `AjusteCuadreAlimentoCalculos` (puro) + 14 tests, con los DOS casos reales y opuestos: G0044
+      (sobra stock ⇒ se mueve el inventario) y G0475 (sobra tabla ⇒ se mueve la tabla).
+- [x] `POST /api/CuadreAlimentoEngorde/cuadrar-galpon`, gateado por
+      `cuadrar_ingresos_traslados_seguimiento` (la key que ya existía para esto — no se inventa una
+      segunda llave para la misma puerta).
+- [x] Modal `modal-cuadrar-galpon` (`changeDetection: Eager`) con los 3 números, previsualización de
+      lo que se escribe **de cada lado** y motivo obligatorio de 10 caracteres.
+- [x] 🟢 **GATE DE PARIDAD MULTIPAÍS: PASADO.** 6.851 filas antes y después (ItalcolEcuador 5.501 +
+      ItalcolPanama 1.350); **0** en las 7 columnas del diff **en las dos empresas**; 6.765 filas de
+      seguimiento esperadas == 6.765 presentes; `fn_cuadre_alimento_engorde(NULL)` idéntico
+      (EC 37/1/5.000,0 kg · PA 31/12/55.866,5 kg). Cero por construcción: ninguna fila del histórico
+      tiene los tipos nuevos.
+
+### EC1.3 — F3/F4: cerrar G0044 y que no vuelva a pasar callado
+- [x] 🟢 **PROBADO END-TO-END contra la copia de producción, en las DOS direcciones** (transacción
+      revertida, `scratchpad/smoke_cuadre.sql`):
+      - **G0044 (Ecuador, sobra stock):** stock 12.720,0 → 7.720,0; descuadre **−5.000,0 → 0,0**.
+        **ItalcolEcuador pasa de 1 galpón descuadrado a 0.**
+      - **G0475 (Panamá, sobra tabla):** el `movement_type` nuevo atravesó el trigger → histórico
+        como `INV_AJUSTE_CUADRE_SALIDA` (18.650,356 kg, fechado en el último seguimiento 2026-08-06)
+        → la fn **v17** lo leyó → saldo 21.216,4 → **2.566,0**; descuadre **18.650,4 → 0,0**.
+        Panamá baja de 12 a 11 descuadrados y de 55.866,5 a 37.216,1 kg.
+        **Este es el caso que hasta hoy NO tenía arreglo posible desde ninguna pantalla.**
+- [i] G0475 conserva su `filas_negativas = 1` — correcto: es la OTRA señal (un día que cerró en
+      rojo), que un ajuste de kilos no toca ni debe tocar. Justamente por eso ahora son dos columnas.
+- [x] 🟢 **Y despues G0044 se cerro DE VERDAD por el endpoint real**, con el usuario de Lady Malave y
+      su propia sesion: `POST /cuadrar-galpon` con 7.720 kg reales → **200**, un solo `AjusteStock`
+      de −5.000 kg con su motivo en la auditoria. **ItalcolEcuador queda en 0 galpones descuadrados
+      (37/37 cuadran).** Sin un solo `UPDATE` a mano: exactamente el camino que va a usar la usuaria.
+- [x] La causa probable por fila ya existía (`CuadreAlimentoEngordeCalculos.DescribirConAjustes`) y
+      se conserva; ahora la fila además ofrece el botón que la cierra.
+- [x] `descuadre_kg` y `filas_negativas` separadas: columna propia «Días en rojo» + el subtítulo
+      explica que **son dos señales distintas y no se suman** (mezclarlas es lo que daba 23 galpones
+      donde había 8).
+
+### EC1.4 — Punto 3: permiso `usuarios.gestionar`
+- [x] Migración `20260825130000_SeedPermisoUsuariosGestionar`: permiso + `company_permissions`
+      (`CROSS JOIN companies`) + **anti-lockout heredando de `role_menus` por route `/config/users`**.
+      Validado en transacción revertida: **12 roles** lo reciben, exactamente los 12 que hoy ven el
+      módulo. Nadie pierde acceso el día del deploy.
+- [x] 🔴 **`menu_permissions` NO se toca** — y la verificación adversarial corrigió el dato: la tabla
+      **no** está vacía (17 filas de tickets/ItalJira/gerencia), pero **ninguna** es del menú
+      «Usuarios». Verificado: sigue en **0** para `/config/users`, así que el módulo se sigue viendo.
+- [x] `GestionUsuariosAutorizacionCalculos` (puro) + 9 tests, incluida la mitad que se rompe sin
+      querer: **el GET queda abierto**.
+- [x] ⛔ **NO se endurece la policy `CanManageUsers`**: la usan `RoleController` y `MenuController`,
+      ajenos al módulo. El gate va en un filtro de clase (`GestionUsuariosEscrituraFilter`) sobre
+      `UsersController` y `UserFarmController` — 32 endpoints, ~20 de escritura: repetir el `if`
+      veinte veces garantiza que alguno se olvide, y el olvidado **deja pasar**.
+- [x] **Segunda puerta de alta cerrada**: `POST /api/Auth/register` también crea usuarios.
+- [x] **`[Authorize]` restaurado** en `UserFarmController` (estaba comentado con un «TEMPORAL»; sus
+      17 endpoints dependían solo de la `FallbackPolicy`).
+- [x] Front: gate en el botón Crear (vive en el **padre**) y en los 5 de la fila, **en sus dos
+      copias** (tabla desktop y tarjetas móvil).
+- [x] **«Ver detalle» construido**: no existía. Reusa `modal-create-edit` en modo solo lectura, con
+      `saveUser()` cortado en la entrada — no alcanzaba con esconder el botón, porque ese método
+      dispara **dos** escrituras (usuario + perfil de tickets).
+- [i] Los 3 botones de sesiones van por `usuarios.revocar_sesion`, **su propia key**: el backend ya
+      la exigía y meterlos bajo la nueva habría creado dos llaves para la misma puerta. Se siembra
+      en la misma migración porque **nunca se sembró**: hoy ese botón da 403 a todo el que no sea
+      super admin.
+
+### EC1.5 — Punto 4: fecha retroactiva para «Ecuador Administrador»
+- [x] Migración `20260825120000` data-only idempotente; rol por **nombre + empresa** (nunca por id)
+      y `EXISTS` sobre `company_permissions` (sin esa fila la asignación nace huérfana).
+- [x] Validado en transacción revertida: Lady Malave queda con `registros.fecha_retroactiva`
+      efectivo. Alcanza a los **2** usuarios del rol — declarado, no escondido.
+
+### EC1.6 — Punto 2: permiso `lote.corregir_aves`
+- [x] Migración `20260825140000`: permiso + `company_permissions` + **herencia desde
+      `editar_registro`**. Validado: **13 roles** lo reciben = exactamente los 13 que hoy tienen
+      `editar_registro`. Nadie gana ni pierde — importa porque POSTURA hoy no tiene ningún gate.
+- [x] `CorreccionAvesLoteAutorizacionCalculos` (puro) + 8 tests.
+- [x] 🔴 **El gate mira el DELTA, no el verbo**: un `PUT` que solo cambia el técnico o la regional
+      sigue funcionando sin el permiso. Si pidiera el permiso para todo el `PUT`, este permiso sería
+      un segundo `editar_registro` — el problema que vino a resolver.
+- [x] **Enforcement en el BACKEND** (`LoteAveEngordeService` y `LoteService`, 403), no solo en el
+      front: el gate anterior era **cosmético** — el mismo `PUT` por curl aplicaba el ajuste sin
+      `editar_registro`.
+- [x] Front: campos de aves en solo lectura sin el permiso, en engorde **y en postura** (que no
+      tenía ningún gate), solo al EDITAR — crear un lote fija su encasetamiento y eso no es corregir.
+
+### EC1.7 — Verificación
+- [x] **Las 3 migraciones de permisos validadas en transacción revertida** contra la copia de
+      producción: 2 permisos nuevos, las 4 keys fantasma como no-op (ya existen en prod), 10 filas de
+      `company_permissions`, 12 roles con `usuarios.gestionar`, 13 con `lote.corregir_aves`,
+      Lady Malave con `registros.fecha_retroactiva`, y `menu_permissions` de `/config/users` en 0.
+- [x] `dotnet build` (con F1 + los 3 permisos): **0 errores, 0 advertencias**.
+- [x] `yarn build` (con los gates del front y «Ver detalle»): **0 errores**.
+- [x] **Prueba end-to-end del ajuste de cuadre en las dos direcciones** (ver EC1.3): el tipo de
+      movimiento nuevo recorre trigger → histórico → fn v17 → cuadre y deja los dos galpones en 0,0.
+- [x] 🔴 **Dos defectos propios cazados antes de compilar**, los dos del mismo tipo (recalcular un
+      invariante sin todos sus términos):
+      1. `fila.StockKg` es la suma de **todos** los ítems del galpón; escribir ahí los kilos totales
+         sobre un solo ítem lo habría inflado por lo que valen los demás. Se aplica el **delta**.
+         Con un solo ítem con saldo —el caso normal— las dos formas coinciden, que es justo lo que
+         lo habría hecho pasar por alto hasta el primer galpón con dos alimentos.
+      2. `DescuadreKg` **no** es `saldo − (stock − movPost)`: viene corregido por lo **reservado**
+         por la doble validación. Ignorarlo habría dejado el galpón descuadrado por el monto
+         reservado **después de una pantalla que dijo «cuadrado»**. Panamá tiene 12.609,7 kg activos
+         en 3 reservas; Ecuador, cero — o sea, se habría desplegado sin verse.
+- [x] `dotnet build` + **`dotnet test`: 3.228 tests, 0 fallos** (3.227 Application + 1 Domain),
+      incluidos los 43 nuevos.
+- [x] `yarn build` con el modal de cuadre: **0 errores**.
+- [x] **Migraciones aplicadas de verdad en local** (`dotnet ef database update`): las 4 quedaron en
+      `__EFMigrationsHistory` y verificadas contra la BD — 12 roles con `usuarios.gestionar`,
+      13 con `lote.corregir_aves`, Lady Malave con sus 5 permisos efectivos, `menu_permissions` de
+      `/config/users` en 0, y `fn_tipo_evento_inventario` mapeando los dos tipos nuevos.
+- [x] **Gate de paridad re-corrido DESPUÉS de la migración** (o sea, contra la fn que aplicó el
+      vehículo, no la que se cargó a mano): 0 en las 7 columnas, las dos empresas.
+- [x] **Smoke HTTP contra el backend real** (`:5002`, usuario Lady Malave, sesión propia):
+      - `GET /api/CuadreAlimentoEngorde` → **200**, y reporta G0044 con descuadre −5.000. Prueba lo
+        que ni el build ni los tests ven: que la **DI resuelva** `CuadreAlimentoEngordeService` con
+        su parámetro nuevo (`IInventarioGestionService`).
+      - `POST /cuadrar-galpon` **sin** `cuadrar_ingresos_traslados_seguimiento` → **403**.
+      - `POST` con motivo de 5 caracteres → **400** con el mensaje del cálculo puro.
+      - `POST` declarando 12.720 kg → **200**: escribió `AjusteCuadreTablaEntrada` de 5.000 kg
+        fechado en el último seguimiento, el trigger lo espejó como `INV_AJUSTE_CUADRE_ENTRADA` y la
+        fn lo leyó. **Cadena completa probada por HTTP, no solo por SQL.**
+- [i] 🔴 **Ese último POST era una prueba mal rotulada mía, no un defecto del código**: declarar
+      12.720 kg le dice al sistema «el stock tiene razón, corregí la tabla», y eso fue exactamente lo
+      que hizo. Se revirtió borrando el movimiento — y de paso quedó probado que el trigger
+      `AFTER DELETE` marca `anulado = true` también para el `tipo_evento` nuevo, y que el cuadre
+      vuelve solo a −5.000.
+- [i] 🔴 **Trampa de verificación que casi hace pasar un smoke vacío: `dotnet test` NO reconstruye el
+      proyecto API** (los tests no lo referencian). El `.exe` que se levanta después de un `test`
+      puede ser de varios cambios atrás — se detectó porque el DTO respondía sin
+      `reservadoActivoKg`. Antes de un smoke HTTP hay que construir **el API explícitamente**.
+- [i] **Gotcha del smoke con sesion propia** (B1): ademas de la fila en `sesiones_activas`, el
+      `expires_at` tiene que quedar **holgado** (el chequeo compara contra `UtcNow` y una fila a
+      «+2 horas» locales cae del lado vencido), y el backend hay que **reiniciarlo** despues de
+      insertarla — cachea el veredicto de la sesion y sigue devolviendo el 401 viejo.
+- [x] **Limpieza**: los 2 movimientos de una prueba mal rotulada mia, borrados (sus filas del
+      historico quedaron `anulado = true` por el trigger, que de paso prueba que el `AFTER DELETE`
+      tambien cubre el `tipo_evento` nuevo); fila de `sesiones_activas` borrada; backend detenido y
+      puertos `:5002`/`:4200` verificados libres.

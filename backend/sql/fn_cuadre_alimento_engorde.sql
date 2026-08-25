@@ -93,6 +93,10 @@ post AS (
                           WHEN 'INV_INGRESO'          THEN COALESCE(h.cantidad_kg, 0)
                           WHEN 'INV_TRASLADO_ENTRADA' THEN COALESCE(h.cantidad_kg, 0)
                           WHEN 'INV_TRASLADO_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
+                          -- 25-ago-2026: el ajuste de cuadre también puede caer después del último
+                          -- seguimiento, y ahí no cabe en la tabla diaria igual que un ingreso.
+                          WHEN 'INV_AJUSTE_CUADRE_ENTRADA' THEN COALESCE(h.cantidad_kg, 0)
+                          WHEN 'INV_AJUSTE_CUADRE_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
                           ELSE 0 END)
                FROM lote_registro_historico_unificado h
                WHERE NOT h.anulado
@@ -100,7 +104,8 @@ post AS (
                  AND COALESCE(TRIM(h.nucleo_id), '') = a.nuc
                  AND COALESCE(TRIM(h.galpon_id), '') = a.gal
                  AND DATE(h.fecha_operacion) > a.seg_max
-                 AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA')
+                 AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA',
+                                       'INV_AJUSTE_CUADRE_ENTRADA', 'INV_AJUSTE_CUADRE_SALIDA')
                  AND NOT (h.tipo_evento = 'INV_INGRESO'
                           AND h.referencia IS NOT NULL
                           AND h.referencia LIKE 'Seguimiento aves engorde #%')

@@ -17,6 +17,7 @@ import { inject } from '@angular/core';
 import {
   AnomaliaAlimentoLiquidadoDto,
   AnomaliaAlimentoLiquidadoFilaDto,
+  CuadrarGalponAlimentoResultDto,
   CuadreAlimentoEngordeDto,
   CuadreAlimentoEngordeFilaDto,
   CuadreAlimentoEngordeService,
@@ -24,17 +25,34 @@ import {
   EstadoCuadreAlimento
 } from '../../services/cuadre-alimento-engorde.service';
 import { fechaCorta } from '../../../../shared/utils/format';
+import { ModalCuadrarGalponComponent } from './modal-cuadrar-galpon/modal-cuadrar-galpon.component';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 @Component({
   selector: 'app-cuadre-alimento-engorde',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalCuadrarGalponComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './cuadre-alimento-engorde.component.html',
   styleUrls: ['./cuadre-alimento-engorde.component.scss']
 })
 export class CuadreAlimentoEngordeComponent implements OnInit {
   private readonly svc = inject(CuadreAlimentoEngordeService);
+  private readonly permSvc = inject(UserPermissionService);
+  private readonly toast = inject(ToastService);
+
+  /**
+   * Permiso de ESCRITURA de la pestana. Se reusa la key que ya existia para el mismo concepto en
+   * vez de inventar una segunda llave para la misma puerta. Campo y no getter: los permisos solo
+   * cambian con la sesion.
+   */
+  readonly permCuadrar = 'cuadrar_ingresos_traslados_seguimiento';
+  puedeCuadrar = false;
+
+  // ── Modal de cuadre
+  cuadrarAbierto = false;
+  filaACuadrar: CuadreAlimentoEngordeFilaDto | null = null;
 
   // ── Cuadre por galpón
   cuadre: CuadreAlimentoEngordeDto | null = null;
@@ -52,7 +70,31 @@ export class CuadreAlimentoEngordeComponent implements OnInit {
   readonly EstadoLiquidado = EstadoAlimentoLiquidado;
 
   ngOnInit(): void {
+    this.puedeCuadrar = this.permSvc.has(this.permCuadrar);
     this.cargarTodo();
+  }
+
+  /** ¿Esta fila tiene algo que cerrar? Mismo criterio que el badge de estado. */
+  requiereAtencion(fila: CuadreAlimentoEngordeFilaDto): boolean {
+    return fila.estado !== EstadoCuadreAlimento.Ok;
+  }
+
+  abrirCuadrar(fila: CuadreAlimentoEngordeFilaDto): void {
+    this.filaACuadrar = fila;
+    this.cuadrarAbierto = true;
+  }
+
+  cerrarCuadrar(): void {
+    this.cuadrarAbierto = false;
+    this.filaACuadrar = null;
+  }
+
+  onCuadrado(r: CuadrarGalponAlimentoResultDto): void {
+    this.cerrarCuadrar();
+    this.toast.success(`${r.granja} / ${r.galponId}: ${r.resumen}`);
+    // Se recarga desde el backend en vez de retocar la fila en memoria: el numero que importa es el
+    // que devuelve la fn, no el que la pantalla creia tener.
+    this.cargarCuadre();
   }
 
   cargarTodo(): void {

@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
-  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock, faDesktop
+  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock, faDesktop, faEye
 } from '@fortawesome/free-solid-svg-icons';
 
 import { forkJoin, of, interval, Subject, Observable } from 'rxjs';
@@ -18,22 +18,43 @@ import { RoleService, Role } from '../../../../../core/services/role/role.servic
 import { AsignarUsuarioGranjaComponent } from '../../components/asignar-usuario-granja/asignar-usuario-granja.component';
 import { AuthService } from '../../../../../core/auth/auth.service';
 import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
+import { HasPermissionDirective } from '../../../../../core/auth/has-permission.directive';
 
 @Component({
   selector: 'app-tabla-lista-registro',
   standalone: true,
-  imports: [FormsModule, FontAwesomeModule, AsignarUsuarioGranjaComponent],
+  imports: [FormsModule, FontAwesomeModule, AsignarUsuarioGranjaComponent, HasPermissionDirective],
   templateUrl: './tabla-lista-registro.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-registro.component.scss']
 })
 export class TablaListaRegistroComponent implements OnInit, OnDestroy {
+  /**
+   * Permiso que separa VER de ESCRIBIR en este módulo. Sin él la pantalla sigue siendo visible
+   * (el acceso lo da `role_menus`), pero solo se puede consultar el listado y el detalle.
+   */
+  readonly PERM_GESTIONAR = 'usuarios.gestionar';
+
+  /**
+   * Permiso de las sesiones activas. Es una key APARTE, y a propósito: el backend
+   * (`SessionController`) ya la exige para ver y revocar sesiones de otro usuario, así que meter
+   * esos tres botones bajo `usuarios.gestionar` crearía dos llaves para la misma puerta y el botón
+   * seguiría dando 403 para quien tuviera una y no la otra.
+   */
+  readonly PERM_SESIONES = 'usuarios.revocar_sesion';
+
   @Output() createUser = new EventEmitter<void>();
   @Output() editUser = new EventEmitter<UserListItem>();
   @Output() assignFarms = new EventEmitter<UserListItem>();
   @Output() resetPassword = new EventEmitter<UserListItem>();
   /** B1: abrir las sesiones abiertas de ese usuario para poder revocar la tablet que se perdió. */
   @Output() verSesiones = new EventEmitter<UserListItem>();
+  /**
+   * Ver el detalle del usuario en modo SOLO LECTURA. Es lo único que queda para quien no tiene
+   * `usuarios.gestionar`, y hasta el 25-ago-2026 no existía: el módulo no tenía ninguna forma de
+   * mirar un usuario sin abrir el formulario que lo edita.
+   */
+  @Output() verDetalle = new EventEmitter<UserListItem>();
 
   // Iconos
   faUserPlus = faUserPlus;
@@ -50,6 +71,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   faEdit = faEdit;
   faLock = faLock;
   faDesktop = faDesktop;
+  faEye = faEye;
 
   // Estado
   loading = false;
@@ -161,6 +183,10 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
 
   onEditUserClick(user: UserListItem): void {
     this.editUser.emit(user);
+  }
+
+  onVerDetalleClick(user: UserListItem): void {
+    this.verDetalle.emit(user);
   }
 
   onSesionesClick(user: UserListItem): void {

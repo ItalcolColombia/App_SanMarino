@@ -1,0 +1,138 @@
+@if (abierto && fila) {
+  <div class="cg-overlay" role="dialog" aria-modal="true" aria-labelledby="cg-title" (click)="onCerrar()">
+    <div class="cg-modal" (click)="$event.stopPropagation()">
+
+      <header class="cg-head">
+        <div>
+          <h2 id="cg-title" class="cg-title">Cuadrar galpón</h2>
+          <p class="cg-subtitle">
+            {{ fila.granja }} · {{ fila.nucleoId }}/{{ fila.galponId }} · lote <b>{{ fila.loteNombre }}</b>
+          </p>
+        </div>
+        <button type="button" class="cg-close" (click)="onCerrar()" [disabled]="guardando" aria-label="Cerrar">×</button>
+      </header>
+
+      <div class="cg-body">
+
+        <!-- Los tres números de los que sale todo. Se muestran juntos porque el descuadre solo se
+             entiende viéndolos a la vez. -->
+        <section class="cg-nums">
+          <div class="cg-num">
+            <span class="cg-num__label">Saldo tabla diaria</span>
+            <span class="cg-num__value">{{ numero(fila.saldoTablaKg) }} kg</span>
+          </div>
+          <div class="cg-num">
+            <span class="cg-num__label">Stock del inventario</span>
+            <span class="cg-num__value">{{ numero(fila.stockKg) }} kg</span>
+          </div>
+          <div class="cg-num">
+            <span class="cg-num__label">Movs. posteriores</span>
+            <span class="cg-num__value">{{ numero(fila.movPostKg) }} kg</span>
+          </div>
+          <div class="cg-num cg-num--bad">
+            <span class="cg-num__label">Descuadre</span>
+            <span class="cg-num__value">{{ numero(fila.descuadreKg) }} kg</span>
+          </div>
+        </section>
+
+        <p class="cg-hint">{{ fila.detalle }}</p>
+
+        @if (fila.movPostKg !== 0) {
+          <p class="cg-hint cg-hint--info">
+            Los <b>{{ numero(fila.movPostKg) }} kg</b> movidos después del último seguimiento
+            ({{ fila.ultimoSeguimiento | date:'dd/MM/yyyy':'UTC' }}) <b>no se tocan</b>: son alimento
+            real que todavía no tiene día donde reflejarse en la tabla.
+          </p>
+        }
+
+        @if (fila.reservadoActivoKg !== 0) {
+          <p class="cg-hint cg-hint--info">
+            Hay <b>{{ numero(fila.reservadoActivoKg) }} kg</b> reservados por seguimientos <b>sin
+            validar</b>: ya están descontados en la tabla diaria pero todavía no salieron del
+            inventario. El cuadre los tiene en cuenta; no hace falta descontarlos a mano.
+          </p>
+        }
+
+        <!-- Ítem -->
+        <label class="cg-label" for="cg-item">Ítem de alimento</label>
+        @if (cargandoItems) {
+          <p class="cg-hint">Cargando ítems del galpón…</p>
+        } @else if (items.length === 0) {
+          <p class="cg-hint cg-hint--bad">
+            El galpón no tiene ítems de alimento con registro de stock. Créelo desde la pestaña
+            <b>Stock</b> y vuelva a cuadrar.
+          </p>
+        } @else {
+          <select id="cg-item" class="cg-input" [(ngModel)]="itemId" [disabled]="guardando">
+            @for (it of items; track it.id) {
+              <option [ngValue]="it.itemInventarioEcuadorId">
+                {{ it.itemCodigo }} — {{ it.itemNombre }} ({{ numero(it.quantity) }} {{ it.unit }})
+              </option>
+            }
+          </select>
+        }
+
+        <!-- Kilos reales -->
+        <label class="cg-label" for="cg-kilos">¿Cuántos kilos de alimento hay realmente en el galpón?</label>
+        <input id="cg-kilos" type="number" min="0" step="0.1" class="cg-input"
+               [(ngModel)]="kilosReales" [disabled]="guardando" placeholder="0.0"/>
+
+        <!-- Previsualización: qué se va a escribir de cada lado -->
+        <section class="cg-preview" [class.cg-preview--none]="!tocaStock && !tocaTabla">
+          <h3 class="cg-preview__title">Se va a escribir</h3>
+          @if (!tocaStock && !tocaTabla) {
+            <p class="cg-hint">Con esos kilos el galpón ya cuadra: no hay nada que corregir.</p>
+          } @else {
+            <ul class="cg-preview__list">
+              @if (tocaStock) {
+                <li>
+                  <b>Inventario:</b>
+                  {{ deltaStock > 0 ? 'sumar' : 'descontar' }} {{ numero(deltaStock > 0 ? deltaStock : -deltaStock) }} kg
+                  <span class="cg-preview__note">
+                    sobre el ítem seleccionado (ajuste de stock — la tabla diaria no lo ve, y está
+                    bien: la tabla ya tenía razón)
+                  </span>
+                  @if (itemSeleccionadoSaldo != null && itemSeleccionadoSaldo + deltaStock < 0) {
+                    <span class="cg-preview__note cg-preview__note--bad">
+                      ⚠ Ese ítem solo tiene {{ numero(itemSeleccionadoSaldo) }} kg: elija el que
+                      realmente sobra.
+                    </span>
+                  }
+                </li>
+              }
+              @if (tocaTabla) {
+                <li>
+                  <b>Tabla diaria:</b>
+                  {{ deltaTabla > 0 ? 'sumar' : 'descontar' }} {{ numero(deltaTabla > 0 ? deltaTabla : -deltaTabla) }} kg
+                  <span class="cg-preview__note">(ajuste de cuadre — el inventario no lo ve, por lo mismo del otro lado)</span>
+                </li>
+              }
+            </ul>
+            <p class="cg-preview__after">Después del ajuste el descuadre queda en <b>0,0 kg</b>.</p>
+          }
+        </section>
+
+        <!-- Motivo -->
+        <label class="cg-label" for="cg-motivo">Motivo <span class="cg-req">*</span></label>
+        <textarea id="cg-motivo" class="cg-input cg-input--area" rows="2"
+                  [(ngModel)]="motivo" [disabled]="guardando"
+                  placeholder="Ej.: remisión 63705 duplicada, eliminada el 19-ago"></textarea>
+        @if (motivo.length > 0 && !motivoValido) {
+          <p class="cg-hint cg-hint--bad">Mínimo 10 caracteres: es lo único que le explica al próximo por qué estos kilos cambiaron.</p>
+        }
+
+        @if (error) {
+          <p class="cg-hint cg-hint--bad">{{ error }}</p>
+        }
+      </div>
+
+      <footer class="cg-foot">
+        <button type="button" class="cg-btn" (click)="onCerrar()" [disabled]="guardando">Cancelar</button>
+        <button type="button" class="cg-btn cg-btn--primary" (click)="aplicar()" [disabled]="!puedeGuardar">
+          {{ guardando ? 'Aplicando…' : 'Aplicar cuadre' }}
+        </button>
+      </footer>
+
+    </div>
+  </div>
+}

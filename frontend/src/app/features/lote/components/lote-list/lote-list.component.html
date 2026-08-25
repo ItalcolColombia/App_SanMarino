@@ -919,7 +919,15 @@
                           saldo de levante y, si el lote ya pasó, a producción. Las bajas ya
                           registradas se conservan.
                         </div>
+                        @if (!puedeCorregirAves) {
+                          <div class="ux-hint">
+                            🔒 No tiene el permiso <b>lote.corregir_aves</b>: puede editar el resto de
+                            los datos del lote, pero no el encasetamiento.
+                          </div>
+                        }
                       }
+                      <!-- Solo al EDITAR: crear un lote fija su encasetamiento inicial y eso no es
+                           "corregir". Hasta el 25-ago-2026 esta pantalla no tenía NINGÚN gate. -->
                       <div>
                         <label class="ux-label">🐔 # Aves Hembra</label>
                         <input
@@ -928,6 +936,8 @@
                           appThousandSeparator
                           formControlName="hembrasL"
                           (input)="actualizarEncasetadas()"
+                          [readonly]="editing && !puedeCorregirAves"
+                          [class.ux-input--readonly]="editing && !puedeCorregirAves"
                           class="ux-input"
                           placeholder="0"
                           />
@@ -941,6 +951,8 @@
                             appThousandSeparator
                             formControlName="machosL"
                             (input)="actualizarEncasetadas()"
+                            [readonly]="editing && !puedeCorregirAves"
+                            [class.ux-input--readonly]="editing && !puedeCorregirAves"
                             class="ux-input"
                             placeholder="0"
                             />

@@ -96,8 +96,10 @@
             <span class="error-count">{{ getTabErrorCount('roles') }}</span>
           }
         </button>
-        <!-- Tab Tickets (solo en modo edición, cuando ya tenemos el Guid del usuario) -->
-        @if (isEditing) {
+        <!-- Tab Tickets (solo en modo edición, cuando ya tenemos el Guid del usuario).
+             Se oculta en modo consulta junto con su contenido: una pestaña que abre en blanco es
+             peor que no tenerla. -->
+        @if (isEditing && !soloLectura) {
           <button
             type="button"
             class="tab-button"
@@ -495,8 +497,11 @@
                                         }
                                       </div>
                                     }
-                                    <!-- Tab: Perfil de Atención de Tickets (solo edición) -->
-                                    @if (activeTab === 'tickets' && isEditing && editingUser) {
+                                    <!-- Tab: Perfil de Atención de Tickets (solo edición).
+                                         Fuera del modo consulta: sus controles se guardan por
+                                         saveUser(), que ahí no escribe, así que dejarlo visible
+                                         ofrecería cambios que nunca se persisten. -->
+                                    @if (activeTab === 'tickets' && isEditing && editingUser && !soloLectura) {
                                       <div class="tab-content p-4">
                                         <!-- Callout explicativo -->
                                         <div class="mb-4 flex gap-3 items-start rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3.5 shadow-sm">
@@ -537,20 +542,22 @@
                                   Cancelar
                                 </button>
 
-                                <button
-                                  type="button"
-                                  (click)="saveUser()"
-                                  class="btn-primary"
-                                  [disabled]="saving || userForm.invalid"
-                                  >
-                                  <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
-                                  {{ submitButtonText }}
-                                  @if (ticketEditorDirty) {
-                                    <span
-                                      class="ml-2 inline-flex h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-white"
-                                    title="Hay cambios de perfil de tickets pendientes de guardar"></span>
-                                  }
-                                </button>
+                                @if (!soloLectura) {
+                                  <button
+                                    type="button"
+                                    (click)="saveUser()"
+                                    class="btn-primary"
+                                    [disabled]="saving || userForm.invalid"
+                                    >
+                                    <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
+                                    {{ submitButtonText }}
+                                    @if (ticketEditorDirty) {
+                                      <span
+                                        class="ml-2 inline-flex h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-white"
+                                      title="Hay cambios de perfil de tickets pendientes de guardar"></span>
+                                    }
+                                  </button>
+                                }
                               </div>
                             </div>
                           </div>
