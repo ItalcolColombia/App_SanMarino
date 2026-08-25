@@ -2578,3 +2578,22 @@ corrida. Resultado (`OFF` → `ON`):
       **mirar su CommandLine** — el que estaba en 9876 no era de este worktree. El builder
       `@angular/build:karma` de v22 **no acepta `--port`**: para aislarlo hay que pasarle un
       `karmaConfig` propio
+- [x] **Verificado en la app corriendo, con la doble validación ENCENDIDA de verdad** (el flag sale de
+      la BD y lo resuelve el backend; no se forzó el `@Input` desde devtools). Empresa
+      `Agroavicola Sanmarino`, lote `P-K345A`, **301 registros**: `th=36 / td=36`, **301 badges** —una
+      celda de Estado por fila— y los pares de la punta derecha en su lugar (`ESTADO → Validado`,
+      `ACCIONES → 👁️ ✎ 🗑`). Con el template de `HEAD~1` y **todo lo demás igual**: `th=36 / td=35`,
+      **0 badges**, y los botones caen bajo el encabezado «ESTADO» dejando «ACCIONES» vacía
+- [i] **Demo no sirve para probar esta pantalla**: su único lote que ofrece el `filter-data`
+      (`P-k456C`, LPP 8 → lote 119) **no tiene un solo registro diario**, y `P-LOTE 235A` (LPP 9 →
+      lote 124, que sí tiene 2) **no aparece en el filtro** aunque su granja esté activa, sea de la
+      empresa y el usuario no tenga alcance restringido. Anotado como hallazgo, no se tocó
+- [i] **La receta de smoke de UI quedó incompleta desde B1**: además de inyectar `auth_session` en
+      `localStorage` hay que **anotar el `jti` del token en `sesiones_activas`**, o todo request sale
+      401. Y el `errorCode` **`token-expirado` NO significa sólo "venció"**: es también el veredicto
+      cuando la FILA se evalúa como vencida — y el backend **cachea el veredicto muerto hasta el
+      `exp` del token**, así que corregir la fila no alcanza: hay que mintear otro `jti`
+- [i] **Todo lo que tocó el smoke quedó como estaba**: los flags de `Demo` y `Agroavicola Sanmarino`
+      volvieron a `false` (`ItalcolPanama` ya venía en `true` y no se tocó), las 3 filas de
+      `sesiones_activas` borradas, y back/front/Chrome apagados. **No se guardó ni validó ningún
+      registro**: la pantalla sólo se leyó
