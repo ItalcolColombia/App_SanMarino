@@ -2529,3 +2529,52 @@ corrida. Resultado (`OFF` → `ON`):
 - [~] `F11.3` — pruebas asistidas con el cliente
 - [!] Guia genetica de `Lohmann Brown` — el cliente debe entregar los datos
 - [i] `ActualizarTrasladoHuevosAsync` sigue sin tocar `metadata->huevoItems` (gap preexistente)
+
+---
+
+# X18.4.1-b · Columna «Estado» de la grilla diaria de producción (defecto preexistente)
+
+> Plan: [`fase_de_desarrollo/columna_estado_grilla_produccion_plan.md`](fase_de_desarrollo/columna_estado_grilla_produccion_plan.md)
+> Sale del hallazgo `[!]` de X18.4.1: el `<thead>` de `lote-produccion/pages/tabs-principal` declara
+> «Estado» bajo `@if (requiereValidacion)` y el `<tbody>` no tenía su celda ⇒ con la doble validación
+> encendida la fila quedaba corrida una columna. Verificado en `f49012b^`: **no lo introdujo** el
+> barrido de machos.
+
+- [x] **Celda agregada en el cuerpo** (`tabs-principal.component.html:356-366`), gateada por
+      `@if (requiereValidacion)`, entre `observacionesPesaje` y `sticky-actions` — copia de la celda
+      de levante (`lote-levante/pages/tabs-principal/tabs-principal.component.html:408-415`) con la
+      fila `s` en lugar de `f.seg`
+- [x] **No hizo falta tocar el TS ni el SCSS**: los 4 helpers (`claseBadgeValidacion`,
+      `tooltipValidacionFila`, `estadoValidacionFila`, `etiquetaValidacionFila`) ya existían en
+      producción **byte a byte iguales** a los de levante —se agregaron con la columna del `<thead>`
+      y quedaron sin consumidor—, las clases `.badge-validacion*` son **globales**
+      (`frontend/src/styles.scss:64-78`) y `CommonModule` ya estaba en los `imports` (la fila ya usa
+      `ngClass` para `claseFilaValidacion`)
+- [x] **Reconteo mecánico de `th` vs `td`** en las **8 combinaciones** de los 3 flags que gatean
+      columnas (`requiereValidacion` × `ocultaMachosEnPostura` × `clasificacionHuevoPorItems`):
+
+      antes: 4 combinaciones OK y las 4 con `requiereValidacion=true` en **### DESBALANCE 1**
+             (36/35 · 26/25 · 29/28 · 19/18)
+      después: **las 8 alineadas** (35/35 · 25/25 · 28/28 · 18/18 · 36/36 · 26/26 · 29/29 · 19/19)
+
+      Conteo crudo de celdas declaradas (la base que usó X18.4.1): pasa de **38 th / 37 td** a
+      **38 / 38**
+- [x] **Test de regresión** `tabs-principal.component.spec.ts` (4 casos, renderiza el componente en
+      TestBed y **cuenta las celdas del DOM**, no del archivo): ancho igual con el flag OFF, ancho
+      igual con el flag ON, el flag suma **exactamente 1** columna de cada lado, y el badge sale con
+      su clase y su texto. **Verificado que falla contra el template previo** (`Expected 36 to be
+      35`) ⇒ el test ve el defecto, no acompaña
+- [x] Validación: `yarn build` → **0 errores** · `yarn test` → **642/642** (base 637, +5 nuevos)
+- [i] La celda sólo **lee** el mapa `estadoValidacionPorId` que ya inyecta el contenedor: no toca el
+      modelo, el payload ni la lógica de validación (el botón ✓ sigue en la celda de Acciones). Con
+      el flag OFF no se renderiza ⇒ **cero cambios visibles** para las empresas sin doble validación
+- [i] 🔴 **Ojo con `yarn build` en esta máquina**: el Node del sistema (22.15.0) ya no le alcanza al
+      CLI de Angular 22 (pide ≥ 22.22.3) y el build muere antes de compilar. Va con el portable:
+      `export PATH="/c/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64:$PATH"`
+- [i] 🔴 **La suite completa se colgó 2 h y no era el cambio**: `ng test` salió por un pipe a `grep`,
+      que **bufferiza** ⇒ el log quedó en 0 bytes y no se veía si avanzaba. Encima el puerto de Karma
+      (**9876**) lo tenía tomado un `ng` del **checkout principal** (otra ventana). Lecciones: mandar
+      la salida **directo a un archivo** (`> log 2>&1`, sin pipe) y, antes de matar un `node.exe`,
+      **mirar su CommandLine** — el que estaba en 9876 no era de este worktree. El builder
+      `@angular/build:karma` de v22 **no acepta `--port`**: para aislarlo hay que pasarle un
+      `karmaConfig` propio

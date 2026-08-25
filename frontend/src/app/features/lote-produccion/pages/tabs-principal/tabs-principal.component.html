@@ -353,6 +353,17 @@
                           <td>{{ s.pesoM ?? '—' }}</td>
                         }
                         <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
+                        <!-- Estado de validación: el encabezado ya declaraba esta columna bajo el mismo
+                             gate, pero la fila no tenía su celda ⇒ con la doble validación encendida
+                             la tabla quedaba corrida una columna. Misma celda que levante. -->
+                        @if (requiereValidacion) {
+                          <td>
+                            <span [ngClass]="claseBadgeValidacion(s.id)" [title]="tooltipValidacionFila(s.id)">
+                              @if (estadoValidacionFila(s.id) === 'EN_RETRASO') { <span aria-hidden="true">⚠️</span> }
+                              {{ etiquetaValidacionFila(s.id) }}
+                            </span>
+                          </td>
+                        }
                         <td class="sticky-actions text-right">
                           <!-- Ver detalle siempre; editar y eliminar solo con el lote abierto -->
                           <div class="btn-group">
