@@ -353,9 +353,13 @@
               <th class="rdc-th">Fecha</th>
               <th class="rdc-th">Granja</th>
               <th class="rdc-th">Lote : Galpón</th>
-              <th class="rdc-th">Huevo fértil</th>
-              <th class="rdc-th">Huevo comercial</th>
-              <th class="rdc-th">Huevo inservible</th>
+              <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+                   fertil/comercial/inservible salen de las 11 columnas fijas -> siempre 0, se ocultan. -->
+              @if (!clasificacionHuevoPorItems) {
+                <th class="rdc-th">Huevo fértil</th>
+                <th class="rdc-th">Huevo comercial</th>
+                <th class="rdc-th">Huevo inservible</th>
+              }
               <th class="rdc-th">Ventas de huevo</th>
               <th class="rdc-th">Traslado a planta</th>
               <th class="rdc-th rdc-th--grupo">Huevo Total</th>
@@ -367,9 +371,11 @@
                 <td class="rdc-td rdc-td--fecha">{{ fechaFmt(f.fecha) }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.granjaNombre }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.loteGalpon }}</td>
-                <td class="rdc-td">{{ ent(f.huevo.fertil) }}</td>
-                <td class="rdc-td">{{ ent(f.huevo.comercial) }}</td>
-                <td class="rdc-td">{{ ent(f.huevo.inservible) }}</td>
+                @if (!clasificacionHuevoPorItems) {
+                  <td class="rdc-td">{{ ent(f.huevo.fertil) }}</td>
+                  <td class="rdc-td">{{ ent(f.huevo.comercial) }}</td>
+                  <td class="rdc-td">{{ ent(f.huevo.inservible) }}</td>
+                }
                 <td class="rdc-td">{{ ent(f.huevo.venta) }}</td>
                 <td class="rdc-td">{{ ent(f.huevo.trasladoPlanta) }}</td>
                 <td class="rdc-td rdc-td--total">{{ ent(f.huevo.total) }}</td>
@@ -379,9 +385,11 @@
           <tfoot class="rdc-foot">
             <tr>
               <td class="rdc-td rdc-td--foot" colspan="3">Total</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.fertil) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.comercial) }}</td>
-              <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.inservible) }}</td>
+              @if (!clasificacionHuevoPorItems) {
+                <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.fertil) }}</td>
+                <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.comercial) }}</td>
+                <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.inservible) }}</td>
+              }
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.venta) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.trasladoPlanta) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.total) }}</td>

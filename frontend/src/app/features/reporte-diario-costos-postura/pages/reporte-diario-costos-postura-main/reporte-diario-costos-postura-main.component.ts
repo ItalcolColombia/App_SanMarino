@@ -59,6 +59,15 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
 
   /** Empresas sin machos en postura: no se pintan ni se exportan (SR-DEF-1). */
   ocultaMachosEnPostura = false;
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: fértil/comercial/inservible salen de las 11
+   * columnas fijas de `seguimiento_diario_produccion` y quedan siempre en 0 para estas empresas
+   * (el desglose real vive en `metadata.huevoItems`, que este reporte no lee) → se ocultan, y el
+   * aviso de "partición no cuadra" no aplica (no es un defecto del dato, es un reporte ciego al
+   * ítem). Total (`huevo.total` = `huevo_tot`) y Ventas/Traslado (tabla `traslado_huevos`) siguen
+   * correctos y se mantienen. FAIL-CLOSED: sin flag, tabla y aviso intactos.
+   */
+  clasificacionHuevoPorItems = false;
 
   // ── Catálogos de filtros ────────────────────────────────────────────────
   private granjasTodas: GranjaOpcion[] = [];
@@ -96,8 +105,14 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
 
   ngOnInit(): void {
     this.companyConfig.getFlags().subscribe({
-      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
-      error: () => (this.ocultaMachosEnPostura = false)
+      next: f => {
+        this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura;
+        this.clasificacionHuevoPorItems = !!f?.clasificacionHuevoPorItems;
+      },
+      error: () => {
+        this.ocultaMachosEnPostura = false;
+        this.clasificacionHuevoPorItems = false;
+      }
     });
     this.cargarFilterData();
   }
@@ -224,7 +239,12 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
 
     this.filasAlimento = expandirFilasAlimento(rep.filas);
     this.filasHuevos = rep.filas.filter(f => f.fase === 'Produccion');
-    this.huevosDescuadrados = this.filasHuevos.filter(f => !f.huevo.particionCuadra).length;
+    // Con clasificacion_huevo_por_items, ferti/comercial/inservible son siempre 0 (reporte ciego
+    // al item) => la particion NUNCA cuadra por diseño. No es el defecto de dato que el aviso
+    // describe, asi que no se cuenta.
+    this.huevosDescuadrados = this.clasificacionHuevoPorItems
+      ? 0
+      : this.filasHuevos.filter(f => !f.huevo.particionCuadra).length;
     this.diasDuplicados = rep.diasDuplicados ?? 0;
     this.alcanceExpandido = rep.alcanceExpandidoPorLoteBase === true;
 
@@ -261,7 +281,7 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
 
   exportarExcel(): void {
     if (!this.reporte || this.reporte.filas.length === 0) return;
-    const hojas = construirHojasCostosPostura(this.reporte, this.ocultaMachosEnPostura);
+    const hojas = construirHojasCostosPostura(this.reporte, this.ocultaMachosEnPostura, this.clasificacionHuevoPorItems);
     exportarAoaMultiHojaExcel(hojas, {
       filenameFull: `Reporte_Diario_Costos_Postura_${dateStampCompact()}.xlsx`
     });

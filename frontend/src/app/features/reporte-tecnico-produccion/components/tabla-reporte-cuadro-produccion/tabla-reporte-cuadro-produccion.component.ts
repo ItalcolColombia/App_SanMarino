@@ -21,13 +21,27 @@ export class TablaReporteCuadroProduccionComponent implements OnInit {
 
   /** Empresas sin machos en postura: sus columnas no se pintan (SR-DEF-1). */
   ocultaMachosEnPostura = false;
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: HUEVOS INCUB/%DESCARTE/%ACUM INCUB/LAA
+   * (grupo HUEVO INCUBABLE) y H.CARGA/H.CAR ACU (grupo HUEVOS CARGADOS Y POLLITOS) salen todos de
+   * `huevo_inc` (columna fija), siempre en 0 para estas empresas — se ocultan. STD ROSS (guía) y
+   * el resto de HUEVOS CARGADOS Y POLLITOS (V.HUEVO viene de traslados, POLLITOS/PAA de eclosión)
+   * no dependen de `huevo_inc` y se mantienen. FAIL-CLOSED: sin flag, columnas intactas.
+   */
+  clasificacionHuevoPorItems = false;
 
   constructor(private companyConfig: ActiveCompanyConfigService) {}
 
   ngOnInit(): void {
     this.companyConfig.getFlags().subscribe({
-      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
-      error: () => (this.ocultaMachosEnPostura = false)
+      next: f => {
+        this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura;
+        this.clasificacionHuevoPorItems = !!f?.clasificacionHuevoPorItems;
+      },
+      error: () => {
+        this.ocultaMachosEnPostura = false;
+        this.clasificacionHuevoPorItems = false;
+      }
     });
   }
 

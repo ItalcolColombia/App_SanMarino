@@ -84,6 +84,14 @@ interface TabView {
 export class ReporteTecnicoSemanalMainComponent implements OnInit {
   /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
   ocultaMachosEnPostura = false;
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: la hoja «CLAS Huevo» reproduce las 11
+   * columnas fijas de `seguimiento_diario_produccion`, que para estas empresas quedan siempre en
+   * 0 (el desglose real vive en `metadata.huevoItems`, que este reporte no lee) — la pestaña
+   * entera no aplica, mismo tratamiento que ya tiene la pestaña «Clasificación» del Reporte
+   * Técnico Producción. FAIL-CLOSED: sin flag, pestaña intacta.
+   */
+  clasificacionHuevoPorItems = false;
 
   /**
    * Columnas que la empresa realmente ve. Se filtra sobre el array de definiciones, que es la
@@ -122,8 +130,14 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
 
   ngOnInit(): void {
     this.companyConfig.getFlags().subscribe({
-      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
-      error: () => (this.ocultaMachosEnPostura = false)
+      next: f => {
+        this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura;
+        this.clasificacionHuevoPorItems = !!f?.clasificacionHuevoPorItems;
+      },
+      error: () => {
+        this.ocultaMachosEnPostura = false;
+        this.clasificacionHuevoPorItems = false;
+      }
     });
     this.filtros.loadFilterData();
   }
@@ -293,7 +307,7 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   exportarExcel(): void {
     const hojas = this.tipoReporte === 'LEVANTE'
       ? (this.respuestaLevante ? construirHojasLevante(this.respuestaLevante) : [])
-      : (this.respuestaProduccion ? construirHojasProduccion(this.respuestaProduccion) : []);
+      : (this.respuestaProduccion ? construirHojasProduccion(this.respuestaProduccion, this.clasificacionHuevoPorItems) : []);
 
     if (hojas.length === 0 || this.tabs.every(t => t.filas.length === 0)) {
       this.toast.info('No hay datos para exportar con los filtros actuales.');

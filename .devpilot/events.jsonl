@@ -646,3 +646,4 @@
 {"name":"knowledge-graph.updated","occurredAt":"2026-08-25T03:45:30.755Z","payload":{"nodes":{"file":3553,"module":8,"package":8,"mission":2,"decision":4,"lesson":8,"risk":2,"technology":65,"service":4,"infra":1,"datastore":1},"edges":{"imports":66869,"coChangesWith":32914,"memberOf":0,"touchedBy":0,"about":212,"learnedFrom":0,"warns":0,"usesTech":0,"provisions":0,"deploys":2,"connectsTo":3,"dependsOnService":0}}}
 {"name":"super-graph.truncated","occurredAt":"2026-08-25T03:45:30.759Z","payload":{"reason":"history-rotation"}}
 {"name":"super-graph.updated","occurredAt":"2026-08-25T03:45:30.761Z","payload":{"layers":{"code":3569,"knowledge":16,"technology":65,"infra":5,"data":1},"facts":{"active":71,"retired":0}}}
+{"name":"graph.cochange.updated","occurredAt":"2026-08-25T04:56:28.839Z","payload":{"commitsProcessed":48,"pairsTotal":34488}}

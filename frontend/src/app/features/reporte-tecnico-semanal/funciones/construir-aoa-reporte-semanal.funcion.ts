@@ -167,8 +167,14 @@ export function construirHojasLevante(
   return hojas;
 }
 
+/**
+ * @param clasificacionPorItems empresas que clasifican huevo por ítem del catálogo (flag
+ *   `clasificacion_huevo_por_items`): la hoja «CLAS Huevo» reproduce las 11 columnas fijas de
+ *   `seguimiento_diario_produccion`, siempre en 0 para estas empresas — no se emite.
+ */
 export function construirHojasProduccion(
-  respuesta: ReporteTecnicoSemanalProduccionResponse
+  respuesta: ReporteTecnicoSemanalProduccionResponse,
+  clasificacionPorItems = false
 ): HojaAoaExcel[] {
   const hojas: HojaAoaExcel[] = [];
   const usados = new Set<string>();
@@ -184,6 +190,8 @@ export function construirHojasProduccion(
       nombreHoja(tab.header.loteNombre, usados),
       titulo, tab.header, tab.semanas, COLUMNAS_PRODUCCION));
   }
+
+  if (clasificacionPorItems) return hojas;
 
   // Hoja «CLAS Huevo»: los mismos tabs con las columnas de clasificación.
   const tituloClas = `Clasificación de huevo — ${respuesta.loteBaseNombre}`;

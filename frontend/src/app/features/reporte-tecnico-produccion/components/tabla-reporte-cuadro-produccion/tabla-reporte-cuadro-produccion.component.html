@@ -48,8 +48,11 @@
           }
           <th colspan="6">PRODUCCION TOTAL DE HUEVOS</th>
           <th colspan="4">HUEVOS ENVIADOS PLANTA</th>
-          <th colspan="5">HUEVO INCUBABLE</th>
-          <th colspan="7">HUEVOS CARGADOS Y POLLITOS</th>
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               casi todo este grupo (menos STD ROSS) sale de huevo_inc, siempre en 0 -> se oculta. -->
+          <th [attr.colspan]="clasificacionHuevoPorItems ? 1 : 5">HUEVO INCUBABLE</th>
+          <!-- H.CARGA/H.CAR ACU salen de huevo_inc; V.HUEVO/POLLITOS/PAA no dependen de el. -->
+          <th [attr.colspan]="clasificacionHuevoPorItems ? 5 : 7">HUEVOS CARGADOS Y POLLITOS</th>
           <th colspan="6">CONSUMO DE ALIMENTO HEMBRA</th>
           @if (!ocultaMachosEnPostura) {
             <th colspan="6">CONSUMO DE ALIMENTO MACHO</th>
@@ -110,15 +113,19 @@
           <th>% HALA</th>
 
           <!-- HUEVO INCUBABLE -->
-          <th>HUEVOS INCUB</th>
-          <th>% DESCARTE</th>
-          <th>% ACUM INCUB</th>
-          <th>LAA</th>
+          @if (!clasificacionHuevoPorItems) {
+            <th>HUEVOS INCUB</th>
+            <th>% DESCARTE</th>
+            <th>% ACUM INCUB</th>
+            <th>LAA</th>
+          }
           <th>STD ROSS</th>
 
           <!-- HUEVOS CARGADOS Y POLLITOS -->
-          <th>H. CARGA</th>
-          <th>H. CAR ACU</th>
+          @if (!clasificacionHuevoPorItems) {
+            <th>H. CARGA</th>
+            <th>H. CAR ACU</th>
+          }
           <th>V. HUEVO</th>
           <th>V. HUEVO POLLITOS</th>
           <th>POLL. ACUM</th>
@@ -227,14 +234,18 @@
             <td class="text-right">{{ formatPercentage(dato.porcentajeEnviaP, 2) }}</td>
             <td class="text-right highlight-yellow">{{ dato.porcentajeHala ? formatPercentage(dato.porcentajeHala, 2) : '-' }}</td>
             <!-- HUEVO INCUBABLE -->
-            <td class="text-right">{{ dato.huevosIncub }}</td>
-            <td class="text-right">{{ formatPercentage(dato.porcentajeDescarte, 2) }}</td>
-            <td class="text-right">{{ formatPercentage(dato.porcentajeAcumIncub, 2) }}</td>
-            <td class="text-right">{{ formatNumber(dato.laa, 2) }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <td class="text-right">{{ dato.huevosIncub }}</td>
+              <td class="text-right">{{ formatPercentage(dato.porcentajeDescarte, 2) }}</td>
+              <td class="text-right">{{ formatPercentage(dato.porcentajeAcumIncub, 2) }}</td>
+              <td class="text-right">{{ formatNumber(dato.laa, 2) }}</td>
+            }
             <td class="text-right highlight-yellow">{{ dato.stdRoss ? formatNumber(dato.stdRoss, 2) : '-' }}</td>
             <!-- HUEVOS CARGADOS Y POLLITOS -->
-            <td class="text-right">{{ dato.hCarga }}</td>
-            <td class="text-right">{{ dato.hCargaAcu }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <td class="text-right">{{ dato.hCarga }}</td>
+              <td class="text-right">{{ dato.hCargaAcu }}</td>
+            }
             <td class="text-right">{{ dato.vHuevo }}</td>
             <td class="text-right">{{ dato.vHuevoPollitos }}</td>
             <td class="text-right">{{ dato.pollAcum }}</td>

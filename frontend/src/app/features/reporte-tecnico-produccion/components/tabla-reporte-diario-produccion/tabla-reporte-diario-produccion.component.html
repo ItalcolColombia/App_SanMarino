@@ -42,8 +42,12 @@
           <th colspan="2">HUEVOS</th>
           <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">KILOS ALIMENTO</th>
           <th colspan="2">ENVIADO PLANTA</th>
-          <th rowspan="2">INCUBABLE</th>
-          <th rowspan="2">CARGADO</th>
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               INCUBABLE/CARGADO salen de huevo_inc, siempre en 0 -> se ocultan. -->
+          @if (!clasificacionHuevoPorItems) {
+            <th rowspan="2">INCUBABLE</th>
+            <th rowspan="2">CARGADO</th>
+          }
           <th rowspan="2">POLLITOS<br/>% Nacimientos</th>
           <th rowspan="2">VENTA<br/>HUEVO</th>
           <th rowspan="2">POLLITOS<br/>H. VENDIDO</th>
@@ -117,10 +121,12 @@
             <!-- ENVIADO PLANTA -->
             <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcentajeEnviadoPlanta, 2) }}</td>
-            <!-- INCUBABLE -->
-            <td class="text-right">{{ dato.huevosIncubables }}</td>
-            <!-- CARGADO -->
-            <td class="text-right">{{ dato.huevosCargados }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <!-- INCUBABLE -->
+              <td class="text-right">{{ dato.huevosIncubables }}</td>
+              <!-- CARGADO -->
+              <td class="text-right">{{ dato.huevosCargados }}</td>
+            }
             <!-- POLLITOS % Nacimientos -->
             <td class="text-right">{{ dato.porcentajeNacimientos ? formatPercentage(dato.porcentajeNacimientos, 2) : '-' }}</td>
             <!-- VENTA HUEVO -->

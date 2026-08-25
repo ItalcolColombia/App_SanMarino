@@ -15,15 +15,22 @@ import { ReporteDiarioCostosPosturaReporte } from '../models/reporte-diario-cost
 /**
  * @param ocultaMachos empresas sin machos en postura (SR-DEF-1): las columnas de machos —y las de
  *   error de sexaje, que desaparece como concepto— no se emiten en el Excel.
+ * @param clasificacionPorItems empresas que clasifican huevo por ítem del catálogo: fértil/comercial/
+ *   inservible salen de las 11 columnas fijas y quedan siempre en 0 (el desglose real vive en
+ *   `metadata.huevoItems`, que este reporte no lee) — no se emiten en el Excel.
  */
-export function construirHojasCostosPostura(rep: ReporteDiarioCostosPosturaReporte, ocultaMachos = false): HojaAoaExcel[] {
+export function construirHojasCostosPostura(
+  rep: ReporteDiarioCostosPosturaReporte,
+  ocultaMachos = false,
+  clasificacionPorItems = false
+): HojaAoaExcel[] {
   const hojas: HojaAoaExcel[] = [
     hojaAves(rep, ocultaMachos),
     hojaAlimento(rep, ocultaMachos)
   ];
 
   const filasProduccion = rep.filas.filter(f => f.fase === 'Produccion');
-  if (filasProduccion.length > 0) hojas.push(hojaHuevos(rep));
+  if (filasProduccion.length > 0) hojas.push(hojaHuevos(rep, clasificacionPorItems));
 
   return hojas;
 }
@@ -157,27 +164,33 @@ function hojaAlimento(rep: ReporteDiarioCostosPosturaReporte, ocultaMachos: bool
   };
 }
 
-function hojaHuevos(rep: ReporteDiarioCostosPosturaReporte): HojaAoaExcel {
+function hojaHuevos(rep: ReporteDiarioCostosPosturaReporte, clasificacionPorItems = false): HojaAoaExcel {
   const aoa: ExcelCell[][] = encabezado(rep, 'Reporte Diario Costos Postura — Huevos (solo producción)');
 
-  aoa.push(['Fecha', 'Granja', 'Lote : Galpón', 'Huevo fértil', 'Huevo comercial', 'Huevo inservible',
+  // Misma posicion en cabecera y datos: [] o los 3 valores, nunca desalineados.
+  const encabezadoParticion: ExcelCell[] = clasificacionPorItems ? [] : ['Huevo fértil', 'Huevo comercial', 'Huevo inservible'];
+  aoa.push(['Fecha', 'Granja', 'Lote : Galpón', ...encabezadoParticion,
     'Ventas de huevo', 'Traslado a planta', 'Huevo Total']);
 
   for (const f of rep.filas.filter(x => x.fase === 'Produccion')) {
+    const particion: ExcelCell[] = clasificacionPorItems ? [] : [f.huevo.fertil, f.huevo.comercial, f.huevo.inservible];
     aoa.push([
       fechaCortaSinTz(f.fecha), f.granjaNombre, f.loteGalpon,
-      f.huevo.fertil, f.huevo.comercial, f.huevo.inservible,
+      ...particion,
       f.huevo.venta, f.huevo.trasladoPlanta, f.huevo.total
     ]);
   }
 
   const h = rep.totales.huevo;
+  const totalParticion: ExcelCell[] = clasificacionPorItems ? [] : [h.fertil, h.comercial, h.inservible];
   aoa.push([]);
-  aoa.push(['TOTAL', '', '', h.fertil, h.comercial, h.inservible, h.venta, h.trasladoPlanta, h.total]);
+  aoa.push(['TOTAL', '', '', ...totalParticion, h.venta, h.trasladoPlanta, h.total]);
 
   return {
     sheetName: 'Huevos',
     aoa,
-    colWidths: [12, 22, 28, 14, 16, 16, 16, 18, 14]
+    colWidths: clasificacionPorItems
+      ? [12, 22, 28, 16, 18, 14]
+      : [12, 22, 28, 14, 16, 16, 16, 18, 14]
   };
 }

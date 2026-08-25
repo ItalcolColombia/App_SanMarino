@@ -2672,3 +2672,66 @@ esto fue una verificación, no un fix.
       reportes que leen `huevo_tot`/11 columnas en vez de `huevoItems` (contable, técnico de
       producción, técnico semanal — ver X17.5) no se tocan con este flujo, y su smoke visual con datos
       de Santa Reyes sigue pendiente si el usuario lo pide.
+
+---
+
+## X18.7 — Los reportes ciegos a `huevoItems`: 2 defectos reales arreglados, no solo columnas vacías (25-ago-2026)
+
+Continúa X18.6. Plan: [`fase_de_desarrollo/santa_reyes_reportes_ciegos_huevo_items_plan.md`](fase_de_desarrollo/santa_reyes_reportes_ciegos_huevo_items_plan.md).
+Auditoría de código (Agent Explore) sobre los 4 reportes que X17.5/X18.6 habían dejado anotados
+como "ciegos al ítem" — resultó en 2 defectos reales (no solo cosméticos) + 2 gaps de gateo
+incompleto. Frontend-only, mismo patrón que el barrido de machos (X18.4): nada de backend cambia.
+
+- [x] 🔴 **Defecto real 1 — Reporte Diario Costos Postura: banner falso, confirmado EN VIVO.**
+      Disparaba *"4 registro(s) donde fértil + comercial + inservible no suma el huevo total. Es un
+      defecto del dato cargado"* en el 100% de las filas de Santa Reyes (lote `SMOKE-SR-001`, 4/4).
+      No es un defecto del dato: el reporte nunca puede cuadrar una partición que no calcula
+      (fértil/comercial/inservible salen de las 11 columnas fijas, siempre 0). Fix: `huevosDescuadrados`
+      = 0 con el flag ON (el banner deja de dispararse solo) + las 3 columnas rotas se ocultan
+      (pantalla y Excel, `hojaHuevos` con parámetro nuevo `clasificacionPorItems`, mismo spread
+      `[]`/`[valores]` en la MISMA posición que ya usa `soloConMachos` para no desalinear). `Ventas
+      de huevo`/`Traslado a planta` (de `traslado_huevos`) y `Huevo Total` (= `huevo_tot`) intactos.
+      **Verificado en vivo tras el fix**: banner desaparecido, columnas ocultas, total sigue en
+      9.897 = suma de los 4 registros.
+- [x] 🔴 **Defecto real 2 — Reporte Técnico Producción · Cuadro: `LAA` también estaba roto**, y la
+      auditoría inicial no lo había listado. Verificado contra
+      `ReporteTecnicoProduccionService.Cuadro.cs:179-192`: `Laa = Sum(HuevosIncubablesSemanal) /
+      Count` — mismo origen que `HUEVOS INCUB`/`%DESCARTE`/`%ACUM INCUB`. Los 4 se ocultan; `STD
+      ROSS` (valor de guía, no depende de `huevo_inc`) se mantiene solo. **Regla para no repetir
+      este hallazgo**: cuando la fuente dice "estas 3 columnas están rotas", releer la fórmula de
+      CADA columna del grupo, no confiar en que la lista esté completa.
+- [x] **Gap de gateo incompleto 1 — Reporte Contable · Movimientos Huevos**: ya ocultaba 2 de 3
+      columnas rotas (`HVO COMERCIAL`, `HUEVO DESECHO`); faltaba `HVTO FERTIL` (mismo origen,
+      `huevo_inc`). Extendido el `@if` existente + colspan del grupo "Producción" de 2→1.
+- [x] **Gap de gateo incompleto 2 — Reporte Técnico Producción · Diario y Cuadro**: `INCUBABLE`/
+      `CARGADO` (Diario) y `H.CARGA`/`H.CAR ACU` (Cuadro, grupo "HUEVOS CARGADOS Y POLLITOS") salen
+      de `huevo_inc`; ocultos. `V.HUEVO` (de `traslado_huevos`) y los 4 de pollitos/eclosión
+      (`V.HUEVO POLLITOS`, `POLL.ACUM`, `PAA`, `PAA ROSS` — no dependen de huevo) se mantienen.
+- [x] **Verificado en vivo con datos reales** (lote `SMOKE-SR-001`, sesión de smoke re-autorizada):
+      Costos Postura (defecto 1, arriba) y Reporte Técnico Producción · Diario (sin columnas
+      Incubable/Cargado, sin pestaña Clasificación, `huevo_tot` correcto por fila: 2300/6230/77/1290).
+      Técnico Semanal confirmado por estado del componente (`clasificacionHuevoPorItems === true`
+      resuelto correctamente) — la vista "Detalle de lote" no se pudo renderizar con datos reales:
+      `SMOKE-SR-001` no tiene fila en `lote_postura_base` (nació del flujo de smoke E2E, no del
+      wizard de lote base) y ninguno de los 10 lotes base sembrados de Santa Reyes tiene producción
+      real. Cuadro y Contable quedaron verificados por código + los 649 tests, no en pantalla: Cuadro
+      no encontró datos para el rango disponible ("No se encontraron datos del cuadro para el
+      período") y Contable pide el mismo `lote_postura_base` que Técnico Semanal.
+- [x] **Tests nuevos**: `construir-aoa-costos-postura.funcion.spec.ts` (4 casos: cabecera con/sin las
+      3 columnas rotas, cabecera y filas con igual cantidad de columnas con el flag ON, sin filas de
+      producción no agrega la hoja) y `construir-aoa-reporte-semanal.funcion.spec.ts` (3 casos: con/
+      sin hojas CLAS, las hojas de semanas no cambian). Ninguno de los 2 módulos tenía tests antes.
+      `yarn build` 0 errores · `yarn test` **649/649** (base 642, +7).
+- [~] **Excel de Contable y Técnico Producción quedan sin tocar**: se generan en el BACKEND
+      (`exportarExcelCompleto`), no con la librería `xlsx` del front — mismo criterio que ya dejó
+      anotado X18.4 para "W1.d reportes y exportaciones" del barrido de machos. Fuera de alcance de
+      este pase; si se pide, es un cambio de backend, no de frontend.
+- [i] **Alcance deliberado: ocultar, no reemplazar.** Ningún reporte pasa a mostrar Primera/Pnc (lo
+      que sí hace la grilla diaria): eso exigiría que cada reporte agregue `metadata.huevoItems`,
+      backend nuevo por reporte. Este pase es sobre no mostrar datos matemáticamente rotos o un aviso
+      que acusa al dato de un defecto que es del reporte.
+- [i] **Con el flag OFF, cero cambios visibles** en los 4 reportes: todas las condiciones nuevas son
+      `@if (!clasificacionHuevoPorItems)` sobre columnas que antes se pintaban siempre.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos `:5002`
+      y `:4200` verificados libres. Ningún dato de Santa Reyes creado/editado/eliminado — todo el
+      recorrido fue de lectura salvo la fila de sesión, ya borrada.

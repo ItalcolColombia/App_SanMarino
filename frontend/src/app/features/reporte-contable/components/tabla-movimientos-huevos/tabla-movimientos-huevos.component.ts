@@ -18,9 +18,9 @@ export class TablaMovimientosHuevosComponent implements OnInit {
   private readonly companyConfig = inject(ActiveCompanyConfigService);
   /**
    * Flag `companies.clasificacion_huevo_por_items` de la EMPRESA ACTIVA (el reporte es
-   * multi-lote/multi-granja de esa misma empresa): con clasificación por ítem, `HVO COMERCIAL` y
-   * `HUEVO DESECHO` salen de las 11 columnas fijas y quedan siempre en 0 → se ocultan.
-   * `POSTURA` (total) y `HVTO FERTIL` se mantienen. FAIL-CLOSED: sin flag, tabla intacta.
+   * multi-lote/multi-granja de esa misma empresa): con clasificación por ítem, `HVTO FERTIL`,
+   * `HVO COMERCIAL` y `HUEVO DESECHO` salen de las 11 columnas fijas y quedan siempre en 0 → se
+   * ocultan. Solo `POSTURA` (= huevo_tot, correcto) se mantiene. FAIL-CLOSED: sin flag, tabla intacta.
    */
   clasificacionHuevoPorItems = false;
 

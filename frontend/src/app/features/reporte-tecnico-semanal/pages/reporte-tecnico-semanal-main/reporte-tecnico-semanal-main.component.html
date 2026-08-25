@@ -169,7 +169,9 @@
             <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'alimento'"
                     (click)="vista = 'alimento'">Alimento</button>
           }
-          @if (tipoReporte === 'PRODUCCION') {
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               las 11 columnas fijas de esta hoja estan siempre en 0 -> la pestana no aplica. -->
+          @if (tipoReporte === 'PRODUCCION' && !clasificacionHuevoPorItems) {
             <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'clasificacion'"
                     (click)="vista = 'clasificacion'">Clasificación</button>
           }
@@ -256,7 +258,7 @@
               </p>
             }
           }
-        } @else if (vista === 'clasificacion') {
+        } @else if (vista === 'clasificacion' && !clasificacionHuevoPorItems) {
           <!-- Hoja «CLAS Huevo»: % de clasificación por semana -->
           <div class="rts-table-wrap">
             <table class="rts-table">
