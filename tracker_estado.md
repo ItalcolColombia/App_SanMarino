@@ -2604,3 +2604,71 @@ corrida. Resultado (`OFF` → `ON`):
       volvieron a `false` (`ItalcolPanama` ya venía en `true` y no se tocó), las 3 filas de
       `sesiones_activas` borradas, y back/front/Chrome apagados. **No se guardó ni validó ningún
       registro**: la pantalla sólo se leyó
+
+---
+
+## X18.6 — Huevos dinámicos (Primera/Pnc) en la tabla de producción: verificado EN VIVO por primera vez (24-ago-2026)
+
+Pedido del usuario: seguir validando el flujo de Santa Reyes — específicamente que **la tabla de
+producción sea dinámica en la parte de huevos**. Lo que había hasta ahora (X17.6/X18.4.1) era
+**código leído + reconteo mecánico de `th`/`td` sobre el fuente** (sin renderizar), nunca la
+combinación REAL de flags de Santa Reyes contra la grilla viva en el navegador. Sin código nuevo:
+esto fue una verificación, no un fix.
+
+- [x] **La combinación de flags de Santa Reyes nunca se había visto en pantalla**: `company 6` tiene
+      `clasificacion_huevo_por_items=true` + `oculta_machos_en_postura=true` +
+      `requiere_validacion_seguimiento_diario=false` — una combinación distinta a la única que sí se
+      había verificado en vivo antes (Agroavicola Sanmarino con `requiere_validacion=true` y los otros
+      dos flags en `false`, sesión anterior de la columna Estado).
+- [x] **Datos reales usados**: lote `SMOKE-SR-001` (lote_id 152, LPP 10, granja La Esperanza), sus 4
+      seguimientos (674, 675, 676, 677) con `metadata.huevoItems` ya conocido de X17.7/X17.8.
+      Predicción calculada a mano desde la BD antes de mirar la pantalla, para no confirmar con sesgo.
+- [!] 🔴 **El login normal del usuario de smoke falló**: `smoke.santareyes@test.local` devolvió 401
+      «Credenciales inválidas» **real del backend** (no de red/CORS) con la contraseña documentada en
+      memoria. Se frenó a los 2 intentos fallidos (`users.failed_attempts`, umbral de bloqueo = 5,
+      `AuthService.cs:176`) para no bloquear la cuenta 15 minutos. La contraseña real de esta cuenta
+      quedó desconocida — no se siguió probando a ciegas.
+- [x] **Alternativa: JWT minteado a mano + fila en `sesiones_activas`** (receta ya documentada de
+      sesiones B1 anteriores), espejando exacto `AuthService.GenerateResponseAsync`: claims con las
+      2 URIs largas (`.../nameidentifier`, `.../role` de Microsoft) + el resto en corto
+      (`sub`,`jti`,`iat`,`unique_name`,`email`,`firstName`,`surName`,`user_id`,`is_super_admin`,
+      `company_id`,`company`,`permission`×35 desde `role_permissions` del rol 30 «Santa Reyes
+      Administrador»), firmado HS256 con `JwtSettings:Key` de `appsettings.Development.json`.
+      **Esta vez el `INSERT` en `sesiones_activas` lo bloqueó el clasificador de permisos de Auto
+      Mode** (no lo bloqueaba en sesiones anteriores) — se paró y se le pidió autorización explícita
+      al usuario en vez de buscarle la vuelta; autorizado, se insertó, se usó y se borró al terminar.
+- [x] **Grilla diaria (`tabs-principal`, "tabla de producción") — confirmado con conteo de DOM real**,
+      no de texto: `th=18` en el header y **las 4 filas del cuerpo con `td=18`**, sin una sola celda
+      corrida — exactamente lo esperado para esta combinación de 3 flags (18 es el valor más chico de
+      la matriz de X18.4.1-b, con los dos flags reductores ON y sin columna Estado).
+- [x] **Valores PRIMERA/PNC por fila, comparados 1 a 1 contra la BD — los 4 coinciden exacto**:
+
+      | id  | huevo_tot (BD) | Primera (pantalla) | Pnc (pantalla) |
+      |-----|------|---------|-----|
+      | 677 | 1290 | 1,200   | 90  |
+      | 676 | 77   | 0       | 77  |
+      | 674 | 6230 | 0       | 0   |
+      | 675 | 2300 | 0       | 0   |
+
+      674 y 675 son a propósito: sus 3 ítems tienen `tipoHuevo: null` (snapshot previo al fix de
+      `cdf0239` en X17.7, dejado vivo como testigo) — `resumirHuevoItemsPorTipo` los deja fuera de
+      Primera y de Pnc sin romper nada, y el total (`Huevos Tot.`) sigue mostrando el crudo. Confirma
+      en vivo un comportamiento que antes sólo estaba documentado por lectura de código.
+- [x] **La tabla de Indicadores semanales es dinámica un nivel más abajo, y también se verificó**: el
+      detalle expandible de la semana 33 no sólo separa Primera/Pnc — lista **cada ítem del catálogo
+      por su nombre y código**, generado por `@for` sobre lo que realmente haya en el dato (no una
+      lista fija). Pantalla mostró exacto: `552 — HUEVO SIN CLASIFICAR LIBRE DE JAULA CERTIFICADO:
+      1.200` bajo Primera, y `537 — HUEVO PICADO ROJO: 45` + `538 — HUEVO MANCHADO ROJO: 45` bajo Pnc.
+- [x] **Sin errores de consola ni de red** durante todo el recorrido post-login: los únicos 401 en
+      consola son los 2 intentos de login fallidos previos a cambiar de estrategia. Los 8 endpoints que
+      carga la pantalla (`Company`, `filter-data`, `SeguimientoValidacion/pendientes`,
+      `LotePosturaProduccion`, `informacion-lote`, `seguimiento`, `traslados/cohortes`,
+      `indicadores-semanales`×2, `clasificacion-huevo-items`) devolvieron 200.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos `:5002`
+      y `:4200` verificados libres (`netstat`). No se guardó, editó ni eliminó ningún seguimiento —
+      todo el recorrido fue de lectura. No se tocó ningún flag de empresa (Santa Reyes ya los tenía
+      así de antes).
+- [i] **Lo que queda sin verificar en vivo, anotado para no repetir el hallazgo de X17.8**: los
+      reportes que leen `huevo_tot`/11 columnas en vez de `huevoItems` (contable, técnico de
+      producción, técnico semanal — ver X17.5) no se tocan con este flujo, y su smoke visual con datos
+      de Santa Reyes sigue pendiente si el usuario lo pide.
