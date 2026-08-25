@@ -2584,10 +2584,17 @@ corrida. Resultado (`OFF` → `ON`):
       celda de Estado por fila— y los pares de la punta derecha en su lugar (`ESTADO → Validado`,
       `ACCIONES → 👁️ ✎ 🗑`). Con el template de `HEAD~1` y **todo lo demás igual**: `th=36 / td=35`,
       **0 badges**, y los botones caen bajo el encabezado «ESTADO» dejando «ACCIONES» vacía
-- [i] **Demo no sirve para probar esta pantalla**: su único lote que ofrece el `filter-data`
-      (`P-k456C`, LPP 8 → lote 119) **no tiene un solo registro diario**, y `P-LOTE 235A` (LPP 9 →
-      lote 124, que sí tiene 2) **no aparece en el filtro** aunque su granja esté activa, sea de la
-      empresa y el usuario no tenga alcance restringido. Anotado como hallazgo, no se tocó
+- [i] 🔴 **Causa encontrada — NO es un bug, es `user_farms` (alcance por usuario-granja) funcionando
+      como está diseñado.** `P-LOTE 235A` (LPP 9 → lote 124, granja 90 `LA PRIMAVERA`) no aparecía con
+      `admin.demo` porque ese usuario tiene **una sola fila** en `user_farms` (`farm_id=87`, Granja 1);
+      las otras 8 granjas de Demo —incluida la 90— están asignadas a `usuario_demo1`. El chequeo previo
+      de `user_farm_scopes` (0 filas) fue la tabla equivocada: esa es el sub-alcance GRANULAR dentro de
+      una granja ya asignada ([[alcance-granular-usuario-granja]]), no la asignación de granjas en sí.
+      En `LoteProduccionFilterDataService.cs:66` → `FarmService.GetAllAsync(userId:…)`
+      (`FarmService.cs:361-384`): pasar `userId` filtra SIEMPRE por `UserFarms`, sin importar el rol
+      —la restricción explícita gana al bypass de admin, a propósito—. El nombre del rol "Admin Demo"
+      no implica alcance global. **Confirmado en la app** con `usuario_demo1`: aparecen las 8 granjas,
+      seleccionar `LA PRIMAVERA` trae núcleo/galpón/lote, y `P-LOTE 235A` muestra sus 2 registros
 - [i] **La receta de smoke de UI quedó incompleta desde B1**: además de inyectar `auth_session` en
       `localStorage` hay que **anotar el `jti` del token en `sesiones_activas`**, o todo request sale
       401. Y el `errorCode` **`token-expirado` NO significa sólo "venció"**: es también el veredicto
