@@ -347,8 +347,14 @@ public class ReporteTecnicoProduccionController : ControllerBase
             var reporteCuadro = await _service.GenerarReporteCuadroAsync(
                 loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
 
-            var reporteClasificacion = await _service.GenerarReporteClasificacionHuevoComercioAsync(
-                loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
+            // Empresas que clasifican huevo por ítem del catálogo: esta hoja reproduce las 11
+            // columnas legacy fijas, que quedan siempre en 0 -- mismo criterio que el front, que
+            // oculta la pestaña "Clasificación" entera y nunca pide este reporte (ver
+            // reporte-tecnico-produccion-main.component.ts). Ni se consulta.
+            var reporteClasificacion = reporteDiario.LoteInfo.ClasificacionHuevoPorItems
+                ? null
+                : await _service.GenerarReporteClasificacionHuevoComercioAsync(
+                    loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
 
             // Generar Excel con todas las hojas
             var excelBytes = _excelService.GenerarExcelCompleto(

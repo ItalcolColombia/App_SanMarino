@@ -2735,3 +2735,77 @@ incompleto. Frontend-only, mismo patrón que el barrido de machos (X18.4): nada 
 - [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos `:5002`
       y `:4200` verificados libres. Ningún dato de Santa Reyes creado/editado/eliminado — todo el
       recorrido fue de lectura salvo la fila de sesión, ya borrada.
+
+---
+
+## X18.8 — Excel del backend (Contable + Técnico Producción): mismo defecto, sin el gateo que se creía que ya existía (25-ago-2026)
+
+Continúa X18.7. Plan: [`fase_de_desarrollo/santa_reyes_excel_backend_reportes_plan.md`](fase_de_desarrollo/santa_reyes_excel_backend_reportes_plan.md).
+El Excel de estos 2 reportes lo genera un exportador EPPlus **separado** del `xlsx` de frontend que
+ya se arregló — auditoría de código (Agent Explore, doble lectura cruzada por archivo) confirmó que
+**la premisa de "ya hay gateo de machos que copiar" era falsa**: el barrido de machos (X18.4) fue
+enteramente frontend, ningún exportador Excel del backend lee `OcultaMachosEnPostura` ni ningún
+otro flag de empresa. Hubo que construir el mecanismo desde cero.
+
+- [x] 🔴 **4º defecto real, no cubierto por X18.7**: `DESCARTE` (Reporte Contable) sale de
+      `traslado_huevos.cantidad_desecho`, que `TrasladoHuevosService.CrearTrasladoHuevosAsync:191-203`
+      zerea con el MISMO criterio que las 11 columnas legacy de `seguimiento_diario_produccion`
+      cuando `usaHuevoItems=true` — confirmado contra datos reales (los 2 traslados de Santa Reyes,
+      `cantidad_desecho=0` ambos). No estaba gateada ni en el front (gap de X18.7, cerrado ahora)
+      ni en el Excel.
+- [x] 🔴 **Hallazgo no pedido en el alcance original**: `ReporteTecnicoProduccionExcelService`
+      genera una 3ª hoja, **"Clasificación Huevo Comercio"**, no mencionada en ningún ticket previo.
+      16 de sus 18 columnas de datos salen de las 11 legacy — la hoja MÁS rota de las dos. El front
+      ya oculta la pestaña homónima ENTERA para Santa Reyes; mismo tratamiento acá.
+- [x] **Contable — `ColumnasHuevos` ya era data-driven**: se agregó `bool
+      OcultaSiClasificaPorItems` a la tupla (marca HVTO FÉRTIL/HVO COMERCIAL/HUEVO DESECHO/DESCARTE)
+      y se filtra el array UNA vez al principio de `EscribirMovimientosHuevos` — cabecera de grupo,
+      cabecera de columna, filas de dato y fila de totales quedan alineadas por construcción, cero
+      riesgo de desalinear (mismo patrón que `filtrar-columnas-machos.funcion.ts` del frontend). El
+      flag viaja en `ReporteMovimientosHuevosDto` (nuevo campo), resuelto en
+      `ObtenerReporteMovimientosHuevosAsync` con el mismo query que ya usa
+      `DiasAlimentoPrevioEncaset`.
+- [x] **Técnico Producción — decisión de diseño tomada, no inferible del código**: `EscribirReporteDiario`/
+      `EscribirCuadro` escriben por **índice numérico fijo** (`ws.Cells[row,15]`), no por lista — no
+      hay patrón de columnas dinámicas que copiar. Remover columnas reindexando 43 celdas a mano en
+      2 métodos es el refactor grande y de alto riesgo que el propio commit de machos (`f7aee82`)
+      señala como "lo delicado eran los colspan". **Decisión: mantener todos los índices, dejar la
+      celda de DATO sin asignar (vacía) cuando el flag está ON** — el encabezado se conserva (menor
+      fidelidad visual que el front, que sí remueve la columna; documentado como refactor aparte si
+      se pide paridad total). `%DESCARTE`/`%ACUM INCUB`/`LAA` (huevo_inc-dependientes, confirmados
+      contra `Cuadro.cs:179-192`) **nunca se escriben en este Excel** — nada que gatear ahí.
+      `ReporteTecnicoProduccionLoteInfoDto` (compartido por los 3 reportes) ganó el flag; se resuelve
+      UNA vez en `GenerarReporteSubloteAsync`/`GenerarReporteConsolidadoAsync` (Diario.cs) — Cuadro.cs
+      lo hereda gratis porque ya reusa `reporteCompleto.LoteInfo` tal cual. La hoja "Clasificación
+      Huevo Comercio" se deja de generar en el controller (no se llama a
+      `GenerarReporteClasificacionHuevoComercioAsync` cuando el flag está ON, se pasa `null`).
+- [x] `dotnet build` **0 errores / 0 warnings**.
+- [x] **Verificado extremo a extremo con datos reales, HTTP real** (JWT minteado + `X-Secret-Up`
+      calculado a mano con la misma derivación PBKDF2/AES que `EncryptionService.Decrypt`, sin
+      pasar por el navegador): se generaron los 2 Excel reales de Santa Reyes (`SMOKE-SR-001`) y se
+      abrieron con `openpyxl` para leer las celdas de verdad, no solo el HTTP 200.
+      - Contable: cabecera exacta `Día|Fecha|Lote|POSTURA|ENTRADA|CAPTURA INFO|VENTA|SALIDA|TRASLADO
+        A PLANTA` — **las 4 columnas ocultas (HVTO FÉRTIL/HVO COMERCIAL/HUEVO DESECHO/DESCARTE)
+        ausentes**, `POSTURA`/`CAPTURA INFO` totales en 9.897 = suma exacta de los 4 registros.
+      - Técnico Producción: hoja "Reporte Diario" con `INCUBABLE`/`CARGADO` en blanco por fila (resto
+        de columnas con dato real intacto); hoja "Clasificación Huevo Comercio" **ausente del
+        libro**. Hoja "Cuadro" también ausente, pero por una razón AJENA al fix: `ConsolidarSemanales`
+        exige `>= 7` días por semana y `SMOKE-SR-001` solo tiene 4 registros dispersos — mismo "No se
+        encontraron datos del cuadro" que ya se había visto en pantalla con este mismo lote.
+- [x] **Regresión verificada con la MISMA receta contra Agroavicola Sanmarino (flag OFF, lote real
+      `P-K345A`, 301 registros)**: los 2 Excel salen BYTE A BYTE con el comportamiento de siempre —
+      Contable con las 10 columnas completas (`HVTO FÉRTIL`/`HVO COMERCIAL`/`HUEVO
+      DESECHO`/`DESCARTE` con valores reales, no vacíos), Técnico Producción con las 3 hojas
+      (`Reporte Diario` con `INCUBABLE`/`CARGADO` poblados, `Cuadro` con `HUEVOS INCUB`/`H. CARGA`
+      poblados, `Clasificación Huevo` presente). Cero cambio para las empresas sin el flag.
+- [~] **Sin xUnit nuevo**: no existe proyecto de test para `ZooSanMarino.Infrastructure` (solo
+      `Application.Tests`/`Domain.Tests`, que no referencian Infrastructure) — crear uno de cero para
+      2 servicios EPPlus es un cambio de arquitectura de testing más grande que este fix. CLAUDE.md
+      exige tests de integración **o** requests reales para endpoints/handlers — se cumplió con la
+      segunda vía, de punta a punta y con las 2 empresas.
+- [x] **Otra vez el clasificador de Auto Mode bloqueó el primer intento del INSERT en
+      `sesiones_activas`**; se pidió permiso de nuevo (autorizado) en vez de buscarle la vuelta. El
+      segundo INSERT de la sesión (regresión con Sanmarino) sí pasó sin bloqueo — confirma que es
+      una decisión por-llamada, no una política fija.
+- [x] **Limpieza**: las 2 filas de `sesiones_activas` borradas, backend detenido, puerto `:5002`
+      verificado libre. Cero escritura de datos de negocio — todo el recorrido fue GET.

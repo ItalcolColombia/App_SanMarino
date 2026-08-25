@@ -311,6 +311,15 @@ public partial class ReporteContableService
             .OrderBy(m => m.Fecha)
             .ToList();
 
+        // Clasificacion por items (Santa Reyes): HvtoFertil/HvoComercial/HuevoDesecho/Descarte
+        // salen de columnas legacy fijas que quedan siempre en 0 para estas empresas -- mismo
+        // patron que DiasAlimentoPrevioEncaset en GenerarReporteAsync.
+        var clasificacionHuevoPorItems = await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync(ct);
+
         // Calcular totales
         var totales = new
         {
@@ -341,7 +350,8 @@ public partial class ReporteContableService
             TotalVenta = totales.Venta,
             TotalSalida = totales.Salida,
             TotalTrasladoAPlanta = totales.TrasladoAPlanta,
-            TotalDescarte = totales.Descarte
+            TotalDescarte = totales.Descarte,
+            ClasificacionHuevoPorItems = clasificacionHuevoPorItems
         };
     }
 }
