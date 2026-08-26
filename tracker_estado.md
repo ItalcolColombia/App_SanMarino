@@ -3088,3 +3088,90 @@ quedado declarados fuera de alcance sin diagnóstico.
       esos galpones es confiable hoy?** Pesa sobre todo para G0475 y G0483 (31.150 kg entre los dos).
 - [ ] ⏸️ **G0495 queda como pendiente propio**: es el único que señala un problema real de
       inventario (kilos que entraron y no están), no de sincronización entre las dos vistas.
+
+---
+
+## EC3 — El cruce de reproductora creaba los días de engorde SIN validar y trababa el lote (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/cruce_reproductora_nace_sin_validar_plan.md`](fase_de_desarrollo/cruce_reproductora_nace_sin_validar_plan.md)
+
+Reporte de Panamá: «en las reproductoras se confirmaron tarde, entonces en pollo engorde está
+bloqueado hacer el seguimiento; no deja crear otro seguimiento diario». Captura: lote **215**
+(DAYLAND · galpón «6» · `14 - 1` · ERP `G-4001014`, 15 días).
+
+### EC3.0 — Diagnóstico
+- [x] 🔴 **Causa raíz: un `INSERT` que omite una columna con `DEFAULT`.**
+      `fn_cruce_reproductora_a_engorde` inserta los días 1-7 **sin nombrar `validado`** (DEFAULT
+      false), mientras el C# documenta lo contrario, textual
+      (`SeguimientoDiarioAvesEngorde.Validado`): *«Los registros con OrigenCruce **nacen validados**»*.
+      Verificado sobre la función **desplegada**: no mencionaba `validado` ni una vez.
+- [x] **Por qué explota solo al confirmar tarde**: el plazo son **1 día contado desde la FECHA del
+      seguimiento**, no desde cuándo se creó la fila. La reproductora del lote 215 confirmó sus 7
+      días con **5 a 10 días de atraso** ⇒ el cruce insertó con fechas del 09 al 15-ago ⇒ los 7
+      registros **nacieron entre 6 y 12 días vencidos** ⇒ `BloqueaAltaPorVencidos`.
+- [x] 🔴 **Y era un callejón sin salida**: los registros `origen_cruce` son de solo lectura en la UI
+      —el front les reemplaza *todos* los botones por el badge «🔄 Auto»—, así que el operario **no
+      tenía forma de destrabarlo**.
+- [x] **Alcance medido: 28 registros, 4 lotes** (215, 216, 224, 225), todos DAYNLAND/Panamá — la única
+      empresa con `requiere_validacion_seguimiento_diario`. **Dos de esos lotes nacieron ese mismo
+      día**: el problema estaba activo, no era histórico.
+- [x] **El backfill de agosto arregló el pasado y nadie arregló el futuro**: los otros 273 registros
+      de cruce están validados por el `UPDATE` masivo de `20260815071444`.
+
+### EC3.1 — Arreglo
+- [x] `fn_cruce_reproductora_a_engorde`: el `INSERT` escribe `validado, validado_at, validado_por`.
+      Espejo `.sql` + **migración `20260825160000_FnCruceReproductoraNaceValidado`** (26 columnas
+      contra 26 valores, verificado a mano).
+- [x] **Backfill de los 28**, acotado a `origen_cruce AND NOT validado`.
+- [x] 🟢 **Probado forzando una regeneración REAL del trigger** (transacción revertida): los 7 días
+      del lote 215 nacen `validado = true` / `validado_por = SYSTEM_CRUCE`, y el lote queda con
+      **0 vencidos**. Los 4 lotes se destraban.
+- [x] **Script de invariante nuevo**: `backend/sql/verificar_cruce_nace_validado.sql`. Es la única
+      red posible — **no hay test de C# que pueda ver un `INSERT` de plpgsql**, y el cuerpo de esa
+      función está copiado en **5 migraciones**: la próxima que lo reescriba desde una copia vieja
+      reintroduce el defecto en silencio, exactamente igual.
+- [x] 3 tests que fijan el mecanismo (fecha vieja + sin validar = EN_RETRASO; validado gana sobre la
+      fecha; el plazo es de 1 día). No cubren código nuevo — lo dicen ellos mismos: documentan la
+      interacción que hizo posible el defecto.
+
+### EC3.2 — Lo que trajo la refutación adversarial (3 lentes, todos «INCOMPLETO»)
+- [x] **La elección de diseño resistió**: un lente reporta textual *«intenté refutar la elección y no
+      pude»*. Descartadas con fundamento (a) excluir el cruce del conteo, (b) contar el plazo desde
+      `created_at` —no resuelve: corre el bloqueo 48 h y el reloj se reinicia en cada regeneración—,
+      (c) permitir validarlo en la UI —sería un no-op y se destruye sola en cada regeneración—, y
+      (d) no bloquear si todos los vencidos son de cruce.
+- [x] **Corregido: el backfill fabricaba una marca de auditoría.** Ponía `validado_at = now()` sobre
+      registros de agosto. Ahora la deja en **NULL**, igual que el backfill original, y usa
+      `validado_por = 'SYSTEM_CRUCE_BACKFILL'` para poder distinguir «esto lo arregló la migración»
+      de «esto nació bien».
+- [x] **Corregida una asimetría real**: `SeguimientoAvesEngordeService` (Panamá/Colombia) **no tenía
+      la guarda `OrigenCruce`** que sí tiene el de Ecuador. Sin ella, tras el fix editar o borrar una
+      fila de cruce fallaba por la rama de la doble validación con un mensaje que manda a «quitar la
+      validación primero» — **imposible** para esos registros. Ahora rechaza con el motivo verdadero.
+- [x] **Contradicción entre lentes resuelta a mano**: `MigracionService.SeguimientoEngorde` **sí**
+      usa `ModoCargaHistorica()` (línea 596), así que la carga masiva ya estaba cubierta. Un lente
+      afirmaba lo contrario.
+- [x] **Verificado que no hay doble descuento**, y medido, no razonado: 0 filas en
+      `seguimiento_reserva_alimento` y `_aves` para los 301 registros de cruce; las aves ya estaban
+      descontadas por `RetiroAvesEngordeAplicador`, que mira `OrigenCruce` y el histórico, **nunca
+      `validado`**. Ninguna función ni vista de la BD lee la columna (catálogo completo).
+
+### EC3.3 — Lo que NO arregla esto, dicho como tal
+- [i] **Lote 177** sigue bloqueado **a propósito**: su vencido es un registro **normal** (no de
+      cruce), y se destraba con el botón Validar. Es trabajo del operario, no un defecto.
+- [i] **Lote 180** (registro del 24-ago) pasa a EN_RETRASO mañana si nadie lo valida. Mismo caso.
+- [i] **Dos lotes en cola** (186 y 226): sus reproductoras tienen días sin confirmar desde hace 27 y
+      6 días. Con el arreglo puesto, al confirmarlas los días nacen validados y **no** se traban.
+- [ ] ⏸️ **La misma clase de defecto sigue abierta en el push offline de la PWA**
+      (`Sync/SyncPushService.cs`, único escritor de seguimientos que no usa `ModoCargaHistorica`):
+      un día capturado offline y sincronizado >24 h después nace EN_RETRASO. Es **menos grave** —esos
+      registros sí son editables y validables desde la pantalla, no son un callejón sin salida— pero
+      va a generar el mismo ticket. Tarea aparte.
+- [ ] ⏸️ **Segundo camino de confirmación de reproductora sin sincronizar aves**:
+      `ValidacionSeguimientoService.MarcarValidadoAsync` escribe `Confirmado` por EF (lo que dispara
+      el cruce) pero **nunca llama** a `RetiroAvesEngordeAplicador.SincronizarCruceAsync`; solo lo
+      hace `SeguimientoDiarioLoteReproductoraService.ConfirmarAsync`. Hoy no muerde (el front usa el
+      endpoint específico), pero es la pata sobre la que se apoya el «no duplica ningún descuento».
+- [i] **Observación**: `LeerPendientesDelLoteAsync` (rama Engorde) filtra por `LoteAveEngordeId` sin
+      `company_id`, a diferencia de `LeerEstadoAsync`. Inocuo con una sola empresa con el flag
+      encendido; deja de serlo con la segunda. Pre-existente.

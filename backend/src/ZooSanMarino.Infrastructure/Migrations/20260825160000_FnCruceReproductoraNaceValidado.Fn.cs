@@ -1,3 +1,17 @@
+﻿// Partial de la migracion FnCruceReproductoraNaceValidado: la constante SQL, para que el archivo
+// principal se pueda leer. Es backend/sql/fn_cruce_reproductora_a_engorde.sql TAL CUAL (espejo).
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    public partial class FnCruceReproductoraNaceValidado
+    {
+        /// <summary>
+        /// El cruce reproductora -> pollo engorde, con los dias 1-7 naciendo YA VALIDADOS.
+        /// Espejo exacto de backend/sql/fn_cruce_reproductora_a_engorde.sql.
+        /// </summary>
+        private const string FnCruceReproductoraAEngordeValidado = """
 -- ============================================================================
 -- Cruce automático: Seguimiento Diario Reproductora  →  Seguimiento Diario Pollo Engorde
 -- ----------------------------------------------------------------------------
@@ -241,3 +255,6 @@ CREATE TRIGGER trg_cruce_reproductora_engorde
     ON seguimiento_diario_lote_reproductora_aves_engorde
     FOR EACH ROW
     EXECUTE FUNCTION trg_fn_cruce_reproductora_engorde();
+""";
+    }
+}

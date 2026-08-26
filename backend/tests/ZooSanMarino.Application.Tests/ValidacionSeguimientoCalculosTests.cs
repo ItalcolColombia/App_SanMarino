@@ -265,4 +265,75 @@ public class ValidacionSeguimientoCalculosTests
         Assert.Contains("Validá esos registros", msg);
     }
 
+    // ─── El mecanismo que dejó 4 lotes de Panamá trabados (25-ago-2026) ────────
+    //
+    // Estos tres tests no cubren código nuevo: fijan la interacción que hizo posible el defecto de
+    // `fn_cruce_reproductora_a_engorde`, para que se lea en el banco de pruebas y no solo en un plan.
+    // Ver fase_de_desarrollo/cruce_reproductora_nace_sin_validar_plan.md
+
+    /// <summary>
+    /// 🔴 El estado depende de la FECHA DEL SEGUIMIENTO, no de cuándo se creó la fila. Un registro
+    /// insertado hoy con fecha de hace días <b>nace EN_RETRASO</b>: nunca tuvo ventana para validarse.
+    ///
+    /// <para>
+    /// Es exactamente lo que le pasaba a los días 1-7 que genera el cruce cuando la reproductora se
+    /// confirma tarde. Medido en producción: la reproductora del lote 215 confirmó con 5 a 10 días de
+    /// atraso, y los 7 registros de pollo engorde nacieron entre 6 y 12 días vencidos.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    [InlineData(12)]
+    public void Un_registro_creado_hoy_con_fecha_vieja_nace_EN_RETRASO(int diasDeAtraso)
+    {
+        var hoy = new DateOnly(2026, 8, 25);
+        var fechaSeguimiento = hoy.AddDays(-diasDeAtraso);
+
+        Assert.Equal(
+            EstadoValidacionSeguimiento.EnRetraso,
+            ValidacionSeguimientoCalculos.Estado(validado: false, fechaSeguimiento, hoy));
+    }
+
+    /// <summary>
+    /// Y por eso el arreglo funciona: <b>validado gana sobre la fecha</b>. Un registro validado nunca
+    /// está en retraso, por vieja que sea su fecha — que es lo que permite que los días del cruce,
+    /// naciendo ya validados, no traben el lote.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    [InlineData(12)]
+    public void Un_registro_validado_nunca_esta_en_retraso_por_vieja_que_sea_su_fecha(int diasDeAtraso)
+    {
+        var hoy = new DateOnly(2026, 8, 25);
+        var fechaSeguimiento = hoy.AddDays(-diasDeAtraso);
+
+        Assert.Equal(
+            EstadoValidacionSeguimiento.Validado,
+            ValidacionSeguimientoCalculos.Estado(validado: true, fechaSeguimiento, hoy));
+        Assert.False(ValidacionSeguimientoCalculos.EstaEnRetraso(true, fechaSeguimiento, hoy));
+    }
+
+    /// <summary>
+    /// El plazo es de UN día, y esa estrechez es la que convierte cualquier retraso del cruce en un
+    /// bloqueo inmediato. Se fija en un test para que cambiarlo sea una decisión consciente: el
+    /// número lo puso el usuario («los registros tienen que ser validados con un día de diferencia
+    /// como máximo»).
+    /// </summary>
+    [Fact]
+    public void El_plazo_es_de_un_dia_y_vence_al_dia_siguiente()
+    {
+        Assert.Equal(1, ValidacionSeguimientoCalculos.DiasPlazoValidacion);
+
+        var fecha = new DateOnly(2026, 8, 20);
+        Assert.Equal(new DateOnly(2026, 8, 21), ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha));
+
+        // El día límite todavía se puede validar; el siguiente ya no.
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, new DateOnly(2026, 8, 21)));
+        Assert.Equal(EstadoValidacionSeguimiento.EnRetraso,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, new DateOnly(2026, 8, 22)));
+    }
+
 }
