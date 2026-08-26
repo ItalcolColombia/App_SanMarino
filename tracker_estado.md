@@ -3295,10 +3295,23 @@ Diagnóstico reproducible: [`backend/sql/verificar_huecos_dias_seguimiento_engor
 - [x] **Listados los días concretos** para el mensaje: Ecuador lote 12 «2601» (4 días, 17–20 abr);
       Panamá 37 lotes / 41 días, de los cuales **33 tienen exactamente un día**. Sin patrón de fin de
       semana (jue 14, dom 10, mié 9) ⇒ olvidos legítimos y llenables.
-- [ ] ⏸️ **Decisión de operación pendiente (del usuario, no del código):** ¿la cola bloquea igual, o
-      avisa y se resuelve **liquidando** el lote? Recomendado: **hueco interior ⇒ bloquea** (41 + 4
-      días, costo manejable, es la regla pedida) y **cola ⇒ se liquida**, o bloquea con techo (más de
-      N días de cola manda a liquidar, no a capturar).
+- [x] ✅ **DECIDIDO por el usuario: «el hueco interior bloquea, la cola se liquida».**
+      Consecuencia medida: la cola era el 93 % del número y sale del bloqueo, así que **el costo del
+      día del deploy baja de 44+5 lotes a 37 lotes de Panamá y 41 días de digitación** (33 de ellos
+      necesitan **un solo día**). Ecuador queda en 0 porque su flag está apagado. La cola pasa a ser
+      limpieza operativa: **19 lotes a liquidar** (18 Panamá + el 2601 de Ecuador).
+- [x] 🔴 **Encontrada la interacción de segundo orden entre las dos reglas** (plan §9.10): el día que
+      se llena **nace vencido**, porque `FechaLimiteValidacion(fecha) = fecha + 1` y el hueco es
+      viejo. Un vencido sin confirmar bloquea el alta ⇒ *llenar el hueco vuelve a trabar el lote*.
+      Dos consecuencias obligatorias para quien implemente: (a) la exención de la guarda tiene que ser
+      «el día que se crea es **un** día faltante», no «es **el único**» —si no, el lote 12 de Ecuador,
+      con 4 huecos seguidos, se traba al llenar el primero—; (b) hace falta **«guardar y validar»** o
+      «validar todos los pendientes del lote», porque hoy se valida de a uno. Ya estaba anotado como
+      deseable en EC4; la regla de huecos lo vuelve **obligatorio**.
+- [ ] ⏸️ **VERIFICANDO: ¿la cola SE PUEDE liquidar hoy?** Es la obligación que abre la decisión: si le
+      decimos al operario «liquidá», esa puerta tiene que existir. Los lotes de cola tienen ~45.000
+      aves en papel y **cero salidas registradas** — si el liquidador exige aves en cero, o una venta,
+      o merma no nula, sería una puerta cerrada (el mismo error que la guarda de §9.1). En curso.
 - [ ] ⏸️ **Implementación**: pertenece a la sesión de EC4. Incluye el mensaje que distingue las dos
       causas (§9.6 del plan) — «faltan los días X e Y, registralos» vs «este lote no tiene registros
       desde X (N días); si ya salió, liquidalo».

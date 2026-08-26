@@ -270,14 +270,20 @@ Ecuador es el mismo cuadro al revés — el lote 2601 lleva 125 días de cola, 1
 registros diarios** de lotes cuyas aves ya no están en la granja. Eso no cuadra nada — ensucia el
 histórico con datos falsos y no es lo que el usuario quiere lograr.
 
-**Recomendación (decisión del usuario, no se implementa sin su OK):** separar los dos casos.
+### ✅ DECIDIDO por el usuario (25-ago-2026): **«el hueco interior bloquea, la cola se liquida»**
 
-- **Hueco interior ⇒ bloquea.** Son 41 días en Panamá y 4 en Ecuador, casi todos de **un solo día**,
-  sin patrón de fin de semana (jue 14, dom 10, mié 9): olvidos legítimos y llenables. Es exactamente
-  la regla que el usuario pidió, y su costo es manejable.
-- **Cola ⇒ avisa, y se resuelve liquidando el lote**, no inventando días. Si igual se quiere que
-  bloquee, que sea con un techo (p. ej. más de N días de cola ⇒ el lote se manda a liquidar, no a
-  capturar).
+Queda cerrada la última ambigüedad del planteo. Las dos causas se tratan distinto:
+
+| Caso | Qué hace el sistema | Costo medido |
+|---|---|---|
+| **Hueco interior** | **Bloquea** el alta de días nuevos hasta que se registre | 41 días en Panamá (33 lotes con **un solo día**), 4 en Ecuador. Sin patrón de fin de semana (jue 14, dom 10, mié 9) ⇒ olvidos legítimos y llenables |
+| **Cola** | **No bloquea capturando: se liquida el lote** | 18 lotes en Panamá (>7 días de cola), 1 en Ecuador. Ninguno se llena inventando registros |
+
+🔴 **La decisión abre una obligación nueva:** si la salida que le ofrecemos al operario es
+*liquidar*, esa salida **tiene que existir y funcionar hoy**. Un lote de cola de Panamá tiene ~45.000
+aves en papel y cero salidas registradas — si el liquidador exige aves en cero, o exige una venta, o
+exige merma no nula, le estaríamos ofreciendo una puerta cerrada, que es el mismo error que §9.1.
+**Verificado en §9.8 antes de implementar nada.**
 
 ### 9.5 Los días concretos que faltan (interiores, para el aviso)
 
@@ -322,6 +328,55 @@ no un efecto del bloqueo — lo que refuerza la lectura de §9.4: son lotes term
 De paso queda verificado el arreglo del cruce: **0 vencidos `origen_cruce`** y los 4 lotes de DAYLAND
 (215, 216, 224, 225) ya no están trabados. El lote **215** conserva 9 días de cola que sí son reales y
 ahora sí se pueden capturar.
+
+### 9.9 Lo que la decisión cambia en el costo del deploy
+
+Con **«la cola no bloquea»**, el número del día del deploy baja mucho: la cola era el 93 % y sale de
+la ecuación. Queda sólo el hueco interior, y **sólo en Panamá**, porque Ecuador tiene el flag
+apagado:
+
+| | Antes (regla literal) | **Con la decisión tomada** |
+|---|---:|---:|
+| Lotes bloqueados el día del deploy | 44 Panamá + 5 Ecuador | **37 Panamá, 0 Ecuador** |
+| Días que hay que capturar para destrabar | 565 + 133 | **41**, y de esos sólo **23** son de lotes vivos |
+
+Y todavía baja más. **De los 37 lotes con hueco interior, 15 son ADEMÁS cola** (edad 50–78 días): se
+van a liquidar igual, así que sus 18 días son irrelevantes. Lo mismo el único lote de Ecuador (el
+2601, 191 días de edad). Lo que queda de verdad:
+
+> **22 lotes vivos de Panamá (edad 16–47 días) y 23 días a capturar.**
+
+Eso no es una tarde: es un rato. **Pero el orden importa** — hay que liquidar primero los 19 lotes de
+cola; si no, arrancan bloqueados por un hueco que nadie va a llenar porque el lote ya terminó.
+
+La cola pasa a ser **limpieza operativa** (liquidar 19 lotes terminados: 18 de Panamá + el 2601 de
+Ecuador), no un bloqueo.
+
+### 9.10 🔴 La interacción entre las dos reglas: el día que se llena nace vencido
+
+Es la trampa de segundo orden, y hay que resolverla en el mismo cambio.
+
+El operario llena hoy (25-ago) el hueco del 08-jul. Con el plazo contado desde la **fecha del
+registro**, ese registro nace **inmediatamente vencido** (`FechaLimiteValidacion` = 09-jul). Y un
+vencido sin confirmar **bloquea el alta de días nuevos**. O sea: *llenar el hueco vuelve a trabar el
+lote*, salvo que se confirme en el acto.
+
+Dos consecuencias concretas para quien lo implemente:
+
+1. **La exención de §9.1 tiene que ser «el día que se crea es UN día faltante», no «es EL único
+   faltante».** Si no, el lote 12 de Ecuador —que tiene 4 huecos seguidos (17 al 20 de abril)— se
+   traba al llenar el primero: el 17 nace vencido y bloquea la creación del 18. Con la exención bien
+   escrita, los cuatro se pueden cargar de corrido.
+2. **Hace falta «guardar y validar» en el mismo paso, o «validar todos los pendientes del lote».**
+   Hoy el endpoint es `POST /{modulo}/{id}/validar`, de a uno, y el front valida fila por fila. Ya
+   estaba anotado en EC4 como requisito de UI para Panamá (que llegó a cargar 34 días en una sesión);
+   la regla de huecos lo vuelve **obligatorio**, no deseable.
+
+> Esto refuerza lo de §4.1-bis: **el cambio que resuelve el problema es el del bloqueo, no el del
+> plazo.** Pero mientras el plazo se cuente desde la fecha del registro, llenar un hueco exige
+> confirmar en el acto — y por eso los dos cambios conviene que viajen juntos.
+
+---
 
 ---
 

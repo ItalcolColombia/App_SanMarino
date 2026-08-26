@@ -95,3 +95,22 @@ FROM movimiento_pollo_engorde m
 JOIN lote_ave_engorde l ON l.lote_ave_engorde_id = m.lote_ave_engorde_origen_id
 JOIN companies c ON c.id = l.company_id
 GROUP BY 1,2 ORDER BY 1,3 DESC;
+
+\echo ''
+\echo '=== 5. LA LISTA DE TRABAJO: separa el hueco que hay que capturar del que no vale la pena ==='
+\echo '    (un lote que ademas es cola se va a liquidar igual: capturarle el hueco es trabajo tirado.'
+\echo '     Por eso el orden es LIQUIDAR PRIMERO, y recien despues exigir los huecos)'
+WITH h AS (
+  SELECT r.*, COUNT(*) AS huecos,
+         string_agg(to_char(d,'YYYY-MM-DD'), ', ' ORDER BY d) AS faltantes
+  FROM v_rango_lotes_engorde r
+  CROSS JOIN LATERAL generate_series(r.primer, r.ultimo, '1 day') d
+  WHERE NOT EXISTS (SELECT 1 FROM seguimiento_diario_aves_engorde s
+                    WHERE s.lote_ave_engorde_id = r.lote AND s.fecha::date = d::date)
+  GROUP BY r.lote, r.lote_nombre, r.empresa, r.granja, r.flag_on, r.encaset, r.primer, r.ultimo, r.registros
+)
+SELECT CASE WHEN CURRENT_DATE - ultimo - 1 > 7 THEN '2. tambien es COLA -> liquidar, no capturar'
+            ELSE '1. lote VIVO -> capturar el dia' END AS que_hacer,
+       empresa, granja, lote, lote_nombre,
+       CURRENT_DATE - encaset AS edad_dias, huecos, faltantes
+FROM h ORDER BY 1, 2, 3, 4;
