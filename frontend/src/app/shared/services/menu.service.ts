@@ -6,7 +6,8 @@ import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
   faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
-  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
+  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
+  faDna
 } from '@fortawesome/free-solid-svg-icons';
 import { environment } from '../../../environments/environment';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
@@ -41,6 +42,9 @@ export interface UiMenuItem {
 const ICON_MAP: Record<string, IconDefinition> = {
   'tachometer-alt': faTachometerAlt,
   'clipboard-list': faClipboardList,
+  // El item «Guia Genetica Pollo Engorde» se sembro con icon='dna' y esta clave no estaba mapeada,
+  // asi que se dibujaba SIN icono. Medido el 26-ago-2026 contra la BD (menus.id=51).
+  'dna':            faDna,
   'calendar-day':   faCalendarDay,
   'chart-bar':      faChartBar,
   'chart-line':     faChartLine,
