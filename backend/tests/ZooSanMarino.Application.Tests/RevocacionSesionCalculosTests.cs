@@ -1,4 +1,4 @@
-using ZooSanMarino.Application.Calculos;
+﻿using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.Application.Tests;
 
@@ -283,6 +283,128 @@ public class RevocacionSesionCalculosTests
         Assert.NotEqual(EstadoSesion.Legado, EstadoSesion.NoVerificable);
         Assert.False(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.Legado));
         Assert.True(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+    }
+
+    // ─────────── Fechas de la base: hora LOCAL, no UTC (26-ago-2026) ───────────
+    //
+    // ⚠️ LIMITE DE ESTOS TESTS, LEER ANTES DE CONFIAR EN EL VERDE: reproducen el defecto con
+    // `.ToLocalTime()`, o sea con el offset DE LA MAQUINA QUE LOS CORRE. En una maquina en UTC
+    // `ToLocalTime()` es un no-op y estos tests pasan tanto con el arreglo como sin el: son
+    // correctos, pero VACIOS. Los runners de GitHub Actions corren en UTC.
+    //
+    // O sea: este defecto NO EXISTE en una maquina en UTC, y por lo tanto ningun test unitario lo
+    // puede atrapar ahi. Muerden en las maquinas de desarrollo (-05) y la evidencia real del arreglo
+    // es el SMOKE HTTP del plan (fila con `expires_at = now() + 1 hora`: antes 401 `token-expirado`,
+    // despues 200). Verde en CI no significa "verificado" para este caso puntual.
+    //
+    // `Program.cs` activa Npgsql.EnableLegacyTimestampBehavior, asi que un `timestamptz` vuelve como
+    // DateTime con Kind = Local. La comparacion de DateTime en .NET es NUMERICA e ignora el Kind, asi
+    // que sin normalizar toda fecha de la base parece 5 h mas temprana (maquina en -05).
+    //
+    // Medido contra el backend real: una sesion que vencia en 1 HORA daba 401 `token-expirado` con la
+    // fila viva en la base; la misma fila con 7 horas pasaba. A cada sesion se le recortaban 5 h de
+    // las 16 configuradas.
+
+    /// <summary>El caso medido: vence dentro de una hora, expresado en hora local.</summary>
+    [Fact]
+    public void T20_VenceEnUnaHoraEnHoraLocal_EsValida()
+    {
+        var venceEnUnaHora = Ahora.AddHours(1).ToLocalTime();   // Kind = Local, como llega de la base
+
+        var estado = RevocacionSesionCalculos.Evaluar(
+            Jti, hayFila: true, revokedAt: null, expiresAt: venceEnUnaHora, ahoraUtc: Ahora);
+
+        Assert.Equal(EstadoSesion.Valida, estado);
+    }
+
+    /// <summary>Y el arreglo no vuelve inmortal a nadie: lo vencido de verdad sigue vencido.</summary>
+    [Fact]
+    public void T21_VencidaHaceUnaHoraEnHoraLocal_SigueVencida()
+    {
+        var vencioHaceUnaHora = Ahora.AddHours(-1).ToLocalTime();
+
+        var estado = RevocacionSesionCalculos.Evaluar(
+            Jti, hayFila: true, revokedAt: null, expiresAt: vencioHaceUnaHora, ahoraUtc: Ahora);
+
+        Assert.Equal(EstadoSesion.Vencida, estado);
+    }
+
+    /// <summary>Con Kind = Utc el resultado es el de siempre: el arreglo no movio el caso que andaba.</summary>
+    [Theory]
+    [InlineData(1, EstadoSesion.Valida)]
+    [InlineData(-1, EstadoSesion.Vencida)]
+    public void T22_ConKindUtc_ElComportamientoNoSeMovio(int horas, EstadoSesion esperado)
+    {
+        var estado = RevocacionSesionCalculos.Evaluar(
+            Jti, hayFila: true, revokedAt: null, expiresAt: Ahora.AddHours(horas), ahoraUtc: Ahora);
+
+        Assert.Equal(esperado, estado);
+    }
+
+    /// <summary>`Unspecified` se sigue asumiendo UTC — semantica previa, conservada a proposito.</summary>
+    [Fact]
+    public void T23_KindUnspecified_SeSigueAsumiendoUtc()
+    {
+        var comoUtcSinKind = DateTime.SpecifyKind(Ahora.AddHours(1), DateTimeKind.Unspecified);
+
+        Assert.Equal(
+            EstadoSesion.Valida,
+            RevocacionSesionCalculos.Evaluar(
+                Jti, hayFila: true, revokedAt: null, expiresAt: comoUtcSinKind, ahoraUtc: Ahora));
+
+        Assert.Equal(Ahora, RevocacionSesionCalculos.AUtc(DateTime.SpecifyKind(Ahora, DateTimeKind.Unspecified)));
+    }
+
+    /// <summary>La precedencia no se movio: revocada gana sobre vencida, tambien en hora local.</summary>
+    [Fact]
+    public void T24_RevocadaGanaSobreVencida_TambienEnHoraLocal()
+    {
+        var estado = RevocacionSesionCalculos.Evaluar(
+            Jti,
+            hayFila: true,
+            revokedAt: Ahora.AddMinutes(-5),
+            expiresAt: Ahora.AddHours(-1).ToLocalTime(),
+            ahoraUtc: Ahora);
+
+        Assert.Equal(EstadoSesion.Revocada, estado);
+    }
+
+    /// <summary>
+    /// `last_seen_at` recien escrito, en hora local, NO debe reescribirse: sin normalizar la
+    /// antiguedad sale inflada el offset de la maquina y el throttle no frena nunca.
+    /// </summary>
+    [Fact]
+    public void T25_UltimaVistaRecienEscritaEnHoraLocal_NoSeReescribe()
+    {
+        var haceUnMinuto = Ahora.AddMinutes(-1).ToLocalTime();
+
+        Assert.False(RevocacionSesionCalculos.DebeActualizarUltimaVista(haceUnMinuto, Ahora));
+    }
+
+    /// <summary>Pero una vista vieja de verdad si se reescribe.</summary>
+    [Fact]
+    public void T26_UltimaVistaViejaEnHoraLocal_SeReescribe()
+    {
+        var haceUnDia = Ahora.AddDays(-1).ToLocalTime();
+
+        Assert.True(RevocacionSesionCalculos.DebeActualizarUltimaVista(haceUnDia, Ahora));
+    }
+
+    /// <summary>El TTL de cache tampoco sale recortado por el offset.</summary>
+    [Fact]
+    public void T27_TtlCache_ConExpiracionEnHoraLocal_NoSaleRecortado()
+    {
+        var venceEnUnaHora = Ahora.AddHours(1).ToLocalTime();
+
+        var ttl = RevocacionSesionCalculos.TtlCache(EstadoSesion.Revocada, venceEnUnaHora, Ahora);
+
+        Assert.Equal(TimeSpan.FromHours(1), ttl);
+    }
+
+    [Fact]
+    public void T28_AUtc_ConNull_DevuelveNull()
+    {
+        Assert.Null(RevocacionSesionCalculos.AUtc((DateTime?)null));
     }
 
     [Fact]

@@ -3567,3 +3567,33 @@ Plan: [`fase_de_desarrollo/menu_efectivo_por_empresa_plan.md`](fase_de_desarroll
       **7 horas** pasa. En producción eso no desloguea a nadie de golpe, pero **recorta 5 h a cada
       sesión** de las 16 h configuradas (`DurationInMinutes: 960`), y el usuario lo ve como «la sesión
       expiró» antes de tiempo. No se tocó: es del módulo de sesiones, no de menús.
+
+---
+
+## SESION-UTC — La revocacion de sesion juzga las fechas 5 h antes (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/sesion_b1_fecha_local_vs_utc_plan.md`](fase_de_desarrollo/sesion_b1_fecha_local_vs_utc_plan.md)
+
+> Sale del smoke del bloque MENU-EMP. El usuario pidio arreglarlo en su propio commit.
+
+- [x] **Defecto medido**: una sesion que vence en 1 h da `401 token-expirado`; la misma fila con 7 h
+      da 200. El salto es el offset de la maquina.
+- [x] **`Kind` confirmado, no supuesto**: `/api/Session/mias` devuelve `...-05:00` y System.Text.Json
+      solo emite offset para `Kind = Local` ⇒ `ToUniversalTime()` es la conversion correcta.
+- [x] **Alcance acotado**: las comparaciones que corren **en SQL** estan bien (verificado: una fila
+      vencida hace 2 h no aparece en `/mias`). Solo fallan las de **memoria**: `Evaluar` y
+      `DebeActualizarUltimaVista`.
+- [x] **La normalizacion va en la parte PURA** (`RevocacionSesionCalculos.AUtc`), no en el service:
+      asi queda cubierta por tests y ningun call site futuro puede pasar una fecha cruda de la base.
+- [x] **Sin tocar**: el switch legacy de `Program.cs` (cambia el mapeo de fechas de TODO el proyecto),
+      `ToDto` (el JSON con offset ya lleva el instante correcto) y las consultas que filtran en SQL.
+- [x] **Tests**: 9 casos nuevos, suite entera en **3307 verde** (+10). ⚠️ **Con una advertencia
+      escrita en el propio archivo**: reproducen el defecto con `.ToLocalTime()`, o sea con el offset
+      de la maquina. En una maquina en **UTC** el defecto NO EXISTE y estos tests pasan con arreglo y
+      sin el — son correctos pero VACIOS. Los runners de CI son UTC, asi que **el verde de CI no
+      verifica este caso**; la evidencia real es el smoke.
+- [x] **Validacion**: `dotnet build` limpio (0 err / 0 warn) + `dotnet test` 3307 verde + **smoke
+      HTTP**: fila que vence en **1 hora** ⇒ antes `401 token-expirado`, ahora **200**. Y los tres
+      controles siguen firmes — vencida hace 1 minuto ⇒ 401 `token-expirado`, revocada ⇒ 401
+      `sesion-revocada`, sin fila ⇒ 401 `sesion-revocada`. **El borde quedo exacto.** Filas de smoke
+      borradas y puertos libres.

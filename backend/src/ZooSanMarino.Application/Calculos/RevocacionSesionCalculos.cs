@@ -110,7 +110,10 @@ public static class RevocacionSesionCalculos
     /// <param name="jti">Claim <c>jti</c> del token, o <c>null</c> si el token es anterior a B1.</param>
     /// <param name="hayFila">¿Existe fila en <c>sesiones_activas</c> para ese <c>jti</c>?</param>
     /// <param name="revokedAt">Momento de revocación de la fila, o <c>null</c> si sigue activa.</param>
-    /// <param name="expiresAt">Vencimiento de la fila (mismo instante que el <c>exp</c> del token).</param>
+    /// <param name="expiresAt">
+    /// Vencimiento de la fila (mismo instante que el <c>exp</c> del token). Llega crudo de la base:
+    /// se normaliza acá con <see cref="AUtc(DateTime?)"/>.
+    /// </param>
     /// <param name="ahoraUtc">Reloj, inyectado para poder testear los bordes.</param>
     public static EstadoSesion Evaluar(
         string? jti,
@@ -131,11 +134,58 @@ public static class RevocacionSesionCalculos
             return EstadoSesion.Revocada;
 
         // `<=` coherente con ClockSkew = Zero en TokenValidationParameters.
-        if (expiresAt.HasValue && expiresAt.Value <= ahoraUtc)
+        // La normalización NO es decorativa: `expiresAt` viene de un `timestamptz` y llega en hora
+        // local. Ver AUtc.
+        var vence = AUtc(expiresAt);
+        if (vence.HasValue && vence.Value <= AUtc(ahoraUtc))
             return EstadoSesion.Vencida;
 
         return EstadoSesion.Valida;
     }
+
+    /// <summary>
+    /// Lleva a UTC una fecha que puede venir de la base.
+    ///
+    /// <para>
+    /// <b>Por qué hace falta.</b> <c>Program.cs</c> activa
+    /// <c>Npgsql.EnableLegacyTimestampBehavior</c>, y con ese switch una columna <c>timestamptz</c>
+    /// vuelve como <c>DateTime</c> con <b><c>Kind = Local</c></b> —convertida a la hora de la
+    /// máquina—. Comparar eso contra <c>DateTime.UtcNow</c> compara peras con manzanas: la
+    /// comparación de <c>DateTime</c> en .NET es <b>numérica e ignora el <c>Kind</c></b>, así que en
+    /// una máquina en −05 toda fecha de la base parece 5 horas más temprana de lo que es.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Medido el 26-ago-2026:</b> una sesión que vencía en 1 hora se rechazaba con
+    /// <c>token-expirado</c> teniendo la fila viva en la base; la misma fila con 7 horas pasaba. O
+    /// sea: <b>a cada sesión se le recortaban 5 horas</b>. Que el <c>Kind</c> es <c>Local</c> —y no
+    /// <c>Unspecified</c>— está confirmado por el JSON de <c>GET /api/Session/mias</c>, que sale con
+    /// offset <c>-05:00</c>, y System.Text.Json sólo lo emite para <c>Local</c>. Por eso la
+    /// conversión correcta es <c>ToUniversalTime()</c> y no un <c>SpecifyKind</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Sólo pasa en memoria.</b> Los filtros que EF traduce a SQL (<c>ExpiresAt &gt; ahora</c>
+    /// dentro de un <c>Where</c>) están bien: compara Postgres y el parámetro viaja con el instante
+    /// correcto — verificado, una fila vencida hace 2 h no aparece en <c>/api/Session/mias</c>. La
+    /// regla al tocar fechas en este repo: <b>en SQL está bien, en memoria hay que normalizar</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>Unspecified</c> se sigue asumiendo UTC, igual que antes: con el switch legacy puesto esta
+    /// tabla nunca lo devuelve, y cambiar esa rama movería el comportamiento de quien pase una fecha
+    /// que no viene de la base.
+    /// </para>
+    /// </summary>
+    public static DateTime AUtc(DateTime valor) => valor.Kind switch
+    {
+        DateTimeKind.Utc => valor,
+        DateTimeKind.Local => valor.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(valor, DateTimeKind.Utc),
+    };
+
+    /// <inheritdoc cref="AUtc(DateTime)"/>
+    public static DateTime? AUtc(DateTime? valor) => valor.HasValue ? AUtc(valor.Value) : null;
 
     /// <summary>
     /// ¿El estado deja pasar el request? Sólo <see cref="EstadoSesion.Valida"/> (la sesión existe y
@@ -170,9 +220,12 @@ public static class RevocacionSesionCalculos
         DateTime ahoraUtc,
         TimeSpan? umbral = null)
     {
-        if (!ultimaVista.HasValue) return true;
+        // `ultimaVista` sale de `last_seen_at` (timestamptz) y llega en hora local: sin normalizar,
+        // la antigüedad se infla el offset de la máquina y el throttle nunca frena. Ver AUtc.
+        var vista = AUtc(ultimaVista);
+        if (!vista.HasValue) return true;
         var ventana = umbral ?? UmbralUltimaVistaPorDefecto;
-        return ahoraUtc - ultimaVista.Value >= ventana;
+        return AUtc(ahoraUtc) - vista.Value >= ventana;
     }
 
     /// <summary>
@@ -223,7 +276,9 @@ public static class RevocacionSesionCalculos
         if (estado == EstadoSesion.NoVerificable)
             return TimeSpan.Zero;
 
-        var restante = expiracionToken - ahoraUtc;
+        // Normalizado por la misma razón que en Evaluar: `InvalidarCache` llama acá con el
+        // `expires_at` de la fila, que llega en hora local. Ver AUtc.
+        var restante = AUtc(expiracionToken) - AUtc(ahoraUtc);
         return restante > TimeSpan.Zero ? restante : TimeSpan.Zero;
     }
 }
