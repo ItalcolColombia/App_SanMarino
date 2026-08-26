@@ -58,10 +58,76 @@ public record PendientesValidacionDto(
 /// <param name="ItemsAplicados">Cuántas líneas de alimento pasaron de separadas a consumidas.</param>
 /// <param name="KgAplicados">Kilos totales descontados del inventario.</param>
 /// <param name="AvesDescontadas">Aves descontadas del maestro del lote.</param>
+/// <param name="YaEstabaValidado">
+/// True cuando el registro ya venía validado y no se hizo nada. Existe por la validación en bloque:
+/// sin este dato, «lo validé yo ahora y no aplicó nada» (un día sin consumo ni bajas) y «otra pestaña
+/// ya lo había validado» son el mismo <c>(0, 0, 0)</c>, y el conteo del bloque mentiría.
+/// </param>
 public record ResultadoValidacionDto(
     string Modulo,
     long SeguimientoId,
     int ItemsAplicados,
     decimal KgAplicados,
-    int AvesDescontadas
+    int AvesDescontadas,
+    bool YaEstabaValidado = false
+);
+
+/// <summary>
+/// Una línea del reporte de la validación en bloque: qué pasó con cada registro.
+/// </summary>
+/// <param name="SeguimientoId">Registro de la tabla de su módulo.</param>
+/// <param name="Fecha">Día del seguimiento.</param>
+/// <param name="Resultado">Uno de <see cref="DesenlaceValidacionEnBloque"/>.</param>
+/// <param name="ItemsAplicados">Líneas de alimento que pasaron de separadas a consumidas.</param>
+/// <param name="KgAplicados">Kilos descontados por este registro.</param>
+/// <param name="AvesDescontadas">Aves descontadas por este registro.</param>
+/// <param name="Motivo">Por qué falló. Sólo viene en el registro que cortó el bloque.</param>
+public record ResultadoValidacionEnBloqueItemDto(
+    long SeguimientoId,
+    DateOnly Fecha,
+    string Resultado,
+    int ItemsAplicados,
+    decimal KgAplicados,
+    int AvesDescontadas,
+    string? Motivo
+);
+
+/// <summary>
+/// Resultado de validar en bloque los pendientes de un lote.
+///
+/// <para>
+/// <b><c>NoIntentados</c> no son fallas.</b> El bloque corta en la primera y deja el resto sin
+/// intentar; separarlos es lo que permite decirle al operario «corregí ese registro y volvé a
+/// validar» en vez de un «fallaron 15» que no señala nada.
+/// </para>
+/// </summary>
+/// <param name="Modulo">Uno de <see cref="ModuloSeguimiento"/>.</param>
+/// <param name="LoteId">Clave numérica del lote en ese módulo.</param>
+/// <param name="Solicitados">Cuántos pendientes tenía el lote. Es la suma de los cuatro conteos.</param>
+/// <param name="Validados">Validados en esta corrida (con o sin efecto).</param>
+/// <param name="YaValidados">Ya venían validados; no se tocaron.</param>
+/// <param name="Fallidos">0 o 1: el bloque corta en el primero.</param>
+/// <param name="NoIntentados">Quedaron después del corte, o fuera del tope.</param>
+/// <param name="KgAplicados">Kilos totales descontados por el bloque.</param>
+/// <param name="AvesDescontadas">Aves totales descontadas por el bloque.</param>
+/// <param name="SeguimientoCorte">Registro que cortó, si hubo.</param>
+/// <param name="FechaCorte">Día del registro que cortó.</param>
+/// <param name="MotivoCorte">Por qué cortó, en texto legible.</param>
+/// <param name="Mensaje">Texto listo para mostrar; la UI no concatena nada.</param>
+/// <param name="Detalle">Una línea por registro, en el orden en que se procesaron.</param>
+public record ResultadoValidacionEnBloqueDto(
+    string Modulo,
+    int LoteId,
+    int Solicitados,
+    int Validados,
+    int YaValidados,
+    int Fallidos,
+    int NoIntentados,
+    decimal KgAplicados,
+    int AvesDescontadas,
+    long? SeguimientoCorte,
+    DateOnly? FechaCorte,
+    string? MotivoCorte,
+    string Mensaje,
+    IReadOnlyList<ResultadoValidacionEnBloqueItemDto> Detalle
 );

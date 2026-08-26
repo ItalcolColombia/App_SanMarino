@@ -87,6 +87,18 @@ public interface IValidacionSeguimientoService
     Task<ResultadoValidacionDto> ValidarAsync(string modulo, long seguimientoId, CancellationToken ct = default);
 
     /// <summary>
+    /// Valida en bloque todos los pendientes de un lote, en <b>orden cronológico</b> y cortando en la
+    /// primera falla. Cada registro va en su propia transacción, así que el éxito es parcial y
+    /// reintentar retoma donde paró.
+    ///
+    /// <para>
+    /// Existe porque validar de a uno no escala: ItalcolPanama llegó a cargar 34 días en una sesión, y
+    /// con el plazo contado desde la creación esos días entran completos y vencen todos juntos.
+    /// </para>
+    /// </summary>
+    Task<ResultadoValidacionEnBloqueDto> ValidarPendientesDelLoteAsync(string modulo, int loteId, CancellationToken ct = default);
+
+    /// <summary>
     /// Deshace la validación: devuelve el alimento y las aves y vuelve a dejar el registro separado y
     /// editable. Requiere permiso propio — es la única vía para corregir un registro ya validado.
     /// </summary>
