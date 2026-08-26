@@ -3553,9 +3553,17 @@ Plan: [`fase_de_desarrollo/menu_efectivo_por_empresa_plan.md`](fase_de_desarroll
       claves que no matchean —deja los valores en default—, así que un rename en la fn dejaría el menú
       sin rutas y en silencio. Las `JsonSerializerOptions` viven en `MenuVisibilidadCalculos` para que
       el test use exactamente las del service.
-- [ ] ⏸️ **Smoke HTTP pendiente**: `ZooSanMarino.API` no compila ahora mismo por trabajo en curso de
-      **otra sesión** (`SeguimientoValidacionController.cs:88` llama a `ValidarPendientesDelLoteAsync`,
-      que todavía no existe en `IValidacionSeguimientoService` — es de EC7, no de este bloque). Falta
-      levantar el backend y pedir `GET /api/Roles/menus/me` como `admin.panama` cuando esa sesión
-      cierre. La verificación equivalente **ya está hecha a nivel BD**: el árbol que devuelve la fn
-      para ese usuario no trae ItalJira, Guía Genética ni Bandeja de gestión.
+- [x] **Smoke HTTP end-to-end** contra el backend real (`:5499`, binario recién compilado), como
+      `admin.panama@italcol.com` con la empresa saliendo del token —o sea el mismo camino que usa el
+      sidebar, que pide el menú **sin** `companyId`—: **HTTP 200**, 10 raíces / 25 ítems, y los **7**
+      menús reportados ausentes: ItalJira + Backlog + Tablero + Roadmap + Panel de control, Guía
+      Genética (27) y Bandeja de gestión (57). El resto del menú queda **idéntico**. La fila de sesión
+      del smoke se borró y los puertos quedaron libres.
+- [ ] 🔎 **Hallazgo aparte, NO de este bloque — B1 acorta toda sesión 5 horas.** `Program.cs:128` activa
+      `Npgsql.EnableLegacyTimestampBehavior`, así que `sesiones_activas.expires_at` (`timestamptz`)
+      vuelve de la BD como hora **local** (`Kind=Local`, −05) y `RevocacionSesionCalculos.Evaluar` la
+      compara contra `DateTime.UtcNow` — la comparación es numérica e ignora el `Kind`. Medido en el
+      smoke: una sesión que vence en **1 hora** se rechaza con `token-expirado`; la misma fila con
+      **7 horas** pasa. En producción eso no desloguea a nadie de golpe, pero **recorta 5 h a cada
+      sesión** de las 16 h configuradas (`DurationInMinutes: 960`), y el usuario lo ve como «la sesión
+      expiró» antes de tiempo. No se tocó: es del módulo de sesiones, no de menús.

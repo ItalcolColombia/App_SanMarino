@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/RoleCompositeService.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/RoleCompositeService.cs
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -618,105 +618,49 @@ public class RoleCompositeService : IRoleCompositeService
         return BuildTree(list);
     }
 
+    /// <summary>
+    /// El menú efectivo del usuario dentro de una empresa.
+    ///
+    /// <para>
+    /// <b>Lo resuelve la BD, en una sola llamada.</b> Antes eran cuatro viajes a Postgres (roles →
+    /// keys de permiso → catálogo con su subquery de <c>menu_permissions</c> → menús asignados) más
+    /// el armado del árbol en memoria; <c>fn_menu_usuario</c> hace la relación entre las siete tablas
+    /// donde viven los índices y devuelve el árbol ya construido.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Y ahora respeta <c>company_menus</c>.</b> Hasta el 26-ago-2026 esta consulta no miraba esa
+    /// tabla, así que quitarle un módulo a una empresa no ocultaba nada: a ItalcolPanamá se le
+    /// colaban 7 menús que no tiene asignados (ItalJira entero, Guía Genética, Bandeja de gestión).
+    /// </para>
+    ///
+    /// <para>
+    /// La regla vive en la función SQL; su especificación ejecutable —y los tests que la fijan— en
+    /// <see cref="MenuVisibilidadCalculos"/>. Plan:
+    /// <c>fase_de_desarrollo/menu_efectivo_por_empresa_plan.md</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="companyId">
+    /// Empresa efectiva. <c>null</c> = sin recorte por empresa (modo administración). Los endpoints
+    /// caen a <c>ICurrentUser.CompanyId</c>, que es el que validó <c>ActiveCompanyMiddleware</c>.
+    /// </param>
     public async Task<IEnumerable<MenuItemDto>> Menus_GetForUserAsync(Guid userId, int? companyId)
     {
-        // Roles del usuario (scoped por compañía si aplica)
-        var roleIdsQuery = _ctx.UserRoles.AsNoTracking().Where(ur => ur.UserId == userId);
-        if (companyId is int cid) roleIdsQuery = roleIdsQuery.Where(ur => ur.CompanyId == cid);
-        var roleIds = await roleIdsQuery.Select(ur => ur.RoleId).Distinct().ToListAsync();
-
-        // Permisos agregados del usuario (por si el menú requiere keys)
-        var userPermKeys = await _ctx.RolePermissions
-            .AsNoTracking()
-            .Where(rp => roleIds.Contains(rp.RoleId))
-            .Select(rp => rp.Permission.Key)
-            .Distinct()
+        var filas = await _ctx.Database
+            .SqlQueryRaw<string>(
+                "SELECT fn_menu_usuario({0}::uuid, {1}::int)::text AS \"Value\"",
+                userId,
+                (object?)companyId ?? DBNull.Value)
             .ToListAsync();
 
-        // Catálogo completo de menús activos
-        var all = await _ctx.Menus
-            .AsNoTracking()
-            .Where(m => m.IsActive)
-            .Select(m => new
-            {
-                m.Id, m.Label, m.Icon, m.Route, m.Order, m.ParentId,
-                RequiredKeys = m.MenuPermissions.Select(mp => mp.Permission.Key).ToArray()
-            })
-            .ToListAsync();
+        var json = filas.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<MenuItemDto>();
 
-        if (all.Count == 0) return Array.Empty<MenuItemDto>();
-
-        var allById = all.ToDictionary(x => x.Id);
-
-        // IDs de menús asignados a los roles del usuario
-        var assignedIds = await _ctx.RoleMenus
-            .AsNoTracking()
-            .Where(rm => roleIds.Contains(rm.RoleId))
-            .Select(rm => rm.MenuId)
-            .Distinct()
-            .ToListAsync();
-
-        List<FlatMenu> toTree;
-
-        if (assignedIds.Count > 0)
-        {
-            // === MODO "por IDs de menú asignados": incluye ancestros de cada ID permitido ===
-            var include = new HashSet<int>();
-            foreach (var id in assignedIds)
-            {
-                if (!allById.TryGetValue(id, out var node)) continue;
-                include.Add(id);
-
-                // subir por la cadena de padres
-                var pid = node.ParentId;
-                while (pid.HasValue && allById.TryGetValue(pid.Value, out var parent))
-                {
-                    include.Add(parent.Id);
-                    pid = parent.ParentId;
-                }
-            }
-
-            // (Opcional) validar permissions de cada menú.
-            // NOTA: sin `dynamic` — las extension methods de LINQ (Intersect) no se resuelven
-            // por dynamic dispatch y lanzan RuntimeBinderException cuando RequiredKeys != vacío.
-            // Se usa el tipo anónimo directo, igual que la rama de fallback de abajo.
-            var filtered = all
-                .Where(m => include.Contains(m.Id) &&
-                            (m.RequiredKeys.Length == 0 ||
-                             m.RequiredKeys.Intersect(userPermKeys, StringComparer.OrdinalIgnoreCase).Any()))
-                .OrderBy(m => m.ParentId).ThenBy(m => m.Order)
-                .Select(m => new FlatMenu(m.Id, m.Label, m.Icon, m.Route, m.Order, m.ParentId))
-                .ToList();
-
-            toTree = filtered;
-        }
-        else
-        {
-            // === Fallback: si no hay role_menus, filtra por permissions (como lo tenías) e incluye ancestros ===
-            var allowedByPerm = all.Where(m =>
-                m.RequiredKeys.Length == 0 ||
-                m.RequiredKeys.Intersect(userPermKeys, StringComparer.OrdinalIgnoreCase).Any()
-            ).ToList();
-
-            var include = new HashSet<int>(allowedByPerm.Select(x => x.Id));
-            foreach (var node in allowedByPerm)
-            {
-                var pid = node.ParentId;
-                while (pid.HasValue && allById.TryGetValue(pid.Value, out var parent))
-                {
-                    include.Add(parent.Id);
-                    pid = parent.ParentId;
-                }
-            }
-
-            toTree = all
-                .Where(x => include.Contains(x.Id))
-                .OrderBy(x => x.ParentId).ThenBy(x => x.Order)
-                .Select(x => new FlatMenu(x.Id, x.Label, x.Icon, x.Route, x.Order, x.ParentId))
-                .ToList();
-        }
-
-        return BuildTree(toTree);
+        // Las opciones viven en MenuVisibilidadCalculos para que el test que fija el contrato del
+        // JSON use exactamente las mismas.
+        return System.Text.Json.JsonSerializer.Deserialize<MenuItemDto[]>(
+                   json, MenuVisibilidadCalculos.OpcionesJson)
+               ?? Array.Empty<MenuItemDto>();
     }
 
     public async Task<MenuItemDto> Menus_CreateAsync(CreateMenuDto dto)

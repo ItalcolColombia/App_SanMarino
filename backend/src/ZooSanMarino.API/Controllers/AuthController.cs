@@ -1,4 +1,4 @@
-// src/ZooSanMarino.API/Controllers/AuthController.cs
+﻿// src/ZooSanMarino.API/Controllers/AuthController.cs
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -22,6 +22,7 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly InputSanitizerService _sanitizer;
     private readonly IEmailQueueService _emailQueue;
+    private readonly ICurrentUser _currentUser;
 
     public AuthController(
         IAuthService auth, 
@@ -30,7 +31,8 @@ public class AuthController : ControllerBase
         IRecaptchaService recaptcha,
         IConfiguration configuration,
         InputSanitizerService sanitizer,
-        IEmailQueueService emailQueue)
+        IEmailQueueService emailQueue,
+        ICurrentUser currentUser)
     {
         _auth = auth;
         _logger = logger;
@@ -39,6 +41,7 @@ public class AuthController : ControllerBase
         _configuration = configuration;
         _sanitizer = sanitizer;
         _emailQueue = emailQueue;
+        _currentUser = currentUser;
     }
 
     /// <summary>Inicia sesión con correo y contraseña (datos encriptados).</summary>
@@ -440,6 +443,23 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// La empresa contra la que se resuelve el menú.
+    ///
+    /// <para>
+    /// El front pide el menú sin <c>companyId</c>, y sin empresa se armaba con los roles del usuario
+    /// en TODAS sus empresas y sin poder aplicar el gate de <c>company_menus</c>. Se cae a
+    /// <c>ICurrentUser.CompanyId</c>: la empresa activa que <c>ActiveCompanyMiddleware</c> ya validó
+    /// contra <c>UserCompanies</c>, nunca el header crudo. Mismo criterio que en
+    /// <c>RolesController.EmpresaEfectiva</c>.
+    /// </para>
+    /// </summary>
+    private int? EmpresaEfectiva(int? companyIdDeLaQuery)
+    {
+        if (companyIdDeLaQuery is int explicito && explicito > 0) return explicito;
+        return _currentUser.CompanyId > 0 ? _currentUser.CompanyId : null;
+    }
+
     /// <summary>Obtiene el menú del usuario autenticado (datos encriptados).</summary>
     [Authorize]
     [HttpGet("menu")]
@@ -453,7 +473,7 @@ public class AuthController : ControllerBase
         try
         {
             // 1. Obtener menú del usuario usando el servicio de autenticación
-            var effectiveMenu = await _auth.GetMenuForUserAsync(userId!.Value, companyId);
+            var effectiveMenu = await _auth.GetMenuForUserAsync(userId!.Value, EmpresaEfectiva(companyId));
             
             // 2. También obtener MenusByRole para compatibilidad
             var menusByRole = await _auth.GetMenusByRoleForUserAsync(userId.Value);

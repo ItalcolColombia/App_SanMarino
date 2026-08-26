@@ -158,8 +158,8 @@ public class RolesController : ControllerBase
         if (!Guid.TryParse(idStr, out var userId))
             return Unauthorized(new { message = "No se pudo determinar el GUID del usuario." });
 
-        var menu = await _svc.Menus_GetForUserAsync(userId, companyId);
-        
+        var menu = await _svc.Menus_GetForUserAsync(userId, EmpresaEfectiva(companyId));
+
         // Obtener información del país activo
         var paisId = _currentUser.PaisId;
         string? paisNombre = null;
@@ -193,7 +193,26 @@ public class RolesController : ControllerBase
     [Authorize(Policy = "CanManageUsers")]
     [ProducesResponseType(typeof(IEnumerable<MenuItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MenusForUser(Guid userId, [FromQuery] int? companyId = null)
-        => Ok(await _svc.Menus_GetForUserAsync(userId, companyId));
+        => Ok(await _svc.Menus_GetForUserAsync(userId, EmpresaEfectiva(companyId)));
+
+    /// <summary>
+    /// La empresa contra la que se resuelve el menú.
+    ///
+    /// <para>
+    /// El sidebar llama a <c>menus/me</c> <b>sin</b> <c>companyId</c> (<c>MenuService.ensureLoaded()</c>
+    /// no lo manda), y sin empresa el menú se armaba con los roles del usuario en TODAS sus empresas
+    /// y sin poder aplicar el gate de <c>company_menus</c>. Se cae a <c>ICurrentUser.CompanyId</c>,
+    /// que es la empresa activa que <c>ActiveCompanyMiddleware</c> ya validó contra
+    /// <c>UserCompanies</c> — nunca el header crudo.
+    /// </para>
+    ///
+    /// <para>Sin empresa resoluble queda <c>null</c> y se comporta como antes.</para>
+    /// </summary>
+    private int? EmpresaEfectiva(int? companyIdDeLaQuery)
+    {
+        if (companyIdDeLaQuery is int explicito && explicito > 0) return explicito;
+        return _currentUser.CompanyId > 0 ? _currentUser.CompanyId : null;
+    }
 
     // Las tres escrituras de abajo tocan el árbol de menús GLOBAL (el mismo que MenuController):
     // reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión válida.
