@@ -3214,3 +3214,33 @@ análisis y la validación con datos.
 - [ ] ⏸️ **Implementación: otra sesión.** Alcance estimado en §6 del plan (la regla en
       `ValidacionSeguimientoCalculos`, sus llamadores, el `createdAt` que hay que hacer viajar al
       front porque el estado se calcula en el cliente, y la migración solo para el flag de Ecuador).
+
+### EC4.1 — Aclaración del usuario: el bloqueo se queda y se vuelve más estricto (25-ago-2026)
+
+- [x] ✅ **Resuelta la pregunta abierta de EC4**: el usuario confirmó que **NO quiere quitar el
+      bloqueo**. La regla que quiere es *«el día anterior debe estar confirmado para poder continuar
+      al día siguiente»*.
+- [x] 🔴 **Señalado que eso NO es el comportamiento actual: es más estricto.** Hoy bloquea «hay algún
+      VENCIDO», y un registro de ayer sin validar sigue **PENDIENTE** dentro del plazo de 1 día ⇒ hoy
+      **no** bloquea. Medido en este momento: el lote 177 bloquea con las dos reglas, pero el **lote
+      180 no bloquea hoy y sí bloquearía** con la regla nueva. La regla elimina la gracia de un día.
+- [x] 🔴 **El hallazgo que reordena todo el plan EC4**: si el bloqueo pasa a colgar de «el anterior
+      confirmado», **deja de depender del plazo** ⇒ el cambio `fecha → created_at` **pasa a ser
+      cosmético** (solo colorea la alerta). Los tres parches (`ModoCargaHistorica`, el cruce, el push
+      offline) dejarían de hacer falta **por el cambio de bloqueo**, no por el del plazo.
+      La secuencia recomendada quedó reordenada: **primero el bloqueo**, el plazo al final y opcional.
+- [x] **Costo operativo medido, y no es menor**: con la regla estricta, cargar N días exige N ciclos
+      cargar→validar alternados, y **hoy no existe validación en lote** (el endpoint es
+      `POST /{modulo}/{id}/validar`, de a uno; el front valida fila por fila). Últimos 30 días:
+      **Ecuador nunca carga más de 5 días juntos** (aguanta la regla tal cual); **Panamá cargó 6+ días
+      en una sesión 41 veces, con un pico de 34 días**. Hace falta «guardar y validar» **o** «validar
+      todos los pendientes del lote» junto con la regla.
+- [x] **Confirmado lo que planteó el usuario sobre las dos empresas**: Panamá depende de tener las
+      reproductoras al día —y con `14daf32` los 7 días del cruce nacen confirmados, así que dejan de
+      trabar—; Ecuador **no tiene reproductoras** (0 registros `origen_cruce`, verificado), su flujo
+      es captura normal desde el día 1.
+- [ ] ⏸️ **Falta cerrar una ambigüedad, y el número es grande**: ¿un día **FALTANTE** (nunca
+      capturado) también bloquea? Hoy no —el código solo mira registros existentes sin validar—. Con
+      esa lectura, **37 lotes abiertos de Panamá quedarían bloqueados el día del deploy** (40 huecos;
+      Ecuador tiene 1). Recomendado empezar por la lectura literal («el registro anterior», que
+      existe) y tratar los huecos como reporte aparte.
