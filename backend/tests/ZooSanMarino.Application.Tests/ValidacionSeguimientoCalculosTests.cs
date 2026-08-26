@@ -362,4 +362,145 @@ public class ValidacionSeguimientoCalculosTests
             ValidacionSeguimientoCalculos.Estado(false, fecha, new DateOnly(2026, 8, 22)));
     }
 
+    // ─── El plazo se cuenta desde la CREACIÓN ─────────────────────────────────
+    //
+    // Con el plazo contado desde `fecha`, un día viejo cargado hoy nacía EN_RETRASO en el mismo
+    // instante en que se guardaba — y un vencido sin validar bloquea el alta de días nuevos, así que
+    // el operario quedaba trabado por el registro que acababa de hacer. Medido el 25-ago-2026 sobre
+    // la copia de producción: en 30 días, el 89,5 % de la captura de ItalcolPanama (1.191 de 1.331) y
+    // el 14,1 % de la de ItalcolEcuador nacían ya vencidas.
+    //
+    // La regla la dijo el usuario: «debo tenerlas máximo para confirmar mañana, porque hoy las hice
+    // la creación, no de acuerdo a cuándo es».
+
+    /// <summary>
+    /// Equivalencia: para la captura del mismo día —el caso normal— las dos reglas dan idéntico.
+    /// Es el test que protege al 100 % del flujo diario de cambiar de comportamiento.
+    /// </summary>
+    [Theory]
+    [InlineData(0, EstadoValidacionSeguimiento.Pendiente)]   // hoy es el día del registro
+    [InlineData(1, EstadoValidacionSeguimiento.Pendiente)]   // día límite: todavía se valida
+    [InlineData(2, EstadoValidacionSeguimiento.EnRetraso)]   // ya venció
+    public void CapturaDelMismoDia_LasDosReglasDanIgual(int diasDespues, EstadoValidacionSeguimiento esperado)
+    {
+        var fecha = new DateOnly(2026, 8, 20);
+        var hoy = fecha.AddDays(diasDespues);
+
+        var conCreacion = ValidacionSeguimientoCalculos.Estado(false, fecha, fecha, hoy);
+        var sinCreacion = ValidacionSeguimientoCalculos.Estado(false, fecha, hoy);
+
+        Assert.Equal(esperado, conCreacion);
+        Assert.Equal(sinCreacion, conCreacion);
+    }
+
+    /// <summary>
+    /// El caso que motiva el cambio: un día de hace un mes, cargado HOY, no nace vencido — tiene su
+    /// día de plazo como cualquier otro. Con la regla vieja nacía EN_RETRASO y trababa el lote.
+    /// </summary>
+    [Fact]
+    public void DiaViejoCargadoHoy_NoNaceVencido()
+    {
+        var fecha = new DateOnly(2026, 7, 20);
+        var creacion = new DateOnly(2026, 8, 20);
+
+        Assert.Equal(new DateOnly(2026, 8, 21),
+            ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha, creacion));
+
+        // Hoy, recién creado: pendiente, no bloquea.
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, creacion));
+        Assert.False(ValidacionSeguimientoCalculos.EstaEnRetraso(false, fecha, creacion, creacion));
+
+        // La regla vieja lo daba por vencido en el mismo instante.
+        Assert.True(ValidacionSeguimientoCalculos.EstaEnRetraso(false, fecha, creacion));
+    }
+
+    /// <summary>El plazo no es indefinido: al día siguiente de crearlo, vence igual.</summary>
+    [Fact]
+    public void DiaViejoCargadoHoy_VenceAlDiaSiguienteDeCrearlo()
+    {
+        var fecha = new DateOnly(2026, 7, 20);
+        var creacion = new DateOnly(2026, 8, 20);
+
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, creacion.AddDays(1)));
+        Assert.Equal(EstadoValidacionSeguimiento.EnRetraso,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, creacion.AddDays(2)));
+    }
+
+    /// <summary>
+    /// Sin fecha de creación (filas viejas, sin auditoría) cae en el comportamiento previo, byte a
+    /// byte. Es lo que evita que el cambio reescriba el estado del histórico.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(30)]
+    public void SinFechaDeCreacion_ComportamientoPrevioIntacto(int diasDespues)
+    {
+        var fecha = new DateOnly(2026, 8, 20);
+        var hoy = fecha.AddDays(diasDespues);
+
+        Assert.Equal(
+            ValidacionSeguimientoCalculos.Estado(false, fecha, hoy),
+            ValidacionSeguimientoCalculos.Estado(false, fecha, null, hoy));
+        Assert.Equal(
+            ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha),
+            ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha, null));
+    }
+
+    /// <summary>
+    /// Un registro cargado por ANTICIPADO no arranca con menos plazo: el límite se cuenta desde la
+    /// fecha del seguimiento, no desde una creación anterior. Por eso la fórmula es
+    /// <c>max(fecha, creación)</c> y no <c>creación</c> a secas.
+    /// </summary>
+    [Fact]
+    public void RegistroCargadoPorAnticipado_ElPlazoNoSeAcorta()
+    {
+        var fecha = new DateOnly(2026, 8, 20);
+        var creacion = new DateOnly(2026, 8, 18);
+
+        Assert.Equal(new DateOnly(2026, 8, 21),
+            ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha, creacion));
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, fecha));
+    }
+
+    /// <summary>
+    /// Invariante de dirección: el límite nuevo nunca cae ANTES que el viejo. O sea, el cambio sólo
+    /// puede aflojar — no puede bloquear a nadie que hoy no esté bloqueado. Es lo que lo vuelve
+    /// seguro de desplegar sobre una empresa que ya tiene la regla encendida.
+    /// </summary>
+    [Theory]
+    [InlineData(-10)]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(45)]
+    public void ElLimiteNuevoNuncaEsMasEstrictoQueElViejo(int desfaseCreacion)
+    {
+        var fecha = new DateOnly(2026, 8, 20);
+        var creacion = fecha.AddDays(desfaseCreacion);
+
+        Assert.True(
+            ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha, creacion)
+                >= ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha),
+            $"con creación {creacion} el límite nuevo quedó antes que el viejo");
+    }
+
+    /// <summary>Un registro validado nunca está en retraso, venga de donde venga el plazo.</summary>
+    [Fact]
+    public void ValidadoNuncaEstaEnRetraso_TampocoConLaFechaDeCreacion()
+    {
+        var fecha = new DateOnly(2026, 7, 20);
+        var creacion = new DateOnly(2026, 8, 20);
+        var hoy = new DateOnly(2026, 9, 30);
+
+        Assert.Equal(EstadoValidacionSeguimiento.Validado,
+            ValidacionSeguimientoCalculos.Estado(true, fecha, creacion, hoy));
+        Assert.False(ValidacionSeguimientoCalculos.EstaEnRetraso(true, fecha, creacion, hoy));
+        Assert.Equal("VALIDADO",
+            ValidacionSeguimientoCalculos.EtiquetaEstado(true, fecha, creacion, hoy));
+    }
 }

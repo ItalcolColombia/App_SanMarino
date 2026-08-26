@@ -282,7 +282,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
     /// <c>RequiereValidacionAsync</c>, que también depende de la empresa activa.
     /// </para>
     /// </summary>
-    private async Task<IReadOnlyList<(long Id, DateOnly Fecha)>> LeerPendientesDelLoteAsync(
+    private async Task<IReadOnlyList<(long Id, DateOnly Fecha, DateOnly Creacion)>> LeerPendientesDelLoteAsync(
         string modulo, int loteId, CancellationToken ct)
     {
         var companyActiva = _current.CompanyId;
@@ -294,28 +294,30 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                 // El id puede venir como lote de postura-levante o como el `lote_id` legado (texto),
                 // así que la empresa se resuelve por el mismo camino que usa LeerEstadoAsync.
                 if (!EsDeLaEmpresaActiva(await LeerCompanyDelLoteLevanteAsync(loteId, ct)))
-                    return Array.Empty<(long, DateOnly)>();
+                    return Array.Empty<(long, DateOnly, DateOnly)>();
 
                 var filas = await _ctx.SeguimientoDiario.AsNoTracking()
                     .Where(s => !s.Validado && s.TipoSeguimiento == "levante"
                              && (s.LotePosturaLevanteId == loteId || s.LoteId == loteId.ToString()))
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Produccion:
             {
                 // Producción es la única tabla de seguimiento que lleva `company_id` en la propia
                 // fila, así que se filtra ahí mismo: acota las FILAS, no sólo el lote.
-                if (companyActiva <= 0) return Array.Empty<(long, DateOnly)>();
+                if (companyActiva <= 0) return Array.Empty<(long, DateOnly, DateOnly)>();
 
                 var filas = await _ctx.SeguimientoProduccion.AsNoTracking()
                     .Where(s => !s.Validado && s.DeletedAt == null
                              && s.CompanyId == companyActiva
                              && (s.LotePosturaProduccionId == loteId || s.LoteId == loteId))
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             // Ídem: la tabla partida devolvía SIEMPRE vacío (o 42P01 donde ni existe), así que el
             // semáforo no pintaba nada y el bloqueo por vencidos nunca se disparaba en engorde.
@@ -325,13 +327,14 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                 var companyEng = await _ctx.LoteAveEngorde.AsNoTracking()
                     .Where(l => l.LoteAveEngordeId == loteId && l.DeletedAt == null)
                     .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
-                if (!EsDeLaEmpresaActiva(companyEng)) return Array.Empty<(long, DateOnly)>();
+                if (!EsDeLaEmpresaActiva(companyEng)) return Array.Empty<(long, DateOnly, DateOnly)>();
 
                 var filas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                     .Where(s => !s.Validado && s.LoteAveEngordeId == loteId)
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Reproductora:
             {
@@ -341,16 +344,17 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Join(_ctx.LoteAveEngorde.AsNoTracking(),
                         l => l.LoteAveEngordeId, e => e.LoteAveEngordeId, (l, e) => e.CompanyId)
                     .FirstOrDefaultAsync(ct);
-                if (!EsDeLaEmpresaActiva(companyRep)) return Array.Empty<(long, DateOnly)>();
+                if (!EsDeLaEmpresaActiva(companyRep)) return Array.Empty<(long, DateOnly, DateOnly)>();
 
                 var filas = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
                     .Where(s => !s.Confirmado && s.LoteReproductoraAveEngordeId == loteId)
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             default:
-                return Array.Empty<(long, DateOnly)>();
+                return Array.Empty<(long, DateOnly, DateOnly)>();
         }
     }
 

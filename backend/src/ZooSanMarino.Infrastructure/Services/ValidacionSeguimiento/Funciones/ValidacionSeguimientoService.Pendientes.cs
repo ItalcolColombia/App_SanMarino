@@ -40,8 +40,8 @@ public partial class ValidacionSeguimientoService
                 SeguimientoId: p.Id,
                 Fecha: p.Fecha,
                 Validado: false,
-                Estado: ValidacionSeguimientoCalculos.EtiquetaEstado(false, p.Fecha, hoy),
-                FechaLimite: ValidacionSeguimientoCalculos.FechaLimiteValidacion(p.Fecha)))
+                Estado: ValidacionSeguimientoCalculos.EtiquetaEstado(false, p.Fecha, p.Creacion, hoy),
+                FechaLimite: ValidacionSeguimientoCalculos.FechaLimiteValidacion(p.Fecha, p.Creacion)))
             .ToList();
 
         var vencidos = registros.Count(r => r.Estado == "EN_RETRASO");
@@ -77,8 +77,11 @@ public partial class ValidacionSeguimientoService
         if (pendientes.Count == 0) return;
 
         var hoy = Hoy;
+        // El plazo se cuenta desde que el registro se CREÓ, no desde el día al que se refiere: si no,
+        // cargar un día viejo lo deja vencido en el mismo instante en que se guarda y el operario
+        // queda trabado por el registro que acaba de hacer.
         var vencidas = pendientes
-            .Where(p => ValidacionSeguimientoCalculos.EstaEnRetraso(false, p.Fecha, hoy))
+            .Where(p => ValidacionSeguimientoCalculos.EstaEnRetraso(false, p.Fecha, p.Creacion, hoy))
             .Select(p => p.Fecha)
             .ToList();
 

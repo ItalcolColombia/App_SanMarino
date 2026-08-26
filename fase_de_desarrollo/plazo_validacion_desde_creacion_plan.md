@@ -475,3 +475,97 @@ Dos consecuencias concretas para quien lo implemente:
 | «que muestre cuáles días no hay registro» | ✅ Implementable y ya medido — la lista concreta está en §9.5 y la reproduce `verificar_huecos_dias_seguimiento_engorde.sql`. |
 | «que el campo fecha me deje agregar el día que hace falta» | ✅ **Verificado punta a punta** (§9.2): el input no tiene `min`/`max`, el índice único impide duplicar, la ventana retroactiva no aplica a seguimientos y al insertar un día del medio se recalcula el lote entero. |
 | — | 🔴 **Lo único que hay que arreglar antes:** la guarda no recibe la fecha y bloquearía el POST que llena el hueco (§9.1). Es el mismo callejón sin salida del cruce, por otra puerta. |
+
+---
+
+## 11. ✅ IMPLEMENTADO (26-ago-2026): el plazo se cuenta desde la CREACIÓN
+
+> El usuario eligió la **ruta B** para destrabar el push offline de la PWA. Al implementarla apareció
+> que **la ruta B tal como estaba redactada en §5 no resolvía el caso**, y sí lo resuelve el cambio
+> que el propio usuario había descrito con sus palabras. Queda explicado abajo.
+
+### 11.1 🔴 Por qué el «paso 1» redactado no alcanzaba
+
+§5 y §4.1-bis proponían como paso 1 cambiar el **bloqueo** a «el registro anterior tiene que estar
+confirmado», y afirmaban que con eso los tres parches (`ModoCargaHistorica`, el cruce, el push
+offline) dejaban de hacer falta. **Para el push offline no es cierto**, y se ve simulando el caso:
+
+| Push de 5 días viejos, con el bloqueo = «el día anterior confirmado» | |
+|---|---|
+| Crear el día 1 | El día 0 no existe ⇒ **pasa** |
+| Crear el día 2 | El día 1 existe y está **sin confirmar** ⇒ **BLOQUEA** |
+
+El lote se traba en la segunda operación del mismo lote — exactamente el síntoma reportado. Cambiar
+*a qué registro mira* el bloqueo no ayuda cuando el registro que mira **lo acaba de crear el mismo
+push**.
+
+### 11.2 Lo que sí lo resuelve, y es lo que el usuario pidió primero
+
+> *«debo tenerlas máximo para confirmar mañana, porque hoy las hice la creación, no de acuerdo a
+> cuándo es»*
+
+El plazo pasa a contarse desde **`created_at`**, no desde `fecha`. Con eso:
+
+| Mismo push de 5 días viejos, con el plazo desde la creación | |
+|---|---|
+| Crear el día 1 | Nada vencido ⇒ pasa |
+| Crear el día 2 | El día 1 está sin validar pero **se creó hoy** ⇒ no está vencido ⇒ **pasa** |
+| Mañana | Los 5 vencen y **bloquean hasta que se confirmen** ⇒ la confirmación extra se mantiene |
+
+**Y el bloqueo NO se toca.** El usuario fue explícito dos veces en que quería conservarlo («no quiero
+quitar la validación de que el día vencido no me va a dejar crear otro»). La regla actual —cualquier
+vencido sin validar bloquea— ya cumple «el día anterior tiene que estar confirmado» y además es
+**más estricta**, así que restringirla al día inmediatamente anterior habría **aflojado** justo lo que
+se pidió reforzar. Se dejó como está.
+
+### 11.3 La fórmula, y por qué es `max`
+
+```
+FechaLimiteValidacion(fecha, creación) = max(fecha, creación) + 1 día
+```
+
+El `max` no es cosmético:
+
+- Un registro cargado **por anticipado** no arranca con menos plazo del que le corresponde.
+- **El límite nuevo es siempre ≥ el anterior** ⇒ el cambio sólo puede **aflojar**, nunca bloquear a
+  alguien que hoy no está bloqueado. Es la única dirección segura para desplegar sobre una empresa
+  que ya tiene la regla encendida en producción. Hay un test que fija ese invariante.
+- Sin `created_at` (filas viejas sin auditoría) cae en el comportamiento previo, byte a byte.
+
+### 11.4 Lo que cambia, medido sobre la copia de producción
+
+**Registros que nacían vencidos** en los últimos 30 días:
+
+| Empresa | Capturados | Nacían vencidos (regla vieja) | Nacen vencidos (regla nueva) |
+|---|---:|---:|---:|
+| **ItalcolPanama** | 1.331 | **1.191 (89,5 %)** | **0** |
+| **ItalcolEcuador** | 658 | **93 (14,1 %)** | **0** |
+
+O sea: **casi nueve de cada diez registros de Panamá nacían en rojo y trabando el lote**, y el
+operario quedaba bloqueado por el registro que acababa de hacer. Efecto sobre lo que hay hoy sin
+validar: 2 registros, 2 lotes bloqueados → 1.
+
+Ecuador es el dato que importa para el paso 4 de §5: con la regla vieja, encender el flag allí habría
+reproducido el problema **93 veces por mes**. Con ésta, ninguna.
+
+### 11.5 Qué se tocó
+
+| Capa | Archivo |
+|---|---|
+| Cálculo puro | `Application/Calculos/ValidacionSeguimientoCalculos.cs` — `FechaLimiteValidacion`, `Estado`, `EstaEnRetraso`, `EtiquetaEstado` reciben la creación. **Las sobrecargas viejas quedan** delegando con `null` ⇒ comportamiento previo |
+| Lectura | `ValidacionSeguimientoService.LeerPendientesDelLoteAsync` devuelve también `Creacion` (las 4 ramas) |
+| Consumidores | `ObtenerPendientesAsync` (semáforo y DTO) y `AsegurarPuedeRegistrarDiaAsync` (el bloqueo) |
+| Front (espejo) | `shared/funciones/estado-validacion-seguimiento.funcion.ts` — el respaldo del cliente usa `createdAt`/`fechaCreacion` si la fila lo trae |
+| Tests | **+16 casos**, incluido el de equivalencia para la captura del mismo día y el invariante de dirección |
+
+Sin migración: la regla no toca la BD. La migración sigue haciendo falta sólo para **encender el flag
+en Ecuador** (paso 4 de §5), que es una decisión aparte.
+
+### 11.6 Lo que queda de la secuencia de §5
+
+1. ~~Cambiar la regla del plazo~~ ✅ **hecho**.
+2. ⏸️ **Dar el apoyo de UI que la regla exige**: «guardar y validar» o «validar todos los pendientes
+   del lote». Hoy se valida de a uno y Panamá llegó a cargar 34 días en una sesión. **Sigue siendo el
+   siguiente paso**, y la regla de huecos (§9) lo vuelve obligatorio.
+3. ⏸️ Verificar una semana en Panamá, que ya tiene el flag encendido y es el caso extremo.
+4. ⏸️ Recién entonces encender el flag en Ecuador, por migración.

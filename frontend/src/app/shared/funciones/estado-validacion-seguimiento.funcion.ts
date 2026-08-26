@@ -10,7 +10,7 @@
 /** Estados posibles. Mismos literales que el backend, para poder comparar sin traducir. */
 export type EstadoValidacionSeguimiento = 'VALIDADO' | 'PENDIENTE' | 'EN_RETRASO';
 
-/** Plazo de validación en días, contado desde la fecha del seguimiento. */
+/** Plazo de validación en días, contado desde que el registro se CREÓ (ver `FilaValidable`). */
 export const DIAS_PLAZO_VALIDACION = 1;
 
 /** Forma mínima que necesita una fila para que se pueda decidir su estado. */
@@ -19,6 +19,16 @@ export interface FilaValidable {
   estadoValidacion?: string | null;
   fechaRegistro?: string | Date | null;
   fecha?: string | Date | null;
+  /**
+   * Cuándo se guardó el registro. El plazo se cuenta desde acá y no desde `fecha`: si no, cargar un
+   * día viejo lo deja vencido en el mismo instante en que se guarda. Espeja
+   * `ValidacionSeguimientoCalculos.FechaLimiteValidacion(fecha, creacion)`, que usa
+   * `max(fecha, creación)` para que el límite nunca caiga antes de que el día exista.
+   *
+   * Si la fila no lo trae (DTO viejo, caché offline), se cae al comportamiento previo.
+   */
+  createdAt?: string | Date | null;
+  fechaCreacion?: string | Date | null;
 }
 
 /** Normaliza a día calendario local, ignorando la hora (las fechas viajan a mediodía UTC). */
@@ -50,7 +60,12 @@ export function estadoValidacion(fila: FilaValidable, hoy?: Date): EstadoValidac
   const fecha = aDia(fila?.fechaRegistro ?? fila?.fecha);
   if (!fecha) return 'PENDIENTE';
 
-  const limite = new Date(fecha);
+  // El plazo arranca en `max(fecha, creación)`: desde que se guardó, pero nunca antes de que el día
+  // al que se refiere haya existido. Sin la creación se cae al comportamiento previo.
+  const creacion = aDia(fila?.createdAt ?? fila?.fechaCreacion);
+  const desde = creacion && creacion > fecha ? creacion : fecha;
+
+  const limite = new Date(desde);
   limite.setDate(limite.getDate() + DIAS_PLAZO_VALIDACION);
 
   return hoyDia(hoy) > limite ? 'EN_RETRASO' : 'PENDIENTE';

@@ -130,26 +130,66 @@ public static class ValidacionSeguimientoCalculos
 
     // ─── Estado del registro ──────────────────────────────────────────────────
 
-    /// <summary>Último día en que el registro puede validarse sin quedar en retraso.</summary>
-    public static DateOnly FechaLimiteValidacion(DateOnly fechaSeguimiento) =>
-        fechaSeguimiento.AddDays(DiasPlazoValidacion);
+    /// <summary>
+    /// Último día en que el registro puede validarse sin quedar en retraso, contado <b>desde que se
+    /// creó</b>, no desde el día al que se refiere.
+    ///
+    /// <para>
+    /// <b>Por qué.</b> Con el plazo contado desde <c>fecha</c>, un día viejo cargado hoy nace
+    /// <c>EN_RETRASO</c> en el mismo instante en que se guarda, y un vencido sin validar bloquea el
+    /// alta de días nuevos: el operario queda trabado por el registro que acaba de hacer. Medido el
+    /// 25-ago-2026 sobre la copia de producción, en los últimos 30 días **el 89,5 % de la captura de
+    /// ItalcolPanama nacía ya vencida** (1.191 de 1.331) y el 14,1 % de la de ItalcolEcuador. La
+    /// regla que el usuario describió es la otra: «lo hice hoy, lo confirmo mañana».
+    /// </para>
+    ///
+    /// <para>
+    /// Se usa <c>max(fecha, creación)</c> a propósito: el plazo no puede vencer antes de que el día
+    /// exista (un registro cargado por anticipado no arranca con menos tiempo), y así el límite nuevo
+    /// es <b>siempre ≥ el anterior</b> ⇒ el cambio sólo puede aflojar, nunca bloquear a alguien que
+    /// hoy no está bloqueado. Es la dirección segura para una empresa con la regla ya encendida.
+    /// </para>
+    /// </summary>
+    /// <param name="fechaSeguimiento">Día al que se refiere el registro.</param>
+    /// <param name="fechaCreacion">Día en que se guardó. Si es <c>null</c> (filas viejas sin
+    /// auditoría) cae en el comportamiento previo: el plazo cuenta desde la fecha del seguimiento.</param>
+    public static DateOnly FechaLimiteValidacion(DateOnly fechaSeguimiento, DateOnly? fechaCreacion) =>
+        (fechaCreacion is { } creacion && creacion > fechaSeguimiento ? creacion : fechaSeguimiento)
+            .AddDays(DiasPlazoValidacion);
 
     /// <summary>
-    /// Estado derivado del registro. No se persiste: se calcula con la fecha del seguimiento y el día
-    /// de hoy, así un registro «pendiente» pasa solo a «en retraso» al cambiar el día, sin que nadie
-    /// tenga que correr un proceso.
+    /// Plazo contado desde la fecha del seguimiento. <b>Comportamiento previo</b>, conservado para los
+    /// llamadores que no tienen la fecha de creación a mano.
     /// </summary>
-    public static EstadoValidacionSeguimiento Estado(bool validado, DateOnly fechaSeguimiento, DateOnly hoy)
+    public static DateOnly FechaLimiteValidacion(DateOnly fechaSeguimiento) =>
+        FechaLimiteValidacion(fechaSeguimiento, null);
+
+    /// <summary>
+    /// Estado derivado del registro. No se persiste: se calcula con el plazo y el día de hoy, así un
+    /// registro «pendiente» pasa solo a «en retraso» al cambiar el día, sin que nadie tenga que
+    /// correr un proceso.
+    /// </summary>
+    public static EstadoValidacionSeguimiento Estado(
+        bool validado, DateOnly fechaSeguimiento, DateOnly? fechaCreacion, DateOnly hoy)
     {
         if (validado) return EstadoValidacionSeguimiento.Validado;
-        return hoy > FechaLimiteValidacion(fechaSeguimiento)
+        return hoy > FechaLimiteValidacion(fechaSeguimiento, fechaCreacion)
             ? EstadoValidacionSeguimiento.EnRetraso
             : EstadoValidacionSeguimiento.Pendiente;
     }
 
+    /// <summary>Estado con el plazo desde la fecha del seguimiento (comportamiento previo).</summary>
+    public static EstadoValidacionSeguimiento Estado(bool validado, DateOnly fechaSeguimiento, DateOnly hoy) =>
+        Estado(validado, fechaSeguimiento, null, hoy);
+
     /// <summary>True si el registro ya venció su plazo y sigue sin validar.</summary>
+    public static bool EstaEnRetraso(
+        bool validado, DateOnly fechaSeguimiento, DateOnly? fechaCreacion, DateOnly hoy) =>
+        Estado(validado, fechaSeguimiento, fechaCreacion, hoy) == EstadoValidacionSeguimiento.EnRetraso;
+
+    /// <summary>Retraso con el plazo desde la fecha del seguimiento (comportamiento previo).</summary>
     public static bool EstaEnRetraso(bool validado, DateOnly fechaSeguimiento, DateOnly hoy) =>
-        Estado(validado, fechaSeguimiento, hoy) == EstadoValidacionSeguimiento.EnRetraso;
+        EstaEnRetraso(validado, fechaSeguimiento, null, hoy);
 
     /// <summary>
     /// Literal del estado tal como viaja al front (<c>VALIDADO</c> | <c>PENDIENTE</c> |
@@ -165,8 +205,13 @@ public static class ValidacionSeguimientoCalculos
     };
 
     /// <summary>Atajo: estado de un registro ya como literal para el DTO.</summary>
+    public static string EtiquetaEstado(
+        bool validado, DateOnly fechaSeguimiento, DateOnly? fechaCreacion, DateOnly hoy) =>
+        Etiqueta(Estado(validado, fechaSeguimiento, fechaCreacion, hoy));
+
+    /// <summary>Etiqueta con el plazo desde la fecha del seguimiento (comportamiento previo).</summary>
     public static string EtiquetaEstado(bool validado, DateOnly fechaSeguimiento, DateOnly hoy) =>
-        Etiqueta(Estado(validado, fechaSeguimiento, hoy));
+        EtiquetaEstado(validado, fechaSeguimiento, null, hoy);
 
     // ─── Qué se puede hacer con el registro ───────────────────────────────────
 

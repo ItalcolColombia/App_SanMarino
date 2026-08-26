@@ -3362,14 +3362,14 @@ Plan: [`fase_de_desarrollo/correccion_bugs_anotados_plan.md`](fase_de_desarrollo
 - [x] **Especificación adversarial corrida**: 7 specs + 4 refutaciones. **Las refutaciones mataron 3
       de los 7 parches y corrigieron 2 de los que quedaron.** Los dos hallazgos decisivos se
       verificaron a mano antes de aplicar nada.
-- [ ] ⏸️ **#1 Push offline PWA — NO APLICADO, necesita tu decisión.** El parche **apaga
+- [x] ✅ **#1 Push offline PWA — RESUELTO por la ruta B (ver bloque EC6).** Era: El parche **apaga
       `ValidarAlimentoObligatorio` sin decirlo**: ese guard corre sólo dentro de `if (separa)` y su
       doc-comment nombra explícitamente «el push de la PWA» como el cliente que lo necesita ⇒ días de
       campo viejos entrarían **sin alimento, en silencio**, en Panamá. Además compite con el plan
       vigente, que dice que este parche **deja de hacer falta** con el cambio de bloqueo.
       **Ruta (A)** parchear igual, perdiendo el guard de alimento · **Ruta (B)** hacer el paso 1 de
       EC4 (bloqueo = «el día anterior confirmado»), que resuelve éste y otros dos casos sin efectos
-      colaterales. **Recomendada: (B).**
+      colaterales. **El usuario eligió (B).**
 - [x] ✅ **#2 `MarcarValidadoAsync` — APLICADO**, en las dos direcciones (validar y des-validar).
       🔴 **La spec pasaba el id equivocado**: para reproductora `LeerEstadoAsync` devuelve el id del
       lote de **reproductora** y `SincronizarCruceAsync` espera el de **engorde**. No truena: no
@@ -3417,5 +3417,49 @@ Plan: [`fase_de_desarrollo/correccion_bugs_anotados_plan.md`](fase_de_desarrollo
 - [x] **Validación front**: `yarn build` **0 errores** con el Node portable (995,90 kB inicial, sin
       warning de budget).
 - [x] **Cerrados 4 de 7 defectos** (#2, #3, #4 y #6) más el aviso del #5. Quedan abiertos **#1**
-      —esperando tu decisión entre las rutas (A) y (B)— y **#7**, con su condición de reingreso
-      escrita en §4.7 del plan.
+      —resuelto después por la **ruta B**, ver bloque **EC6**— y **#7**, con su condición de
+      reingreso escrita en §4.7 del plan.
+
+---
+
+## EC6 — Ruta B: el plazo de validación se cuenta desde la CREACIÓN (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md) §11
+
+> Decisión del usuario: **ruta B** para destrabar el push offline de la PWA sin perder el guard de
+> alimento obligatorio.
+
+- [x] 🔴 **Hallazgo al implementar: la ruta B tal como estaba redactada NO resolvía el caso.** §5 y
+      §4.1-bis proponían cambiar el **bloqueo** a «el día anterior tiene que estar confirmado». Con un
+      push de 5 días viejos eso traba igual: crear el día 2 mira al día 1, **que lo acaba de crear el
+      mismo push** y está sin confirmar. Cambiar *a qué registro mira* el bloqueo no ayuda cuando el
+      registro que mira nació en la misma operación.
+- [x] ✅ **Lo que sí lo resuelve es lo que el usuario había pedido primero**: *«debo tenerlas máximo
+      para confirmar mañana, porque hoy las hice la creación, no de acuerdo a cuándo es»*. El plazo
+      pasa a contarse desde `created_at`. Con eso el push entra completo, y **al día siguiente los 5
+      vencen y bloquean hasta confirmarse** ⇒ la confirmación extra se mantiene.
+- [x] ✅ **El BLOQUEO no se tocó.** El usuario fue explícito dos veces en conservarlo. La regla actual
+      —cualquier vencido sin validar bloquea— ya cumple «el día anterior confirmado» y es **más
+      estricta**; restringirla al día inmediatamente anterior habría **aflojado** justo lo que se pidió
+      reforzar.
+- [x] **La fórmula es `max(fecha, creación) + 1 día`**, y el `max` no es cosmético: un registro
+      cargado por anticipado no arranca con menos plazo, y **el límite nuevo es siempre ≥ el viejo**
+      ⇒ el cambio sólo puede aflojar, nunca bloquear a alguien que hoy no está bloqueado. Es la única
+      dirección segura sobre una empresa con la regla ya encendida en producción. **Hay un test que
+      fija ese invariante.** Sin `created_at` cae en el comportamiento previo, byte a byte.
+- [x] **Medido sobre la copia de producción, últimos 30 días — registros que nacían vencidos:**
+
+      | Empresa | Capturados | Regla vieja | Regla nueva |
+      |---|---:|---:|---:|
+      | ItalcolPanama | 1.331 | **1.191 (89,5 %)** | **0** |
+      | ItalcolEcuador | 658 | **93 (14,1 %)** | **0** |
+
+      Casi **nueve de cada diez** registros de Panamá nacían en rojo y trabando el lote. Y con la
+      regla vieja, encender el flag en Ecuador habría reproducido el problema **93 veces por mes**.
+- [x] **Sin migración**: la regla no toca la BD. La migración sigue haciendo falta sólo para encender
+      el flag en Ecuador, que es una decisión aparte.
+- [ ] ⏸️ **Siguiente paso de la secuencia (§11.6): el apoyo de UI que la regla exige** — «guardar y
+      validar» o «validar todos los pendientes del lote». Hoy se valida de a uno y Panamá llegó a
+      cargar 34 días en una sesión. La regla de huecos (§9) lo vuelve **obligatorio**.
+- [ ] ⏸️ Verificar una semana en Panamá (ya tiene el flag encendido, es el caso extremo) y **recién
+      entonces** encender el flag en Ecuador.
