@@ -3175,3 +3175,42 @@ bloqueado hacer el seguimiento; no deja crear otro seguimiento diario». Captura
 - [i] **Observación**: `LeerPendientesDelLoteAsync` (rama Engorde) filtra por `LoteAveEngordeId` sin
       `company_id`, a diferencia de `LeerEstadoAsync`. Inocuo con una sola empresa con el flag
       encendido; deja de serlo con la segunda. Pre-existente.
+
+---
+
+## EC4 — Plazo de validación desde la CREACIÓN + doble validación en Ecuador (ANÁLISIS, 25-ago-2026)
+
+Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md)
+
+Propuesta del usuario tras cerrar EC3. **Se implementa en su propia sesión** — acá quedó solo el
+análisis y la validación con datos.
+
+- [x] **Validado punto por punto lo que planteó el usuario.** Confirmado que hoy el plazo se cuenta
+      desde la **fecha del seguimiento** y no desde la creación; que lo de «cuando termine los 7 días
+      me aparecen confirmados» **ya quedó resuelto** en EC3; y que para la captura del mismo día las
+      dos reglas dan **idéntico** resultado.
+- [x] 🔴 **El dato que decide** (últimos 30 días, sin el cruce): **Panamá captura 86,5 % retroactivo**
+      —de los cuales 426 registros los cargan PERSONAS con 2 a 21 días de atraso, repartidos en 6-13
+      días de carga distintos; los otros 465 son una carga masiva—. **Ecuador, 14 %.** La regla actual
+      está estructuralmente peleada con cómo opera Panamá: funciona solo porque el operario valida en
+      la misma sesión en que carga.
+- [x] **La propuesta ataca la raíz de TRES parches que ya existen**, todos el mismo caso («registro
+      creado hoy con fecha vieja»): `ModoCargaHistorica` (cuyo propio doc dice que existe por esto),
+      el cruce de reproductora (cerrado en EC3) y el push offline de la PWA (abierto).
+- [x] 🔴 **Señalado que «vencido» hoy BLOQUEA, no avisa** — y que eso fue una decisión explícita del
+      usuario el 14-ago-2026 («bloquean el alta de días nuevos, no solo avisan»). Cambiar el origen
+      del plazo y cambiar bloqueo→alerta son **dos cambios distintos**: recomendado hacer el primero,
+      medir, y decidir el segundo con ese dato.
+- [x] 🔴 **El orden importa para Ecuador**: hoy tiene 5.482 registros, 0 sin validar ⇒ encender el
+      flag no bloquea nada retroactivamente. **Pero con la regla actual el 14 % de su captura nacería
+      vencida** (94 registros/mes). Encenderlo ANTES de cambiar la regla reproduce el problema que se
+      acaba de cerrar en Panamá.
+- [x] **Señalado lo que se pierde**: hoy «vencido» significa dos cosas —no validaste a tiempo Y no
+      cargaste a tiempo—. Con `created_at` queda solo la primera; si la segunda importa (en Panamá
+      probablemente sí), hay que reponerla como indicador propio de antigüedad de captura.
+- [x] **Señalado el detalle fino**: `created_at` se reinicia al borrar y recrear, y el cruce hace
+      `DELETE`+`INSERT` en cada regeneración ⇒ no apoyarse en el plazo para el cruce (hoy nacen
+      validados, y así debe seguir).
+- [ ] ⏸️ **Implementación: otra sesión.** Alcance estimado en §6 del plan (la regla en
+      `ValidacionSeguimientoCalculos`, sus llamadores, el `createdAt` que hay que hacer viajar al
+      front porque el estado se calcula en el cliente, y la migración solo para el flag de Ecuador).
