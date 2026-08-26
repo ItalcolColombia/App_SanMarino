@@ -3835,12 +3835,43 @@ cargar su línea genética.
       alta / edición / baja / import** con un usuario real de Santa Reyes antes de dar el módulo por
       bueno en producción.
 
-### Fuera de alcance, declarado (§7 del plan)
-- [i] **Hueco de LECTURA**: `fn_indicadores_produccion_postura` y `fn_indicadores_levante_postura`
-      leen `guia_genetica_sanmarino_colombia` **hardcodeada** ⇒ para Santa Reyes la columna «Tabla»
-      sale vacía, sin error. Los reportes en C# sí funcionan (pasan por `GuiaGeneticaLookup`) — de
-      ahí el *«a veces aparece y a veces no»*. El arreglo es una vista `UNION ALL` + swap del `FROM`;
-      no entra porque toca fns compartidas con Sanmarino y porque `RazaGuiaAliasCalculos` **sólo
-      existe en C#** (3 de 4 razas de los lotes reales no cruzan por grafía). **Decisión pendiente.**
+### F5 · El hueco de LECTURA — CERRADO, commit `a278361`
+
+Ya no está fuera de alcance: el usuario pidió corregirlo todo. Los 5 objetos SQL leen
+`vw_guia_genetica_postura` (migración `20260826170000_VwGuiaGeneticaPosturaYFnsOrigen`).
+
+- [x] **Dos premisas del §7 resultaron FALSAS al medir.** (a) El «punto ciego de la grafía» **no
+      existe en el camino SQL**: las grafías rotas viven sólo en `lote_postura_base` y **ninguno de
+      los 5 objetos lee esa tabla** (`grep -c` ⇒ 0,0,0,0,0). Las fns leen `lotes` /
+      `lote_postura_levante` / `lote_postura_produccion`, donde SR tiene **una sola raza**,
+      `Criolla`, byte-idéntica a su guía — la raza **no se hereda** del base (base 29 =
+      `BABCOK BROWN`, lote operativo = `Criolla`). (b) El año **cruzaba bien desde siempre**.
+      ⇒ Se descartó emitir las grafías del lote: no compraba nada y **duplicaba**, porque
+      `vw_guia_genetica_por_lote_postura` es el único de los 5 **sin `LIMIT 1`**.
+- [x] 🔴 **Apareció un defecto peor que el que íbamos a arreglar.** Cambiar sólo el `FROM` habría
+      entregado **números falsos**: levante promedia por sexo dividiendo por **2 fijo**
+      (`:466`), así que con una guía de solo hembras `(95.00 + 0)/2 = 47,5` ⇒ **la mitad** de lo que
+      dice el cliente. Y en producción `fn_dif_pp` no devuelve NULL con guía = 0 ⇒ la columna
+      «diferencia vs guía» pintaría la **mortalidad real** como si fuera la desviación.
+      Por eso la vista lleva una columna **`origen`** y las 2 fns aplican el `COALESCE` **sólo**
+      cuando vale `'compartida'` — literalmente la expresión de hoy. Quitarlos a secas **no** sería
+      delta cero: company 1 tiene entre **6 y 14 filas en blanco por columna** en ese rango.
+- [x] **Ni un solo `WHERE` tocado.** Los criterios divergen a propósito (levante raza exacta y sin
+      `deleted_at`; producción `btrim(lower())` y con filtro; edad texto exacto vs parseada con
+      desempate `'25P'`). Unificarlos haría que empiecen a matchear filas que hoy no matchean.
+- [x] **Gate multipaís**: 25 objetos × empresa. Sanmarino, Demo, Ecuador y Panamá en **CERO en todas
+      las columnas**, `dif_multiplicidad` incluida (no duplica). Santa Reyes **gana 123 filas** =
+      las semanas 18–140 de `Criolla`, repartidas en levante (18–25) y producción.
+- [x] **El factor 2, probado con dato sintético en transacción REVERTIDA** (hoy no es observable: el
+      único lote de SR está en **semana 1** y su guía arranca en la 18). Con el lote en semana 20 la
+      guía dice `gr_ave_dia_h = 107,00` y la fn devuelve **`consumo_tabla = 107`**; sin el arreglo
+      habría devuelto **53,5**. Y `peso_tabla` / `unif_tabla` / `mort_tabla` salen **vacíos, no 0**.
+- [i] **Límite del dato, no del código:** las semanas **1 a 17 de levante quedan sin guía para
+      siempre** — la del cliente arranca en la 18. Overlap real: levante **8** semanas (18–25),
+      producción **115** (26–140). El lote de SR llega a la semana 18 el **2026-12-16**.
+- [!] **`LIMIT 1` sin `ORDER BY` es no-determinista** y envolver la tabla en una vista cambia el plan.
+      Medido hoy: **0 duplicados** por `(company, raza, anio, btrim(edad))` en ambas tablas. Pero
+      **no hay UNIQUE que lo garantice** — la limpieza es de la carga, no del esquema. Si alguien
+      carga un duplicado mañana, cuál gana pasa a depender del plan.
 - [i] El UNIQUE que le falta a la tabla compartida (644/1128 filas con código NULL ⇒ el reimport
       duplica en silencio) y la normalización de los joins de las fns: cambio de comportamiento, gate propio.
