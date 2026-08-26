@@ -171,6 +171,16 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Perfil tipado por comportamiento: qué MODELO de guía genética usa la empresa —
+        // 'sanmarino' (default) = tabla ancha compartida | 'reducida' = tabla plana de 3 métricas.
+        // Los valores válidos y la resolución (throw ante desconocido) viven en
+        // GuiaGeneticaPerfilCalculos; acá sólo se persiste el texto.
+        builder.Property(x => x.GuiaGeneticaPerfil)
+            .HasColumnName("guia_genetica_perfil")
+            .HasMaxLength(16)
+            .HasDefaultValue("sanmarino")
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

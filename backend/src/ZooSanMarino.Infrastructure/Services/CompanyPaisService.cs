@@ -133,7 +133,8 @@ public class CompanyPaisService : ICompanyPaisService
             SemanasCicloPosturaPorRaza: cp.Company.SemanasCicloPosturaPorRaza,
             LimitaTiposInventarioAlimentoYAves: cp.Company.LimitaTiposInventarioAlimentoYAves,
             SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa,
-            DescuentaInventarioDesdeMovil: cp.Company.DescuentaInventarioDesdeMovil
+            DescuentaInventarioDesdeMovil: cp.Company.DescuentaInventarioDesdeMovil,
+            GuiaGeneticaPerfil: cp.Company.GuiaGeneticaPerfil
         )).ToList();
     }
 

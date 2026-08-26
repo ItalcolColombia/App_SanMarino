@@ -67,5 +67,9 @@ public record UpdateCompanyDto(
     bool?    LimitaTiposInventarioAlimentoYAves = null,
     bool?    SeparaLotesPosturaPorEtapa         = null,
     /// <summary>La app móvil manda ítems reales de inventario. Kill switch de F5.</summary>
-    bool?    DescuentaInventarioDesdeMovil      = null
+    bool?    DescuentaInventarioDesdeMovil      = null,
+    /// <summary>Perfil de guía genética: <c>"sanmarino"</c> | <c>"reducida"</c>. <c>null</c>/vacío =
+    /// el cliente no lo mandó ⇒ se conserva el valor actual (mismo criterio que los flags de arriba).
+    /// Un valor desconocido se rechaza (no cae al default).</summary>
+    string?  GuiaGeneticaPerfil                 = null
 );

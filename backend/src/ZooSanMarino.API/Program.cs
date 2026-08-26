@@ -362,6 +362,13 @@ builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableE
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
 builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorService>();
 
+// Guía Genética REDUCIDA (guia_genetica_santa_reyes): la puerta de escritura que la tabla no tenía.
+builder.Services.AddScoped<IGuiaGeneticaSantaReyesService, GuiaGeneticaSantaReyesService>();
+
+// Perfil de guía genética de la empresa activa: lo consumen los guards fail-closed de los
+// controllers de guía (reducida ⇄ compartida). Ver GuiaGeneticaEscrituraGuard.
+builder.Services.AddScoped<IGuiaGeneticaPerfilResolver, GuiaGeneticaPerfilResolver>();
+
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();

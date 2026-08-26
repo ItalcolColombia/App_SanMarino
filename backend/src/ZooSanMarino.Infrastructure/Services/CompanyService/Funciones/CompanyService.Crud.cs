@@ -91,7 +91,10 @@ public partial class CompanyService
             SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza,
             LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves,
             SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa,
-            DescuentaInventarioDesdeMovil = dto.DescuentaInventarioDesdeMovil
+            DescuentaInventarioDesdeMovil = dto.DescuentaInventarioDesdeMovil,
+            // null/vacío ⇒ 'sanmarino' (default neutro); un valor desconocido LANZA en vez de caer
+            // al default — persistirlo dejaría a la empresa mirando la tabla equivocada en silencio.
+            GuiaGeneticaPerfil = GuiaGeneticaPerfilCalculos.Resolver(dto.GuiaGeneticaPerfil)
         };
 
         _ctx.Companies.Add(c);
@@ -159,6 +162,11 @@ public partial class CompanyService
         c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
         c.SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa ?? c.SeparaLotesPosturaPorEtapa;
         c.DescuentaInventarioDesdeMovil = dto.DescuentaInventarioDesdeMovil ?? c.DescuentaInventarioDesdeMovil;
+        // Mismo criterio que los flags: omitirlo (null/vacío) conserva el perfil actual. Mandar un
+        // valor desconocido LANZA — no se cae al default ni se guarda basura en la columna.
+        c.GuiaGeneticaPerfil = string.IsNullOrWhiteSpace(dto.GuiaGeneticaPerfil)
+            ? c.GuiaGeneticaPerfil
+            : GuiaGeneticaPerfilCalculos.Resolver(dto.GuiaGeneticaPerfil);
 
         await _ctx.SaveChangesAsync();
 

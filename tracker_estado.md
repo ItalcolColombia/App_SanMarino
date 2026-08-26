@@ -3645,3 +3645,187 @@ Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_des
       los 763 paquetes otra vez (step de 25,6 s). El cache esta muerto en TODOS los deploys.
       ⚠️ El deploy lanzado el 26-ago (run 32971303424, `main-produccion@5e780e5`) **NO lleva estos
       arreglos**: `8a78ea5` sigue sin pushear.
+
+---
+
+## X19 · Guía Genética — tres módulos con identidad propia (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/guia_genetica_tres_modulos_plan.md`](fase_de_desarrollo/guia_genetica_tres_modulos_plan.md)
+
+**Decisión del usuario:** NO se unifican las tres tablas. Se separan los menús en tres ítems
+(**Pollo Engorde** / **Sanmarino** / **Santa Reyes**) y se le construye a Santa Reyes la puerta de
+escritura que nunca tuvo. Origen: el usuario entró a producción de Santa Reyes y no encontró dónde
+cargar su línea genética.
+
+**Medido antes de empezar (auditoría de 13 agentes):**
+- `guia_genetica_santa_reyes` nació **seed-only**: 615 filas (5 razas × semanas 18–140) por la
+  migración `20260820093323`, y **cero endpoints de escritura**. `grep` de
+  `.Add|.Update|.Remove|SaveChanges` sobre la entidad fuera de migraciones ⇒ **vacío**; las 20
+  referencias C# son todas `.AsNoTracking()`. `GuiaGeneticaController` es 100 % `[HttpGet]`.
+- El ítem «Guia Genetica» (sin tildes) que ve Santa Reyes es el de **engorde de Ecuador**: la
+  migración `20260623080001_RenameMenu_GuiaGenetica:16` renombra la etiqueta **sobre**
+  `route='/config/guia-genetica-ecuador'`, y Santa Reyes lo heredó del clon de menús de
+  `20260725190000_SeedEmpresaSantaReyes:195`, cuyo filtro excluía `%engorde%` pero **no** `%ecuador%`.
+- ⚠️ **Las dos filas de `menus` no las creó ninguna migración** — viven sólo como espejo en
+  `backend/sql/add_guia_genetica_menu.sql` y `add_guia_genetica_ecuador_menu.sql`, corridas a mano
+  en prod. El repo **no puede probar** qué existe realmente en producción ⇒ las migraciones de menú
+  van defensivas (por `route`, `WHERE NOT EXISTS`, y **desactivan en vez de borrar**).
+
+### F0 · Red de seguridad
+- [x] `backend/sql/verificar_paridad_guia_genetica.sql` — creado, con el patrón de
+      `verificar_paridad_saldo_engorde.sql` (1ª corrida congela, 2ª compara). Snapshot en esquema
+      propio **`diagnostico`** (no en `public`), con `COMMENT` que lo marca desechable; solo lectura
+      sobre datos de negocio. Exento del gate de migración por prefijo `verificar_*` (confirmado en
+      `backend/scripts/verificar-sql-llega-por-migracion.js:63`) ⇒ **sin** marca `SIN-MIGRACION`.
+      **Los 8 objetos vivos se identificaron contra la BD, no contra el repo** (`pg_get_functiondef`
+      / `pg_get_viewdef` filtrados por las 5 tablas): 6 fns + 2 vistas. Cubiertos 7 ejecutándolos;
+      **`fn_congelar_liquidacion_engorde` NO se ejecuta** — hace `INSERT` en
+      `liquidacion_lote_engorde_congelada(_fila)`; en su lugar se congela, en solo lectura, la única
+      lectura de guía que hace (el header de Ecuador que resolvería por lote).
+      🔴 **Hallazgo que obligó a pinar la sesión:** `fn_informe_semanal_pollo_engorde(5)` devuelve
+      **212 filas con `timezone=America/Bogota`** (el default del servidor) y **213 con UTC**. Un
+      verificador sin `SET timezone` da distinto según desde qué shell se corra; se pinan además
+      `extra_float_digits` y `DateStyle`, que cambian el `::text` que va al hash.
+      Dos trampas más: `fn_indicadores_produccion_postura` **no es re-entrante** (crea `_seg` sin
+      dropearla ⇒ `CROSS JOIN LATERAL` revienta con «relation "_seg" already exists»; va en LOOP con
+      `DROP TABLE pg_temp._seg` entre iteraciones), y `vw_guia_genetica_por_lote_postura` **no tiene
+      clave única** (546 filas sobre 525 claves) ⇒ el snapshot guarda `n_filas` y colapsa duplicados
+      con `string_agg(... ORDER BY hash)`, independiente del orden.
+- [x] Línea base congelada contra la BD local (copia de prod, `127.0.0.1:5433`): **11.261 claves**,
+      1,8 s por corrida. **Corrida 1 congela / corrida 2 compara sin ningún cambio en el medio ⇒ 0
+      en las 24 filas (5 empresas × objeto), sección «claves que cambiaron» vacía.**
+      Filas de guía por empresa: Sanmarino 889 · Demo 224 · Ecuador 15 + 1 header/171 detalle ·
+      Panamá 1 header/57 detalle · Santa Reyes 615.
+      **Control negativo (100 % de solo lectura, sin escribir una fila):** perturbando `peso_tabla`
+      +1 sólo para Sanmarino, el gate marca **92 claves con `dif_guia`** y deja Demo y Santa Reyes en
+      **0** — o sea que detecta, y detecta acotado a la empresa afectada.
+
+### F1 · Flag tipado en `companies`
+- [x] Migración `20260826142448_AddGuiaGeneticaPerfilCompany`: `guia_genetica_perfil varchar(16) NOT
+      NULL DEFAULT 'sanmarino'`, backfill **por datos** (`EXISTS` sobre la tabla reducida), nunca por
+      nombre. Idempotente (`ADD COLUMN IF NOT EXISTS` + `IS DISTINCT FROM`). Validada contra la BD
+      local en transacción revertida: flipea **1 empresa** (Santa Reyes, id 6, 615 filas) y deja las
+      otras 4 en `sanmarino`; 2ª pasada = cero cambios; `Down()` dropea limpio.
+- [x] `GuiaGeneticaPerfilCalculos` + xUnit (34 tests) — **`throw` ante valor desconocido**, no default
+      silencioso. Helpers `UsaGuiaReducida`/`UsaGuiaCompartida` + `EsPerfilConocido` (no lanza, para
+      rechazar con 400 en vez de 500).
+- [x] Propagarlo a las proyecciones que siempre se olvidan — resultaron **8 sitios en 6 archivos**, no
+      4: `CompanyDto`, `CreateCompanyDto`, `UpdateCompanyDto`, `CompanyService.ToDto`,
+      `CompanyService.Crud` (**Create y Update, 2 sitios**), `CompanyResolver` (**`GetCompanyByNameAsync`
+      y `GetCompaniesForUserAsync`, 2 sitios**), `CompanyPaisService.GetCompaniesByPaisAsync`.
+
+### F2 · Backend de Santa Reyes — la puerta que falta
+- [x] `IGuiaGeneticaSantaReyesService` + DTOs + service `partial` (ancla + `Funciones/Crud` + `Funciones/Import`).
+      Paginado por **`PaginacionCalculos`** (default 20, tope `MaximoCatalogoMaestro` = 2.000): pedir de
+      más devuelve **el tope**, no el default — el clamp casero `>200 ⇒ 20` que anda por el repo hace lo
+      contrario y ya costó dos incidentes. Medido: `pageSize=999999` ⇒ 2.000; la guía entera (615) entra
+      en una página.
+- [x] `GuiaGeneticaSantaReyesController` (`api/guia-genetica-santa-reyes`) con **`[Authorize]`** +
+      permiso **`guia_genetica.gestionar`** (patrón `_current.Permissions.Contains(...)` ⇒ 403 con
+      cuerpo, el de los 11 controllers del repo; **no** una policy nueva, que nadie registraría).
+      Las LECTURAS quedan abiertas, incluida la plantilla.
+      🔴 **DEPENDE DE F4**: el permiso **invierte el default** (hoy escribe cualquiera). Si F4 no lo
+      siembra heredando de `role_menus` **por `route`**, el módulo nace inutilizable. Y los permisos
+      viajan en la sesión cifrada ⇒ hay que **re-loguear** para verlo.
+- [x] Import Excel **idempotente** por `codigo = Raza+Anio+Edad` contra el UNIQUE parcial existente.
+      **Soft delete** (`deleted_at`), no el hard delete de `ProduccionAvicolaRawService:195`.
+      Medido contra la BD local en transacción revertida: reimportar las 615 filas reales ⇒
+      `ins=0 act=0 omi=615 err=0` en la 1ª y en la 2ª pasada; las 40 filas nulas de Criolla siguen
+      **NULL** (vacío ⇒ NULL, nunca 0); dar de baja y recrear el mismo código funciona.
+- [x] Guard fail-closed en los dos sentidos (403 con cuerpo — mismo status que `Forbid()`, pero con
+      mensaje: `Forbid()` devuelve el cuerpo vacío y el front lee `err.error?.message`).
+      ⚠️ Se guardó también **`ExcelImportController.ImportProduccionAvicola`**: es la 2ª puerta de
+      escritura de la tabla compartida y la que realmente usa el cliente.
+      Verificado que no bloquea a nadie: sólo pasa a perfil `reducida` la empresa **con filas propias**
+      y hoy es una sola (Santa Reyes, id 6, con **0** filas en la compartida).
+- [x] 🔴 `GuiaGeneticaService.ObtenerRazasCrudoAsync:105` corta a nivel **EMPRESA**, no de raza ⇒ el
+      único workaround aparente falla en silencio. Corregido uniendo ambas fuentes
+      (`GuiaGeneticaRazasCalculos.CombinarRazas`, con tests).
+      **Gate de delta cero medido contra la BD local, empresa por empresa** (viejo vs nuevo, salida real
+      de `ObtenerRazasDisponiblesAsync`): Sanmarino 4=4, Ecuador 1=1, Demo 3=3, Panamá 0=0,
+      Santa Reyes 5=5 ⇒ **0 (idéntico) en las cinco**. Y con «Lohmann Brown» cargada en la compartida de
+      Santa Reyes (transacción revertida): viejo 5 → nuevo **6**, la raza llega al selector.
+      ✅ `ObtenerAniosCrudoAsync` **NO tiene el defecto y no se tocó**: su corte es por **RAZA**
+      (`Raza == razaPropia` en la 1ª consulta), o sea la pregunta correcta; unirlo mezclaría años de dos
+      guías distintas para la misma línea genética.
+
+### F3 · Pantalla propia — 🔓 destraba la ESCRITURA
+- [x] `features/config/guia-genetica-santa-reyes/` (grid + form + modal import + export), con la
+      metodología de clean code del repo: `models/` (tipos), `guia-genetica-santa-reyes.service.ts`
+      (cliente HTTP propio — **no** reutiliza `GuiaGeneticaAdminService`, que pega a otra tabla),
+      `funciones/` (5 funciones **puras** + `README.md`) y `pages/` como orquestador delgado.
+      Ruta `/config/guia-genetica-santa-reyes` con `loadComponent`, igual que las otras dos de config.
+      Contratos verificados contra el controller y los DTOs reales: el listado es un **GET con query
+      string** (no `POST /search` como el módulo compartido), el `PagedResult` viene
+      `{items,total,page,pageSize}`, el import sube el campo `file` a `POST …/import` y devuelve
+      `{success,totalFilas,insertados,actualizados,omitidos,errores[{fila,motivo}]}`.
+- [x] `changeDetection: ChangeDetectionStrategy.Eager` **explícito**. Resultó **un** componente, no
+      cuatro: los dos modales (alta/edición e import) viven en la misma página con `@if`, así que no
+      hay componentes hijos donde omitirlo. Ambos modales **resetean su estado en cada apertura**
+      (`abrirNuevo`/`abrirEditar`/`abrirImport`), que es lo que hace que abrir → cerrar → abrir no
+      muestre el resultado del import anterior ni el formulario de la fila anterior.
+- [x] Raza **texto libre** (`<input>`, no `<select>`) en el formulario y en el filtro — el *deadlock
+      de arranque* de la pantalla de Ecuador no se repite: sin ninguna línea cargada se puede crear
+      la primera.
+- [x] Nota de cobertura **siempre visible** bajo la barra de acciones (no en un tooltip): «Esta guía
+      cubre semanas 18 a 140 (producción). Los reportes de levante cubren semanas 1 a 25.» Además,
+      una semana fuera de 18–140 se **marca** en el grid y avisa en el formulario, pero **no
+      bloquea**: el modelo no lo prohíbe y una línea nueva puede legítimamente empezar antes.
+- [x] `ActiveCompanyConfigService` expone `guiaGeneticaPerfil` (`'sanmarino' | 'reducida'`) desde
+      `CompanyDto` — el hueco que F1 dejó señalado. Caché 5 min e invalidación por `session$` ya
+      eran del servicio. **Fail-closed con default neutro**: error, campo ausente o valor
+      desconocido ⇒ `'sanmarino'` ⇒ la pantalla queda en **solo lectura** con un aviso que lo
+      explica, en vez de ofrecer botones que el backend va a rechazar con 403.
+- [x] Validado: `yarn build` ⇒ **0 errores y 0 warnings** (ni siquiera el de bundle budget: el
+      inicial quedó en 996,03 kB / 232,30 kB transferidos). La pantalla salió como **lazy chunk
+      propio** (`chunk-CaBMGTpo.js`), no en el bundle inicial.
+      ⚠️ Pendiente de F4 para poder probarla en vivo: sin el ítem de menú se llega sólo por URL, y
+      sin el permiso `guia_genetica.gestionar` sembrado toda escritura responde 403.
+
+### F4 · Menús — los tres ítems
+- [x] Migración `20260826160000_SeedMenusGuiaGeneticaTresModulos`: renombra a **Guía Genética Pollo
+      Engorde** y **Guía Genética Sanmarino** (con tildes), crea **Guía Genética Santa Reyes**, y
+      **desactiva** (`is_enabled=false`, no borra) los ítems viejos para las empresas de perfil
+      `reducida` — resueltas por el flag `guia_genetica_perfil` o por DATOS, nunca por nombre.
+      🔎 **Corrige un supuesto del plan, medido en la copia de prod:** el ítem que Santa Reyes heredó
+      del clon de menús es el **27 `/config/guia-genetica`** (tabla ancha de Sanmarino), **no** el 51
+      de engorde — Sanmarino nunca tuvo el de Ecuador, así que no había nada de engorde que heredar.
+      La migración desactiva **los dos**, así que da igual cuál sea en prod.
+      ⚠️ El icono es `clipboard-list`, no `dna`: el `ICON_MAP` del front no conoce `'dna'` ⇒ el ítem
+      de Ecuador se dibuja hoy **sin icono**; copiar ese nombre habría copiado el defecto.
+- [x] Migración `20260826160100_SeedPermisoGuiaGeneticaGestionar`: `guia_genetica.gestionar` en
+      `permissions` (**ninguna migración la había sembrado** y el guard ya la exige ⇒ sin esto el
+      módulo nace 403 para todos), `company_permissions` en las 5 empresas (es **fail-closed**: sin
+      la fila no viaja en el JWT) y `role_permissions` **ON para los 14 roles que hoy ven alguno de
+      los tres ítems**, localizando por `route`. **No toca `menu_permissions` a propósito**: esa
+      tabla *esconde* el menú a quien no tenga la key, y las lecturas quedan abiertas.
+- [x] Espejos `.sql` (`backend/sql/add_guia_genetica_tres_modulos_menus.sql` y
+      `add_permiso_guia_genetica_gestionar.sql`) + gate `verificar-sql-llega-por-migracion.js`
+      **verde**. Los espejos se corrieron como 2ª pasada del test ⇒ prueban idempotencia **y**
+      fidelidad al `.cs` (0 filas afectadas en las 12 sentencias).
+- [x] **Validado contra la BD local en transacción revertida** (las 3 migraciones juntas: perfil +
+      menús + permiso; `ROLLBACK` verificado, la BD quedó intacta). Diff de rutas visibles **usuario
+      por usuario** sobre los 21 pares (usuario, empresa) que hoy ven guía: el **único** cambio en
+      todo el sistema es Santa Reyes, que pierde `/config/guia-genetica` y gana
+      `/config/guia-genetica-santa-reyes` — swap 1:1. Totales de rutas: Sanmarino 94→94, Ecuador
+      90→90, Demo 47→47, Panamá 89→89, Santa Reyes 50→50. **Delta cero fuera de Santa Reyes, medido.**
+- [i] 🔗 **Depende de F3 en el mismo release**: el ítem apunta a `/config/guia-genetica-santa-reyes`.
+      Verificado que la ruta ya está declarada en `app.config.ts:515`; si F4 saliera sola, Santa Reyes
+      perdería su ítem viejo y el nuevo no llevaría a ningún lado.
+
+### Validación
+- [ ] `dotnet build` + `dotnet test` + `yarn build` + `dotnet ef database update` local.
+- [ ] Gate multipaís: 2ª corrida de `verificar_paridad_guia_genetica.sql` ⇒ **0 en todas las
+      columnas** para toda empresa que no sea Santa Reyes.
+- [ ] Smoke doble: Sanmarino/Demo ⇒ cero cambios visibles salvo el rótulo; Santa Reyes ⇒ 615 filas,
+      alta, edición, baja, import idempotente.
+
+### Fuera de alcance, declarado (§7 del plan)
+- [i] **Hueco de LECTURA**: `fn_indicadores_produccion_postura` y `fn_indicadores_levante_postura`
+      leen `guia_genetica_sanmarino_colombia` **hardcodeada** ⇒ para Santa Reyes la columna «Tabla»
+      sale vacía, sin error. Los reportes en C# sí funcionan (pasan por `GuiaGeneticaLookup`) — de
+      ahí el *«a veces aparece y a veces no»*. El arreglo es una vista `UNION ALL` + swap del `FROM`;
+      no entra porque toca fns compartidas con Sanmarino y porque `RazaGuiaAliasCalculos` **sólo
+      existe en C#** (3 de 4 razas de los lotes reales no cruzan por grafía). **Decisión pendiente.**
+- [i] El UNIQUE que le falta a la tabla compartida (644/1128 filas con código NULL ⇒ el reimport
+      duplica en silencio) y la normalización de los joins de las fns: cambio de comportamiento, gate propio.

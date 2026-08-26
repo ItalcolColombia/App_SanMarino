@@ -1,0 +1,351 @@
+<div class="ggsr-container">
+  <div class="ggsr-main">
+
+    <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
+    <div class="ggsr-toolbar">
+      <div class="ggsr-title-row">
+        <fa-icon [icon]="faDna" class="title-icon" aria-hidden="true"></fa-icon>
+        <h2 class="title">Guía Genética Santa Reyes</h2>
+        <span class="counter-pill">{{ total }} línea(s)</span>
+      </div>
+
+      <div class="toolbar-actions">
+        <button type="button" class="btn-subtle" (click)="descargarPlantilla()">
+          <fa-icon [icon]="faDownload" class="mr-2"></fa-icon>
+          Descargar plantilla
+        </button>
+        <button type="button" class="btn-subtle" (click)="exportarExcel()" [disabled]="exportando">
+          @if (exportando) {
+            <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          } @else {
+            <fa-icon [icon]="faFileExcel" class="mr-2"></fa-icon>
+          }
+          Exportar Excel
+        </button>
+        @if (puedeEscribir) {
+          <button type="button" class="btn-subtle" (click)="abrirImport()">
+            <fa-icon [icon]="faUpload" class="mr-2"></fa-icon>
+            Importar Excel
+          </button>
+          <button type="button" class="btn-primary" (click)="abrirNuevo()">
+            <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
+            Nueva línea
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- ── Nota de cobertura (visible SIEMPRE, no en un tooltip) ──────────── -->
+    <div class="nota-cobertura" role="note">
+      <fa-icon [icon]="faCircleInfo" class="mr-2" aria-hidden="true"></fa-icon>
+      <span>{{ notaCobertura }}</span>
+    </div>
+
+    @if (!puedeEscribir) {
+      <div class="alert info">
+        Esta empresa no administra la guía genética reducida (su perfil de guía es
+        <strong>Sanmarino</strong>, la tabla compartida). La pantalla queda en <strong>solo
+        lectura</strong>: consultá o exportá lo que hay, pero el alta, la edición, la baja y el
+        import los rechaza el servidor.
+      </div>
+    }
+
+    <!-- ── Filtros ────────────────────────────────────────────────────────── -->
+    <section class="ux-card filter-card mb-4">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-raza">Raza</label>
+          <input id="f-raza" class="filter-step__input" [(ngModel)]="filtros.raza"
+                 (keyup.enter)="aplicarFiltros()" placeholder="Contiene…" />
+        </div>
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-anio">Año guía</label>
+          <input id="f-anio" class="filter-step__input" [(ngModel)]="filtros.anioGuia"
+                 (keyup.enter)="aplicarFiltros()" placeholder="2026" />
+        </div>
+        <div class="filter-field filter-field--fixed">
+          <label class="filter-step__label" for="f-desde">Semana desde</label>
+          <input id="f-desde" type="number" min="1" class="filter-step__input"
+                 [(ngModel)]="filtros.edadDesde" (keyup.enter)="aplicarFiltros()" placeholder="18" />
+        </div>
+        <div class="filter-field filter-field--fixed">
+          <label class="filter-step__label" for="f-hasta">Semana hasta</label>
+          <input id="f-hasta" type="number" min="1" class="filter-step__input"
+                 [(ngModel)]="filtros.edadHasta" (keyup.enter)="aplicarFiltros()" placeholder="140" />
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="btn-primary" (click)="aplicarFiltros()">
+            <fa-icon [icon]="faSearch" class="mr-2"></fa-icon>
+            Buscar
+          </button>
+          <button type="button" class="btn-subtle" (click)="limpiarFiltros()" [disabled]="!hayFiltros">
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Grid ───────────────────────────────────────────────────────────── -->
+    <div class="card">
+      @if (error) {
+        <div class="alert error">{{ error }}</div>
+      }
+
+      <div class="table-scroll">
+        <table class="ggsr-table" role="grid" aria-label="Guía genética Santa Reyes">
+          <thead>
+            <tr>
+              <th class="sortable" (click)="ordenarPor('raza')">Raza {{ indicadorOrden('raza') }}</th>
+              <th class="sortable" (click)="ordenarPor('anioGuia')">Año {{ indicadorOrden('anioGuia') }}</th>
+              <th class="sortable" (click)="ordenarPor('edad')">Semana {{ indicadorOrden('edad') }}</th>
+              <th class="sortable text-right" (click)="ordenarPor('prodPorcentaje')">% Producción {{ indicadorOrden('prodPorcentaje') }}</th>
+              <th class="sortable text-right" (click)="ordenarPor('retiroAcH')">% Retiro acum. H {{ indicadorOrden('retiroAcH') }}</th>
+              <th class="sortable text-right" (click)="ordenarPor('grAveDiaH')">gr/ave/día H {{ indicadorOrden('grAveDiaH') }}</th>
+              <th>Código</th>
+              @if (puedeEscribir) {
+                <th class="text-right">Acciones</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @if (!loading && !filas.length) {
+              <tr>
+                <td [attr.colspan]="puedeEscribir ? 8 : 7" class="empty">
+                  No hay líneas de guía genética para los filtros actuales.
+                </td>
+              </tr>
+            }
+
+            @for (fila of filas; track fila.id) {
+              <tr>
+                <td>{{ fila.raza }}</td>
+                <td>{{ fila.anioGuia }}</td>
+                <td>
+                  <span class="semana" [class.semana--fuera]="fila.fueraDeCobertura"
+                        [attr.title]="fila.fueraDeCobertura ? 'Semana fuera del tramo 18–140 que cubre esta guía' : null">
+                    {{ fila.edadTexto }}
+                  </span>
+                </td>
+                <td class="text-right mono">{{ fila.prodPorcentajeTexto }}</td>
+                <td class="text-right mono">{{ fila.retiroAcHTexto }}</td>
+                <td class="text-right mono">{{ fila.grAveDiaHTexto }}</td>
+                <td class="mono codigo">{{ fila.codigoGuiaGenetica }}</td>
+                @if (puedeEscribir) {
+                  <td class="text-right nowrap">
+                    <button class="icon-btn" type="button" title="Editar" (click)="abrirEditar(fila)">
+                      <fa-icon [icon]="faPen"></fa-icon>
+                    </button>
+                    <button class="icon-btn danger" type="button" title="Dar de baja" (click)="eliminar(fila)">
+                      <fa-icon [icon]="faTrash"></fa-icon>
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <div class="pager__size">
+          <label for="page-size">Filas por página</label>
+          <select id="page-size" class="filter-step__select" [ngModel]="pageSize"
+                  (ngModelChange)="cambiarPageSize($event)">
+            @for (op of pageSizeOptions; track op) {
+              <option [ngValue]="op">{{ op }}</option>
+            }
+          </select>
+        </div>
+        <div class="pager__nav">
+          <button class="btn-subtle" type="button" (click)="prevPage()" [disabled]="page <= 1">Anterior</button>
+          <span>Página {{ page }} / {{ totalPages }}</span>
+          <button class="btn-subtle" type="button" (click)="nextPage()" [disabled]="page >= totalPages">Siguiente</button>
+        </div>
+      </div>
+
+      @if (loading) {
+        <div class="loading-overlay" aria-live="polite">
+          <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          <span>Cargando…</span>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Modal: alta / edición
+     ══════════════════════════════════════════════════════════════════════ -->
+@if (formOpen) {
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editando ? 'Editar línea de guía genética' : 'Nueva línea de guía genética' }}</h3>
+        <button type="button" class="icon-btn" (click)="cerrarForm()" [disabled]="guardando">
+          <fa-icon [icon]="faTimes"></fa-icon>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label for="m-raza">Raza <span class="req">*</span></label>
+            <!-- Texto LIBRE a propósito: un <select> alimentado por lo que ya existe es el
+                 deadlock de arranque (sin guía cargada no hay raza que elegir). -->
+            <input id="m-raza" class="input" [(ngModel)]="form.raza" (ngModelChange)="revalidarForm()"
+                   [maxlength]="maxLargoRaza" placeholder="Babcock Brown" autocomplete="off" />
+            <small class="hint">Se escribe tal cual; no hay lista cerrada de razas.</small>
+          </div>
+
+          <div class="field">
+            <label for="m-anio">Año guía <span class="req">*</span></label>
+            <input id="m-anio" class="input" [(ngModel)]="form.anioGuia" (ngModelChange)="revalidarForm()"
+                   [maxlength]="maxLargoAnio" placeholder="2026" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="m-edad">Semana (edad) <span class="req">*</span></label>
+            <input id="m-edad" type="number" min="1" class="input" [(ngModel)]="form.edad"
+                   (ngModelChange)="revalidarForm()" placeholder="18" />
+          </div>
+
+          <div class="field">
+            <label for="m-prod">% Producción</label>
+            <input id="m-prod" class="input" [(ngModel)]="form.prodPorcentaje"
+                   (ngModelChange)="revalidarForm()" placeholder="Vacío = sin dato" />
+          </div>
+
+          <div class="field">
+            <label for="m-retiro">% Retiro acum. H</label>
+            <input id="m-retiro" class="input" [(ngModel)]="form.retiroAcH"
+                   (ngModelChange)="revalidarForm()" placeholder="Vacío = sin dato" />
+          </div>
+
+          <div class="field">
+            <label for="m-gr">gr/ave/día H</label>
+            <input id="m-gr" class="input" [(ngModel)]="form.grAveDiaH"
+                   (ngModelChange)="revalidarForm()" placeholder="Vacío = sin dato" />
+          </div>
+        </div>
+
+        <p class="hint hint--block">
+          Una métrica en blanco se guarda como <strong>sin dato</strong>, no como 0. El código de la
+          guía lo calcula el servidor con raza + año + semana.
+        </p>
+
+        @if (formAdvertencias.length) {
+          <div class="alert warn mt-3">
+            @for (a of formAdvertencias; track a) {
+              <div>{{ a }}</div>
+            }
+          </div>
+        }
+
+        @if (formErrores.length) {
+          <div class="alert error mt-3">
+            @for (e of formErrores; track e) {
+              <div>{{ e }}</div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-subtle" (click)="cerrarForm()" [disabled]="guardando">Cancelar</button>
+        <button type="button" class="btn-primary" (click)="guardar()" [disabled]="guardando">
+          @if (guardando) {
+            <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          }
+          {{ editando ? 'Guardar cambios' : 'Crear línea' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Modal: import de Excel
+     ══════════════════════════════════════════════════════════════════════ -->
+@if (importOpen) {
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Importar guía genética desde Excel</h3>
+        <button type="button" class="icon-btn" (click)="cerrarImport()" [disabled]="importBusy">
+          <fa-icon [icon]="faTimes"></fa-icon>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="field">
+          <label for="m-file">Archivo Excel (.xlsx / .xls)</label>
+          <input id="m-file" type="file" [attr.accept]="extensionesImport" (change)="onFileSelected($event)" />
+        </div>
+
+        <p class="hint hint--block mt-3">
+          El import es <strong>idempotente</strong>: la clave es raza + año + semana, así que subir
+          el mismo archivo dos veces actualiza lo que cambió y no duplica nada. Las columnas
+          esperadas son las de la plantilla (<code>raza</code>, <code>anio_guia</code>,
+          <code>edad</code>, <code>prod_porcentaje</code>, <code>retiro_ac_h</code>,
+          <code>gr_ave_dia_h</code>) — el archivo que genera «Exportar Excel» ya viene con ellas.
+        </p>
+
+        @if (importResumen) {
+          <div class="alert mt-3"
+               [class.error]="importResumen.tono === 'error'"
+               [class.warn]="importResumen.tono === 'warning'"
+               [class.ok]="importResumen.tono === 'success'">
+            <div class="resumen-mensaje">{{ importResumen.mensaje }}</div>
+            @if (importResumen.detalle.length) {
+              <ul class="resumen-detalle">
+                @for (d of importResumen.detalle; track d) {
+                  <li>{{ d }}</li>
+                }
+              </ul>
+            }
+          </div>
+        }
+
+        @if (importErrores.length) {
+          <div class="errores-import mt-3">
+            <h4>Filas rechazadas</h4>
+            <div class="table-scroll">
+              <table class="ggsr-table ggsr-table--compact">
+                <thead>
+                  <tr><th>Fila</th><th>Motivo</th></tr>
+                </thead>
+                <tbody>
+                  @for (e of importErrores; track e.fila + '|' + e.motivo) {
+                    <tr>
+                      <td class="mono">{{ e.fila }}</td>
+                      <td>{{ e.motivo }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-subtle" (click)="cerrarImport()" [disabled]="importBusy">Cerrar</button>
+        <button type="button" class="btn-primary" (click)="ejecutarImport()" [disabled]="importBusy || !importFile">
+          @if (importBusy) {
+            <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          }
+          Importar
+        </button>
+      </div>
+    </div>
+  </div>
+}

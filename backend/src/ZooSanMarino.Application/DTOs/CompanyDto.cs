@@ -84,5 +84,12 @@ public record CompanyDto(
     /// <summary>La app móvil manda ítems de inventario reales (no el escalar de hoy) y el seguimiento
     /// diario descuenta stock igual que el front web. Kill switch de F5 — no encender para empresas
     /// con <c>ManejaInventarioPorSilo</c> hasta que exista el selector de silo en la app.</summary>
-    bool DescuentaInventarioDesdeMovil = false
+    bool DescuentaInventarioDesdeMovil = false,
+    /// <summary>
+    /// Qué modelo de guía genética usa la empresa: <c>"sanmarino"</c> (default) = tabla ancha
+    /// compartida; <c>"reducida"</c> = tabla plana de 3 métricas. El front lo lee desde
+    /// <c>ActiveCompanyConfigService</c> para decidir qué pantalla de guía ofrecer.
+    /// Valores válidos y resolución: <c>GuiaGeneticaPerfilCalculos</c>.
+    /// </summary>
+    string GuiaGeneticaPerfil = "sanmarino"
 );
