@@ -3597,3 +3597,37 @@ Plan: [`fase_de_desarrollo/sesion_b1_fecha_local_vs_utc_plan.md`](fase_de_desarr
       controles siguen firmes — vencida hace 1 minuto ⇒ 401 `token-expirado`, revocada ⇒ 401
       `sesion-revocada`, sin fila ⇒ 401 `sesion-revocada`. **El borde quedo exacto.** Filas de smoke
       borradas y puertos libres.
+
+---
+
+## CI-CACHE — Un 503 de npm tumba el deploy del front (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md)
+
+> Sale del run `89219049283`: front muerto en `yarn install`, back ya desplegado.
+> Producción quedó con back nuevo y front viejo hasta que se relance el job.
+
+- [x] **Disparador medido**: `registry.npmjs.org` devolvió 503 en `karma-6.4.4.tgz`, en
+      `[2/4] Fetching packages`. El resolve pasó bien. No es del repo.
+- [x] **Causa de fondo medida**: **0 layers `CACHED`** en los DOS builds del run. El
+      `--cache-from` importa un manifiesto vacío ⇒ cada deploy rebaja los 763 paquetes de npm.
+- [x] **Hipótesis descartada antes de implementar**: `BUILDKIT_INLINE_CACHE=1` solo NO sirve —
+      es `mode=min`, exporta únicamente la imagen final, y el `yarn install` (etapa `deps`) y el
+      `dotnet restore` (etapa `restore`) viven en etapas intermedias que no llegan a ella.
+- [x] **Arreglo 1 — caché que sí pega**: publicar la etapa de deps como imagen propia
+      (`--target deps` / `--target restore` → tag `:deps-cache`) y sembrar el build completo
+      desde ella. En los dos jobs.
+- [x] **Arreglo 2 — reintentos**: `RUN yarn install` con 3 intentos y backoff 20s/40s.
+      Mismas flags (`--frozen-lockfile` incluido); falla las 3 ⇒ `exit 1`, el gate no se ablanda.
+- [x] **Sin tocar**: etapas del Dockerfile fuera del `RUN`, guarda del borde, tags `:sha`/`:latest`,
+      despliegue a ECS. El artefacto que llega a prod es byte a byte el mismo.
+- [x] **Validación local**: YAML parsea (trigger `push`/`main-produccion` y cadena `needs`
+      intactos); `sh -n` OK sobre el `RUN` **extraído del propio Dockerfile**, no una copia;
+      loop probado con un `yarn` falso — falla 0 ⇒ 1 invocación / exit 0; falla 2 ⇒ anda a la
+      3ª / exit 0; falla 3 ⇒ exit 1. Flags idénticas en las 3 invocaciones.
+- [x] **Defecto encontrado y corregido en la propia validación**: la 1ª versión del loop dormía
+      60 s **después** del 3er fallo y anunciaba un reintento que no existía. Ahora el sleep se
+      saltea en el último intento.
+- [ ] **Validación en pipeline (PENDIENTE, no afirmable desde acá)**: el 2º deploy consecutivo sin
+      cambios en `yarn.lock` debe dar layers `CACHED` > 0. El 1º todavía baja todo, porque la imagen
+      que hoy está en ECR no tiene manifiesto de caché.
