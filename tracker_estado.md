@@ -3640,5 +3640,8 @@ Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_des
       que dejaban las pruebas con imágenes locales.
 - [ ] **Falta verlo en el pipeline**: el 1er deploy con el cambio TODAVÍA baja todo (la tag
       `:deps-cache` aún no existe en ECR — ese run la crea). El 2º es el que debe dar `CACHED` > 0.
+      ✅ Confirmado que el problema es sistematico, no del incidente: el run **32971303424** salio
+      **verde** (3 jobs success) y aun asi dio **0 CACHED**, con el `yarn install` del front bajando
+      los 763 paquetes otra vez (step de 25,6 s). El cache esta muerto en TODOS los deploys.
       ⚠️ El deploy lanzado el 26-ago (run 32971303424, `main-produccion@5e780e5`) **NO lleva estos
       arreglos**: `8a78ea5` sigue sin pushear.
