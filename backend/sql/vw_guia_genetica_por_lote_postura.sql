@@ -51,7 +51,11 @@ WITH guia AS (
         public.f_safe_numeric(g.aprov_sem)      AS aprov_sem,
         public.f_safe_numeric(g.peso_huevo)     AS peso_huevo,
         public.f_safe_numeric(g.apareo)         AS apareo
-    FROM public.guia_genetica_sanmarino_colombia g
+    -- Fuente unificada. 🔴 Esta vista es el UNICO de los 5 objetos SIN `LIMIT 1`, asi que
+    -- una guia que emitiera la misma clave dos veces la DUPLICARIA. Por eso
+    -- vw_guia_genetica_postura emite una sola grafia por fila (la canonica de cada tabla)
+    -- y las dos tablas estan particionadas por company_id: la clave no se puede repetir.
+    FROM public.vw_guia_genetica_postura g
     WHERE g.deleted_at IS NULL
       AND g.edad ~ '^[0-9]'
 )

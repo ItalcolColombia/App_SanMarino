@@ -255,3 +255,117 @@ bug silencioso en una violación de constraint en el único camino real de carga
 criterios de join de las fns (`lower(trim())`, `deleted_at`, `pais_id`), que hoy divergen a
 propósito entre levante y producción: unificarlos haría que **empiecen a matchear filas que antes no
 matcheaban**, o sea, el refactor cambiaría resultados por sí solo.
+
+---
+
+# F5 — El hueco de LECTURA. Lo que el análisis midió y por qué cambia el diseño
+
+> Escrito el 26-ago-2026 tras leer las 5 fns completas y medir la BD local (copia de prod).
+> **Dos premisas del §7 resultaron falsas y apareció un defecto peor que el que íbamos a arreglar.**
+
+## F5.0 — Lo que se cayó al medir
+
+**1. El «punto ciego de la grafía» NO existe en el camino SQL.** El §7 decía que 3 de 4 razas no
+cruzan por grafía y que eso bloqueaba todo. Medido: las grafías rotas (`BABCOK BROWN`, `HY LINE`,
+`LOHMANN LSL`, `LOHMANN BROWN`) viven **sólo en `lote_postura_base`**, y **ninguno de los 5 objetos
+lee esa tabla** (`grep -c lote_postura_base` sobre los 5 `.sql` ⇒ **0, 0, 0, 0, 0**). Las fns leen
+`lotes` / `lote_postura_levante` / `lote_postura_produccion`, donde Santa Reyes tiene **una sola
+raza: `Criolla`**, byte-idéntica a la de su guía.
+
+La raza **no se hereda** del lote base: el base 29 es `BABCOK BROWN` y su lote operativo es
+`Criolla`. Alguien la escribió distinta al crear el lote.
+
+⇒ **La «opción (c)» (emitir las grafías del lote) queda descartada: no compra nada y sí agrega
+riesgo** — `Criolla` del lote es idéntica a la canónica, así que emitir ambas duplicaría, y
+`vw_guia_genetica_por_lote_postura` es el único objeto **sin `LIMIT 1`** ⇒ pasaría de 8 a 16 filas.
+
+**2. El delta cero es estructural por `company_id` SOLO.** Los 5 objetos filtran
+`guia.company_id = lote.company_id`, y `guia_genetica_santa_reyes` es 100 % company 6. Partición
+limpia: **ninguna empresa tiene filas en las dos tablas**. No hace falta disjunción de raza ni leer
+el flag de perfil.
+
+**3. El año cruza bien.** `ano_tabla_genetica = 2026` (integer, **0 NULLs** en las 3 tablas, todas
+las empresas) contra `anio_guia = '2026'` (615/615, sin espacios). La trampa del año no existía.
+
+## F5.1 — 🔴 El defecto que sí importa: un `COALESCE` convierte «sin dato» en un número FALSO
+
+La guía de Santa Reyes tiene **3 columnas de dato**; la compartida tiene >40. Las fns coalescean a
+`0` lo que falta — y ese `0` no es neutro:
+
+**En levante** (`fn_indicadores_levante_postura.sql:466-472`) el mixto promedia por sexo con
+`COALESCE` de cada término y divide por 2 **fijo**:
+
+```sql
+(COALESCE(NULLIF(btrim(g.gr_ave_dia_h),'')::float8, 0)
++ COALESCE(NULLIF(btrim(g.gr_ave_dia_m),'')::float8, 0)) / 2
+```
+
+Con la guía de SR, que trae hembras y **no** machos: `(95.00 + 0) / 2 = 47.5`. **`consumo_tabla`
+mostraría 47,5 g/ave/día donde el cliente dice 95,00.** No es NULL, no es 0, no revienta: es un
+número **plausible y equivocado por un factor de 2** — el peor modo de falla posible. Mismo mecanismo
+en `mort_tabla`.
+
+**En producción** (`fn_indicadores_produccion_postura.sql:400-428`) no hay promedio, así que las 3
+columnas reales de SR salen **bien**; pero 6 columnas que SR no tiene salen **`0` falso**
+(`consumo_guia_machos`, `peso_guia_hembras/machos`, `mort_sem_h/m`, `retiro_ac_m`). Y como
+`fn_dif_pp` documenta que **con guía = 0 no devuelve NULL**, la columna «diferencia vs guía» de
+mortalidad pintaría **la mortalidad real del lote** como si fuera la desviación.
+
+**La vista sola NO puede arreglarlo**: el `0` nace del `COALESCE` **dentro** de la fn, y la rama
+nueva ya emite NULL. No hay valor que la vista pueda emitir para esquivarlo (cualquier texto no
+numérico rompe el cast).
+
+**Y quitar esos `COALESCE` no es delta cero.** Medido en el rango de producción de la guía
+compartida, **company 1 tiene entre 6 y 14 filas en blanco por columna**: quitarlos le cambiaría el
+número a Sanmarino. Prohibido.
+
+## F5.2 — El diseño que sí funciona: la vista lleva una columna `origen`
+
+```sql
+CREATE OR REPLACE VIEW vw_guia_genetica_postura AS
+  SELECT <las 53 columnas tal cual>, 'compartida'::text AS origen
+    FROM guia_genetica_sanmarino_colombia
+  UNION ALL
+  SELECT <proyección de la reducida al mismo shape, casteada a text, NULL donde no hay dato>,
+         'propia'::text AS origen
+    FROM guia_genetica_santa_reyes;
+```
+
+Y en las fns, cada `COALESCE(g_x, 0)` que hoy miente pasa a:
+
+```sql
+g_x := CASE WHEN v_origen = 'propia' THEN g_x ELSE COALESCE(g_x, 0) END;
+```
+
+**Por qué esto SÍ es delta cero por construcción:** para toda fila de la rama `'compartida'` la
+expresión es **literalmente** la de hoy. El camino nuevo sólo se activa cuando `origen = 'propia'`,
+que sólo puede ocurrir para una empresa con filas en la tabla reducida. No es «verificado después»:
+es inalcanzable para las otras cuatro empresas.
+
+Es decir: **el cambio en las fns NO es sólo el `FROM`**, como asumía el §7. Es el `FROM` **más** el
+`origen` leído en el `INTO` **más** el `CASE` en cada `COALESCE` que hoy fabrica un cero. Cualquier
+diseño que se limite al `FROM` entrega números falsos.
+
+## F5.3 — Lo que hay que decirle al usuario antes de prometer nada
+
+- **Hoy no se vería nada.** El único lote operativo de Santa Reyes (`LOTE 218A`, `lote_id=152`) tiene
+  **7 días de vida — semana 1**, 2 registros de levante y **0 de producción**. Llega a la semana 18
+  (donde arranca su guía) el **2026-12-16**, y a la 25 el **2027-02-03**. La corrección es correcta
+  pero **no es verificable en pantalla con el dato de hoy**: hay que probarla con datos sintéticos
+  en transacción revertida.
+- **Las semanas 1 a 17 de levante quedan sin guía para siempre.** La guía del cliente arranca en la
+  18. No es un bug: es el dato que entregó. **El 86 % del eje de levante (17 de 25 semanas) queda
+  vacío aunque la unión funcione perfecto.** El overlap real es: levante **8 semanas** (18–25),
+  producción **115** (26–140).
+- **`LIMIT 1` sin `ORDER BY` es no-determinista.** Envolver la tabla en una vista cambia el plan
+  (pasa a `Append`) ⇒ si hubiera duplicados en la compartida, podría cambiar cuál gana **incluso para
+  Sanmarino**. Medido hoy: **0 duplicados** en ambas tablas por `(company, raza, anio, btrim(edad))`.
+  Pero **no hay UNIQUE que lo garantice** — la limpieza es de la carga, no del esquema. Riesgo
+  teórico hoy, real si alguien carga un duplicado mañana.
+
+## F5.4 — Validación
+
+Gate multipaís obligatorio: `verificar_paridad_guia_genetica.sql` congelado antes, comparado después
+⇒ **0 en todas las columnas para companies 1, 3, 4 y 5**. Más una prueba con lote sintético de Santa
+Reyes en semana 20 y 30, dentro de `BEGIN … ROLLBACK`, para ver que la Tabla se llena con el valor
+del cliente y **no con la mitad**.
