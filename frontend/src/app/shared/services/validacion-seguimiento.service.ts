@@ -41,6 +41,45 @@ export interface ResultadoValidacion {
   itemsAplicados: number;
   kgAplicados: number;
   avesDescontadas: number;
+  /** True si el registro ya venía validado y no se hizo nada. */
+  yaEstabaValidado?: boolean;
+}
+
+/** Un registro dentro del resultado del bloque. */
+export interface ItemValidacionEnBloque {
+  seguimientoId: number;
+  fecha: string;
+  /** VALIDADO | VALIDADO_SIN_EFECTO | YA_VALIDADO | FALLO | NO_INTENTADO */
+  resultado: string;
+  itemsAplicados: number;
+  kgAplicados: number;
+  avesDescontadas: number;
+  motivo?: string | null;
+}
+
+/**
+ * Resultado de validar en bloque los pendientes de un lote.
+ *
+ * <p>`noIntentados` **no son fallas**: el backend corta en la primera y deja el resto sin tocar. Esa
+ * separación es la que permite decir «corregí ese registro y volvé a validar» en vez de un
+ * «fallaron 15» que no señala nada.</p>
+ */
+export interface ResultadoValidacionEnBloque {
+  modulo: string;
+  loteId: number;
+  solicitados: number;
+  validados: number;
+  yaValidados: number;
+  fallidos: number;
+  noIntentados: number;
+  kgAplicados: number;
+  avesDescontadas: number;
+  seguimientoCorte?: number | null;
+  fechaCorte?: string | null;
+  motivoCorte?: string | null;
+  /** Texto ya redactado por el backend. El front NO lo concatena. */
+  mensaje: string;
+  detalle: ItemValidacionEnBloque[];
 }
 
 /** Respuesta neutra: es lo que se devuelve cuando la consulta falla (fail-closed). */
@@ -72,6 +111,22 @@ export class ValidacionSeguimientoService {
   /** Valida un registro: aplica el consumo de alimento y el descuento de aves. */
   validar(modulo: ModuloSeguimiento, seguimientoId: number): Observable<ResultadoValidacion> {
     return this.http.post<ResultadoValidacion>(`${this.baseUrl}/${modulo}/${seguimientoId}/validar`, {});
+  }
+
+  /**
+   * Valida TODOS los pendientes del lote, del día más viejo al más nuevo, cortando en la primera
+   * falla.
+   *
+   * <p>**Sin `catchError`, a diferencia de `pendientes()`.** Ahí un error de red se degrada a «no pasa
+   * nada» porque es una consulta; acá no puede: cada registro va en su propia transacción, así que un
+   * error de red puede dejar validaciones ya confirmadas y tragárselo mostraría al operario un lote
+   * que no coincide con lo que el backend tiene.</p>
+   */
+  validarPendientesDelLote(
+    modulo: ModuloSeguimiento, loteId: number
+  ): Observable<ResultadoValidacionEnBloque> {
+    return this.http.post<ResultadoValidacionEnBloque>(
+      `${this.baseUrl}/${modulo}/lote/${loteId}/validar-pendientes`, {});
   }
 
   /** Quita la validación: devuelve alimento y aves, y deja el registro editable. */

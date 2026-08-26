@@ -110,6 +110,18 @@
         [title]="isLoteCerrado ? 'El lote está cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
         Nuevo registro
       </button>
+      <!-- Validar en bloque. Solo aparece con la doble validación encendida y algo pendiente:
+           `puedeValidarTodos` ya combina el flag de la empresa, el permiso y que haya registros. -->
+      @if (puedeValidarTodos || validandoTodos) {
+        <button
+          type="button"
+          class="btn btn--secondary"
+          [disabled]="!puedeValidarTodos"
+          (click)="onValidarTodosLosPendientes()"
+          [title]="'Valida los ' + registrosPendientes.length + ' registros pendientes, del más viejo al más nuevo'">
+          {{ validandoTodos ? 'Validando…' : 'Validar pendientes (' + registrosPendientes.length + ')' }}
+        </button>
+      }
     </div>
   </header>
 

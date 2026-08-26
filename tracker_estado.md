@@ -3463,3 +3463,99 @@ Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_des
       cargar 34 días en una sesión. La regla de huecos (§9) lo vuelve **obligatorio**.
 - [ ] ⏸️ Verificar una semana en Panamá (ya tiene el flag encendido, es el caso extremo) y **recién
       entonces** encender el flag en Ecuador.
+
+---
+
+## EC7 — «Validar todos los pendientes del lote» (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/validar_lote_completo_plan.md`](fase_de_desarrollo/validar_lote_completo_plan.md)
+
+> Paso 1 de la secuencia de EC6 §11.6. Hoy se valida **de a uno** y el cambio de plazo + la regla de
+> huecos suben el tamaño del bloque a confirmar.
+
+- [x] **Motivo medido**: ItalcolPanama cargó 6+ días en una sesión **41 veces en un mes**, pico de
+      **34 días**. Con el plazo desde `created_at` esos días entran completos y vencen todos juntos al
+      día siguiente; con la regla de huecos, llenar 4 huecos deja 4 registros a confirmar de a uno.
+- [x] **Alcance acotado**: se construye el **validar en bloque**. Queda afuera «guardar y validar» en
+      el modal de alta (suma una decisión al formulario y no resuelve el caso grande) y el
+      **desvalidar** en bloque (deshacer descuentos en masa es peligroso y nadie lo pidió).
+- [x] **Las 3 decisiones, resueltas con evidencia** (4 diseños + 3 refutaciones): **una transacción
+      por registro** (el éxito parcial ES el feature: hoy 34 POST son 34 transacciones y si el 20
+      falla quedan los 19); **el orden importa y es cronológico**; **se corta** en la primera falla.
+- [x] 🔴 **Hallazgo que evita corrupción silenciosa: `ChangeTracker.Clear()` tras capturar una falla.**
+      La transacción de `ValidarAsync` revierte **la base, no el ChangeTracker**: las entidades quedan
+      en memoria con el valor nuevo marcadas `Unchanged`, y el registro siguiente las reusa por
+      identity map descontando desde un saldo que en la base **nunca existió**. Y no se nota solo: la
+      guarda de aves lee `AsNoTracking()` —ve el valor revertido y pasa— mientras los aplicadores leen
+      rastreado y reciben la instancia envenenada. Verificado a mano en el código.
+- [x] 🔴 **Hallazgo: el orden SÍ cambia el resultado.** La guarda de aves compara **totales**
+      (`MotivoAvesNoAplicable`) mientras el descuento recorta **por bucket** (`AplicarPorBucket`, con
+      `Math.Min` por género). Lote de 100 hembras y 0 machos, un día que baja 50 machos y otro que
+      baja 60 hembras: **validan los dos en un orden y cortan en el otro**. Por eso el orden lo impone
+      el SERVIDOR y su test es de corrección, no de ergonomía.
+- [x] **El bloque se niega a correr dentro de una transacción abierta.** `ValidarAsync` abre la suya
+      sólo si no hay ambiente; con una envolvente ninguno commitearía y el bloque sería todo-o-nada
+      **en silencio**. Error explícito en vez de sorpresa.
+- [x] **Backend**: `ValidacionEnBloqueCalculos.cs` (puro) + partial `…ValidarEnBloque.cs` + endpoint
+      `POST /api/SeguimientoValidacion/{modulo}/lote/{loteId}/validar-pendientes` (sin `admin` en el
+      path). `ResultadoValidacionDto` suma `YaEstabaValidado`, que es lo que distingue «lo validé yo
+      ahora sin efecto» de «otra pestaña ya lo había validado» — sin ese dato el conteo mentiría.
+- [x] **Front**: `validarPendientesDelLote()` + botón en las 3 listas, confirmación con
+      `ConfirmDialogService` nombrando cuántos y el rango de fechas, corte al modal (no toast) porque
+      el operario **tiene** que leer qué día falló.
+- [x] 🔴 **Detalle de UI que no era obvio**: tras un corte **quedan vencidos por definición**, así que
+      la recarga dispara el modal rojo de pendientes y se apilaría **sobre** el del resultado. Se
+      suprime esa única vez (`suprimirAlertaPendientes`).
+- [x] **Gating sin permiso nuevo ni migración**: el botón reusa `puedeValidar`, que ya combina el
+      permiso y el flag de empresa (fail-closed). Con la doble validación apagada el botón no existe.
+- [x] **Tests**: `ValidacionEnBloqueCalculosTests.cs`, **+39 casos** — orden, desempate por id, tope,
+      invariante `Validados + YaValidados + Fallidos + NoIntentados == Solicitados`, y el mensaje byte
+      a byte en singular y plural. **3295 verdes** (eran 3256).
+- [x] **Validación final**: `dotnet build` **0 errores 0 warnings**, `dotnet test` **3297 verdes**
+      (eran 3256), `yarn build` **0 errores**.
+      ⚠️ **Dos tropiezos de entorno, para no repetirlos**: (1) el front falló con `TS2345` porque
+      `selectedLoteId` es `number | null` — se arregló con una guarda, que además es lo correcto (sin
+      lote no hay nada que validar); (2) el backend falló con **`CS2012: file locked by VBCSCompiler`**
+      por correr `dotnet test` y `dotnet build` **en paralelo** sobre el mismo repo. Se destraba con
+      `dotnet build-server shutdown`. Es la misma trampa del `bin/` bloqueado que documenta CLAUDE.md,
+      por otra puerta: **no correr test y build a la vez**.
+- [ ] ⏸️ **Queda para después**, sobre esta misma base: «guardar y validar» en el modal de alta.
+      Se dejó afuera a propósito — suma una decisión al formulario de captura y no resuelve el caso
+      grande de 34 días ya cargados.
+
+---
+
+## MENU-EMP — El menú del usuario debe respetar `company_menus` (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/menu_efectivo_por_empresa_plan.md`](fase_de_desarrollo/menu_efectivo_por_empresa_plan.md)
+
+> Reportado sobre ItalcolPanamá: el sidebar muestra ItalJira aunque la empresa no lo tiene asignado.
+> `company_menus` existe, la pantalla de administración existe, y **el runtime nunca la mira**.
+
+- [x] **Medir el defecto** en la copia de producción: qué pares (empresa, menú) se cuelan hoy.
+- [x] **Decisiones de diseño** (D1 habilitado = fila + `is_enabled`; D2 empresa sin filas ⇒ no
+      filtra; D3 ancestros incluidos; D4 orden sigue saliendo de `menus`).
+- [x] **BD**: `fn_menu_usuario(uuid, int) → jsonb` con el árbol ya construido + espejo en
+      `backend/sql/` + **migración** que la aplica (nada de `backend/sql/` llega solo a prod).
+- [x] **Cálculo puro**: `MenuVisibilidadCalculos` como especificación ejecutable de la fn.
+- [x] **Backend**: `Menus_GetForUserAsync` pasa de 4 round-trips a 1; los 3 endpoints caen a
+      `_currentUser.CompanyId` cuando no viene `companyId`.
+- [x] **Tests** (gate de CI): **18 en verde** — los 11 casos del plan §4, el árbol, los bordes y el
+      contrato del JSON de la función.
+- [x] **Paridad en BD** sobre la copia de producción, 56 pares usuario-empresa, invariante de dos
+      lados: **0 regresiones** (la fn no hace aparecer ningún menú que la regla vieja no mostrara) y
+      **0 colaterales** — los **51** pares que dejan de verse son exactamente los que su empresa no
+      habilita. En Panamá: ItalJira entero, Guía Genética y Bandeja de gestión.
+- [x] **Validación**: `dotnet test` **3297 en verde** · `dotnet build` de **Infrastructure** limpio
+      (0 err / 0 warn) · gate `verificar-sql-llega-por-migracion.js` OK · migración aplicada en local
+      y **cuerpo desplegado == espejo** verificado contra `pg_get_functiondef`.
+- [x] **Contrato del JSON fijado por test** con salida REAL de la función: `Deserialize` no falla ante
+      claves que no matchean —deja los valores en default—, así que un rename en la fn dejaría el menú
+      sin rutas y en silencio. Las `JsonSerializerOptions` viven en `MenuVisibilidadCalculos` para que
+      el test use exactamente las del service.
+- [ ] ⏸️ **Smoke HTTP pendiente**: `ZooSanMarino.API` no compila ahora mismo por trabajo en curso de
+      **otra sesión** (`SeguimientoValidacionController.cs:88` llama a `ValidarPendientesDelLoteAsync`,
+      que todavía no existe en `IValidacionSeguimientoService` — es de EC7, no de este bloque). Falta
+      levantar el backend y pedir `GET /api/Roles/menus/me` como `admin.panama` cuando esa sesión
+      cierre. La verificación equivalente **ya está hecha a nivel BD**: el árbol que devuelve la fn
+      para ese usuario no trae ItalJira, Guía Genética ni Bandeja de gestión.

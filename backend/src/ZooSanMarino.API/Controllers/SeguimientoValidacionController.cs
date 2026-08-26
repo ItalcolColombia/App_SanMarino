@@ -62,6 +62,40 @@ public class SeguimientoValidacionController : ControllerBase
     }
 
     /// <summary>
+    /// Valida en bloque todos los pendientes de un lote, del día más viejo al más nuevo, cortando en
+    /// la primera falla.
+    ///
+    /// <para>
+    /// Devuelve <b>200 aunque haya cortado</b>: un corte no es un error de la request, es su
+    /// resultado. Lo que se validó, se validó —cada registro va en su propia transacción— y el cuerpo
+    /// trae el detalle registro por registro más el motivo del corte. El 403 sigue siendo 403 porque
+    /// ahí no se aplicó nada.
+    /// </para>
+    /// </summary>
+    /// <param name="modulo">LEVANTE | PRODUCCION | ENGORDE | ENGORDE_EC | REPRODUCTORA.</param>
+    /// <param name="loteId">Clave numérica del lote en ese módulo.</param>
+    [HttpPost("{modulo}/lote/{loteId:int}/validar-pendientes")]
+    [ProducesResponseType(typeof(ResultadoValidacionEnBloqueDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ValidarPendientes(string modulo, int loteId, CancellationToken ct)
+    {
+        var normalizado = Normalizar(modulo);
+        if (normalizado is null) return BadRequest(new { message = MensajeModuloInvalido(modulo) });
+
+        try
+        {
+            var resultado = await _service.ValidarPendientesDelLoteAsync(normalizado, loteId, ct);
+            _logger.LogInformation(
+                "Validación en bloque {Modulo} lote {LoteId}: {Validados}/{Solicitados} validados, {NoIntentados} sin intentar",
+                normalizado, loteId, resultado.Validados, resultado.Solicitados, resultado.NoIntentados);
+            return Ok(resultado);
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>
     /// Quita la validación: devuelve alimento y aves, y vuelve a dejar el registro editable. Es la
     /// única forma de corregir un registro ya validado, y pide su propio permiso.
     /// </summary>

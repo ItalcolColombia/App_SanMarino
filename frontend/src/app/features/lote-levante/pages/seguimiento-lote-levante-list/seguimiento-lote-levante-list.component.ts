@@ -1,7 +1,9 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
-import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
+import { fechaCortaSinTz as fmtFecha } from '../../../../shared/utils/format';
+import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../shared/services/validacion-seguimiento.service';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
@@ -189,6 +191,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private aviso: AvisoValidacionService,
     /** Doble validación: alerta de registros vencidos al entrar al lote. */
     private validacionSvc: ValidacionSeguimientoService,
+    private confirmDialog: ConfirmDialogService,
     private permSvc: UserPermissionService,
 
     private farmSvc: FarmService,
@@ -769,6 +772,8 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
   private avisarPendientesDeValidacion(loteId: number): void {
     this.validacionSvc.pendientes('LEVANTE', loteId).subscribe(p => {
       this.requiereValidacion = p.requiereValidacion;
+      // El backend ya los devuelve ordenados por fecha; se conservan para el validar en bloque.
+      this.registrosPendientes = [...(p.registros ?? [])];
 
       // Se reemplaza el mapa entero en vez de mutarlo: una fila recién validada tiene que
       // DESAPARECER, y limpiar+rellenar deja una ventana con el estado a medias.
@@ -776,10 +781,81 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
       for (const r of p.registros ?? []) mapa.set(r.seguimientoId, r.estado);
       this.estadoValidacionPorId = mapa;
 
+      // Tras un validar en bloque que cortó, por definición QUEDAN vencidos: sin esta guarda el
+      // modal rojo de la recarga se apilaría sobre el modal del resultado.
+      if (this.suprimirAlertaPendientes) { this.suprimirAlertaPendientes = false; return; }
+
       if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
       void this.aviso.alertaPendientes(p.mensaje);
     });
   }
+
+  /** Pendientes del lote, en el orden en que el backend los va a validar. */
+  registrosPendientes: RegistroValidacion[] = [];
+  /** Corrida en bloque en curso: apaga el botón para que no se dispare dos veces. */
+  validandoTodos = false;
+  /** Corta el modal rojo de la recarga inmediata posterior a un validar en bloque. */
+  private suprimirAlertaPendientes = false;
+
+  /** Hay algo que validar en bloque, y el usuario puede. */
+  get puedeValidarTodos(): boolean {
+    return this.puedeValidar && this.registrosPendientes.length > 0 && !this.validandoTodos;
+  }
+
+  /**
+   * Valida de una vez todos los pendientes del lote. El backend ordena por fecha y corta en la
+   * primera falla, así que lo anterior al corte queda validado aunque el resultado sea parcial.
+   */
+  async onValidarTodosLosPendientes(): Promise<void> {
+    const loteId = this.selectedLoteId;
+    const regs = this.registrosPendientes;
+    if (loteId == null || !this.puedeValidar || regs.length === 0 || this.validandoTodos) return;
+
+    const n = regs.length;
+    const vencidos = regs.filter(r => r.estado === 'EN_RETRASO').length;
+    const plural = n === 1 ? '' : 's';
+
+    const ok = await this.confirmDialog.ask({
+      title: `Validar ${n} registro${plural} pendiente${plural}`,
+      message:
+        `Registros: ${n} (${fmtFecha(regs[0].fecha)} → ${fmtFecha(regs[n - 1].fecha)})
+` +
+        (vencidos > 0 ? `En retraso: ${vencidos}
+` : '') +
+        `
+Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y deja cada ` +
+        `registro de SOLO LECTURA.
+
+` +
+        `Se validan del más viejo al más nuevo y el proceso se detiene en el primero que falle: lo ` +
+        `anterior queda validado.`,
+      type: 'warning',
+      confirmText: 'Validar todos'
+    });
+    if (!ok) return;
+
+    this.validandoTodos = true;
+    this.loading = true;
+    this.validacionSvc.validarPendientesDelLote('LEVANTE', loteId).subscribe({
+      next: r => {
+        this.validandoTodos = false;
+        this.suprimirAlertaPendientes = true;
+        // Un corte es información que el operario TIENE que leer: va en modal, no en toast.
+        if (r.fallidos > 0) void this.aviso.alertaPendientes(r.mensaje);
+        else this.toast.success(r.mensaje, 'Validación en bloque', 6000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.validandoTodos = false;
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudieron validar los pendientes del lote.', 'No se pudo validar');
+        // Puede haber registros ya confirmados antes del error: se recarga para no mostrar un estado
+        // que el backend ya no tiene.
+        this.onLoteChange(this.selectedLoteId);
+      }
+    });
+  }
+
 
   /** Extrae el mensaje del backend (`{ message }` o `{ error }`) con un fallback legible. */
   private mensajeDeError(err: unknown, fallback: string): string {

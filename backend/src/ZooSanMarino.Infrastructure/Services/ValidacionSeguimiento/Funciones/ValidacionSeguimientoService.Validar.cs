@@ -41,8 +41,11 @@ public partial class ValidacionSeguimientoService
         if (!estado.Existe || !EsDeLaEmpresaActiva(estado.CompanyId))
             throw new InvalidOperationException("El registro de seguimiento no existe o no pertenece a la compañía.");
 
+        // `YaEstabaValidado: true` distingue este caso del registro que se valida ahora y no aplica
+        // nada (un día sin consumo ni bajas). Los dos devuelven ceros; el bloque necesita saber cuál
+        // es cuál para no contar como «validado ahora» algo que ya estaba.
         if (estado.Validado)
-            return new ResultadoValidacionDto(modulo, seguimientoId, 0, 0m, 0);
+            return new ResultadoValidacionDto(modulo, seguimientoId, 0, 0m, 0, YaEstabaValidado: true);
 
         var reservasAlimento = await _ctx.SeguimientoReservaAlimento
             .Where(r => r.OrigenModulo == modulo && r.OrigenSeguimientoId == seguimientoId
