@@ -117,3 +117,20 @@
 .muted { color: var(--ital-muted, #6b7280); }
 
 .text-right { text-align: right; }
+
+// Boton de la accion de la fila. Naranja = accion (regla de marca del repo: verde solo exito,
+// rojo solo peligro), y solo se renderiza donde hay un descuadre que cerrar.
+.cuadre__btn-cuadrar {
+  background: var(--ital-orange, #e85c25);
+  border: 1px solid var(--ital-orange, #e85c25);
+  color: #fff;
+  border-radius: 7px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover { filter: brightness(0.95); }
+  &:focus-visible { outline: 2px solid var(--ital-orange, #e85c25); outline-offset: 2px; }
+}

@@ -2,6 +2,7 @@
 import { Component, Input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MovimientoAvesCompleto, UbicacionCompleta } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-traslado-navigation-card',
@@ -20,9 +21,18 @@ export class TrasladoNavigationCardComponent implements OnInit {
   isExpanded = signal(false);
   isLoading = signal(false);
 
-  constructor() {}
+  constructor(private companyConfig: ActiveCompanyConfigService) {}
+
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     if (!this.movimiento) {
       throw new Error('MovimientoAvesCompleto es requerido');
     }

@@ -169,7 +169,9 @@
             <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'alimento'"
                     (click)="vista = 'alimento'">Alimento</button>
           }
-          @if (tipoReporte === 'PRODUCCION') {
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               las 11 columnas fijas de esta hoja estan siempre en 0 -> la pestana no aplica. -->
+          @if (tipoReporte === 'PRODUCCION' && !clasificacionHuevoPorItems) {
             <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'clasificacion'"
                     (click)="vista = 'clasificacion'">Clasificación</button>
           }
@@ -248,13 +250,15 @@
                 </div>
               }
             </div>
-            <p class="text-xs text-gray-500">
-              La fase de cada semana la fija la guía genética. En <strong>machos</strong> el alimento real no se
-              captura en el seguimiento diario: se usa la energía/proteína nominal de la fase, así que su desviación
-              refleja <strong>consumo</strong>, no formulación.
-            </p>
+            @if (!ocultaMachosEnPostura) {
+              <p class="text-xs text-gray-500">
+                La fase de cada semana la fija la guía genética. En <strong>machos</strong> el alimento real no se
+                captura en el seguimiento diario: se usa la energía/proteína nominal de la fase, así que su desviación
+                refleja <strong>consumo</strong>, no formulación.
+              </p>
+            }
           }
-        } @else if (vista === 'clasificacion') {
+        } @else if (vista === 'clasificacion' && !clasificacionHuevoPorItems) {
           <!-- Hoja «CLAS Huevo»: % de clasificación por semana -->
           <div class="rts-table-wrap">
             <table class="rts-table">

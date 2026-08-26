@@ -67,6 +67,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    * calculadas desde `metadata.huevoItems` de cada registro. FAIL-CLOSED: sin flag, grilla clásica.
    */
   clasificacionHuevoPorItems = false;
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
   /** seguimiento.id → totales Primera/Pnc. Se calcula UNA vez por carga de registros (no por ciclo de CD). */
   private readonly huevoPorTipoPorRegistro = new Map<number, ResumenHuevoPorTipo>();
 
@@ -86,6 +88,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   /** Flags de la empresa activa (emite una vez y completa; caché por empresa). */
   private cargarFlagsEmpresa(): void {
     this.companyConfig.getFlags().subscribe(flags => {
+      // ⚠️ ANTES del return de abajo: ese corta cuando `clasificacionHuevoPorItems` no cambió, y
+      // dejaría este flag sin asignar para toda empresa que no clasifique huevo por ítems.
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
+
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       // El flag llega async: si los registros ya estaban cargados, calcular ahora.

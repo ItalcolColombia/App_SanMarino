@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -10,6 +11,11 @@ namespace ZooSanMarino.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize] // Gestión de usuarios: requiere sesión válida (antes quedaba accesible de forma anónima).
+// Y además, desde el 25-ago-2026, la ESCRITURA exige `usuarios.gestionar`. Antes alcanzaba con
+// estar logueado para crear, editar y borrar usuarios: no había un solo chequeo de permiso en los
+// 15 endpoints. Los GET siguen abiertos — ver el listado y el detalle es lo que conserva quien no
+// tiene el permiso.
+[GestionUsuariosEscrituraFilter]
 public class UsersController : ControllerBase
 {
     private readonly IAuthService _auth;

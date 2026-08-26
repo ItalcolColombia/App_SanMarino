@@ -43,6 +43,20 @@ public partial class ReporteTecnicoProduccionService : IReporteTecnicoProduccion
     // Helpers cross-concern: usados por Diario, Semanal, Sublotes y Tabs (partial: visibles entre
     // todos los archivos de Funciones/).
 
+    /// <summary>
+    /// Flag `companies.clasificacion_huevo_por_items` de la empresa activa: con clasificación por
+    /// ítem, Incubable/Cargado (Diario), HuevosIncub/HCarga (Cuadro) y toda la hoja "Clasificación
+    /// Huevo Comercio" salen de `huevo_inc`/las 11 columnas legacy fijas, siempre en 0 -- el
+    /// desglose real vive en metadata.huevoItems, que estos reportes no leen. Mismo patrón que
+    /// `DiasAlimentoPrevioEncaset` en ReporteContableService.
+    /// </summary>
+    private async Task<bool> ResolverClasificacionHuevoPorItemsAsync(CancellationToken ct) =>
+        await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync(ct);
+
 
 
 

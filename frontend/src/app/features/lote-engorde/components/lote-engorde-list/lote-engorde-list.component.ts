@@ -31,6 +31,7 @@ import { AsignarGranjasLoteBaseComponent } from '../asignar-granjas-lote-base/as
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 import {
   AvesPorSexo,
@@ -150,6 +151,18 @@ export class LoteEngordeListComponent implements OnInit {
   // ── Lote base global — agrupador para el Reporte Diario Costos ──
   /** Claves de permisos del módulo lote base (gate de botón/modal/campo). */
   readonly permLoteBase = PERMISOS_LOTE_BASE;
+
+  /**
+   * Permiso para corregir el ENCASETAMIENTO de un lote que ya tiene seguimiento. Es una key aparte
+   * de `editar_registro` porque no es una edición más: la corrección baja en cascada a toda la serie
+   * diaria, la conversión, la mortalidad, los reportes y la liquidación.
+   *
+   * <p>Se guarda en un CAMPO y no en un getter: un getter evaluado por ciclo de change detection
+   * dispararía la lectura de sesión en cada tick sin ganar nada (los permisos solo cambian con la
+   * sesión, y en ese caso la pantalla se recarga).</p>
+   */
+  readonly permCorregirAves = 'lote.corregir_aves';
+  puedeCorregirAves = false;
   lotesBase: LoteBaseEngordeDto[] = [];
   /** Lotes base visibles para la granja seleccionada en el form (activos + asignados a esa granja). */
   lotesBaseParaGranja: LoteBaseEngordeDto[] = [];
@@ -206,11 +219,13 @@ export class LoteEngordeListComponent implements OnInit {
     private confirmDialog: ConfirmDialogService,
     private countryFilter: CountryFilterService,
     private companyConfig: ActiveCompanyConfigService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    private permSvc: UserPermissionService
   ) {}
 
   ngOnInit(): void {
     this.esPanama = this.countryFilter.isPanama();
+    this.puedeCorregirAves = this.permSvc.has(this.permCorregirAves);
     this.initForm();
     this.loadLotes();
     this.loadLotesBase();

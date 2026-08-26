@@ -95,6 +95,11 @@ BEGIN
     IF p_mt ILIKE 'TrasladoSalida' OR p_mt ILIKE 'TrasladoInterGranjaSalida'
        OR p_mt ILIKE 'TrasladoInterGranjaPendiente' THEN RETURN 'INV_TRASLADO_SALIDA'; END IF;
     IF p_mt ILIKE 'Consumo' THEN RETURN 'INV_CONSUMO'; END IF;
+    -- Ajuste de cuadre (25-ago-2026): corrige la TABLA DIARIA sin tocar el stock, que es el caso
+    -- que no tenia arreglo posible desde la pantalla. Tipo propio y no INV_OTRO justamente para que
+    -- `fn_seguimiento_diario_engorde` pueda leerlo (v17); INV_OTRO es el saco de lo que la fn ignora.
+    IF p_mt ILIKE 'AjusteCuadreTablaEntrada' THEN RETURN 'INV_AJUSTE_CUADRE_ENTRADA'; END IF;
+    IF p_mt ILIKE 'AjusteCuadreTablaSalida'  THEN RETURN 'INV_AJUSTE_CUADRE_SALIDA';  END IF;
     RETURN 'INV_OTRO';
 END;
 $$;

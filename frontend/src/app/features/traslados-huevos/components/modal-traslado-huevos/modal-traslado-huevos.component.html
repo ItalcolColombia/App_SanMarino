@@ -161,6 +161,28 @@
                     }
                   </div>
                 }
+                <!-- Traslado -> planta/bodega desde la lista maestra de la empresa. Reemplaza al
+                     texto libre de arriba cuando hay destinos cargados (ver mostrarPlantaCatalogoTraslado). -->
+                @if (mostrarPlantaCatalogoTraslado()) {
+                  <div class="form-group">
+                    <label for="plantaTrasladoHuevos">Planta / bodega destino <span class="required">*</span></label>
+                    <select
+                      id="plantaTrasladoHuevos"
+                      formControlName="observaciones"
+                      class="form-control"
+                      [disabled]="isReadOnly()">
+                      <option value="">Selecciona planta o bodega</option>
+                      @for (planta of plantasDestino(); track planta) {
+                        <option [value]="planta">{{ planta }}</option>
+                      }
+                    </select>
+                    @if (formHuevos.get('observaciones')?.invalid && formHuevos.get('observaciones')?.touched) {
+                      <div class="error-message">
+                        Selecciona la planta o bodega de destino
+                      </div>
+                    }
+                  </div>
+                }
                 <!-- Venta → Planta: catálogo -->
                 @if (mostrarPlantaCatalogoVenta()) {
                   <div class="form-group">

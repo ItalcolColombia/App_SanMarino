@@ -48,6 +48,32 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   /** semana → desglose agrupado. MEMOIZADO: se recalcula solo al responder el endpoint. */
   private clasificacionPorSemana = new Map<number, ClasificacionHuevoSemanaAgrupada>();
 
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Claves de machos de las hojas del Excel. **Explícitas y no por patrón**: una regex sobre la
+   * "M" final se comería claves legítimas (`ConsumoPromDiaKg`, `HTAA`…) y el error solo se vería
+   * abriendo el archivo, con las columnas ya corridas.
+   */
+  private static readonly CLAVES_MACHOS: readonly string[] = [
+    'MortalidadM', 'PorcMortM', 'GuiaMortM', 'DifMortMpp', 'SeleccionM', 'PorcSelM',
+    'RetiroSemM', 'RetiroAcumM', 'RetiroAcumMGuia', 'DifRetiroAcumM',
+    'ConsumoKgM', 'ConsRealGrAveDiaM', 'ConsGuiaGrAveDiaM', 'DifConsM',
+    'PesoM', 'PesoMGuia', 'DifPesoM', 'MIni', 'MFin'
+  ];
+
+  /**
+   * Quita las columnas de machos de las filas del Excel. Son objetos (no arrays paralelos), así
+   * que borrar la clave no puede desalinear nada: la columna simplemente deja de existir.
+   */
+  private sinColumnasDeMachos(filas: any[]): any[] {
+    if (!this.ocultaMachosEnPostura) return filas;
+    const excluir = new Set(TablaListaIndicadoresComponent.CLAVES_MACHOS);
+    return filas.map(fila =>
+      Object.fromEntries(Object.entries(fila).filter(([clave]) => !excluir.has(clave))));
+  }
+
   constructor(
     private produccionService: ProduccionService,
     private companyConfig: ActiveCompanyConfigService
@@ -71,6 +97,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
    */
   private cargarFlagsEmpresa(): void {
     this.companyConfig.getFlags().subscribe(flags => {
+      // ⚠️ ANTES del return de abajo, que corta cuando `clasificacionHuevoPorItems` no cambió.
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
+
       if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
       if (this.clasificacionHuevoPorItems) this.cargarClasificacionHuevoItems();
@@ -199,8 +228,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `produccion-lote-${loteNombre}-seguimiento-indicadores-semana-${maxSemana || 'NA'}-${stamp}.xlsx`;
 
-    const segRows = this.buildSeguimientoRows();   // Hoja 1: Seguimiento (registros diarios)
-    const indRows = this.buildIndicadoresRows();   // Hoja 2: Indicadores (métricas semanales vs guía)
+    const segRows = this.sinColumnasDeMachos(this.buildSeguimientoRows());   // Hoja 1: Seguimiento
+    const indRows = this.sinColumnasDeMachos(this.buildIndicadoresRows());   // Hoja 2: Indicadores
     exportarObjetosMultiHojaExcel([
       ...(segRows.length ? [{ sheetName: 'Seguimiento', rows: segRows }] : []),
       ...(indRows.length ? [{ sheetName: 'Indicadores', rows: indRows }] : []),

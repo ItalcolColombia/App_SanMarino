@@ -671,9 +671,37 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     return [...this.tiposDestinoVenta];
   }
 
-  /** Traslado: campo único "Otra granja" en `observaciones`. */
+  /**
+   * Traslado: la planta/bodega de destino se elige de la lista maestra
+   * `traslado_de_huevos_planta_destino` de la empresa.
+   *
+   * Requerimiento del cliente (`Requerimientos de Italapp.docx`, sección TRASLADO DE HUEVOS):
+   * *«…no vemos bien que la bodega de salida sea digitada, pues si lo vamos a integrar al ERP,
+   * esta debe ser como esté creada, por lo cual debe ser una lista desplegable»*.
+   *
+   * 🔴 **Se decide por DATO, no por empresa** (CLAUDE.md prohíbe `if (empresa == X)`): hay
+   * desplegable si la empresa tiene opciones cargadas en su lista maestra. Medido el 24-ago-2026,
+   * Sanmarino y Demo tienen la lista **sin ninguna opción**; volverles el campo obligatorio y
+   * vacío les impediría registrar un traslado. Por eso, sin opciones se conserva el input de texto
+   * de siempre (ver {@link mostrarOtraGranjaTraslado}) y el cambio es aditivo: habilitarlo para
+   * cualquier empresa es cargar sus destinos en `/config/master-lists`, sin tocar código.
+   *
+   * Escribe en el MISMO control (`observaciones`) que el input que reemplaza, así que ni el DTO,
+   * ni la columna, ni ningún lector cambian.
+   */
+  mostrarPlantaCatalogoTraslado(): boolean {
+    return this.esTipoTraslado(this.formHuevos?.get('tipoOperacion')?.value)
+      && this.plantasDestino().length > 0;
+  }
+
+  /**
+   * Traslado sin catálogo de plantas cargado: campo único "Otra granja" digitado en
+   * `observaciones` — el comportamiento de siempre, que se conserva como respaldo (ver
+   * {@link mostrarPlantaCatalogoTraslado}).
+   */
   mostrarOtraGranjaTraslado(): boolean {
-    return this.esTipoTraslado(this.formHuevos?.get('tipoOperacion')?.value);
+    return this.esTipoTraslado(this.formHuevos?.get('tipoOperacion')?.value)
+      && this.plantasDestino().length === 0;
   }
 
   /** Venta con destino Planta: catálogo de planta en `loteDestinoId` / `plantaDestino`. */

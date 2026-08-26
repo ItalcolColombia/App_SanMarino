@@ -9,6 +9,7 @@ import { CatalogoAlimentosService } from '../../../catalogo-alimentos/services/c
 import { GestionInventarioService } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-modal-detalle-seguimiento-levante',
@@ -43,10 +44,20 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     private catalogService: CatalogoAlimentosService,
     private gestionInventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     if (this.isOpen && this.seguimiento) {
       this.cargarDetalle();
     }

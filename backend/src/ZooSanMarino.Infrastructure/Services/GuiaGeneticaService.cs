@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -55,12 +56,16 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     private async Task<List<GuiaGeneticaFila>> ObtenerCandidatosAsync(int companyId, string razaNorm, string anio)
     {
+        // Alias SOLO para la guía propia (ver RazaGuiaAliasCalculos): la caída a la compartida de
+        // más abajo sigue usando razaNorm tal cual — delta cero para quien no tiene guía propia.
+        var razaPropia = RazaGuiaAliasCalculos.AliasGuiaPropia(razaNorm);
+
         var propios = await _ctx.GuiaGeneticaSantaReyes
             .AsNoTracking()
             .Where(g =>
                 g.CompanyId == companyId &&
                 g.DeletedAt == null &&
-                g.Raza.Trim().ToLower() == razaNorm &&
+                g.Raza.Trim().ToLower() == razaPropia &&
                 g.AnioGuia.Trim() == anio)
             .Select(g => new GuiaGeneticaFila(
                 g.Raza, g.AnioGuia, g.Edad.ToString(),
@@ -120,9 +125,11 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     private async Task<List<string>> ObtenerAniosCrudoAsync(int companyId, string razaNorm)
     {
+        var razaPropia = RazaGuiaAliasCalculos.AliasGuiaPropia(razaNorm);
+
         var propios = await _ctx.GuiaGeneticaSantaReyes
             .AsNoTracking()
-            .Where(g => g.CompanyId == companyId && g.DeletedAt == null && g.Raza.Trim().ToLower() == razaNorm)
+            .Where(g => g.CompanyId == companyId && g.DeletedAt == null && g.Raza.Trim().ToLower() == razaPropia)
             .Select(g => g.AnioGuia)
             .Distinct()
             .ToListAsync();

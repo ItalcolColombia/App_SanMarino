@@ -41,7 +41,9 @@
             <td class="text-right">{{ dato.entradasBultos | number:'1.0-1' }}</td>
             <td class="text-right">{{ dato.retirosBultos | number:'1.0-1' }}</td>
             <td class="text-right col-hembra">{{ dato.consumoBultosHembras | number:'1.0-1' }}</td>
-            <td class="text-right col-macho">{{ dato.consumoBultosMachos | number:'1.0-1' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right col-macho">{{ dato.consumoBultosMachos | number:'1.0-1' }}</td>
+            }
             <td class="text-right">{{ dato.saldoBultos | number:'1.0-1' }}</td>
           </tr>
         }
@@ -55,7 +57,9 @@
             <td class="text-right"><strong>{{ reporteSemanal.entradasBultosSemanal | number:'1.0-1' }}</strong></td>
             <td class="text-right"><strong>{{ reporteSemanal.retirosBultosSemanal | number:'1.0-1' }}</strong></td>
             <td class="text-right col-hembra"><strong>{{ reporteSemanal.consumoBultosHembrasSemanal | number:'1.0-1' }}</strong></td>
-            <td class="text-right col-macho"><strong>{{ reporteSemanal.consumoBultosMachosSemanal | number:'1.0-1' }}</strong></td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right col-macho"><strong>{{ reporteSemanal.consumoBultosMachosSemanal | number:'1.0-1' }}</strong></td>
+            }
             <td class="text-right highlight-green"><strong>{{ reporteSemanal.saldoBultosFinal | number:'1.0-1' }}</strong></td>
           </tr>
         }

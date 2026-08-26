@@ -22,13 +22,16 @@ public class CuadreAlimentoEngordeController : ControllerBase
 {
     private readonly ICuadreAlimentoEngordeService _service;
     private readonly ILogger<CuadreAlimentoEngordeController> _logger;
+    private readonly ICurrentUser _current;
 
     public CuadreAlimentoEngordeController(
         ICuadreAlimentoEngordeService service,
-        ILogger<CuadreAlimentoEngordeController> logger)
+        ILogger<CuadreAlimentoEngordeController> logger,
+        ICurrentUser current)
     {
         _service = service;
         _logger = logger;
+        _current = current;
     }
 
     /// <summary>
@@ -83,4 +86,65 @@ public class CuadreAlimentoEngordeController : ControllerBase
 
         return Ok(r);
     }
+
+    /// <summary>
+    /// Cierra el descuadre de un galpón: el operador declara los kilos que realmente hay y el sistema
+    /// escribe lo que falta de cada lado.
+    ///
+    /// <para>
+    /// El pedido original era «editar el saldo desde esta pestaña». <b>El saldo no es un campo</b>:
+    /// lo deriva <c>fn_seguimiento_diario_engorde</c>. Lo que se corrige es el insumo equivocado, y
+    /// puede ser cualquiera de los dos: si sobra stock se escribe un <c>AjusteStock</c> (que la tabla
+    /// diaria no ve, y está bien porque la tabla ya tenía razón); si sobra tabla se escribe un
+    /// <c>AjusteCuadreTabla*</c> (que el stock no ve, por lo mismo del otro lado). Lo normal es que
+    /// se mueva uno solo. Después del ajuste el descuadre es <b>cero por construcción</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Requiere el permiso <c>cuadrar_ingresos_traslados_seguimiento</c>: es una escritura que
+    /// reescribe kilos, no una consulta.
+    /// </para>
+    /// </summary>
+    [HttpPost("cuadrar-galpon")]
+    [ProducesResponseType(typeof(CuadrarGalponAlimentoResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<CuadrarGalponAlimentoResultDto>> CuadrarGalpon(
+        [FromBody] CuadrarGalponAlimentoRequest req,
+        CancellationToken ct = default)
+    {
+        if (!_current.Permissions.Contains(PermisoCuadrar, StringComparer.Ordinal))
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = MensajeSinPermisoCuadrar,
+                error = MensajeSinPermisoCuadrar
+            });
+
+        try
+        {
+            var r = await _service.CuadrarGalponAsync(req, ct);
+
+            _logger.LogWarning(
+                "Cuadre de alimento aplicado a mano: {Granja}/{Galpon} lote {Lote} — {Resumen} " +
+                "(descuadre {Antes:N1} → {Despues:N1} kg).",
+                r.Granja, r.GalponId, r.LoteNombre, r.Resumen, r.DescuadreAntesKg, r.DescuadreDespuesKg);
+
+            return Ok(r);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Permiso de escritura de la pestaña. Se reusa la key que ya existe para el mismo concepto
+    /// —«este botón realiza el cuadre de saldo agregando y acomodando fechas, de ingresos traslados,
+    /// salida y entrada»— en vez de inventar una segunda llave para la misma puerta.
+    /// </summary>
+    private const string PermisoCuadrar = "cuadrar_ingresos_traslados_seguimiento";
+
+    private const string MensajeSinPermisoCuadrar =
+        "No tiene permiso para cuadrar el alimento de un galpón. Puede consultar el cuadre, " +
+        "pero no aplicar correcciones.";
 }

@@ -44,6 +44,18 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
 export class ModalCreateEditComponent implements OnInit, OnDestroy {
   @Input() isOpen: boolean = false;
   @Input() editingUser: UserListItem | null = null;
+  /**
+   * Modo consulta: el MISMO modal, sin poder escribir nada. Es lo que ve quien no tiene
+   * `usuarios.gestionar` — hasta el 25-ago-2026 no existía forma de mirar un usuario sin abrir el
+   * formulario que también lo edita.
+   *
+   * <p>Deshabilita el formulario entero, esconde el botón Guardar y corta `saveUser()` en la
+   * entrada. Ese último cierre no es redundante: `saveUser()` dispara DOS escrituras (el
+   * `PUT /api/Users/{id}` y el `PUT /api/ticket-perfiles/usuario/{id}` del editor de perfiles), y
+   * confiar solo en esconder el botón dejaría viva la segunda si alguien la invoca por otro
+   * camino.</p>
+   */
+  @Input() soloLectura: boolean = false;
 
   @Output() close = new EventEmitter<void>();
   @Output() userSaved = new EventEmitter<UserListItem>();
@@ -128,7 +140,40 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       } else {
         this.resetForm();
       }
+      this.aplicarModoSoloLectura();
     }
+  }
+
+  /** Controles que apagó ESTE modo, para volver a encender exactamente esos y ningún otro. */
+  private apagadosPorSoloLectura: string[] = [];
+
+  /**
+   * Habilita o deshabilita los controles del formulario según {@link soloLectura}.
+   *
+   * <p>Se llama DESPUÉS de cargar los datos: los `patchValue` de la carga corren sobre el
+   * formulario, así que aplicar el modo una sola vez al abrir lo dejaría editable en cuanto
+   * responde el GET.</p>
+   *
+   * <p>🔴 <b>Por qué se recuerda qué se apagó en vez de hacer `form.enable()`.</b> Hay controles
+   * deshabilitados a propósito por OTRA razón —la contraseña autogenerada del modo de correo real,
+   * que `getRawValue()` recupera justamente porque está deshabilitada—. Un `enable()` sobre el
+   * grupo entero los volvería editables al abrir «Ver detalle» y después «Editar»: el clásico
+   * arreglo de una pantalla que rompe otra sin que nadie lo note.</p>
+   */
+  private aplicarModoSoloLectura(): void {
+    if (!this.userForm) return;
+
+    if (this.soloLectura) {
+      this.apagadosPorSoloLectura = Object.keys(this.userForm.controls)
+        .filter(nombre => this.userForm.get(nombre)?.enabled === true);
+      for (const nombre of this.apagadosPorSoloLectura)
+        this.userForm.get(nombre)!.disable({ emitEvent: false });
+    } else if (this.apagadosPorSoloLectura.length > 0) {
+      for (const nombre of this.apagadosPorSoloLectura)
+        this.userForm.get(nombre)?.enable({ emitEvent: false });
+      this.apagadosPorSoloLectura = [];
+    }
+    this.cdr.markForCheck();
   }
 
   initForm(): void {
@@ -235,6 +280,11 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
           this.userForm.get('confirmPassword')?.clearValidators();
           this.userForm.get('password')?.updateValueAndValidity();
           this.userForm.get('confirmPassword')?.updateValueAndValidity();
+
+          // El GET responde DESPUÉS de que ngOnChanges aplicó el modo, y sus updateValueAndValidity
+          // corren sobre los controles: sin esta segunda pasada, «Ver detalle» quedaría editable en
+          // cuanto vuelve la red.
+          this.aplicarModoSoloLectura();
 
           this.loading = false;
           this.cdr.detectChanges();
@@ -348,6 +398,11 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   }
 
   saveUser(): void {
+    // Cierre de seguridad del modo consulta. No alcanza con esconder el botón: este método dispara
+    // DOS escrituras —el PUT del usuario y el PUT del perfil de tickets— y basta con que una quede
+    // alcanzable por otro camino para que «solo ver el detalle» deje de ser cierto.
+    if (this.soloLectura) return;
+
     if (this.userForm.invalid) {
       this.userForm.markAllAsTouched();
       return;
@@ -656,6 +711,9 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   }
 
   get modalTitle(): string {
+    // El título es la única señal de que el modal está en consulta: sin él, un formulario gris
+    // parece una pantalla rota, no un permiso que falta.
+    if (this.soloLectura) return 'Detalle del Usuario';
     return this.isEditing ? 'Editar Usuario' : 'Crear Usuario';
   }
 

@@ -182,7 +182,7 @@
               <p class="text-slate-600 font-semibold mb-2">Total Aves</p>
               <div class="flex flex-wrap gap-2">
                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span> <span class="text-slate-500 text-xs">Hembras</span></span>
-                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span> <span class="text-slate-500 text-xs">Machos</span></span>
+                @if (!ocultaMachosEnPostura) { <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span> <span class="text-slate-500 text-xs">Machos</span></span> }
                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span> <span class="text-slate-500 text-xs">Mixtas</span></span>
               </div>
             </article>

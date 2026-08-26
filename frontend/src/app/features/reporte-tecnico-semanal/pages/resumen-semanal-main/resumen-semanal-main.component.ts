@@ -31,6 +31,8 @@ import {
 } from '../../models/resumen-semanal-ra-pesadas.model';
 import { construirGraficasCurva, GraficaCurva } from '../../funciones/construir-graficas-curva.funcion';
 import { semanaExcel } from '../../funciones/semana-excel.funcion';
+import { filtrarColumnasMachos } from '../../funciones/filtrar-columnas-machos.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 /** Celda ya formateada; `texto` alinea a la izquierda. */
 interface CeldaView {
@@ -49,8 +51,21 @@ interface CeldaView {
   changeDetection: ChangeDetectionStrategy.Eager
 })
 export class ResumenSemanalMainComponent implements OnInit {
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Columnas que la empresa realmente ve. Se filtra sobre el array de definiciones, que es la
+   * MISMA fuente de la cabecera, las celdas y el Excel: filtrando aca los tres quedan consistentes
+   * por construccion. Con el flag apagado devuelve la misma referencia.
+   */
+  private columnasVisibles<T extends { grupo: string; titulo: string }>(columnas: readonly T[]): T[] {
+    return filtrarColumnasMachos(columnas, this.ocultaMachosEnPostura) as T[];
+  }
+
   private readonly service = inject(ReporteTecnicoSemanalService);
   private readonly toast = inject(ToastService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
 
   etapa: EtapaResumen = 'levante';
   anio = new Date().getFullYear();
@@ -92,6 +107,10 @@ export class ResumenSemanalMainComponent implements OnInit {
   private respProduccion: ResumenSemanalRaPesadasProduccionResponse | null = null;
 
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
     const actual = new Date().getFullYear();
     this.anios = Array.from({ length: 7 }, (_, i) => actual - i);
     void this.generar();
@@ -177,14 +196,14 @@ export class ResumenSemanalMainComponent implements OnInit {
         const resp = await firstValueFrom(this.service.generarResumenLevante(request));
         this.respLevante = resp;
         this.respProduccion = null;
-        this.aplicar(COLUMNAS_RESUMEN_LEVANTE, resp.filas, resp.totales,
+        this.aplicar(this.columnasVisibles(COLUMNAS_RESUMEN_LEVANTE), resp.filas, resp.totales,
           resp.fechaInicioSemana, resp.fechaFinSemana);
         this.recordarOpciones(resp.filas.map(f => f.regional), []);
       } else {
         const resp = await firstValueFrom(this.service.generarResumenProduccion(request));
         this.respProduccion = resp;
         this.respLevante = null;
-        this.aplicar(COLUMNAS_RESUMEN_PRODUCCION, resp.filas, resp.totales,
+        this.aplicar(this.columnasVisibles(COLUMNAS_RESUMEN_PRODUCCION), resp.filas, resp.totales,
           resp.fechaInicioSemana, resp.fechaFinSemana);
         this.recordarOpciones(resp.filas.map(f => f.regional), resp.filas.map(f => f.cicloProduccion));
       }

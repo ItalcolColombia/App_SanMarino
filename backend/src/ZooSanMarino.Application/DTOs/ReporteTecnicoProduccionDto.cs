@@ -162,7 +162,13 @@ public record ReporteTecnicoProduccionLoteInfoDto(
     int? Galpon,
     string? Tecnico,
     string? GranjaNombre,
-    string? NucleoNombre
+    string? NucleoNombre,
+    // Flag `companies.clasificacion_huevo_por_items` de la empresa dueña del lote: con
+    // clasificación por ítem, Incubable/Cargado/HuevosIncub/HCarga (y toda la hoja "Clasificación
+    // Huevo Comercio") salen de columnas legacy que quedan siempre en 0 -- el desglose real vive
+    // en metadata.huevoItems, que estos reportes no leen. Default false: no rompe ningun
+    // constructor posicional existente.
+    bool ClasificacionHuevoPorItems = false
 );
 
 /// <summary>

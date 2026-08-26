@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -8,9 +9,14 @@ namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-// TEMPORAL: Removido [Authorize] para permitir registro sin autenticación
-// TODO: Restaurar [Authorize] cuando se resuelva el problema de autenticación
-// [Authorize]
+// [Authorize] RESTAURADO el 25-ago-2026. Estuvo comentado con un «TEMPORAL: para permitir registro
+// sin autenticación», y lo único que tapaba el agujero era la `FallbackPolicy` de Program.cs — una
+// red que se corre sola si alguien la toca o agrega un [AllowAnonymous]. Son 17 endpoints de
+// asignación de granjas: quién ve qué datos.
+[Authorize]
+// La ESCRITURA exige además `usuarios.gestionar`: asignar una granja, marcar a alguien como
+// administrador de granja o cambiarle el alcance es gestionar un usuario, no consultarlo.
+[GestionUsuariosEscrituraFilter]
 public class UserFarmController : ControllerBase
 {
     private readonly IUserFarmService _userFarmService;

@@ -1245,6 +1245,7 @@
                                 </small>
                               }
                             </div>
+                            @if (!ocultaMachosEnPostura) {
                             <div class="quantity-field machos">
                               <label class="quantity-label" for="q-machos"><span class="icon">♂</span><span class="text">Machos</span></label>
                               <div class="input-with-max">
@@ -1260,6 +1261,7 @@
                                   </small>
                                 }
                               </div>
+                            }
                             </div>
                             <!-- Resumen -->
                             @if (getTotalAves() > 0) {
@@ -1539,6 +1541,7 @@
                                           </div>
                                         }
                                       </div>
+                                      @if (!ocultaMachosEnPostura) {
                                       <div class="cantidad-field">
                                         <label class="ux-label" for="aves-machos">
                                           ♂ Machos
@@ -1563,6 +1566,7 @@
                                             </div>
                                           }
                                         </div>
+                                      }
                                       </div>
                                       @if (disponibilidadLote()?.aves) {
                                         <div class="form-hint">

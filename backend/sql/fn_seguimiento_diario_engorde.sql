@@ -3,6 +3,28 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v17 (2026-08-25) — La fn aprende a leer el AJUSTE DE CUADRE.
+--   Plan: fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md (F2).
+--   Que cambia: dos `tipo_evento` NUEVOS —`INV_AJUSTE_CUADRE_ENTRADA` y `INV_AJUSTE_CUADRE_SALIDA`—
+--   se leen en las 5 CTE (`apert_mov`, `hist_full`, `hist_alimento`, `docs_por_fecha`,
+--   `fechas_universo`) con el mismo signo que una entrada y una salida de traslado.
+--
+--   POR QUE. El invariante del cuadre es `saldo == stock - movimientos posteriores`. Cuando los dos
+--   lados se separan hay que poder corregir CUALQUIERA de los dos, y hasta hoy solo se podia
+--   corregir el stock (`AjusteStock`, que se espeja como `INV_OTRO` y ninguna CTE mira). Un galpon
+--   cuyo stock ya estaba bien y cuya TABLA quedo alta no tenia arreglo posible desde la pantalla.
+--
+--   POR QUE ES SEGURO, y por que no repite el naufragio de v15/v16: aquellos cambiaron el
+--   tratamiento de filas que YA EXISTIAN (el disyunto de `para_proximo_ciclo`), asi que movieron
+--   numeros vivos en 1.733 filas. Este agrega tipos que NINGUNA fila del historico tiene todavia:
+--   con 0 filas de esos tipos la salida es byte a byte la de v16a, y el gate de paridad multipais
+--   da 0 por construccion. Lo que cambia es lo que se puede escribir de aca en adelante.
+--
+--   LO QUE NO CAMBIA, a proposito: la firma (siguen las 49 columnas OUT, asi que los 5 consumidores
+--   que la llaman por CROSS JOIN LATERAL con columnas NOMBRADAS no se tocan); y
+--   `fn_acumulado_entradas_alimento`, que sigue contando solo `INV_INGRESO` e
+--   `INV_TRASLADO_ENTRADA` — un ajuste de cuadre es una correccion, no alimento que llego.
+--
 -- v16a (2026-08-18) — La marca `para_proximo_ciclo` vuelve a ser INERTE en la fn.
 --   Plan: fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md (FASE A).
 --   Qué se quita: los 5 lugares donde v15 interpretaba el booleano — el disyunto marcado de
@@ -505,6 +527,10 @@ apert_mov AS (
             WHEN 'INV_INGRESO'          THEN  COALESCE(h.cantidad_kg, 0)
             WHEN 'INV_TRASLADO_ENTRADA' THEN  COALESCE(h.cantidad_kg, 0)
             WHEN 'INV_TRASLADO_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
+            -- ⭐ v17: ajuste de cuadre. Suma o resta como cualquier movimiento de alimento; lo que
+            -- lo distingue es que NO tiene contraparte en el stock, a proposito.
+            WHEN 'INV_AJUSTE_CUADRE_ENTRADA' THEN  COALESCE(h.cantidad_kg, 0)
+            WHEN 'INV_AJUSTE_CUADRE_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
             ELSE 0
         END AS delta,
         -- ⭐ v15: el documento del movimiento, para poder mostrar de DÓNDE sale la apertura.
@@ -514,7 +540,8 @@ apert_mov AS (
     JOIN lote_info li ON TRUE
     JOIN rango_seg  rs ON rs.fecha_min IS NOT NULL
     WHERE NOT h.anulado
-      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA')
+      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA',
+                          'INV_AJUSTE_CUADRE_ENTRADA', 'INV_AJUSTE_CUADRE_SALIDA')
       AND NOT (h.tipo_evento = 'INV_INGRESO'
                AND h.referencia IS NOT NULL
                AND h.referencia LIKE 'Seguimiento aves engorde #%')
@@ -578,13 +605,17 @@ hist_full AS (
                  THEN COALESCE(h.cantidad_kg, 0)
             WHEN h.tipo_evento = 'INV_TRASLADO_ENTRADA' THEN COALESCE(h.cantidad_kg, 0)
             WHEN h.tipo_evento = 'INV_TRASLADO_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
+            -- ⭐ v17: ajuste de cuadre (ver apert_mov).
+            WHEN h.tipo_evento = 'INV_AJUSTE_CUADRE_ENTRADA' THEN COALESCE(h.cantidad_kg, 0)
+            WHEN h.tipo_evento = 'INV_AJUSTE_CUADRE_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
             ELSE 0
         END)::FLOAT8 AS neto_kg
     FROM lote_registro_historico_unificado h
     JOIN lote_info li ON TRUE
     JOIN rango_seg  rs ON TRUE
     WHERE NOT h.anulado
-      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA')
+      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA',
+                          'INV_AJUSTE_CUADRE_ENTRADA', 'INV_AJUSTE_CUADRE_SALIDA')
       AND NOT (h.referencia IS NOT NULL AND (
                h.referencia LIKE '%devolución por eliminación%'
             OR h.referencia LIKE '%devolucion por eliminacion%'))
@@ -717,10 +748,10 @@ hist_alimento AS (
              AND NOT (h.referencia IS NOT NULL AND h.referencia LIKE 'Seguimiento aves engorde #%')
             THEN COALESCE(h.cantidad_kg, 0) ELSE 0 END), 0)::FLOAT8                  AS ingreso_kg,
         COALESCE(SUM(CASE
-            WHEN h.tipo_evento = 'INV_TRASLADO_ENTRADA'
+            WHEN h.tipo_evento IN ('INV_TRASLADO_ENTRADA', 'INV_AJUSTE_CUADRE_ENTRADA')
             THEN COALESCE(h.cantidad_kg, 0) ELSE 0 END), 0)::FLOAT8                  AS traslado_entrada_kg,
         COALESCE(SUM(CASE
-            WHEN h.tipo_evento = 'INV_TRASLADO_SALIDA'
+            WHEN h.tipo_evento IN ('INV_TRASLADO_SALIDA', 'INV_AJUSTE_CUADRE_SALIDA')
             THEN ABS(COALESCE(h.cantidad_kg, 0)) ELSE 0 END), 0)::FLOAT8             AS traslado_salida_kg
     FROM lote_registro_historico_unificado h
     JOIN lote_info   li ON TRUE
@@ -729,7 +760,8 @@ hist_alimento AS (
       AND NOT (h.referencia IS NOT NULL AND (
                h.referencia LIKE '%devolución por eliminación%'
             OR h.referencia LIKE '%devolucion por eliminacion%'))
-      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA')
+      AND h.tipo_evento IN ('INV_INGRESO', 'INV_TRASLADO_ENTRADA', 'INV_TRASLADO_SALIDA',
+                          'INV_AJUSTE_CUADRE_ENTRADA', 'INV_AJUSTE_CUADRE_SALIDA')
       AND h.farm_id = li.granja_id
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
@@ -754,7 +786,9 @@ docs_por_fecha AS (
                h.referencia LIKE '%devolución por eliminación%'
             OR h.referencia LIKE '%devolucion por eliminacion%'))
       AND (
-          (h.tipo_evento = 'INV_INGRESO'
+          -- ⭐ v17: el ajuste de cuadre entra al documento del dia. Sin esto la fila mostraria
+          -- kilos que cambian sin decir por que, que es justo lo que el ajuste viene a evitar.
+          (h.tipo_evento IN ('INV_INGRESO', 'INV_AJUSTE_CUADRE_ENTRADA', 'INV_AJUSTE_CUADRE_SALIDA')
            AND NOT (h.referencia IS NOT NULL AND h.referencia LIKE 'Seguimiento aves engorde #%')
            AND h.farm_id = li.granja_id
            AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
@@ -784,7 +818,8 @@ fechas_universo AS (
                h.referencia LIKE '%devolución por eliminación%'
             OR h.referencia LIKE '%devolucion por eliminacion%'))
       AND (
-          (h.tipo_evento IN ('INV_INGRESO','INV_TRASLADO_ENTRADA','INV_TRASLADO_SALIDA')
+          (h.tipo_evento IN ('INV_INGRESO','INV_TRASLADO_ENTRADA','INV_TRASLADO_SALIDA',
+                            'INV_AJUSTE_CUADRE_ENTRADA','INV_AJUSTE_CUADRE_SALIDA')
            AND NOT (h.tipo_evento = 'INV_INGRESO'
                     AND h.referencia IS NOT NULL
                     AND h.referencia LIKE 'Seguimiento aves engorde #%')

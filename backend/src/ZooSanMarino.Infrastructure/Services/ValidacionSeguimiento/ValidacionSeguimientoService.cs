@@ -265,52 +265,114 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
         return true;
     }
 
-    /// <summary>Registros sin validar de un lote, con su fecha. Base del semáforo y del bloqueo.</summary>
-    private async Task<IReadOnlyList<(long Id, DateOnly Fecha)>> LeerPendientesDelLoteAsync(
+    /// <summary>
+    /// Registros sin validar de un lote, con su fecha. Base del semáforo y del bloqueo.
+    ///
+    /// <para>
+    /// <b>Acotado por empresa, fail-closed.</b> Antes buscaba SOLO por id de lote, igual que hacían
+    /// <c>ValidarAsync</c>/<c>DesvalidarAsync</c> antes de <see cref="EsDeLaEmpresaActiva"/>: un
+    /// usuario podía pedir los pendientes de un lote de otra empresa y recibir sus fechas, y el
+    /// bloqueo del alta se calculaba con datos ajenos. Era inocuo mientras UNA sola empresa tenía el
+    /// flag encendido; deja de serlo con la segunda, que ya está planificada.
+    /// </para>
+    ///
+    /// <para>
+    /// Un lote cuya empresa no se resuelve (0) o que no es la activa devuelve <b>vacío</b>. Eso no
+    /// afloja el bloqueo: <c>AsegurarPuedeRegistrarDiaAsync</c> ya corta antes por
+    /// <c>RequiereValidacionAsync</c>, que también depende de la empresa activa.
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<(long Id, DateOnly Fecha, DateOnly Creacion)>> LeerPendientesDelLoteAsync(
         string modulo, int loteId, CancellationToken ct)
     {
+        var companyActiva = _current.CompanyId;
+
         switch (modulo)
         {
             case ModuloSeguimiento.Levante:
             {
+                // El id puede venir como lote de postura-levante o como el `lote_id` legado (texto),
+                // así que la empresa se resuelve por el mismo camino que usa LeerEstadoAsync.
+                if (!EsDeLaEmpresaActiva(await LeerCompanyDelLoteLevanteAsync(loteId, ct)))
+                    return Array.Empty<(long, DateOnly, DateOnly)>();
+
                 var filas = await _ctx.SeguimientoDiario.AsNoTracking()
                     .Where(s => !s.Validado && s.TipoSeguimiento == "levante"
                              && (s.LotePosturaLevanteId == loteId || s.LoteId == loteId.ToString()))
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Produccion:
             {
+                // Producción es la única tabla de seguimiento que lleva `company_id` en la propia
+                // fila, así que se filtra ahí mismo: acota las FILAS, no sólo el lote.
+                if (companyActiva <= 0) return Array.Empty<(long, DateOnly, DateOnly)>();
+
                 var filas = await _ctx.SeguimientoProduccion.AsNoTracking()
                     .Where(s => !s.Validado && s.DeletedAt == null
+                             && s.CompanyId == companyActiva
                              && (s.LotePosturaProduccionId == loteId || s.LoteId == loteId))
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             // Ídem: la tabla partida devolvía SIEMPRE vacío (o 42P01 donde ni existe), así que el
             // semáforo no pintaba nada y el bloqueo por vencidos nunca se disparaba en engorde.
             case ModuloSeguimiento.Engorde:
             case ModuloSeguimiento.EngordeEcuador:
             {
+                var companyEng = await _ctx.LoteAveEngorde.AsNoTracking()
+                    .Where(l => l.LoteAveEngordeId == loteId && l.DeletedAt == null)
+                    .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
+                if (!EsDeLaEmpresaActiva(companyEng)) return Array.Empty<(long, DateOnly, DateOnly)>();
+
                 var filas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                     .Where(s => !s.Validado && s.LoteAveEngordeId == loteId)
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Reproductora:
             {
+                // El lote de reproductora no lleva empresa propia: cuelga del lote de engorde.
+                var companyRep = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                    .Where(l => l.Id == loteId)
+                    .Join(_ctx.LoteAveEngorde.AsNoTracking(),
+                        l => l.LoteAveEngordeId, e => e.LoteAveEngordeId, (l, e) => e.CompanyId)
+                    .FirstOrDefaultAsync(ct);
+                if (!EsDeLaEmpresaActiva(companyRep)) return Array.Empty<(long, DateOnly, DateOnly)>();
+
                 var filas = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
                     .Where(s => !s.Confirmado && s.LoteReproductoraAveEngordeId == loteId)
-                    .Select(s => new { s.Id, s.Fecha })
+                    .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
+                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
+                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
             }
             default:
-                return Array.Empty<(long, DateOnly)>();
+                return Array.Empty<(long, DateOnly, DateOnly)>();
         }
+    }
+
+    /// <summary>
+    /// Empresa dueña de un lote de levante. El id llega indistintamente como
+    /// <c>lote_postura_levante_id</c> o como el <c>lote_id</c> legado, así que se prueban los dos
+    /// maestros en el mismo orden que <see cref="LeerEstadoAsync"/>. Devuelve 0 si no resuelve.
+    /// </summary>
+    private async Task<int> LeerCompanyDelLoteLevanteAsync(int loteId, CancellationToken ct)
+    {
+        var company = await _ctx.LotePosturaLevante.AsNoTracking()
+            .Where(l => l.LotePosturaLevanteId == loteId)
+            .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
+        if (company > 0) return company;
+
+        return await _ctx.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteId)
+            .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
     }
 
     /// <summary>Hoy en UTC. Aislado para poder razonar el semáforo sin depender del reloj del server.</summary>

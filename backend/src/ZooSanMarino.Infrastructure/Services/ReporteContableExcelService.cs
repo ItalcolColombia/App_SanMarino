@@ -250,20 +250,27 @@ public class ReporteContableExcelService
     /// pantalla: el Excel y la tabla tienen que decir lo mismo. <c>Total</c> es el acumulado que ya
     /// trae el DTO — el Excel no recalcula.
     /// </summary>
+    /// <summary>
+    /// <c>OcultaSiClasificaPorItems</c>: columnas que salen de <c>huevo_inc</c>/las 11 legacy fijas
+    /// de <c>seguimiento_diario_produccion</c> (HVTO FÉRTIL/HVO COMERCIAL/HUEVO DESECHO) o de
+    /// <c>cantidad_desecho</c> de <c>traslado_huevos</c> (DESCARTE) -- ambas quedan siempre en 0
+    /// para empresas con <c>clasificacion_huevo_por_items</c>, así que se ocultan.
+    /// </summary>
     private static readonly (string Grupo, string Titulo,
         Func<MovimientoHuevoDiarioDto, int> Valor,
-        Func<ReporteMovimientosHuevosDto, int> Total)[] ColumnasHuevos =
+        Func<ReporteMovimientosHuevosDto, int> Total,
+        bool OcultaSiClasificaPorItems)[] ColumnasHuevos =
     {
-        ("PRODUCCIÓN", "POSTURA",           d => d.Postura,          r => r.TotalPostura),
-        ("PRODUCCIÓN", "HVTO FÉRTIL",       d => d.HvtoFertil,       r => r.TotalHvtoFertil),
-        ("PRODUCCIÓN", "HVO COMERCIAL",     d => d.HvoComercial,     r => r.TotalHvoComercial),
-        ("PRODUCCIÓN", "HUEVO DESECHO",     d => d.HuevoDesecho,     r => r.TotalHuevoDesecho),
-        ("MOVIMIENTOS", "ENTRADA",          d => d.Entrada,          r => r.TotalEntrada),
-        ("MOVIMIENTOS", "CAPTURA INFO",     d => d.CapturaInfo,      r => r.MovimientosDiarios.Sum(x => x.CapturaInfo)),
-        ("MOVIMIENTOS", "VENTA",            d => d.Venta,            r => r.TotalVenta),
-        ("MOVIMIENTOS", "SALIDA",           d => d.Salida,           r => r.TotalSalida),
-        ("MOVIMIENTOS", "TRASLADO A PLANTA", d => d.TrasladoAPlanta, r => r.TotalTrasladoAPlanta),
-        ("MOVIMIENTOS", "DESCARTE",         d => d.Descarte,         r => r.TotalDescarte)
+        ("PRODUCCIÓN", "POSTURA",           d => d.Postura,          r => r.TotalPostura,          false),
+        ("PRODUCCIÓN", "HVTO FÉRTIL",       d => d.HvtoFertil,       r => r.TotalHvtoFertil,        true),
+        ("PRODUCCIÓN", "HVO COMERCIAL",     d => d.HvoComercial,     r => r.TotalHvoComercial,      true),
+        ("PRODUCCIÓN", "HUEVO DESECHO",     d => d.HuevoDesecho,     r => r.TotalHuevoDesecho,      true),
+        ("MOVIMIENTOS", "ENTRADA",          d => d.Entrada,          r => r.TotalEntrada,           false),
+        ("MOVIMIENTOS", "CAPTURA INFO",     d => d.CapturaInfo,      r => r.MovimientosDiarios.Sum(x => x.CapturaInfo), false),
+        ("MOVIMIENTOS", "VENTA",            d => d.Venta,            r => r.TotalVenta,             false),
+        ("MOVIMIENTOS", "SALIDA",           d => d.Salida,           r => r.TotalSalida,            false),
+        ("MOVIMIENTOS", "TRASLADO A PLANTA", d => d.TrasladoAPlanta, r => r.TotalTrasladoAPlanta,   false),
+        ("MOVIMIENTOS", "DESCARTE",         d => d.Descarte,         r => r.TotalDescarte,          true)
     };
 
     /// <summary>
@@ -279,7 +286,16 @@ public class ReporteContableExcelService
         const int colFecha = 2;
         const int colLote = 3;
         const int primeraColumnaDato = 4;
-        var ultimaColumna = primeraColumnaDato + ColumnasHuevos.Length - 1;
+
+        // Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items): las
+        // columnas marcadas OcultaSiClasificaPorItems salen de columnas legacy fijas, siempre en 0
+        // -- se filtran ACA, una sola vez, y el resto del metodo usa "columnas" en vez del campo
+        // estatico. Alinea automaticamente cabecera de grupo, cabecera de columna, filas de dato y
+        // fila de totales: no hay 4 bloques que reindexar a mano.
+        var columnas = huevos.ClasificacionHuevoPorItems
+            ? ColumnasHuevos.Where(c => !c.OcultaSiClasificaPorItems).ToArray()
+            : ColumnasHuevos;
+        var ultimaColumna = primeraColumnaDato + columnas.Length - 1;
 
         // Encabezado
         worksheet.Cells[1, 1].Value = "MOVIMIENTOS DE HUEVOS";
@@ -305,14 +321,14 @@ public class ReporteContableExcelService
 
         // Fila de grupos (PRODUCCIÓN / MOVIMIENTOS) sobre sus columnas
         var inicioGrupo = primeraColumnaDato;
-        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        for (int i = 0; i < columnas.Length; i++)
         {
-            var esUltima = i == ColumnasHuevos.Length - 1;
-            var cambiaGrupo = esUltima || ColumnasHuevos[i + 1].Grupo != ColumnasHuevos[i].Grupo;
+            var esUltima = i == columnas.Length - 1;
+            var cambiaGrupo = esUltima || columnas[i + 1].Grupo != columnas[i].Grupo;
             if (!cambiaGrupo) continue;
 
             var finGrupo = primeraColumnaDato + i;
-            worksheet.Cells[row, inicioGrupo].Value = ColumnasHuevos[i].Grupo;
+            worksheet.Cells[row, inicioGrupo].Value = columnas[i].Grupo;
             worksheet.Cells[row, inicioGrupo, row, finGrupo].Merge = true;
             worksheet.Cells[row, inicioGrupo].Style.Font.Bold = true;
             worksheet.Cells[row, inicioGrupo].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
@@ -327,9 +343,9 @@ public class ReporteContableExcelService
         worksheet.Cells[row, colDia].Value = "Día";
         worksheet.Cells[row, colFecha].Value = "Fecha";
         worksheet.Cells[row, colLote].Value = "Lote";
-        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        for (int i = 0; i < columnas.Length; i++)
         {
-            worksheet.Cells[row, primeraColumnaDato + i].Value = ColumnasHuevos[i].Titulo;
+            worksheet.Cells[row, primeraColumnaDato + i].Value = columnas[i].Titulo;
         }
         for (int col = 1; col <= ultimaColumna; col++)
         {
@@ -349,10 +365,10 @@ public class ReporteContableExcelService
             worksheet.Cells[row, colFecha].Value = mov.Fecha.ToString("dd/MM/yyyy");
             worksheet.Cells[row, colLote].Value = mov.LoteNombre;
 
-            for (int i = 0; i < ColumnasHuevos.Length; i++)
+            for (int i = 0; i < columnas.Length; i++)
             {
                 var col = primeraColumnaDato + i;
-                worksheet.Cells[row, col].Value = ColumnasHuevos[i].Valor(mov);
+                worksheet.Cells[row, col].Value = columnas[i].Valor(mov);
                 worksheet.Cells[row, col].Style.Numberformat.Format = "#,##0";
             }
 
@@ -370,10 +386,10 @@ public class ReporteContableExcelService
         worksheet.Cells[row, colDia].Style.Fill.PatternType = ExcelFillStyle.Solid;
         worksheet.Cells[row, colDia].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
 
-        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        for (int i = 0; i < columnas.Length; i++)
         {
             var col = primeraColumnaDato + i;
-            worksheet.Cells[row, col].Value = ColumnasHuevos[i].Total(huevos);
+            worksheet.Cells[row, col].Value = columnas[i].Total(huevos);
             worksheet.Cells[row, col].Style.Numberformat.Format = "#,##0";
             worksheet.Cells[row, col].Style.Font.Bold = true;
             worksheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;

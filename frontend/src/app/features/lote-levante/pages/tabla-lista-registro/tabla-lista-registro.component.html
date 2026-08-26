@@ -9,25 +9,45 @@
           <th scope="col">Fecha</th>
           <th scope="col">Edad</th>
           <th scope="col">Mort. H</th>
-          <th scope="col">Mort. M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Mort. M</th>
+          }
           <th scope="col">Sel H</th>
-          <th scope="col">Sel M</th>
-          <th scope="col">Err H</th>
-          <th scope="col">Err M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Sel M</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Err H</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Err M</th>
+          }
           <!-- 🔀 Feature 13 — columnas dedicadas de traslados -->
           <th scope="col" class="th-traslado-in" title="Hembras recibidas por traslado">↘ Ing. H</th>
-          <th scope="col" class="th-traslado-in" title="Machos recibidos por traslado">↘ Ing. M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col" class="th-traslado-in" title="Machos recibidos por traslado">↘ Ing. M</th>
+          }
           <th scope="col" class="th-traslado-out" title="Hembras enviadas por traslado">↗ Sal. H</th>
-          <th scope="col" class="th-traslado-out" title="Machos enviados por traslado">↗ Sal. M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col" class="th-traslado-out" title="Machos enviados por traslado">↗ Sal. M</th>
+          }
           <th scope="col">Alim H / M</th>
           <th scope="col">Cons H (kg)</th>
-          <th scope="col">Cons M (kg)</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Cons M (kg)</th>
+          }
           <th scope="col">P.H</th>
-          <th scope="col">P.M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">P.M</th>
+          }
           <th scope="col">Unif H (%)</th>
-          <th scope="col">Unif M (%)</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">Unif M (%)</th>
+          }
           <th scope="col">CV H</th>
-          <th scope="col">CV M</th>
+          @if (!ocultaMachosEnPostura) {
+            <th scope="col">CV M</th>
+          }
           <th scope="col" class="text-right">Acciones</th>
         </tr>
       </thead>
@@ -67,22 +87,34 @@
             </td>
             <td>{{ edadDiasDe(s) }}</td>
             <td>{{ s.mortalidadHembras || 0 }}</td>
-            <td>{{ s.mortalidadMachos || 0 }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.mortalidadMachos || 0 }}</td>
+            }
             <td>{{ s.selH || 0 }}</td>
-            <td>{{ s.selM || 0 }}</td>
-            <td>{{ s.errorSexajeHembras || 0 }}</td>
-            <td>{{ s.errorSexajeMachos || 0 }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.selM || 0 }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.errorSexajeHembras || 0 }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.errorSexajeMachos || 0 }}</td>
+            }
             <!-- 🔀 Feature 13 — celdas dedicadas de traslados -->
             <td [class.tras-cell--in]="(s.trasladoIngresoHembras || 0) > 0">{{ s.trasladoIngresoHembras || 0 }}</td>
-            <td [class.tras-cell--in]="(s.trasladoIngresoMachos  || 0) > 0">{{ s.trasladoIngresoMachos  || 0 }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td [class.tras-cell--in]="(s.trasladoIngresoMachos  || 0) > 0">{{ s.trasladoIngresoMachos  || 0 }}</td>
+            }
             <td [class.tras-cell--out]="(s.trasladoSalidaHembras || 0) > 0">{{ s.trasladoSalidaHembras || 0 }}</td>
-            <td [class.tras-cell--out]="(s.trasladoSalidaMachos  || 0) > 0">{{ s.trasladoSalidaMachos  || 0 }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td [class.tras-cell--out]="(s.trasladoSalidaMachos  || 0) > 0">{{ s.trasladoSalidaMachos  || 0 }}</td>
+            }
             <td>
               @if (s?.tipoAlimentoHembras || s?.tipoAlimentoMachos) {
                 @if (s?.tipoAlimentoHembras; as ah) {
                   <span>H: {{ mapAlimentoNombre(ah) }}</span>
                 }
-                @if (s?.tipoAlimentoMachos; as am) {
+                @if (!ocultaMachosEnPostura && s?.tipoAlimentoMachos; as am) {
                   <span> / M: {{ mapAlimentoNombre(am) }}</span>
                 }
               } @else {
@@ -90,13 +122,21 @@
               }
             </td>
             <td>{{ s.consumoKgHembras | number:'1.0-2' }}</td>
-            <td>{{ s.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+            }
             <td>{{ s.pesoPromH ?? 0 | number:'1.0-2' }}</td>
-            <td>{{ s.pesoPromM ?? 0 | number:'1.0-2' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.pesoPromM ?? 0 | number:'1.0-2' }}</td>
+            }
             <td>{{ s.uniformidadH ?? 0 | number:'1.0-1' }}</td>
-            <td>{{ s.uniformidadM ?? 0 | number:'1.0-1' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.uniformidadM ?? 0 | number:'1.0-1' }}</td>
+            }
             <td>{{ s.cvH ?? 0 | number:'1.0-2' }}</td>
-            <td>{{ s.cvM ?? 0 | number:'1.0-2' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td>{{ s.cvM ?? 0 | number:'1.0-2' }}</td>
+            }
             <td class="text-right">
               <div class="btn-group">
                 <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar (sólo afecta datos manuales)" aria-label="Editar registro">✎</button>

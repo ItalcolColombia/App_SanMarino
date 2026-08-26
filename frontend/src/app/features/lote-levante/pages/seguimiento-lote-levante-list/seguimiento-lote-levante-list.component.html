@@ -198,7 +198,9 @@
           <p><strong>Lote:</strong> {{ r.loteNombre }}</p>
           <div class="grid grid-2">
             <p><strong>Hembras disponibles:</strong> {{ r.avesHembrasDisponibles }}</p>
-            <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
+            @if (!ocultaMachosEnPostura) {
+              <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
+            }
           </div>
           @if (selectedLote?.fechaEncaset) {
             <div class="grid grid-2">
@@ -217,13 +219,15 @@
                   <div>Selección: {{ rs.selAcumHembras | number:'1.0-0' }}</div>
                   <div>Error sexaje: {{ rs.errorSexajeAcumHembras | number:'1.0-0' }}</div>
                 </div>
-                <div>
-                  <div><strong>Machos</strong></div>
-                  <div>Mort. caja: {{ rs.mortCajaMachos | number:'1.0-0' }}</div>
-                  <div>Mortalidad: {{ rs.mortalidadAcumMachos | number:'1.0-0' }}</div>
-                  <div>Selección: {{ rs.selAcumMachos | number:'1.0-0' }}</div>
-                  <div>Error sexaje: {{ rs.errorSexajeAcumMachos | number:'1.0-0' }}</div>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div>
+                    <div><strong>Machos</strong></div>
+                    <div>Mort. caja: {{ rs.mortCajaMachos | number:'1.0-0' }}</div>
+                    <div>Mortalidad: {{ rs.mortalidadAcumMachos | number:'1.0-0' }}</div>
+                    <div>Selección: {{ rs.selAcumMachos | number:'1.0-0' }}</div>
+                    <div>Error sexaje: {{ rs.errorSexajeAcumMachos | number:'1.0-0' }}</div>
+                  </div>
+                }
               </div>
             </div>
           }
@@ -253,7 +257,9 @@
             @if (!loadingLiquidacion && liquidacionCierre; as liq) {
               <div class="liq-info-row">
                 <span>Hembras encasetadas: <strong>{{ liq.hembrasEncasetadas ?? '—' }}</strong></span>
-                <span>Machos encasetados: <strong>{{ liq.machosEncasetados ?? '—' }}</strong></span>
+                @if (!ocultaMachosEnPostura) {
+                  <span>Machos encasetados: <strong>{{ liq.machosEncasetados ?? '—' }}</strong></span>
+                }
                 @if (liq.semanaUltimoRegistro) {
                   <span>Último registro: <strong>Semana {{ liq.semanaUltimoRegistro }}</strong></span>
                 }
@@ -417,11 +423,13 @@
                   <input id="aves-h-prod" type="number" min="0" step="1" [(ngModel)]="avesHProd" name="avesHProd" />
                   <small class="ux-hint">Máx: {{ r.avesHembrasDisponibles }}</small>
                 </div>
-                <div class="form-field">
-                  <label for="aves-m-prod">Aves machos para producción</label>
-                  <input id="aves-m-prod" type="number" min="0" step="1" [(ngModel)]="avesMProd" name="avesMProd" />
-                  <small class="ux-hint">Máx: {{ r.avesMachosDisponibles }}</small>
-                </div>
+                @if (!ocultaMachosEnPostura) {
+                  <div class="form-field">
+                    <label for="aves-m-prod">Aves machos para producción</label>
+                    <input id="aves-m-prod" type="number" min="0" step="1" [(ngModel)]="avesMProd" name="avesMProd" />
+                    <small class="ux-hint">Máx: {{ r.avesMachosDisponibles }}</small>
+                  </div>
+                }
               </div>
               <div class="form-field">
                 <label for="motivo-ajuste-aves">Motivo del ajuste</label>

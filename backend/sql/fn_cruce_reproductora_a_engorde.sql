@@ -159,7 +159,26 @@ BEGIN
                 consumo_agua_diario, consumo_agua_ph,
                 consumo_agua_orp, consumo_agua_temperatura,
                 tipo_alimento, ciclo, observaciones,
-                metadata, origen_cruce, created_by_user_id, created_at
+                metadata, origen_cruce, created_by_user_id, created_at,
+                -- ⭐ 25-ago-2026: los registros de cruce NACEN VALIDADOS.
+                --
+                -- Es el contrato que el C# ya documentaba y que este INSERT no cumplia
+                -- (SeguimientoDiarioAvesEngorde.Validado: "Los registros con OrigenCruce nacen
+                -- validados: los escribe el trigger de BD desde reproductora, ya confirmados en su
+                -- origen, y nadie los edita a mano"). La columna tiene DEFAULT false, asi que al no
+                -- nombrarla los dias nacian PENDIENTES.
+                --
+                -- POR QUE ROMPIA: el plazo de la doble validacion son 1 dia contados desde la FECHA
+                -- del seguimiento, no desde cuando se creo la fila. Si la reproductora se confirma
+                -- tarde, el cruce inserta con fechas de hace dias => los registros nacen VENCIDOS,
+                -- bloquean el alta de dias nuevos del lote (BloqueaAltaPorVencidos) y nadie puede
+                -- destrabarlo, porque los registros origen_cruce son de solo lectura en la UI.
+                -- Medido en produccion: 28 registros asi, en 4 lotes de DAYLAND.
+                --
+                -- No hay nada que "validar" despues: el cruce no crea reservas de alimento, la
+                -- confirmacion humana ya ocurrio en reproductora, y el descuento de aves
+                -- (RetiroAvesEngordeAplicador.SincronizarCruceAsync) nunca miro esta columna.
+                validado, validado_at, validado_por
             ) VALUES (
                 p_lote_ave_engorde_id, v_fecha_dest,
                 r.mort_m, r.mort_h, r.sel_m, r.sel_h, r.err_m, r.err_h,
@@ -182,7 +201,8 @@ BEGIN
                     'edad', d,
                     'lotesReproductora', r.lotes_json
                 ),
-                true, 'SYSTEM_CRUCE', now()
+                true, 'SYSTEM_CRUCE', now(),
+                true, now(), 'SYSTEM_CRUCE'
             );
         END IF;
     END LOOP;

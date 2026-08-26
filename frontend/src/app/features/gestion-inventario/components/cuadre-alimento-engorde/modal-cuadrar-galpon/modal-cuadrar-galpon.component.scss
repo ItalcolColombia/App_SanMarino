@@ -1,0 +1,226 @@
+// Paleta: tokens centralizados del tema (theme-italfoods.scss). Naranja = acción, rojo = peligro.
+// Nada hardcodeado fuera de los fallbacks, mismo criterio que cuadre-alimento-engorde.component.scss.
+
+.cg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.cg-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
+}
+
+.cg-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.75rem;
+  border-bottom: 1px solid var(--ital-green-50, #f2f2f0);
+}
+
+.cg-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ital-text, #1c1917);
+}
+
+.cg-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+  color: var(--ital-muted, #6b7280);
+}
+
+.cg-close {
+  background: none;
+  border: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ital-muted, #6b7280);
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.cg-body {
+  padding: 0.9rem 1.15rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+// ── Los tres números del invariante ──────────────────────────────────────────
+.cg-nums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.55rem;
+}
+
+.cg-num {
+  background: var(--ital-cream, #faf8f5);
+  border: 1px solid var(--ital-green-100, #ececea);
+  border-radius: 9px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+
+  &--bad {
+    border-color: var(--ital-danger-200, #fecaca);
+    background: var(--ital-danger-50, #fef2f2);
+  }
+}
+
+.cg-num__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ital-muted, #6b7280);
+}
+
+.cg-num__value {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ital-text, #1c1917);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Textos de apoyo ──────────────────────────────────────────────────────────
+.cg-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ital-muted, #6b7280);
+
+  &--bad { color: var(--ital-danger-700, #b91c1c); }
+  &--info {
+    background: var(--ital-amber-50, #fffbeb);
+    border: 1px solid var(--ital-amber-200, #fde68a);
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    color: var(--ital-text, #1c1917);
+  }
+}
+
+.cg-label {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ital-text, #1c1917);
+}
+
+.cg-req { color: var(--ital-danger-700, #b91c1c); }
+
+.cg-input {
+  width: 100%;
+  border: 1px solid var(--ital-green-100, #ececea);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.88rem;
+  color: var(--ital-text, #1c1917);
+  background: #fff;
+
+  &:focus {
+    outline: 2px solid var(--ital-orange, #e85c25);
+    outline-offset: 1px;
+  }
+
+  &:disabled { background: var(--ital-cream, #faf8f5); opacity: 0.75; }
+
+  &--area { resize: vertical; font-family: inherit; }
+}
+
+// ── Previsualización: qué se escribe de cada lado ────────────────────────────
+.cg-preview {
+  margin-top: 0.5rem;
+  border: 1px solid var(--ital-orange-200, #fcd9c7);
+  background: var(--ital-orange-50, #fff5ef);
+  border-radius: 9px;
+  padding: 0.6rem 0.7rem;
+
+  &--none {
+    border-color: var(--ital-green-100, #ececea);
+    background: var(--ital-cream, #faf8f5);
+  }
+}
+
+.cg-preview__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ital-text, #1c1917);
+}
+
+.cg-preview__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.84rem;
+  color: var(--ital-text, #1c1917);
+}
+
+.cg-preview__note {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--ital-muted, #6b7280);
+}
+
+.cg-preview__after {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ital-text, #1c1917);
+}
+
+// ── Pie ──────────────────────────────────────────────────────────────────────
+.cg-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.15rem 1rem;
+  border-top: 1px solid var(--ital-green-50, #f2f2f0);
+}
+
+.cg-btn {
+  border: 1px solid var(--ital-green-100, #ececea);
+  background: #fff;
+  color: var(--ital-text, #1c1917);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  // Naranja = acción, que es la regla de marca del repo (verde solo éxito, rojo solo peligro).
+  &--primary {
+    background: var(--ital-orange, #e85c25);
+    border-color: var(--ital-orange, #e85c25);
+    color: #fff;
+  }
+}
+
+// Aviso dentro de la previsualizacion: el descuento no cabe en el item elegido.
+.cg-preview__note--bad {
+  color: var(--ital-danger-700, #b91c1c);
+  font-weight: 600;
+}

@@ -194,7 +194,7 @@
                         <strong>Número de Hembras:</strong> {{ reporte()!.informacionLote.numeroHembras }}
                       </span>
                     }
-                    @if (reporte()!.informacionLote.numeroMachos) {
+                    @if (!ocultaMachosEnPostura && reporte()!.informacionLote.numeroMachos) {
                       <span>
                         <strong>Número de Machos:</strong> {{ reporte()!.informacionLote.numeroMachos }}
                       </span>

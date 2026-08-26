@@ -1,7 +1,8 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-reporte-diario-produccion/tabla-reporte-diario-produccion.component.ts
-import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReporteTecnicoProduccionDiarioDto, ReporteTecnicoProduccionLoteInfoDto } from '../../services/reporte-tecnico-produccion.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-tabla-reporte-diario-produccion',
@@ -11,9 +12,33 @@ import { ReporteTecnicoProduccionDiarioDto, ReporteTecnicoProduccionLoteInfoDto 
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-reporte-diario-produccion.component.scss']
 })
-export class TablaReporteDiarioProduccionComponent {
+export class TablaReporteDiarioProduccionComponent implements OnInit {
   @Input() datos: ReporteTecnicoProduccionDiarioDto[] = [];
   @Input() informacionLote?: ReporteTecnicoProduccionLoteInfoDto | null;
+
+  /** Empresas sin machos en postura: sus columnas no se pintan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: INCUBABLE y CARGADO salen de `huevo_inc`
+   * (columna fija de `seguimiento_diario_produccion`), siempre en 0 para estas empresas — se
+   * ocultan. FAIL-CLOSED: sin flag, columnas intactas.
+   */
+  clasificacionHuevoPorItems = false;
+
+  constructor(private companyConfig: ActiveCompanyConfigService) {}
+
+  ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => {
+        this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura;
+        this.clasificacionHuevoPorItems = !!f?.clasificacionHuevoPorItems;
+      },
+      error: () => {
+        this.ocultaMachosEnPostura = false;
+        this.clasificacionHuevoPorItems = false;
+      }
+    });
+  }
 
   formatNumber(value: number | null | undefined, decimals: number = 2): string {
     if (value === null || value === undefined) return '-';

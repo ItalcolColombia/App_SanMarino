@@ -333,15 +333,32 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
    */
   pesoDiferido = false;
 
-  /** True si el usuario puede cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
+  /**
+   * ¿El usuario tiene el permiso de bypass?
+   *
+   * ⚠️ Destraba SOLO las líneas de **corrida anterior** (`bypassablePorPermiso`). Sobre un lote
+   * **liquidado** no tiene ningún efecto: lo rechaza el gate de liquidación congelada del backend
+   * (`LiquidacionCongeladaGateCalculos.ValidarEscritura` → 400), que no consulta este permiso. Para
+   * decidir si una fila admite cantidad usar {@link lineaBloqueadaEfectiva}, nunca este getter solo.
+   */
   get puedeVenderLotesCerrados(): boolean {
     return this.permService.has(PERMISO_VENDER_LOTES_CERRADOS);
   }
 
-  /** Alguna línea está bloqueada (cerrado / corrida anterior) y el usuario no tiene el permiso para saltarlo. */
+  /** ¿Esta línea queda bloqueada de verdad, ya considerado el permiso? Única fuente para la UI. */
+  lineaBloqueadaEfectiva(line: VentaLineaGranja): boolean {
+    if (!line.bloqueada) return false;
+    return !(line.bypassablePorPermiso && this.puedeVenderLotesCerrados);
+  }
+
+  /**
+   * Hay líneas de **corrida anterior** bloqueadas que el permiso destrabaría, y el usuario no lo
+   * tiene. Las de lote cerrado quedan fuera a propósito: no las destraba ningún permiso, así que
+   * ofrecerlo sería mandar al usuario a pedir algo que no le va a servir.
+   */
   get hayLoteBloqueadoSinPermiso(): boolean {
     if (this.puedeVenderLotesCerrados) return false;
-    return this.ventaLineasGranja.some((l) => l.bloqueada);
+    return this.ventaLineasGranja.some((l) => l.bloqueada && l.bypassablePorPermiso);
   }
 
   /** Permiso `registros.fecha_retroactiva`: destraba `fechaMovimiento` más allá de la ventana base. */
@@ -772,9 +789,13 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
           'Alguna cantidad supera lo disponible en el lote (H / M / mixtas según corresponda). Marque "Permitir sobrante de aves" para registrar de más.';
         return;
       }
-      if (!this.puedeVenderLotesCerrados && withQty.some((l) => l.bloqueada)) {
-        this.error =
-          'Hay cantidades cargadas en lotes cerrados o de una corrida anterior en el mismo galpón. Quite esas cantidades o solicite el permiso correspondiente.';
+      // El mensaje distingue las dos causas: la corrida anterior se destraba con el permiso, el lote
+      // cerrado NO (hay que reabrirlo). Mandar a pedir un permiso que no sirve fue el defecto previo.
+      const bloqueadas = withQty.filter((l) => this.lineaBloqueadaEfectiva(l));
+      if (bloqueadas.length > 0) {
+        this.error = bloqueadas.some((l) => !l.bypassablePorPermiso)
+          ? 'Hay cantidades cargadas en lotes cerrados (liquidados). Quite esas cantidades o reabra el lote: ningún permiso habilita escribir sobre un lote liquidado.'
+          : 'Hay cantidades cargadas en lotes de una corrida anterior en el mismo galpón. Quite esas cantidades o solicite el permiso correspondiente.';
         return;
       }
       this.error = null;
@@ -985,9 +1006,9 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
    */
   onLineaCantidadInput(ev: Event, line: VentaLineaGranja, field: 'h' | 'm' | 'x'): void {
     const input = ev.target as HTMLInputElement;
-    // Refuerzo del `disabled` del template: un lote cerrado / de corrida anterior no admite
-    // cantidad salvo que el usuario tenga el permiso de bypass.
-    if (line.bloqueada && !this.puedeVenderLotesCerrados) {
+    // Refuerzo del `disabled` del template: un lote de corrida anterior no admite cantidad salvo que
+    // el usuario tenga el permiso de bypass; uno cerrado no la admite nunca.
+    if (this.lineaBloqueadaEfectiva(line)) {
       input.value = field === 'h' ? line.hStr : field === 'm' ? line.mStr : line.xStr;
       return;
     }

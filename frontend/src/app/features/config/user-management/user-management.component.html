@@ -8,7 +8,9 @@
         <fa-icon [icon]="faUsers" class="header-icon"></fa-icon>
         <h1 class="header-title">Gestión de Usuarios</h1>
       </div>
+      <!-- El alta vive en el PADRE, no en la tabla: gatear solo el hijo la dejaría abierta. -->
       <button
+        *appHasPermission="PERM_GESTIONAR"
         (click)="navigateToCreate()"
         class="btn-create"
         aria-label="Registrar nuevo usuario"
@@ -29,6 +31,7 @@
           (assignFarms)="navigateToAssignFarms($event)"
           (resetPassword)="openResetPasswordModal($event)"
           (verSesiones)="openSesionesModal($event)"
+          (verDetalle)="verDetalleUsuario($event)"
         ></app-tabla-lista-registro>
       }
 
@@ -72,6 +75,7 @@
 <app-modal-create-edit
   [isOpen]="modalOpen"
   [editingUser]="editingUser"
+  [soloLectura]="modalSoloLectura"
   (close)="closeModal()"
   (userSaved)="onUserSaved($event)"
 ></app-modal-create-edit>

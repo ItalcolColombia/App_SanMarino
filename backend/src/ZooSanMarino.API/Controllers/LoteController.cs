@@ -107,6 +107,7 @@ public class LoteController : ControllerBase
     [HttpPut("{loteId}")]
     [ProducesResponseType(typeof(LoteDtos.LoteDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoteDtos.LoteDetailDto>> Update(int loteId, [FromBody] UpdateLoteDto dto)
     {
@@ -121,6 +122,12 @@ public class LoteController : ControllerBase
             var updated = await _svc.UpdateAsync(dto);
             if (updated is null) return NotFound();
             return Ok(updated);
+        }
+        // 403 y no 400: corregir las aves encasetadas exige `lote.corregir_aves`. El resto del PUT
+        // sigue abierto — el gate lo dispara el DELTA de aves, no el verbo.
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message, error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

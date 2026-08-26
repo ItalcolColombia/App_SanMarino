@@ -73,6 +73,13 @@ public record ReporteMovimientosHuevosDto
     public int TotalSalida { get; init; }
     public int TotalTrasladoAPlanta { get; init; }
     public int TotalDescarte { get; init; }
+
+    /// <summary>
+    /// Flag `companies.clasificacion_huevo_por_items` de la empresa activa: con clasificación por
+    /// ítem, HvtoFertil/HvoComercial/HuevoDesecho/Descarte salen de columnas legacy que quedan
+    /// siempre en 0 (el desglose real vive en metadata.huevoItems, que este reporte no lee).
+    /// </summary>
+    public bool ClasificacionHuevoPorItems { get; init; }
 }
 
 /// <summary>

@@ -27,7 +27,9 @@
           <label class="comparativo-label filter-step__label">Grupo
             <select class="filter-step__select" [(ngModel)]="sexoComparativo" (ngModelChange)="construirComparativoGuia()">
               <option value="H">Hembras</option>
-              <option value="M">Machos</option>
+              @if (!ocultaMachosEnPostura) {
+                <option value="M">Machos</option>
+              }
             </select>
           </label>
         }

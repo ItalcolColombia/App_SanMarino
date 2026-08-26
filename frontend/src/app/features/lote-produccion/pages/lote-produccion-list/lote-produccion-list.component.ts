@@ -44,6 +44,7 @@ import { LotePosturaProduccionService, CierreLoteProduccionResumenDto } from '..
 import { AuthService } from '../../../../core/auth/auth.service';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-lote-produccion-list',
@@ -160,6 +161,10 @@ export class LoteProduccionListComponent implements OnInit {
   private galponNameById = new Map<string, string>();
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
   /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
   private readonly aviso = inject(AvisoValidacionService);
   /** Doble validación: alerta de registros vencidos al entrar al lote. */
@@ -279,6 +284,11 @@ export class LoteProduccionListComponent implements OnInit {
 
   // ================== INIT ==================
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     // Granjas, núcleos, galpones y lotes (producción) se cargan vía filter-data en FiltroSelect.
   }
 

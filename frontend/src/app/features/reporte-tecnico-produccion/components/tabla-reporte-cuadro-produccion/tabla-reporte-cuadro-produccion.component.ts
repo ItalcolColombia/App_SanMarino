@@ -1,10 +1,11 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-reporte-cuadro-produccion/tabla-reporte-cuadro-produccion.component.ts
-import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { 
   ReporteTecnicoProduccionCuadroDto, 
   ReporteTecnicoProduccionLoteInfoDto 
 } from '../../services/reporte-tecnico-produccion.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-tabla-reporte-cuadro-produccion',
@@ -14,9 +15,35 @@ import {
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-reporte-cuadro-produccion.component.scss']
 })
-export class TablaReporteCuadroProduccionComponent {
+export class TablaReporteCuadroProduccionComponent implements OnInit {
   @Input() datos: ReporteTecnicoProduccionCuadroDto[] = [];
   @Input() informacionLote?: ReporteTecnicoProduccionLoteInfoDto | null;
+
+  /** Empresas sin machos en postura: sus columnas no se pintan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: HUEVOS INCUB/%DESCARTE/%ACUM INCUB/LAA
+   * (grupo HUEVO INCUBABLE) y H.CARGA/H.CAR ACU (grupo HUEVOS CARGADOS Y POLLITOS) salen todos de
+   * `huevo_inc` (columna fija), siempre en 0 para estas empresas — se ocultan. STD ROSS (guía) y
+   * el resto de HUEVOS CARGADOS Y POLLITOS (V.HUEVO viene de traslados, POLLITOS/PAA de eclosión)
+   * no dependen de `huevo_inc` y se mantienen. FAIL-CLOSED: sin flag, columnas intactas.
+   */
+  clasificacionHuevoPorItems = false;
+
+  constructor(private companyConfig: ActiveCompanyConfigService) {}
+
+  ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => {
+        this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura;
+        this.clasificacionHuevoPorItems = !!f?.clasificacionHuevoPorItems;
+      },
+      error: () => {
+        this.ocultaMachosEnPostura = false;
+        this.clasificacionHuevoPorItems = false;
+      }
+    });
+  }
 
   formatNumber(value: number | null | undefined, decimals: number = 2): string {
     if (value === null || value === undefined) return '-';

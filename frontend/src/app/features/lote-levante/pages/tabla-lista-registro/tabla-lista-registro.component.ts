@@ -6,6 +6,7 @@ import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { PagedResult } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-tabla-lista-registro',
@@ -36,10 +37,20 @@ export class TablaListaRegistroComponent implements OnInit {
 
   constructor(
     private catalogSvc: CatalogoAlimentosService,
-    private storageService: TokenStorageService
+    private storageService: TokenStorageService,
+    private companyConfig: ActiveCompanyConfigService
   ) { }
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     this.loadAlimentosCatalog();
     this.checkAdminRole();
   }

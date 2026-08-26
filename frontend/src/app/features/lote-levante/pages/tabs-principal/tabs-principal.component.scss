@@ -305,6 +305,13 @@
   transition: background-color var(--t-fast);
 }
 
+/* Empresas sin machos en postura (SR-DEF-1): la grilla pasa a 2 columnas en vez de dejar un
+   hueco con la maquetacion de 3. Mismo criterio que `.compare-grid--sin-machos` de F5.2. */
+.info-lote__grid--sin-machos {
+  .info-lote__header-row,
+  .info-lote__row { grid-template-columns: 2fr 1fr; }
+}
+
 .info-lote__row:last-child {
   border-bottom: none;
 }

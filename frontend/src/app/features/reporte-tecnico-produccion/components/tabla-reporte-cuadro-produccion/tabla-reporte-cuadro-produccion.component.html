@@ -41,17 +41,26 @@
           <th rowspan="3">SEMANA</th>
           <th rowspan="3">FECHA</th>
           <th rowspan="3">ED PrH</th>
-          <th colspan="2">AVES FIN</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">AVES FIN</th>
           <th colspan="5">MORTALIDAD HEMBRAS</th>
-          <th colspan="5">MORTALIDAD MACHOS</th>
+          @if (!ocultaMachosEnPostura) {
+            <th colspan="5">MORTALIDAD MACHOS</th>
+          }
           <th colspan="6">PRODUCCION TOTAL DE HUEVOS</th>
           <th colspan="4">HUEVOS ENVIADOS PLANTA</th>
-          <th colspan="5">HUEVO INCUBABLE</th>
-          <th colspan="7">HUEVOS CARGADOS Y POLLITOS</th>
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               casi todo este grupo (menos STD ROSS) sale de huevo_inc, siempre en 0 -> se oculta. -->
+          <th [attr.colspan]="clasificacionHuevoPorItems ? 1 : 5">HUEVO INCUBABLE</th>
+          <!-- H.CARGA/H.CAR ACU salen de huevo_inc; V.HUEVO/POLLITOS/PAA no dependen de el. -->
+          <th [attr.colspan]="clasificacionHuevoPorItems ? 5 : 7">HUEVOS CARGADOS Y POLLITOS</th>
           <th colspan="6">CONSUMO DE ALIMENTO HEMBRA</th>
-          <th colspan="6">CONSUMO DE ALIMENTO MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th colspan="6">CONSUMO DE ALIMENTO MACHO</th>
+          }
           <th colspan="2">PESOS HEMBRA</th>
-          <th colspan="2">PESOS MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th colspan="2">PESOS MACHO</th>
+          }
           <th colspan="2">PESO HUEVO</th>
           <th colspan="2">MASA</th>
           <th colspan="2">% APROV</th>
@@ -61,7 +70,9 @@
         <tr>
           <!-- AVES FIN -->
           <th>HEMBRA</th>
-          <th>MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>MACHO</th>
+          }
 
           <!-- MORTALIDAD HEMBRAS -->
           <th>N</th>
@@ -71,11 +82,21 @@
           <th>ACUM</th>
 
           <!-- MORTALIDAD MACHOS -->
-          <th>N</th>
-          <th>DESC% SEM</th>
-          <th>% ACUM</th>
-          <th>STANDA M</th>
-          <th>ACUM</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>N</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>DESC% SEM</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>% ACUM</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>STANDA M</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>ACUM</th>
+          }
 
           <!-- PRODUCCION TOTAL DE HUEVOS -->
           <th>HUEVOS VENTA SEMANA</th>
@@ -92,15 +113,19 @@
           <th>% HALA</th>
 
           <!-- HUEVO INCUBABLE -->
-          <th>HUEVOS INCUB</th>
-          <th>% DESCARTE</th>
-          <th>% ACUM INCUB</th>
-          <th>LAA</th>
+          @if (!clasificacionHuevoPorItems) {
+            <th>HUEVOS INCUB</th>
+            <th>% DESCARTE</th>
+            <th>% ACUM INCUB</th>
+            <th>LAA</th>
+          }
           <th>STD ROSS</th>
 
           <!-- HUEVOS CARGADOS Y POLLITOS -->
-          <th>H. CARGA</th>
-          <th>H. CAR ACU</th>
+          @if (!clasificacionHuevoPorItems) {
+            <th>H. CARGA</th>
+            <th>H. CAR ACU</th>
+          }
           <th>V. HUEVO</th>
           <th>V. HUEVO POLLITOS</th>
           <th>POLL. ACUM</th>
@@ -116,20 +141,36 @@
           <th>ST GR</th>
 
           <!-- CONSUMO DE ALIMENTO MACHO -->
-          <th>KG SEM</th>
-          <th>ACUM</th>
-          <th>ACUM AA</th>
-          <th>ST ACUM</th>
-          <th>GR DIA</th>
-          <th>ST GR</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>KG SEM</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>ACUM</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>ACUM AA</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>ST ACUM</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>GR DIA</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>ST GR</th>
+          }
 
           <!-- PESOS HEMBRA -->
           <th>KG</th>
           <th>STD</th>
 
           <!-- PESOS MACHO -->
-          <th>KG</th>
-          <th>STD</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>KG</th>
+          }
+          @if (!ocultaMachosEnPostura) {
+            <th>STD</th>
+          }
 
           <!-- PESO HUEVO -->
           <th>SEM</th>
@@ -155,7 +196,9 @@
             <td class="text-center highlight-yellow">{{ dato.edadProduccionSemanas }}</td>
             <!-- AVES FIN -->
             <td class="text-right"><strong>{{ dato.avesFinHembras }}</strong></td>
-            <td class="text-right"><strong>{{ dato.avesFinMachos }}</strong></td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right"><strong>{{ dato.avesFinMachos }}</strong></td>
+            }
             <!-- MORTALIDAD HEMBRAS -->
             <td class="text-right">{{ dato.mortalidadHembrasN }}</td>
             <td class="text-right">{{ formatPercentage(dato.mortalidadHembrasDescPorcentajeSem, 2) }}</td>
@@ -163,11 +206,21 @@
             <td class="text-right highlight-yellow">{{ dato.mortalidadHembrasStandarM ? formatPercentage(dato.mortalidadHembrasStandarM, 2) : '-' }}</td>
             <td class="text-right highlight-yellow">{{ dato.mortalidadHembrasAcumStandar ? formatPercentage(dato.mortalidadHembrasAcumStandar, 2) : '-' }}</td>
             <!-- MORTALIDAD MACHOS -->
-            <td class="text-right">{{ dato.mortalidadMachosN }}</td>
-            <td class="text-right">{{ formatPercentage(dato.mortalidadMachosDescPorcentajeSem, 2) }}</td>
-            <td class="text-right">{{ formatPercentage(dato.mortalidadMachosPorcentajeAcum, 2) }}</td>
-            <td class="text-right highlight-yellow">{{ dato.mortalidadMachosStandarM ? formatPercentage(dato.mortalidadMachosStandarM, 2) : '-' }}</td>
-            <td class="text-right highlight-yellow">{{ dato.mortalidadMachosAcumStandar ? formatPercentage(dato.mortalidadMachosAcumStandar, 2) : '-' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ dato.mortalidadMachosN }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatPercentage(dato.mortalidadMachosDescPorcentajeSem, 2) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatPercentage(dato.mortalidadMachosPorcentajeAcum, 2) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right highlight-yellow">{{ dato.mortalidadMachosStandarM ? formatPercentage(dato.mortalidadMachosStandarM, 2) : '-' }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right highlight-yellow">{{ dato.mortalidadMachosAcumStandar ? formatPercentage(dato.mortalidadMachosAcumStandar, 2) : '-' }}</td>
+            }
             <!-- PRODUCCION TOTAL DE HUEVOS -->
             <td class="text-right">{{ dato.huevosVentaSemana }}</td>
             <td class="text-right">{{ dato.huevosAcum }}</td>
@@ -181,14 +234,18 @@
             <td class="text-right">{{ formatPercentage(dato.porcentajeEnviaP, 2) }}</td>
             <td class="text-right highlight-yellow">{{ dato.porcentajeHala ? formatPercentage(dato.porcentajeHala, 2) : '-' }}</td>
             <!-- HUEVO INCUBABLE -->
-            <td class="text-right">{{ dato.huevosIncub }}</td>
-            <td class="text-right">{{ formatPercentage(dato.porcentajeDescarte, 2) }}</td>
-            <td class="text-right">{{ formatPercentage(dato.porcentajeAcumIncub, 2) }}</td>
-            <td class="text-right">{{ formatNumber(dato.laa, 2) }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <td class="text-right">{{ dato.huevosIncub }}</td>
+              <td class="text-right">{{ formatPercentage(dato.porcentajeDescarte, 2) }}</td>
+              <td class="text-right">{{ formatPercentage(dato.porcentajeAcumIncub, 2) }}</td>
+              <td class="text-right">{{ formatNumber(dato.laa, 2) }}</td>
+            }
             <td class="text-right highlight-yellow">{{ dato.stdRoss ? formatNumber(dato.stdRoss, 2) : '-' }}</td>
             <!-- HUEVOS CARGADOS Y POLLITOS -->
-            <td class="text-right">{{ dato.hCarga }}</td>
-            <td class="text-right">{{ dato.hCargaAcu }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <td class="text-right">{{ dato.hCarga }}</td>
+              <td class="text-right">{{ dato.hCargaAcu }}</td>
+            }
             <td class="text-right">{{ dato.vHuevo }}</td>
             <td class="text-right">{{ dato.vHuevoPollitos }}</td>
             <td class="text-right">{{ dato.pollAcum }}</td>
@@ -202,18 +259,34 @@
             <td class="text-right">{{ dato.loteHembra ? formatNumber(dato.loteHembra, 2) : '-' }}</td>
             <td class="text-right highlight-yellow">{{ dato.stGrHembra ? formatNumber(dato.stGrHembra, 2) : '-' }}</td>
             <!-- CONSUMO DE ALIMENTO MACHO -->
-            <td class="text-right">{{ formatNumber(dato.kgSemMachos, 1) }}</td>
-            <td class="text-right">{{ formatNumber(dato.acumMachos, 1) }}</td>
-            <td class="text-right">{{ formatNumber(dato.acumAaMachos, 2) }}</td>
-            <td class="text-right highlight-yellow">{{ dato.stAcumMachos ? formatNumber(dato.stAcumMachos, 2) : '-' }}</td>
-            <td class="text-right">{{ formatNumber(dato.grDiaMachos, 2) }}</td>
-            <td class="text-right highlight-yellow">{{ dato.stGrMachos ? formatNumber(dato.stGrMachos, 2) : '-' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatNumber(dato.kgSemMachos, 1) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatNumber(dato.acumMachos, 1) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatNumber(dato.acumAaMachos, 2) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right highlight-yellow">{{ dato.stAcumMachos ? formatNumber(dato.stAcumMachos, 2) : '-' }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatNumber(dato.grDiaMachos, 2) }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right highlight-yellow">{{ dato.stGrMachos ? formatNumber(dato.stGrMachos, 2) : '-' }}</td>
+            }
             <!-- PESOS HEMBRA -->
             <td class="text-right">{{ dato.pesoHembraKg ? formatNumber(dato.pesoHembraKg, 2) : '-' }}</td>
             <td class="text-right highlight-yellow">{{ dato.pesoHembraStd ? formatNumber(dato.pesoHembraStd, 2) : '-' }}</td>
             <!-- PESOS MACHO -->
-            <td class="text-right">{{ dato.pesoMachosKg ? formatNumber(dato.pesoMachosKg, 2) : '-' }}</td>
-            <td class="text-right highlight-yellow">{{ dato.pesoMachosStd ? formatNumber(dato.pesoMachosStd, 2) : '-' }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ dato.pesoMachosKg ? formatNumber(dato.pesoMachosKg, 2) : '-' }}</td>
+            }
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right highlight-yellow">{{ dato.pesoMachosStd ? formatNumber(dato.pesoMachosStd, 2) : '-' }}</td>
+            }
             <!-- PESO HUEVO -->
             <td class="text-right">{{ formatNumber(dato.pesoHuevoSem, 2) }}</td>
             <td class="text-right highlight-yellow">{{ dato.pesoHuevoStd ? formatNumber(dato.pesoHuevoStd, 2) : '-' }}</td>

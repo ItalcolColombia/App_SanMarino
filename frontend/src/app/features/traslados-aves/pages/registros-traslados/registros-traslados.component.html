@@ -274,7 +274,7 @@
                               @if (movimiento.cantidadHembras > 0) {
                                 <span>H: {{ formatearNumero(movimiento.cantidadHembras) }}</span>
                               }
-                              @if (movimiento.cantidadMachos > 0) {
+                              @if (!ocultaMachosEnPostura && movimiento.cantidadMachos > 0) {
                                 <span>M: {{ formatearNumero(movimiento.cantidadMachos) }}</span>
                               }
                               @if (movimiento.cantidadHembras === 0 && movimiento.cantidadMachos === 0) {

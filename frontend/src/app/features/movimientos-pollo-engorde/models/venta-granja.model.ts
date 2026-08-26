@@ -39,6 +39,16 @@ export interface VentaLineaGranja {
   flashExcesoX?: boolean;
   /** true si el lote está cerrado o es una corrida anterior en el mismo galpón (ver `detectar-lotes-bloqueados-venta.funcion.ts`). */
   bloqueada?: boolean;
+  /**
+   * ¿El permiso `movimientos_pollo_engorde.vender_lotes_cerrados` destraba ESTA línea?
+   *
+   * Solo la corrida anterior. Un lote **liquidado** lo rechaza el gate de liquidación congelada del
+   * backend (`LiquidacionCongeladaGateCalculos.ValidarEscritura` → 400) y **ningún permiso lo abre**:
+   * su bypass (`omitirGateLiquidado`) existe solo para las herramientas de reparación. Además,
+   * mientras el lote está cerrado los reportes leen la copia congelada, así que una venta que
+   * entrara quedaría invisible. El camino correcto es **reabrir el lote**.
+   */
+  bypassablePorPermiso?: boolean;
   /** Motivo del bloqueo a mostrar en la UI ("Lote cerrado" | "Corrida anterior en este galpón"). */
   motivoBloqueo?: string;
 }

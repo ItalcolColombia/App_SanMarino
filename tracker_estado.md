@@ -2357,3 +2357,1109 @@ por archivo, build+test entre cada uno. Linea base: back 3.135 tests, front 633 
 ## Verificacion final (al cerrar los 12)
 - [x] `dotnet build` 0/0 y `dotnet test` = 3135 (identico a la linea base)
 - [x] `yarn build` 0/0 y `yarn test` = 633 (identico a la linea base)
+
+---
+
+# X18 — Santa Reyes: cierre de definiciones del cliente (24-ago-2026)
+
+Plan: [`fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md`](fase_de_desarrollo/santa_reyes_definiciones_cliente_cierre_plan.md)
+
+**Desbloqueado por el usuario en sesion**, con los 4 archivos del cliente adjuntos (`Items.xlsx`,
+`Lotes.xlsx`, `Granja.xlsx`, `Requerimientos de Italapp.docx`). Cierra `SR-DEF-1`, `SR-DEF-5` y
+`SR-DEF-6` de `TK-2026-000180`. Linea base: back **3135** tests, front **633** tests.
+
+## X18.0 · Decisiones del usuario (las 4, tomadas en sesion)
+- [x] **Machos**: no es un campo informativo nuevo en ventas — es **retirar machos tambien de
+      ventas**. Se extiende `ocultaMachosEnPostura`, no se crea flag nuevo
+- [x] **Lohmann Brown**: queda **sin guia genetica** (no se inventan sus 123 filas); solo se corrige
+      su clasificacion de grupo
+- [x] **Grafia de razas**: el sistema **tolera la grafia del ERP** por alias de lectura; no se
+      modifica el dato que vino del ERP
+- [x] **Enyemado/Decolorado sin codigo ERP**: quedan **sin codigo y ocultos**, no se ofrecen para
+      clasificar. Ni se borran ni se inventan codigos
+
+## X18.1 · W2 — Linea genetica — CERRADO
+- [x] 🔴 **Bug probado**: `LOHMANN BROWN` cae en el token `LOHMANN` y se clasifica **blanca (112
+      sem)**; el `Lotes.xlsx` del cliente dice **ROJA (102 sem)**. Afecta al lote 229. Fix: evaluar
+      Rojas/Criollas **primero** + token `BROWN`, en backend y en su espejo de front
+- [x] Alias de grafia ERP → guia (`BABCOK BROWN`→`Babcock Brown`, `HY LINE`→`Hy Line Brown`) en
+      calculo puro nuevo `RazaGuiaAliasCalculos`, aplicado en los **4** sitios que consultan la guia
+      propia (`GuiaGeneticaLookup.ExisteAsync`/`ObtenerFilasPropiasAsync`,
+      `GuiaGeneticaService.ObtenerCandidatosAsync`/`ObtenerAniosCrudoAsync`)
+- [x] 🔴 **El alias NO se aplica a la guia compartida** (`ProduccionAvicolaRaw`): Sanmarino, Panama y
+      Ecuador leen de ahi y el delta cero queda garantizado **por construccion**, no por revision
+- [x] Tests espejados: back **3161** (base 3135, +26) · front spec 19/19
+- [i] **Medido en BD**: 3 de las 4 razas de los lotes reales de SR no cruzaban con la guia ⇒ reportes
+      tecnicos sin columnas de comparacion y la validacion «raza/año obligatorios si hay guia»
+      rechazaba razas que SI estaban cargadas
+
+## X18.2 · W4 — Bodega de salida por lista maestra (`SR-DEF-6` / F10.1) — CERRADO
+- [x] Migracion data-only `20260824120000_SeedListasMaestrasTrasladoSantaReyes`: siembra para SR las
+      5 listas que le faltaban (`traslado_de_huevos_planta_destino` con **Bodega General**,
+      `_tipo_destino`, `_tipo_de_operacion`, `_venta_motivo`, `movimiento_de_aves_tipo_movimiento`)
+- [x] **Idempotencia probada corriendo el `Up()` DOS veces en una transaccion revertida**: 33→38→38
+      listas y 70→78→78 opciones (la 2a pasada no mueve nada); el `Down()` devuelve a 33/70 exacto.
+      Aplicada despues de verdad con `dotnet ef database update`
+- [x] 🔴 **El campo digitado era el de TRASLADO, no el de venta.** El de venta ya era un `<select>`;
+      el texto libre estaba en `modal-traslado-huevos.component.html:148`
+      (`<input type="text" formControlName="observaciones">` con label «Nombre Planta») — eso es lo
+      que el cliente reclama. Reemplazado por `<select>` alimentado de la lista maestra
+- [x] 🔴 **Se decide por DATO, no por empresa**: hay desplegable si la empresa tiene opciones
+      cargadas. Sanmarino y Demo tienen la lista **sin ninguna opcion** ⇒ volverles el campo
+      obligatorio y vacio les impedia registrar un traslado; sin opciones se conserva el input de
+      siempre. Habilitarlo en cualquier empresa = cargar sus destinos en `/config/master-lists`
+- [x] Escribe en el **mismo control** (`observaciones`) que el input que reemplaza ⇒ ni el DTO, ni la
+      columna, ni ningun lector cambian. `yarn build` 0 errores
+- [i] **Ojo, el plan viejo apuntaba al formulario equivocado**:
+      `santa_reyes_requerimientos_italapp_plan.md:61,85` mandaba a `traslado-huevos-form`, que es el
+      **huerfano** (ruta `/traslados-huevos/nuevo` sin un solo `routerLink` que la alcance). El vivo
+      es `modal-traslado-huevos`, que es el que se toco
+
+## X18.3 · W3 — Comprobante de traslado de aves (`SR-DEF-5` / F9.2c) — CERRADO
+- [x] `ComprobanteTrasladoAvesComponent` (standalone) — **es el primer comprobante del repo**. Patron
+      de `liquidacion-reporte-panama`: `@Input()` + `print()` + `@media print`. **Sin libreria de
+      PDF** — no hay ninguna en el repo (solo `xlsx` y ClosedXML/EPPlus, que son Excel) y el
+      navegador ya imprime a PDF
+- [x] Secciones: datos del movimiento, origen y destino, aves trasladadas, transporte
+      (placa/conductor/precinto, oculta si los 3 vienen vacios), observaciones y 3 firmas
+      (entrega / transporta / recibe)
+- [x] Gap del contrato cerrado: la interfaz TS `MovimientoAvesCompleto` **no declaraba**
+      `placa`/`conductor`/`sellos` aunque el backend los enviaba desde siempre ⇒ ninguna pantalla
+      podia leerlos
+- [x] Boton «Comprobante» por fila en `/movimientos-aves/lista` (tabla y cards mobile) — es el
+      listado que Santa Reyes SI tiene en `company_menus`. Trae el detalle con
+      `GET api/TrasladoNavigation/{id}`, el unico endpoint que resuelve origen y destino con nombres
+      mas transporte en una sola llamada
+- [x] Respeta `ocultaMachosEnPostura`: con el flag ON no imprime ni Machos ni Mixtas
+- [x] 🔴 **Regla de impresion de la pagina, no solo del comprobante**: sin ocultar `.ux-page` se
+      imprimia toda la pantalla de atras (sidebar, filtros y la tabla entera). El overlay se despega
+      a flujo normal al imprimir para que el comprobante ocupe la hoja solo
+- [x] Filas precalculadas en `ngOnChanges`, **no en getters**: un getter que arma arrays nuevos por
+      ciclo rompe la estabilidad de referencias que pide CLAUDE.md. `yarn build` 0 errores
+- [~] **Falta el smoke visual en navegador** (la impresion real y el salto de pagina): necesita
+      sesion autenticada
+
+## X18.4 · W1 — Machos fuera de postura (`SR-DEF-1` / F5.3)
+- [x] **Decision que cierra `SR-DEF-1`**: el `.docx` decia «que en ventas aparezca campo machos sobre
+      el total de las aves» y se leia como un campo informativo NUEVO. El usuario aclaro lo
+      contrario: Santa Reyes **no maneja machos en ningun lado**, asi que en ventas se **retiran**.
+      Sin flag nuevo: se extiende `ocultaMachosEnPostura`
+- [x] **W1.a — `modal-movimiento-aves` (el de VENTAS y traslados)**: oculto el stat «Machos disp.»,
+      el input `cantidadMachos` con su badge de disponible, y la nota «solo hembras o machos, no
+      ambos» (no tiene sentido sin machos). Los chips `M` del listado, en tabla y en cards
+- [x] **W1.a — `seguimiento-lote-levante-list`**: input «Aves machos para produccion», machos
+      disponibles, la columna Machos del resumen y «Machos encasetados»
+- [x] **W1.a — `modal-registro-inicial`**: input «Aves Iniciales Machos» y el `H / M` del banner
+- [x] **W1.a — `traslado-aves-huevos`**: input «Cantidad de Machos», machos vivos, iniciales,
+      mortalidad y retiros acumulados
+- [x] **W1.b residuos** de `modal-traslado-aves-seguimiento`: «Machos vivos» y las pills de
+      ingreso/salida M
+- [x] 🔴 **La anidacion sospechosa de `errorSexajeMachos` NO era un bug** — verificada linea por
+      linea en `modal-seguimiento-diario:265-269` y `modal-create-edit:408-412`: el `@if` abre antes
+      del titulo y cierra despues del input de machos, las 3 lineas quedan adentro. Falsa alarma del
+      inventario; queda escrito para que nadie vuelva a perseguirla
+- [i] **Nada de esto toca el modelo ni el payload**: los controles siguen existiendo y nacen en `0`,
+      que es un valor VALIDO para `Validators.required` ⇒ ocultarlos no bloquea el guardado. Mismo
+      criterio que F5.1/F5.2
+- [x] **W1.a — `lote-list` (el form VIVO de lotes)**: inputs «Cantidad machos» del lote base y
+      «🐓 # Aves Macho» del lote. Ya inyectaba `ActiveCompanyConfigService`, solo se sumo el flag al
+      bloque de `loadCompanyFlags()` que ya existia
+- [x] **W1.a — `inventario-dashboard` (el 4º formulario de traslado)**: los 2 inputs
+      `cantidadMachos` (traslado entre lotes y retiro) y el `window.prompt` del ajuste manual, que
+      con el flag ON ya no pregunta por machos y ajusta con 0
+- [x] **W1.c tablas y tabs — CERRADO**: `tabs-principal` de levante y produccion (KPIs, tarjetas de
+      resumen, tabla de descuentos y las grillas diarias), `tabla-lista-registro`, los 2
+      `modal-detalle-seguimiento` (en produccion se retira la **pestaña Machos entera**),
+      `modal-calculos`, las 2 liquidaciones, las 2 `graficas-principal`, `lote-produccion-list`, y
+      los listados de `traslados-aves` (`movimientos-list`, `registros-traslados`,
+      `historial-trazabilidad`, `edades-lote`, `traslado-navigation-card`) + `dashboard`
+- [x] **W1.d reportes y exportaciones — CERRADO**: `reportes-tecnicos` (pestaña «Semana Machos»
+      entera + 24 columnas + los 4 reportes compactos por galpon/general + `tabla-levante-completa`),
+      `reporte-tecnico-produccion` (cuadro y diaria), `reporte-contable` (aves y bultos),
+      `reporte-diario-costos-postura`, `reporte-tecnico-semanal` y
+      `reporte-tecnico-administrativo`. Los **3 export a xlsx** filtrados
+- [x] 🔴 **Lo delicado no eran las columnas, eran los COLSPAN.** Toda tabla con cabecera de 2 pisos
+      necesita achicar el grupo: si no, abarca mas columnas de las que existen y la cabecera queda
+      corrida sobre el grupo vecino. Ajustados en indicadores (produccion y levante), contable,
+      costos-postura, cuadro y diaria de produccion, y los 4 compactos. Y el `colspan` de la fila
+      «sin registros» es un **numero fijo**: hay que restarle las columnas ocultas a mano
+- [x] 🔴 **Los 3 export a Excel se filtran de forma que no se puedan desalinear**: por lista
+      EXPLICITA de claves donde las filas son objetos (indicadores), y con la MISMA condicion
+      aplicada en la misma posicion a cabecera y dato donde son arrays paralelos (`soloConMachos`,
+      y el parametro de `construirHojasCostosPostura`). Una regex sobre la «M» se lleva por delante
+      claves de hembras (`PorcMortSemH`, `PorcMortSemLote`) y el error solo se ve abriendo el archivo
+- [i] **Los TOTALES se conservan en todos lados** (total de aves, total general, cambio total): son
+      el total del lote, no un dato de machos
+- [i] **Hallazgo preexistente NO tocado**: los `colspan` de `tabla-levante-completa` ya estaban mal
+      antes de esto (dicen 15/15/8/8 y tienen 34/33/9/9 hojas). Corregirlo seria un cambio de
+      comportamiento para todas las empresas ⇒ fuera de alcance, queda anotado
+
+### X18.4.1 · Verificacion de alineacion de las tablas (medida, no asumida)
+
+Se conto el ancho de cada tabla por los TRES caminos —suma de `colspan` de la fila 1, hojas de la
+fila 2, y celdas del cuerpo— en los dos estados del flag. Si los tres no dan lo mismo, la tabla sale
+corrida. Resultado (`OFF` → `ON`):
+
+| tabla | OFF (g/h/c) | ON (g/h/c) | |
+|---|---|---|---|
+| levante · `tabs-principal` | 36/36/36 | 25/25/25 | OK |
+| produccion · `tabla-lista-indicadores` | 57/57/57 | 39/39/39 | OK |
+| levante · `tabla-lista-indicadores` | 34/34/34 | 19/19/19 | OK |
+| levante · `tabla-lista-registro` | 22/22/22 | 12/12/12 | OK |
+| **produccion · `tabs-principal`** | **38/38/37** | **31/31/30** | ⚠️ preexistente |
+
+- [x] **Produccion y levante quedan alineados** respecto de este cambio: el delta cabecera↔cuerpo es
+      identico en los dos estados del flag en TODAS las tablas
+- [!] 🔴 **Defecto PREEXISTENTE en la grilla diaria de produccion**: el `<thead>` declara la columna
+      **«Estado»** (`@if (requiereValidacion)`, ~linea 265) y el `<tbody>` **no tiene su celda** —
+      despues de `observacionesPesaje` pasa directo a Acciones. Con la doble validacion encendida la
+      fila queda corrida una columna. **Verificado que NO lo introdujo este trabajo**: en `f49012b^`
+      (antes de tocar machos) la tabla ya estaba en th=38 / td=37. Levante SI tiene esa celda y esta
+      balanceado. Spawneado aparte (`task_88fd333d`), no se toco acá para no mezclar un arreglo de
+      otra feature con el barrido de machos
+- [x] Validacion: `yarn build` 0 errores · `yarn test` **637/637** (base 633, +4 nuevos)
+- [~] **W1.d reportes y exportaciones a Excel** (~6 archivos, ~100 columnas): inventariado, fuera
+      del alcance de esta sesion salvo que sobre tiempo
+- [i] **Nunca** se toca el modelo ni el payload: los saldos consumen esos campos. Engorde y
+      reproductora manejan machos legitimamente y no se tocan
+
+## X18.5 · Lo que NO cierra esta sesion
+- [!] `SR-DEF-3` (F8.1) — los 7 items PNC siguen sin codigo ERP (decision del usuario)
+- [!] `SR-DEF-4` (F8.3) — panel de eficiencia, depende de F8.1
+- [~] `F11.3` — pruebas asistidas con el cliente
+- [!] Guia genetica de `Lohmann Brown` — el cliente debe entregar los datos
+- [i] `ActualizarTrasladoHuevosAsync` sigue sin tocar `metadata->huevoItems` (gap preexistente)
+
+---
+
+# X18.4.1-b · Columna «Estado» de la grilla diaria de producción (defecto preexistente)
+
+> Plan: [`fase_de_desarrollo/columna_estado_grilla_produccion_plan.md`](fase_de_desarrollo/columna_estado_grilla_produccion_plan.md)
+> Sale del hallazgo `[!]` de X18.4.1: el `<thead>` de `lote-produccion/pages/tabs-principal` declara
+> «Estado» bajo `@if (requiereValidacion)` y el `<tbody>` no tenía su celda ⇒ con la doble validación
+> encendida la fila quedaba corrida una columna. Verificado en `f49012b^`: **no lo introdujo** el
+> barrido de machos.
+
+- [x] **Celda agregada en el cuerpo** (`tabs-principal.component.html:356-366`), gateada por
+      `@if (requiereValidacion)`, entre `observacionesPesaje` y `sticky-actions` — copia de la celda
+      de levante (`lote-levante/pages/tabs-principal/tabs-principal.component.html:408-415`) con la
+      fila `s` en lugar de `f.seg`
+- [x] **No hizo falta tocar el TS ni el SCSS**: los 4 helpers (`claseBadgeValidacion`,
+      `tooltipValidacionFila`, `estadoValidacionFila`, `etiquetaValidacionFila`) ya existían en
+      producción **byte a byte iguales** a los de levante —se agregaron con la columna del `<thead>`
+      y quedaron sin consumidor—, las clases `.badge-validacion*` son **globales**
+      (`frontend/src/styles.scss:64-78`) y `CommonModule` ya estaba en los `imports` (la fila ya usa
+      `ngClass` para `claseFilaValidacion`)
+- [x] **Reconteo mecánico de `th` vs `td`** en las **8 combinaciones** de los 3 flags que gatean
+      columnas (`requiereValidacion` × `ocultaMachosEnPostura` × `clasificacionHuevoPorItems`):
+
+      antes: 4 combinaciones OK y las 4 con `requiereValidacion=true` en **### DESBALANCE 1**
+             (36/35 · 26/25 · 29/28 · 19/18)
+      después: **las 8 alineadas** (35/35 · 25/25 · 28/28 · 18/18 · 36/36 · 26/26 · 29/29 · 19/19)
+
+      Conteo crudo de celdas declaradas (la base que usó X18.4.1): pasa de **38 th / 37 td** a
+      **38 / 38**
+- [x] **Test de regresión** `tabs-principal.component.spec.ts` (4 casos, renderiza el componente en
+      TestBed y **cuenta las celdas del DOM**, no del archivo): ancho igual con el flag OFF, ancho
+      igual con el flag ON, el flag suma **exactamente 1** columna de cada lado, y el badge sale con
+      su clase y su texto. **Verificado que falla contra el template previo** (`Expected 36 to be
+      35`) ⇒ el test ve el defecto, no acompaña
+- [x] Validación: `yarn build` → **0 errores** · `yarn test` → **642/642** (base 637, +5 nuevos)
+- [i] La celda sólo **lee** el mapa `estadoValidacionPorId` que ya inyecta el contenedor: no toca el
+      modelo, el payload ni la lógica de validación (el botón ✓ sigue en la celda de Acciones). Con
+      el flag OFF no se renderiza ⇒ **cero cambios visibles** para las empresas sin doble validación
+- [i] 🔴 **Ojo con `yarn build` en esta máquina**: el Node del sistema (22.15.0) ya no le alcanza al
+      CLI de Angular 22 (pide ≥ 22.22.3) y el build muere antes de compilar. Va con el portable:
+      `export PATH="/c/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64:$PATH"`
+- [i] 🔴 **La suite completa se colgó 2 h y no era el cambio**: `ng test` salió por un pipe a `grep`,
+      que **bufferiza** ⇒ el log quedó en 0 bytes y no se veía si avanzaba. Encima el puerto de Karma
+      (**9876**) lo tenía tomado un `ng` del **checkout principal** (otra ventana). Lecciones: mandar
+      la salida **directo a un archivo** (`> log 2>&1`, sin pipe) y, antes de matar un `node.exe`,
+      **mirar su CommandLine** — el que estaba en 9876 no era de este worktree. El builder
+      `@angular/build:karma` de v22 **no acepta `--port`**: para aislarlo hay que pasarle un
+      `karmaConfig` propio
+- [x] **Verificado en la app corriendo, con la doble validación ENCENDIDA de verdad** (el flag sale de
+      la BD y lo resuelve el backend; no se forzó el `@Input` desde devtools). Empresa
+      `Agroavicola Sanmarino`, lote `P-K345A`, **301 registros**: `th=36 / td=36`, **301 badges** —una
+      celda de Estado por fila— y los pares de la punta derecha en su lugar (`ESTADO → Validado`,
+      `ACCIONES → 👁️ ✎ 🗑`). Con el template de `HEAD~1` y **todo lo demás igual**: `th=36 / td=35`,
+      **0 badges**, y los botones caen bajo el encabezado «ESTADO» dejando «ACCIONES» vacía
+- [i] 🔴 **Causa encontrada — NO es un bug, es `user_farms` (alcance por usuario-granja) funcionando
+      como está diseñado.** `P-LOTE 235A` (LPP 9 → lote 124, granja 90 `LA PRIMAVERA`) no aparecía con
+      `admin.demo` porque ese usuario tiene **una sola fila** en `user_farms` (`farm_id=87`, Granja 1);
+      las otras 8 granjas de Demo —incluida la 90— están asignadas a `usuario_demo1`. El chequeo previo
+      de `user_farm_scopes` (0 filas) fue la tabla equivocada: esa es el sub-alcance GRANULAR dentro de
+      una granja ya asignada ([[alcance-granular-usuario-granja]]), no la asignación de granjas en sí.
+      En `LoteProduccionFilterDataService.cs:66` → `FarmService.GetAllAsync(userId:…)`
+      (`FarmService.cs:361-384`): pasar `userId` filtra SIEMPRE por `UserFarms`, sin importar el rol
+      —la restricción explícita gana al bypass de admin, a propósito—. El nombre del rol "Admin Demo"
+      no implica alcance global. **Confirmado en la app** con `usuario_demo1`: aparecen las 8 granjas,
+      seleccionar `LA PRIMAVERA` trae núcleo/galpón/lote, y `P-LOTE 235A` muestra sus 2 registros
+- [i] **La receta de smoke de UI quedó incompleta desde B1**: además de inyectar `auth_session` en
+      `localStorage` hay que **anotar el `jti` del token en `sesiones_activas`**, o todo request sale
+      401. Y el `errorCode` **`token-expirado` NO significa sólo "venció"**: es también el veredicto
+      cuando la FILA se evalúa como vencida — y el backend **cachea el veredicto muerto hasta el
+      `exp` del token**, así que corregir la fila no alcanza: hay que mintear otro `jti`
+- [i] **Todo lo que tocó el smoke quedó como estaba**: los flags de `Demo` y `Agroavicola Sanmarino`
+      volvieron a `false` (`ItalcolPanama` ya venía en `true` y no se tocó), las 3 filas de
+      `sesiones_activas` borradas, y back/front/Chrome apagados. **No se guardó ni validó ningún
+      registro**: la pantalla sólo se leyó
+
+---
+
+## X18.6 — Huevos dinámicos (Primera/Pnc) en la tabla de producción: verificado EN VIVO por primera vez (24-ago-2026)
+
+Pedido del usuario: seguir validando el flujo de Santa Reyes — específicamente que **la tabla de
+producción sea dinámica en la parte de huevos**. Lo que había hasta ahora (X17.6/X18.4.1) era
+**código leído + reconteo mecánico de `th`/`td` sobre el fuente** (sin renderizar), nunca la
+combinación REAL de flags de Santa Reyes contra la grilla viva en el navegador. Sin código nuevo:
+esto fue una verificación, no un fix.
+
+- [x] **La combinación de flags de Santa Reyes nunca se había visto en pantalla**: `company 6` tiene
+      `clasificacion_huevo_por_items=true` + `oculta_machos_en_postura=true` +
+      `requiere_validacion_seguimiento_diario=false` — una combinación distinta a la única que sí se
+      había verificado en vivo antes (Agroavicola Sanmarino con `requiere_validacion=true` y los otros
+      dos flags en `false`, sesión anterior de la columna Estado).
+- [x] **Datos reales usados**: lote `SMOKE-SR-001` (lote_id 152, LPP 10, granja La Esperanza), sus 4
+      seguimientos (674, 675, 676, 677) con `metadata.huevoItems` ya conocido de X17.7/X17.8.
+      Predicción calculada a mano desde la BD antes de mirar la pantalla, para no confirmar con sesgo.
+- [!] 🔴 **El login normal del usuario de smoke falló**: `smoke.santareyes@test.local` devolvió 401
+      «Credenciales inválidas» **real del backend** (no de red/CORS) con la contraseña documentada en
+      memoria. Se frenó a los 2 intentos fallidos (`users.failed_attempts`, umbral de bloqueo = 5,
+      `AuthService.cs:176`) para no bloquear la cuenta 15 minutos. La contraseña real de esta cuenta
+      quedó desconocida — no se siguió probando a ciegas.
+- [x] **Alternativa: JWT minteado a mano + fila en `sesiones_activas`** (receta ya documentada de
+      sesiones B1 anteriores), espejando exacto `AuthService.GenerateResponseAsync`: claims con las
+      2 URIs largas (`.../nameidentifier`, `.../role` de Microsoft) + el resto en corto
+      (`sub`,`jti`,`iat`,`unique_name`,`email`,`firstName`,`surName`,`user_id`,`is_super_admin`,
+      `company_id`,`company`,`permission`×35 desde `role_permissions` del rol 30 «Santa Reyes
+      Administrador»), firmado HS256 con `JwtSettings:Key` de `appsettings.Development.json`.
+      **Esta vez el `INSERT` en `sesiones_activas` lo bloqueó el clasificador de permisos de Auto
+      Mode** (no lo bloqueaba en sesiones anteriores) — se paró y se le pidió autorización explícita
+      al usuario en vez de buscarle la vuelta; autorizado, se insertó, se usó y se borró al terminar.
+- [x] **Grilla diaria (`tabs-principal`, "tabla de producción") — confirmado con conteo de DOM real**,
+      no de texto: `th=18` en el header y **las 4 filas del cuerpo con `td=18`**, sin una sola celda
+      corrida — exactamente lo esperado para esta combinación de 3 flags (18 es el valor más chico de
+      la matriz de X18.4.1-b, con los dos flags reductores ON y sin columna Estado).
+- [x] **Valores PRIMERA/PNC por fila, comparados 1 a 1 contra la BD — los 4 coinciden exacto**:
+
+      | id  | huevo_tot (BD) | Primera (pantalla) | Pnc (pantalla) |
+      |-----|------|---------|-----|
+      | 677 | 1290 | 1,200   | 90  |
+      | 676 | 77   | 0       | 77  |
+      | 674 | 6230 | 0       | 0   |
+      | 675 | 2300 | 0       | 0   |
+
+      674 y 675 son a propósito: sus 3 ítems tienen `tipoHuevo: null` (snapshot previo al fix de
+      `cdf0239` en X17.7, dejado vivo como testigo) — `resumirHuevoItemsPorTipo` los deja fuera de
+      Primera y de Pnc sin romper nada, y el total (`Huevos Tot.`) sigue mostrando el crudo. Confirma
+      en vivo un comportamiento que antes sólo estaba documentado por lectura de código.
+- [x] **La tabla de Indicadores semanales es dinámica un nivel más abajo, y también se verificó**: el
+      detalle expandible de la semana 33 no sólo separa Primera/Pnc — lista **cada ítem del catálogo
+      por su nombre y código**, generado por `@for` sobre lo que realmente haya en el dato (no una
+      lista fija). Pantalla mostró exacto: `552 — HUEVO SIN CLASIFICAR LIBRE DE JAULA CERTIFICADO:
+      1.200` bajo Primera, y `537 — HUEVO PICADO ROJO: 45` + `538 — HUEVO MANCHADO ROJO: 45` bajo Pnc.
+- [x] **Sin errores de consola ni de red** durante todo el recorrido post-login: los únicos 401 en
+      consola son los 2 intentos de login fallidos previos a cambiar de estrategia. Los 8 endpoints que
+      carga la pantalla (`Company`, `filter-data`, `SeguimientoValidacion/pendientes`,
+      `LotePosturaProduccion`, `informacion-lote`, `seguimiento`, `traslados/cohortes`,
+      `indicadores-semanales`×2, `clasificacion-huevo-items`) devolvieron 200.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos `:5002`
+      y `:4200` verificados libres (`netstat`). No se guardó, editó ni eliminó ningún seguimiento —
+      todo el recorrido fue de lectura. No se tocó ningún flag de empresa (Santa Reyes ya los tenía
+      así de antes).
+- [i] **Lo que queda sin verificar en vivo, anotado para no repetir el hallazgo de X17.8**: los
+      reportes que leen `huevo_tot`/11 columnas en vez de `huevoItems` (contable, técnico de
+      producción, técnico semanal — ver X17.5) no se tocan con este flujo, y su smoke visual con datos
+      de Santa Reyes sigue pendiente si el usuario lo pide.
+
+---
+
+## X18.7 — Los reportes ciegos a `huevoItems`: 2 defectos reales arreglados, no solo columnas vacías (25-ago-2026)
+
+Continúa X18.6. Plan: [`fase_de_desarrollo/santa_reyes_reportes_ciegos_huevo_items_plan.md`](fase_de_desarrollo/santa_reyes_reportes_ciegos_huevo_items_plan.md).
+Auditoría de código (Agent Explore) sobre los 4 reportes que X17.5/X18.6 habían dejado anotados
+como "ciegos al ítem" — resultó en 2 defectos reales (no solo cosméticos) + 2 gaps de gateo
+incompleto. Frontend-only, mismo patrón que el barrido de machos (X18.4): nada de backend cambia.
+
+- [x] 🔴 **Defecto real 1 — Reporte Diario Costos Postura: banner falso, confirmado EN VIVO.**
+      Disparaba *"4 registro(s) donde fértil + comercial + inservible no suma el huevo total. Es un
+      defecto del dato cargado"* en el 100% de las filas de Santa Reyes (lote `SMOKE-SR-001`, 4/4).
+      No es un defecto del dato: el reporte nunca puede cuadrar una partición que no calcula
+      (fértil/comercial/inservible salen de las 11 columnas fijas, siempre 0). Fix: `huevosDescuadrados`
+      = 0 con el flag ON (el banner deja de dispararse solo) + las 3 columnas rotas se ocultan
+      (pantalla y Excel, `hojaHuevos` con parámetro nuevo `clasificacionPorItems`, mismo spread
+      `[]`/`[valores]` en la MISMA posición que ya usa `soloConMachos` para no desalinear). `Ventas
+      de huevo`/`Traslado a planta` (de `traslado_huevos`) y `Huevo Total` (= `huevo_tot`) intactos.
+      **Verificado en vivo tras el fix**: banner desaparecido, columnas ocultas, total sigue en
+      9.897 = suma de los 4 registros.
+- [x] 🔴 **Defecto real 2 — Reporte Técnico Producción · Cuadro: `LAA` también estaba roto**, y la
+      auditoría inicial no lo había listado. Verificado contra
+      `ReporteTecnicoProduccionService.Cuadro.cs:179-192`: `Laa = Sum(HuevosIncubablesSemanal) /
+      Count` — mismo origen que `HUEVOS INCUB`/`%DESCARTE`/`%ACUM INCUB`. Los 4 se ocultan; `STD
+      ROSS` (valor de guía, no depende de `huevo_inc`) se mantiene solo. **Regla para no repetir
+      este hallazgo**: cuando la fuente dice "estas 3 columnas están rotas", releer la fórmula de
+      CADA columna del grupo, no confiar en que la lista esté completa.
+- [x] **Gap de gateo incompleto 1 — Reporte Contable · Movimientos Huevos**: ya ocultaba 2 de 3
+      columnas rotas (`HVO COMERCIAL`, `HUEVO DESECHO`); faltaba `HVTO FERTIL` (mismo origen,
+      `huevo_inc`). Extendido el `@if` existente + colspan del grupo "Producción" de 2→1.
+- [x] **Gap de gateo incompleto 2 — Reporte Técnico Producción · Diario y Cuadro**: `INCUBABLE`/
+      `CARGADO` (Diario) y `H.CARGA`/`H.CAR ACU` (Cuadro, grupo "HUEVOS CARGADOS Y POLLITOS") salen
+      de `huevo_inc`; ocultos. `V.HUEVO` (de `traslado_huevos`) y los 4 de pollitos/eclosión
+      (`V.HUEVO POLLITOS`, `POLL.ACUM`, `PAA`, `PAA ROSS` — no dependen de huevo) se mantienen.
+- [x] **Verificado en vivo con datos reales** (lote `SMOKE-SR-001`, sesión de smoke re-autorizada):
+      Costos Postura (defecto 1, arriba) y Reporte Técnico Producción · Diario (sin columnas
+      Incubable/Cargado, sin pestaña Clasificación, `huevo_tot` correcto por fila: 2300/6230/77/1290).
+      Técnico Semanal confirmado por estado del componente (`clasificacionHuevoPorItems === true`
+      resuelto correctamente) — la vista "Detalle de lote" no se pudo renderizar con datos reales:
+      `SMOKE-SR-001` no tiene fila en `lote_postura_base` (nació del flujo de smoke E2E, no del
+      wizard de lote base) y ninguno de los 10 lotes base sembrados de Santa Reyes tiene producción
+      real. Cuadro y Contable quedaron verificados por código + los 649 tests, no en pantalla: Cuadro
+      no encontró datos para el rango disponible ("No se encontraron datos del cuadro para el
+      período") y Contable pide el mismo `lote_postura_base` que Técnico Semanal.
+- [x] **Tests nuevos**: `construir-aoa-costos-postura.funcion.spec.ts` (4 casos: cabecera con/sin las
+      3 columnas rotas, cabecera y filas con igual cantidad de columnas con el flag ON, sin filas de
+      producción no agrega la hoja) y `construir-aoa-reporte-semanal.funcion.spec.ts` (3 casos: con/
+      sin hojas CLAS, las hojas de semanas no cambian). Ninguno de los 2 módulos tenía tests antes.
+      `yarn build` 0 errores · `yarn test` **649/649** (base 642, +7).
+- [~] **Excel de Contable y Técnico Producción quedan sin tocar**: se generan en el BACKEND
+      (`exportarExcelCompleto`), no con la librería `xlsx` del front — mismo criterio que ya dejó
+      anotado X18.4 para "W1.d reportes y exportaciones" del barrido de machos. Fuera de alcance de
+      este pase; si se pide, es un cambio de backend, no de frontend.
+- [i] **Alcance deliberado: ocultar, no reemplazar.** Ningún reporte pasa a mostrar Primera/Pnc (lo
+      que sí hace la grilla diaria): eso exigiría que cada reporte agregue `metadata.huevoItems`,
+      backend nuevo por reporte. Este pase es sobre no mostrar datos matemáticamente rotos o un aviso
+      que acusa al dato de un defecto que es del reporte.
+- [i] **Con el flag OFF, cero cambios visibles** en los 4 reportes: todas las condiciones nuevas son
+      `@if (!clasificacionHuevoPorItems)` sobre columnas que antes se pintaban siempre.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos `:5002`
+      y `:4200` verificados libres. Ningún dato de Santa Reyes creado/editado/eliminado — todo el
+      recorrido fue de lectura salvo la fila de sesión, ya borrada.
+
+---
+
+## X18.8 — Excel del backend (Contable + Técnico Producción): mismo defecto, sin el gateo que se creía que ya existía (25-ago-2026)
+
+Continúa X18.7. Plan: [`fase_de_desarrollo/santa_reyes_excel_backend_reportes_plan.md`](fase_de_desarrollo/santa_reyes_excel_backend_reportes_plan.md).
+El Excel de estos 2 reportes lo genera un exportador EPPlus **separado** del `xlsx` de frontend que
+ya se arregló — auditoría de código (Agent Explore, doble lectura cruzada por archivo) confirmó que
+**la premisa de "ya hay gateo de machos que copiar" era falsa**: el barrido de machos (X18.4) fue
+enteramente frontend, ningún exportador Excel del backend lee `OcultaMachosEnPostura` ni ningún
+otro flag de empresa. Hubo que construir el mecanismo desde cero.
+
+- [x] 🔴 **4º defecto real, no cubierto por X18.7**: `DESCARTE` (Reporte Contable) sale de
+      `traslado_huevos.cantidad_desecho`, que `TrasladoHuevosService.CrearTrasladoHuevosAsync:191-203`
+      zerea con el MISMO criterio que las 11 columnas legacy de `seguimiento_diario_produccion`
+      cuando `usaHuevoItems=true` — confirmado contra datos reales (los 2 traslados de Santa Reyes,
+      `cantidad_desecho=0` ambos). No estaba gateada ni en el front (gap de X18.7, cerrado ahora)
+      ni en el Excel.
+- [x] 🔴 **Hallazgo no pedido en el alcance original**: `ReporteTecnicoProduccionExcelService`
+      genera una 3ª hoja, **"Clasificación Huevo Comercio"**, no mencionada en ningún ticket previo.
+      16 de sus 18 columnas de datos salen de las 11 legacy — la hoja MÁS rota de las dos. El front
+      ya oculta la pestaña homónima ENTERA para Santa Reyes; mismo tratamiento acá.
+- [x] **Contable — `ColumnasHuevos` ya era data-driven**: se agregó `bool
+      OcultaSiClasificaPorItems` a la tupla (marca HVTO FÉRTIL/HVO COMERCIAL/HUEVO DESECHO/DESCARTE)
+      y se filtra el array UNA vez al principio de `EscribirMovimientosHuevos` — cabecera de grupo,
+      cabecera de columna, filas de dato y fila de totales quedan alineadas por construcción, cero
+      riesgo de desalinear (mismo patrón que `filtrar-columnas-machos.funcion.ts` del frontend). El
+      flag viaja en `ReporteMovimientosHuevosDto` (nuevo campo), resuelto en
+      `ObtenerReporteMovimientosHuevosAsync` con el mismo query que ya usa
+      `DiasAlimentoPrevioEncaset`.
+- [x] **Técnico Producción — decisión de diseño tomada, no inferible del código**: `EscribirReporteDiario`/
+      `EscribirCuadro` escriben por **índice numérico fijo** (`ws.Cells[row,15]`), no por lista — no
+      hay patrón de columnas dinámicas que copiar. Remover columnas reindexando 43 celdas a mano en
+      2 métodos es el refactor grande y de alto riesgo que el propio commit de machos (`f7aee82`)
+      señala como "lo delicado eran los colspan". **Decisión: mantener todos los índices, dejar la
+      celda de DATO sin asignar (vacía) cuando el flag está ON** — el encabezado se conserva (menor
+      fidelidad visual que el front, que sí remueve la columna; documentado como refactor aparte si
+      se pide paridad total). `%DESCARTE`/`%ACUM INCUB`/`LAA` (huevo_inc-dependientes, confirmados
+      contra `Cuadro.cs:179-192`) **nunca se escriben en este Excel** — nada que gatear ahí.
+      `ReporteTecnicoProduccionLoteInfoDto` (compartido por los 3 reportes) ganó el flag; se resuelve
+      UNA vez en `GenerarReporteSubloteAsync`/`GenerarReporteConsolidadoAsync` (Diario.cs) — Cuadro.cs
+      lo hereda gratis porque ya reusa `reporteCompleto.LoteInfo` tal cual. La hoja "Clasificación
+      Huevo Comercio" se deja de generar en el controller (no se llama a
+      `GenerarReporteClasificacionHuevoComercioAsync` cuando el flag está ON, se pasa `null`).
+- [x] `dotnet build` **0 errores / 0 warnings**.
+- [x] **Verificado extremo a extremo con datos reales, HTTP real** (JWT minteado + `X-Secret-Up`
+      calculado a mano con la misma derivación PBKDF2/AES que `EncryptionService.Decrypt`, sin
+      pasar por el navegador): se generaron los 2 Excel reales de Santa Reyes (`SMOKE-SR-001`) y se
+      abrieron con `openpyxl` para leer las celdas de verdad, no solo el HTTP 200.
+      - Contable: cabecera exacta `Día|Fecha|Lote|POSTURA|ENTRADA|CAPTURA INFO|VENTA|SALIDA|TRASLADO
+        A PLANTA` — **las 4 columnas ocultas (HVTO FÉRTIL/HVO COMERCIAL/HUEVO DESECHO/DESCARTE)
+        ausentes**, `POSTURA`/`CAPTURA INFO` totales en 9.897 = suma exacta de los 4 registros.
+      - Técnico Producción: hoja "Reporte Diario" con `INCUBABLE`/`CARGADO` en blanco por fila (resto
+        de columnas con dato real intacto); hoja "Clasificación Huevo Comercio" **ausente del
+        libro**. Hoja "Cuadro" también ausente, pero por una razón AJENA al fix: `ConsolidarSemanales`
+        exige `>= 7` días por semana y `SMOKE-SR-001` solo tiene 4 registros dispersos — mismo "No se
+        encontraron datos del cuadro" que ya se había visto en pantalla con este mismo lote.
+- [x] **Regresión verificada con la MISMA receta contra Agroavicola Sanmarino (flag OFF, lote real
+      `P-K345A`, 301 registros)**: los 2 Excel salen BYTE A BYTE con el comportamiento de siempre —
+      Contable con las 10 columnas completas (`HVTO FÉRTIL`/`HVO COMERCIAL`/`HUEVO
+      DESECHO`/`DESCARTE` con valores reales, no vacíos), Técnico Producción con las 3 hojas
+      (`Reporte Diario` con `INCUBABLE`/`CARGADO` poblados, `Cuadro` con `HUEVOS INCUB`/`H. CARGA`
+      poblados, `Clasificación Huevo` presente). Cero cambio para las empresas sin el flag.
+- [~] **Sin xUnit nuevo**: no existe proyecto de test para `ZooSanMarino.Infrastructure` (solo
+      `Application.Tests`/`Domain.Tests`, que no referencian Infrastructure) — crear uno de cero para
+      2 servicios EPPlus es un cambio de arquitectura de testing más grande que este fix. CLAUDE.md
+      exige tests de integración **o** requests reales para endpoints/handlers — se cumplió con la
+      segunda vía, de punta a punta y con las 2 empresas.
+- [x] **Otra vez el clasificador de Auto Mode bloqueó el primer intento del INSERT en
+      `sesiones_activas`**; se pidió permiso de nuevo (autorizado) en vez de buscarle la vuelta. El
+      segundo INSERT de la sesión (regresión con Sanmarino) sí pasó sin bloqueo — confirma que es
+      una decisión por-llamada, no una política fija.
+- [x] **Limpieza**: las 2 filas de `sesiones_activas` borradas, backend detenido, puerto `:5002`
+      verificado libre. Cero escritura de datos de negocio — todo el recorrido fue GET.
+
+---
+
+## X18.9 — Cierra el pendiente de X18.7: Reporte Técnico Semanal verificado en vivo (25-ago-2026)
+
+X18.7 había dejado la pestaña "Clasificación" de Reporte Técnico Semanal confirmada solo por
+código + tests: la vista "Detalle de lote" pide un `lotePosturaBaseId` explícito, y `SMOKE-SR-001`
+no tenía ninguno asignado (nació del flujo E2E de X17.7, no del wizard de lote base) — ninguno de
+los 10 lotes base sembrados de Santa Reyes tenía producción real para probar con datos de verdad.
+
+- [x] **Se resolvió por la vía correcta: el formulario real de lotes, no un `UPDATE` a mano.**
+      `lote-list.component.html` ya tiene un `<select formControlName="lotePosturaBaseId">` en el
+      form de edición — se editó `SMOKE-SR-001` desde la UI (`PUT /api/Lote/152`, 200) y se lo
+      vinculó a `LOTE 217` (`lote_postura_base_id=23`, misma granja La Esperanza).
+- [i] 🔴 **Efecto colateral no buscado, documentado para no sorprender la próxima vez**: vincular un
+      lote a su lote base le **renombra automáticamente** siguiendo la convención del base + letra
+      de sublote — `lotes.lote_nombre` pasó de `SMOKE-SR-001` a `LOTE 217A`. El lote de producción
+      (`lote_postura_produccion.lote_nombre`) NO cambió, sigue siendo `P-SMOKE-SR-001` (se ve en la
+      grilla diaria y en el chip del propio reporte) — mismo `lote_id=152`/`LPP=10` de siempre, solo
+      cambió la etiqueta del lote unificado.
+- [x] **Verificado en vivo con datos reales**: `Reporte Técnico Semanal → Detalle de lote →
+      Producción → LOTE 217` generó el resumen semanal real (semana 33, producción huevos 1.290 —
+      coincide exacto con el registro 677 ya conocido). El toggle de vista mostró **solo `["Tabla",
+      "Gráficas"]`** — sin "Clasificación" — confirmado por DOM, no por lectura visual, junto con
+      `clasificacionHuevoPorItems === true` y `tipoReporte === 'PRODUCCION'` leídos directo del
+      estado del componente.
+- [i] **Gotcha del smoke**: la página tiene DOS toggles Levante/Producción superpuestos —
+      `rsm-toggle__btn` (del componente `ResumenSemanalMainComponent`, la pestaña "Resumen semanal")
+      y `rts-toggle__btn` (el que importa, del `ReporteTecnicoSemanalMainComponent` de "Detalle de
+      lote"). Buscar el botón por texto sin acotar por clase pegó en el primero y el reporte generó
+      con Levante — sin datos, porque `SMOKE-SR-001`/`LOTE 217A` nunca tuvo seguimiento de levante.
+- [x] **Este vínculo de paso también deja usable el "LOTE BASE" del Reporte Contable** (misma
+      laguna de datos que tenía Técnico Semanal) para una futura verificación por UI — aunque ese
+      reporte ya quedó verificado de punta a punta en X18.8 pegándole directo al backend con
+      `lotePadreId`, sin necesitar el vínculo.
+- [x] **Dato de fixture se deja como quedó** (mismo criterio que el resto de `SMOKE-SR-001`, X17.7:
+      "sirve para abrir la pantalla y ver datos"): no se revirtió el `lotePosturaBaseId` ni el
+      rename — mejora la utilidad del lote de prueba para próximas sesiones, no la reduce.
+- [x] **Limpieza**: fila de `sesiones_activas` borrada, backend y frontend detenidos, puertos
+      `:5002`/`:4200` verificados libres.
+
+---
+
+## EC1 — Ecuador: el cuadre de alimento que no cierra + 3 permisos (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md`](fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md)
+
+Cuatro reportes de **Lady Malave** (ItalcolEcuador). Medido sobre la copia de **producción**
+restaurada en local el 25-ago-2026.
+
+### EC1.0 — Diagnóstico (hecho antes de escribir una línea de código)
+- [x] **Causa raíz del descuadre de G0044 encontrada y atribuida al kilo**: `EliminarIngresoAsync`
+      **no revierte el stock** (lo dice su propio doc-comment) mientras el controller documenta lo
+      contrario. La usuaria borró la remisión **63705 duplicada** (mov `12983`, 5.000 kg, ítem 5): el
+      histórico quedó `anulado=true` —la tabla diaria dejó de contarlo, correcto— pero
+      `inventario_gestion_stock` conservó los 5.000 kg. Descuadre `-5.000,00` exacto.
+- [x] **El mismo defecto, duplicado**, en `EliminarTrasladoAsync` (deja origen corto y destino largo).
+- [x] **La forma correcta ya existe en el mismo service**: `AnularMovimientoHistoricoAsync`
+      (`DELETE /movimientos/{id}`) sí revierte, en transacción, y rechaza si no hay stock. Explica por
+      qué el ítem 4 del mismo galpón sí cerró en 0: se borró por ese camino.
+- [x] **Alcance medido**: Ecuador **1** galpón descuadrado (5.000,0 kg) — el reportado —; Panamá
+      **12** (55.866,5 kg) + 16 con días en rojo. Panamá **no** entra en esta entrega.
+- [x] **Lady Malave identificada**: `ladymalave@ecuitalcol.com`, rol «Ecuador Administrador»
+      (`role_id=10`, 2 usuarios), 18 permisos efectivos.
+- [x] **Punto 4 mapeado**: `registros.fecha_retroactiva` existe, **ya está habilitado** en
+      `company_permissions` para ItalcolEcuador; **solo falta** la fila de `role_permissions`.
+- [x] **Punto 3 mapeado**: Gestión de Usuarios no tiene **ningún** gate (ni front ni back);
+      `Program.cs:536` ya lleva escrito el `TODO(seguridad)` de endurecer `CanManageUsers`.
+- [x] 🔴 **Punto 2 contradice su supuesto**: el desarrollo existe (commit `a9fd721`) pero **no tiene
+      permiso propio**; el gate del form de engorde es `editar_registro`, que **ella ya tiene**, y el
+      módulo de lotes de postura no tiene ningún `appHasPermission`. Cruzadas todas las keys de gate
+      del front contra sus 18 permisos, lo único que le falta del alcance es
+      `liquidacion.aplicar_correccion`, que no es de aves. **Pregunta abierta al usuario.**
+
+### EC1.1 — F1: eliminar un ingreso/traslado devuelve el stock
+- [x] `ReversionMovimientoInventarioCalculos` (puro) + 12 tests xUnit. El signo lo decide el TIPO;
+      un tipo desconocido es `NoSoportado`, **no** `Ninguno` (fail-closed).
+- [x] `EliminarIngresoAsync` revierte stock en transacción y rechaza con 400 si los kilos ya se
+      consumieron — mismo patrón probado de `AnularMovimientoHistoricoAsync`.
+- [x] `EliminarTrasladoAsync` revierte **los dos extremos**; primero las puntas que descuentan, para
+      que el error nombre la que realmente bloquea.
+- [x] 🔴 **Trampa cazada**: `TrasladoInterGranjaPendiente` PARECE una salida y no descuenta stock al
+      crearse (descuenta al recibir). Devolverle stock al borrarlo habría **inventado** alimento.
+      Tiene su propio test.
+- [x] Doc-comments del controller alineados con lo que el código hace (antes prometían la reversión
+      que el service no hacía).
+
+### EC1.2 — F2: «Cuadrar galpón» desde la pestaña de Cuadre
+- [x] `movement_type` `AjusteCuadreTablaEntrada`/`Salida` → `tipo_evento`
+      `INV_AJUSTE_CUADRE_ENTRADA`/`_SALIDA` en `fn_tipo_evento_inventario`. **Dos tipos con signo
+      propio** en vez de uno con cantidad firmada: `AjusteStock` guarda `Math.Abs` y por eso perdió
+      el signo para siempre — no se repite el error.
+- [x] `fn_seguimiento_diario_engorde` **v17**: las 5 CTE (`apert_mov`, `hist_full`, `hist_alimento`,
+      `docs_por_fecha`, `fechas_universo`) leen los tipos nuevos. Espejo `.sql` actualizado.
+- [x] `fn_cuadre_alimento_engorde`: los cuenta en `mov_post` (un ajuste fechado después del último
+      seguimiento no cabe en la tabla, igual que un ingreso).
+- [x] **Migración `20260825150000_FnAjusteCuadreAlimentoEngordeV17`** con las 3 funciones + su `Down`
+      (el `.sql` es el espejo; la migración es el vehículo).
+- [x] `AjusteCuadreAlimentoCalculos` (puro) + 14 tests, con los DOS casos reales y opuestos: G0044
+      (sobra stock ⇒ se mueve el inventario) y G0475 (sobra tabla ⇒ se mueve la tabla).
+- [x] `POST /api/CuadreAlimentoEngorde/cuadrar-galpon`, gateado por
+      `cuadrar_ingresos_traslados_seguimiento` (la key que ya existía para esto — no se inventa una
+      segunda llave para la misma puerta).
+- [x] Modal `modal-cuadrar-galpon` (`changeDetection: Eager`) con los 3 números, previsualización de
+      lo que se escribe **de cada lado** y motivo obligatorio de 10 caracteres.
+- [x] 🟢 **GATE DE PARIDAD MULTIPAÍS: PASADO.** 6.851 filas antes y después (ItalcolEcuador 5.501 +
+      ItalcolPanama 1.350); **0** en las 7 columnas del diff **en las dos empresas**; 6.765 filas de
+      seguimiento esperadas == 6.765 presentes; `fn_cuadre_alimento_engorde(NULL)` idéntico
+      (EC 37/1/5.000,0 kg · PA 31/12/55.866,5 kg). Cero por construcción: ninguna fila del histórico
+      tiene los tipos nuevos.
+
+### EC1.3 — F3/F4: cerrar G0044 y que no vuelva a pasar callado
+- [x] 🟢 **PROBADO END-TO-END contra la copia de producción, en las DOS direcciones** (transacción
+      revertida, `scratchpad/smoke_cuadre.sql`):
+      - **G0044 (Ecuador, sobra stock):** stock 12.720,0 → 7.720,0; descuadre **−5.000,0 → 0,0**.
+        **ItalcolEcuador pasa de 1 galpón descuadrado a 0.**
+      - **G0475 (Panamá, sobra tabla):** el `movement_type` nuevo atravesó el trigger → histórico
+        como `INV_AJUSTE_CUADRE_SALIDA` (18.650,356 kg, fechado en el último seguimiento 2026-08-06)
+        → la fn **v17** lo leyó → saldo 21.216,4 → **2.566,0**; descuadre **18.650,4 → 0,0**.
+        Panamá baja de 12 a 11 descuadrados y de 55.866,5 a 37.216,1 kg.
+        **Este es el caso que hasta hoy NO tenía arreglo posible desde ninguna pantalla.**
+- [i] G0475 conserva su `filas_negativas = 1` — correcto: es la OTRA señal (un día que cerró en
+      rojo), que un ajuste de kilos no toca ni debe tocar. Justamente por eso ahora son dos columnas.
+- [x] 🟢 **Y despues G0044 se cerro DE VERDAD por el endpoint real**, con el usuario de Lady Malave y
+      su propia sesion: `POST /cuadrar-galpon` con 7.720 kg reales → **200**, un solo `AjusteStock`
+      de −5.000 kg con su motivo en la auditoria. **ItalcolEcuador queda en 0 galpones descuadrados
+      (37/37 cuadran).** Sin un solo `UPDATE` a mano: exactamente el camino que va a usar la usuaria.
+- [x] La causa probable por fila ya existía (`CuadreAlimentoEngordeCalculos.DescribirConAjustes`) y
+      se conserva; ahora la fila además ofrece el botón que la cierra.
+- [x] `descuadre_kg` y `filas_negativas` separadas: columna propia «Días en rojo» + el subtítulo
+      explica que **son dos señales distintas y no se suman** (mezclarlas es lo que daba 23 galpones
+      donde había 8).
+
+### EC1.4 — Punto 3: permiso `usuarios.gestionar`
+- [x] Migración `20260825130000_SeedPermisoUsuariosGestionar`: permiso + `company_permissions`
+      (`CROSS JOIN companies`) + **anti-lockout heredando de `role_menus` por route `/config/users`**.
+      Validado en transacción revertida: **12 roles** lo reciben, exactamente los 12 que hoy ven el
+      módulo. Nadie pierde acceso el día del deploy.
+- [x] 🔴 **`menu_permissions` NO se toca** — y la verificación adversarial corrigió el dato: la tabla
+      **no** está vacía (17 filas de tickets/ItalJira/gerencia), pero **ninguna** es del menú
+      «Usuarios». Verificado: sigue en **0** para `/config/users`, así que el módulo se sigue viendo.
+- [x] `GestionUsuariosAutorizacionCalculos` (puro) + 9 tests, incluida la mitad que se rompe sin
+      querer: **el GET queda abierto**.
+- [x] ⛔ **NO se endurece la policy `CanManageUsers`**: la usan `RoleController` y `MenuController`,
+      ajenos al módulo. El gate va en un filtro de clase (`GestionUsuariosEscrituraFilter`) sobre
+      `UsersController` y `UserFarmController` — 32 endpoints, ~20 de escritura: repetir el `if`
+      veinte veces garantiza que alguno se olvide, y el olvidado **deja pasar**.
+- [x] **Segunda puerta de alta cerrada**: `POST /api/Auth/register` también crea usuarios.
+- [x] **`[Authorize]` restaurado** en `UserFarmController` (estaba comentado con un «TEMPORAL»; sus
+      17 endpoints dependían solo de la `FallbackPolicy`).
+- [x] Front: gate en el botón Crear (vive en el **padre**) y en los 5 de la fila, **en sus dos
+      copias** (tabla desktop y tarjetas móvil).
+- [x] **«Ver detalle» construido**: no existía. Reusa `modal-create-edit` en modo solo lectura, con
+      `saveUser()` cortado en la entrada — no alcanzaba con esconder el botón, porque ese método
+      dispara **dos** escrituras (usuario + perfil de tickets).
+- [i] Los 3 botones de sesiones van por `usuarios.revocar_sesion`, **su propia key**: el backend ya
+      la exigía y meterlos bajo la nueva habría creado dos llaves para la misma puerta. Se siembra
+      en la misma migración porque **nunca se sembró**: hoy ese botón da 403 a todo el que no sea
+      super admin.
+
+### EC1.5 — Punto 4: fecha retroactiva para «Ecuador Administrador»
+- [x] Migración `20260825120000` data-only idempotente; rol por **nombre + empresa** (nunca por id)
+      y `EXISTS` sobre `company_permissions` (sin esa fila la asignación nace huérfana).
+- [x] Validado en transacción revertida: Lady Malave queda con `registros.fecha_retroactiva`
+      efectivo. Alcanza a los **2** usuarios del rol — declarado, no escondido.
+
+### EC1.6 — Punto 2: permiso `lote.corregir_aves`
+- [x] Migración `20260825140000`: permiso + `company_permissions` + **herencia desde
+      `editar_registro`**. Validado: **13 roles** lo reciben = exactamente los 13 que hoy tienen
+      `editar_registro`. Nadie gana ni pierde — importa porque POSTURA hoy no tiene ningún gate.
+- [x] `CorreccionAvesLoteAutorizacionCalculos` (puro) + 8 tests.
+- [x] 🔴 **El gate mira el DELTA, no el verbo**: un `PUT` que solo cambia el técnico o la regional
+      sigue funcionando sin el permiso. Si pidiera el permiso para todo el `PUT`, este permiso sería
+      un segundo `editar_registro` — el problema que vino a resolver.
+- [x] **Enforcement en el BACKEND** (`LoteAveEngordeService` y `LoteService`, 403), no solo en el
+      front: el gate anterior era **cosmético** — el mismo `PUT` por curl aplicaba el ajuste sin
+      `editar_registro`.
+- [x] Front: campos de aves en solo lectura sin el permiso, en engorde **y en postura** (que no
+      tenía ningún gate), solo al EDITAR — crear un lote fija su encasetamiento y eso no es corregir.
+
+### EC1.7 — Verificación
+- [x] **Las 3 migraciones de permisos validadas en transacción revertida** contra la copia de
+      producción: 2 permisos nuevos, las 4 keys fantasma como no-op (ya existen en prod), 10 filas de
+      `company_permissions`, 12 roles con `usuarios.gestionar`, 13 con `lote.corregir_aves`,
+      Lady Malave con `registros.fecha_retroactiva`, y `menu_permissions` de `/config/users` en 0.
+- [x] `dotnet build` (con F1 + los 3 permisos): **0 errores, 0 advertencias**.
+- [x] `yarn build` (con los gates del front y «Ver detalle»): **0 errores**.
+- [x] **Prueba end-to-end del ajuste de cuadre en las dos direcciones** (ver EC1.3): el tipo de
+      movimiento nuevo recorre trigger → histórico → fn v17 → cuadre y deja los dos galpones en 0,0.
+- [x] 🔴 **Dos defectos propios cazados antes de compilar**, los dos del mismo tipo (recalcular un
+      invariante sin todos sus términos):
+      1. `fila.StockKg` es la suma de **todos** los ítems del galpón; escribir ahí los kilos totales
+         sobre un solo ítem lo habría inflado por lo que valen los demás. Se aplica el **delta**.
+         Con un solo ítem con saldo —el caso normal— las dos formas coinciden, que es justo lo que
+         lo habría hecho pasar por alto hasta el primer galpón con dos alimentos.
+      2. `DescuadreKg` **no** es `saldo − (stock − movPost)`: viene corregido por lo **reservado**
+         por la doble validación. Ignorarlo habría dejado el galpón descuadrado por el monto
+         reservado **después de una pantalla que dijo «cuadrado»**. Panamá tiene 12.609,7 kg activos
+         en 3 reservas; Ecuador, cero — o sea, se habría desplegado sin verse.
+- [x] `dotnet build` + **`dotnet test`: 3.228 tests, 0 fallos** (3.227 Application + 1 Domain),
+      incluidos los 43 nuevos.
+- [x] `yarn build` con el modal de cuadre: **0 errores**.
+- [x] **Migraciones aplicadas de verdad en local** (`dotnet ef database update`): las 4 quedaron en
+      `__EFMigrationsHistory` y verificadas contra la BD — 12 roles con `usuarios.gestionar`,
+      13 con `lote.corregir_aves`, Lady Malave con sus 5 permisos efectivos, `menu_permissions` de
+      `/config/users` en 0, y `fn_tipo_evento_inventario` mapeando los dos tipos nuevos.
+- [x] **Gate de paridad re-corrido DESPUÉS de la migración** (o sea, contra la fn que aplicó el
+      vehículo, no la que se cargó a mano): 0 en las 7 columnas, las dos empresas.
+- [x] **Smoke HTTP contra el backend real** (`:5002`, usuario Lady Malave, sesión propia):
+      - `GET /api/CuadreAlimentoEngorde` → **200**, y reporta G0044 con descuadre −5.000. Prueba lo
+        que ni el build ni los tests ven: que la **DI resuelva** `CuadreAlimentoEngordeService` con
+        su parámetro nuevo (`IInventarioGestionService`).
+      - `POST /cuadrar-galpon` **sin** `cuadrar_ingresos_traslados_seguimiento` → **403**.
+      - `POST` con motivo de 5 caracteres → **400** con el mensaje del cálculo puro.
+      - `POST` declarando 12.720 kg → **200**: escribió `AjusteCuadreTablaEntrada` de 5.000 kg
+        fechado en el último seguimiento, el trigger lo espejó como `INV_AJUSTE_CUADRE_ENTRADA` y la
+        fn lo leyó. **Cadena completa probada por HTTP, no solo por SQL.**
+- [i] 🔴 **Ese último POST era una prueba mal rotulada mía, no un defecto del código**: declarar
+      12.720 kg le dice al sistema «el stock tiene razón, corregí la tabla», y eso fue exactamente lo
+      que hizo. Se revirtió borrando el movimiento — y de paso quedó probado que el trigger
+      `AFTER DELETE` marca `anulado = true` también para el `tipo_evento` nuevo, y que el cuadre
+      vuelve solo a −5.000.
+- [i] 🔴 **Trampa de verificación que casi hace pasar un smoke vacío: `dotnet test` NO reconstruye el
+      proyecto API** (los tests no lo referencian). El `.exe` que se levanta después de un `test`
+      puede ser de varios cambios atrás — se detectó porque el DTO respondía sin
+      `reservadoActivoKg`. Antes de un smoke HTTP hay que construir **el API explícitamente**.
+- [i] **Gotcha del smoke con sesion propia** (B1): ademas de la fila en `sesiones_activas`, el
+      `expires_at` tiene que quedar **holgado** (el chequeo compara contra `UtcNow` y una fila a
+      «+2 horas» locales cae del lado vencido), y el backend hay que **reiniciarlo** despues de
+      insertarla — cachea el veredicto de la sesion y sigue devolviendo el 401 viejo.
+- [x] **Limpieza**: los 2 movimientos de una prueba mal rotulada mia, borrados (sus filas del
+      historico quedaron `anulado = true` por el trigger, que de paso prueba que el `AFTER DELETE`
+      tambien cubre el `tipo_evento` nuevo); fila de `sesiones_activas` borrada; backend detenido y
+      puertos `:5002`/`:4200` verificados libres.
+
+---
+
+## EC2 — Barrido del cuadre de alimento de ItalcolPanama (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/barrido_cuadre_panama_plan.md`](fase_de_desarrollo/barrido_cuadre_panama_plan.md)
+
+Pedido tras cerrar EC1: entender y cerrar los galpones descuadrados de Panamá, que en EC1 habían
+quedado declarados fuera de alcance sin diagnóstico.
+
+- [x] 🔴 **El número que se había reportado estaba mal.** «12 galpones / 55.866,5 kg» es el crudo de
+      `fn_cuadre_alimento_engorde`. **La pantalla muestra 11 / 63.668,2 kg**, porque el servicio le
+      suma lo *reservado* por la doble validación. **G0479 ni siquiera está descuadrado** (su −907,0
+      es exactamente su reserva de 907,0); G0463 sube a 8.306,9 y G0492 pasa a +2.812,0.
+- [x] **Causa atribuida galpón por galpón.** El patrón dominante es uno solo: alguien corrigió el
+      inventario a mano y la tabla diaria nunca se enteró (`INV_OTRO`, que la fn no lee). Los dos
+      más grandes coinciden **al kilo** con una `EliminacionStock`: G0475 con 18.650,356 kg (07-ago)
+      y G0483 con 12.500,000 kg (01-ago) — **31.150 kg, casi la mitad del total**, son dos clics.
+- [x] **Ninguno es el bug de EC1.** Ese produce el signo contrario. Se buscaron explícitamente
+      entradas borradas sin reversión de stock: hay en G0483, G0495 y G0496, pero ninguna coincide
+      con su descuadre.
+- [x] 🟢 **Ensayo en transacción revertida: los 6 seguros quedan en 0,0**, Panamá pasa de 12 a 6
+      descuadrados y de 55.866,5 a 15.289,1 kg (**73 % cerrado**), y —lo que importa— **ningún
+      galpón gana días en rojo** (16 antes, 16 después). Script:
+      `backend/sql/verificar_barrido_cuadre_panama.sql`.
+- [x] 🔴 **El ensayo cazó un galpón que NO se puede barrer: G0495.** Tiene 178,3 kg de stock y
+      2.786,0 kg entrados después del último seguimiento ⇒ declarar que el stock manda exige que la
+      tabla cierre en **−2.607,7 kg**. En el primer ensayo el saldo quedó negativo y el galpón
+      **ganó un día en rojo que hoy no tiene**. Ahí lo que está mal es el inventario, no la tabla.
+      Es exactamente el «verificar antes de limpiar datos» de CLAUDE.md.
+- [x] **Otros 3 quedan fuera con motivo**: G0463 (+8.306,9) y G0492 (+2.812,0) son **reservas
+      activas** —seguimientos sin validar, no kilos faltantes— y se cierran validándolos; G0460
+      (−6.667,2) es un problema de **fecha** (3 llegadas de julio, 18.018,2 kg, anteriores al
+      arranque del ciclo); G0461 (+317,5) es prematuro (ciclo recién arrancado, más de medio stock
+      en movimientos posteriores).
+- [x] 🔴 **Lo que NO se pudo cerrar, dicho como tal**: reconstruí el delta con signo de cada ajuste
+      parseando su motivo (`Anterior → Nuevo`) y **la aritmética solo cierra en G0477**. En el resto
+      los ajustes suman más que el descuadre (parte ya la absorbió la apertura del ciclo), y en
+      G0476 directamente no hay ajustes registrados. Causa clara ≠ causa atribuida al kilo.
+- [ ] ⏸️ **Ejecución en producción: BLOQUEADA por dos cosas.** (1) el deploy de EC1 —sin
+      «Cuadrar galpón» seis de estos no tienen arreglo posible—; y (2) una confirmación de
+      costos/operación a una sola pregunta que el código no puede contestar: **¿el inventario de
+      esos galpones es confiable hoy?** Pesa sobre todo para G0475 y G0483 (31.150 kg entre los dos).
+- [ ] ⏸️ **G0495 queda como pendiente propio**: es el único que señala un problema real de
+      inventario (kilos que entraron y no están), no de sincronización entre las dos vistas.
+
+---
+
+## EC3 — El cruce de reproductora creaba los días de engorde SIN validar y trababa el lote (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/cruce_reproductora_nace_sin_validar_plan.md`](fase_de_desarrollo/cruce_reproductora_nace_sin_validar_plan.md)
+
+Reporte de Panamá: «en las reproductoras se confirmaron tarde, entonces en pollo engorde está
+bloqueado hacer el seguimiento; no deja crear otro seguimiento diario». Captura: lote **215**
+(DAYLAND · galpón «6» · `14 - 1` · ERP `G-4001014`, 15 días).
+
+### EC3.0 — Diagnóstico
+- [x] 🔴 **Causa raíz: un `INSERT` que omite una columna con `DEFAULT`.**
+      `fn_cruce_reproductora_a_engorde` inserta los días 1-7 **sin nombrar `validado`** (DEFAULT
+      false), mientras el C# documenta lo contrario, textual
+      (`SeguimientoDiarioAvesEngorde.Validado`): *«Los registros con OrigenCruce **nacen validados**»*.
+      Verificado sobre la función **desplegada**: no mencionaba `validado` ni una vez.
+- [x] **Por qué explota solo al confirmar tarde**: el plazo son **1 día contado desde la FECHA del
+      seguimiento**, no desde cuándo se creó la fila. La reproductora del lote 215 confirmó sus 7
+      días con **5 a 10 días de atraso** ⇒ el cruce insertó con fechas del 09 al 15-ago ⇒ los 7
+      registros **nacieron entre 6 y 12 días vencidos** ⇒ `BloqueaAltaPorVencidos`.
+- [x] 🔴 **Y era un callejón sin salida**: los registros `origen_cruce` son de solo lectura en la UI
+      —el front les reemplaza *todos* los botones por el badge «🔄 Auto»—, así que el operario **no
+      tenía forma de destrabarlo**.
+- [x] **Alcance medido: 28 registros, 4 lotes** (215, 216, 224, 225), todos DAYNLAND/Panamá — la única
+      empresa con `requiere_validacion_seguimiento_diario`. **Dos de esos lotes nacieron ese mismo
+      día**: el problema estaba activo, no era histórico.
+- [x] **El backfill de agosto arregló el pasado y nadie arregló el futuro**: los otros 273 registros
+      de cruce están validados por el `UPDATE` masivo de `20260815071444`.
+
+### EC3.1 — Arreglo
+- [x] `fn_cruce_reproductora_a_engorde`: el `INSERT` escribe `validado, validado_at, validado_por`.
+      Espejo `.sql` + **migración `20260825160000_FnCruceReproductoraNaceValidado`** (26 columnas
+      contra 26 valores, verificado a mano).
+- [x] **Backfill de los 28**, acotado a `origen_cruce AND NOT validado`.
+- [x] 🟢 **Probado forzando una regeneración REAL del trigger** (transacción revertida): los 7 días
+      del lote 215 nacen `validado = true` / `validado_por = SYSTEM_CRUCE`, y el lote queda con
+      **0 vencidos**. Los 4 lotes se destraban.
+- [x] **Script de invariante nuevo**: `backend/sql/verificar_cruce_nace_validado.sql`. Es la única
+      red posible — **no hay test de C# que pueda ver un `INSERT` de plpgsql**, y el cuerpo de esa
+      función está copiado en **5 migraciones**: la próxima que lo reescriba desde una copia vieja
+      reintroduce el defecto en silencio, exactamente igual.
+- [x] 3 tests que fijan el mecanismo (fecha vieja + sin validar = EN_RETRASO; validado gana sobre la
+      fecha; el plazo es de 1 día). No cubren código nuevo — lo dicen ellos mismos: documentan la
+      interacción que hizo posible el defecto.
+
+### EC3.2 — Lo que trajo la refutación adversarial (3 lentes, todos «INCOMPLETO»)
+- [x] **La elección de diseño resistió**: un lente reporta textual *«intenté refutar la elección y no
+      pude»*. Descartadas con fundamento (a) excluir el cruce del conteo, (b) contar el plazo desde
+      `created_at` —no resuelve: corre el bloqueo 48 h y el reloj se reinicia en cada regeneración—,
+      (c) permitir validarlo en la UI —sería un no-op y se destruye sola en cada regeneración—, y
+      (d) no bloquear si todos los vencidos son de cruce.
+- [x] **Corregido: el backfill fabricaba una marca de auditoría.** Ponía `validado_at = now()` sobre
+      registros de agosto. Ahora la deja en **NULL**, igual que el backfill original, y usa
+      `validado_por = 'SYSTEM_CRUCE_BACKFILL'` para poder distinguir «esto lo arregló la migración»
+      de «esto nació bien».
+- [x] **Corregida una asimetría real**: `SeguimientoAvesEngordeService` (Panamá/Colombia) **no tenía
+      la guarda `OrigenCruce`** que sí tiene el de Ecuador. Sin ella, tras el fix editar o borrar una
+      fila de cruce fallaba por la rama de la doble validación con un mensaje que manda a «quitar la
+      validación primero» — **imposible** para esos registros. Ahora rechaza con el motivo verdadero.
+- [x] **Contradicción entre lentes resuelta a mano**: `MigracionService.SeguimientoEngorde` **sí**
+      usa `ModoCargaHistorica()` (línea 596), así que la carga masiva ya estaba cubierta. Un lente
+      afirmaba lo contrario.
+- [x] **Verificado que no hay doble descuento**, y medido, no razonado: 0 filas en
+      `seguimiento_reserva_alimento` y `_aves` para los 301 registros de cruce; las aves ya estaban
+      descontadas por `RetiroAvesEngordeAplicador`, que mira `OrigenCruce` y el histórico, **nunca
+      `validado`**. Ninguna función ni vista de la BD lee la columna (catálogo completo).
+
+### EC3.3 — Lo que NO arregla esto, dicho como tal
+- [i] **Lote 177** sigue bloqueado **a propósito**: su vencido es un registro **normal** (no de
+      cruce), y se destraba con el botón Validar. Es trabajo del operario, no un defecto.
+- [i] **Lote 180** (registro del 24-ago) pasa a EN_RETRASO mañana si nadie lo valida. Mismo caso.
+- [i] **Dos lotes en cola** (186 y 226): sus reproductoras tienen días sin confirmar desde hace 27 y
+      6 días. Con el arreglo puesto, al confirmarlas los días nacen validados y **no** se traban.
+- [ ] ⏸️ **La misma clase de defecto sigue abierta en el push offline de la PWA**
+      (`Sync/SyncPushService.cs`, único escritor de seguimientos que no usa `ModoCargaHistorica`):
+      un día capturado offline y sincronizado >24 h después nace EN_RETRASO. Es **menos grave** —esos
+      registros sí son editables y validables desde la pantalla, no son un callejón sin salida— pero
+      va a generar el mismo ticket. Tarea aparte.
+- [ ] ⏸️ **Segundo camino de confirmación de reproductora sin sincronizar aves**:
+      `ValidacionSeguimientoService.MarcarValidadoAsync` escribe `Confirmado` por EF (lo que dispara
+      el cruce) pero **nunca llama** a `RetiroAvesEngordeAplicador.SincronizarCruceAsync`; solo lo
+      hace `SeguimientoDiarioLoteReproductoraService.ConfirmarAsync`. Hoy no muerde (el front usa el
+      endpoint específico), pero es la pata sobre la que se apoya el «no duplica ningún descuento».
+- [i] **Observación**: `LeerPendientesDelLoteAsync` (rama Engorde) filtra por `LoteAveEngordeId` sin
+      `company_id`, a diferencia de `LeerEstadoAsync`. Inocuo con una sola empresa con el flag
+      encendido; deja de serlo con la segunda. Pre-existente.
+
+---
+
+## EC4 — Plazo de validación desde la CREACIÓN + doble validación en Ecuador (ANÁLISIS, 25-ago-2026)
+
+Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md)
+
+Propuesta del usuario tras cerrar EC3. **Se implementa en su propia sesión** — acá quedó solo el
+análisis y la validación con datos.
+
+- [x] **Validado punto por punto lo que planteó el usuario.** Confirmado que hoy el plazo se cuenta
+      desde la **fecha del seguimiento** y no desde la creación; que lo de «cuando termine los 7 días
+      me aparecen confirmados» **ya quedó resuelto** en EC3; y que para la captura del mismo día las
+      dos reglas dan **idéntico** resultado.
+- [x] 🔴 **El dato que decide** (últimos 30 días, sin el cruce): **Panamá captura 86,5 % retroactivo**
+      —de los cuales 426 registros los cargan PERSONAS con 2 a 21 días de atraso, repartidos en 6-13
+      días de carga distintos; los otros 465 son una carga masiva—. **Ecuador, 14 %.** La regla actual
+      está estructuralmente peleada con cómo opera Panamá: funciona solo porque el operario valida en
+      la misma sesión en que carga.
+- [x] **La propuesta ataca la raíz de TRES parches que ya existen**, todos el mismo caso («registro
+      creado hoy con fecha vieja»): `ModoCargaHistorica` (cuyo propio doc dice que existe por esto),
+      el cruce de reproductora (cerrado en EC3) y el push offline de la PWA (abierto).
+- [x] 🔴 **Señalado que «vencido» hoy BLOQUEA, no avisa** — y que eso fue una decisión explícita del
+      usuario el 14-ago-2026 («bloquean el alta de días nuevos, no solo avisan»). Cambiar el origen
+      del plazo y cambiar bloqueo→alerta son **dos cambios distintos**: recomendado hacer el primero,
+      medir, y decidir el segundo con ese dato.
+- [x] 🔴 **El orden importa para Ecuador**: hoy tiene 5.482 registros, 0 sin validar ⇒ encender el
+      flag no bloquea nada retroactivamente. **Pero con la regla actual el 14 % de su captura nacería
+      vencida** (94 registros/mes). Encenderlo ANTES de cambiar la regla reproduce el problema que se
+      acaba de cerrar en Panamá.
+- [x] **Señalado lo que se pierde**: hoy «vencido» significa dos cosas —no validaste a tiempo Y no
+      cargaste a tiempo—. Con `created_at` queda solo la primera; si la segunda importa (en Panamá
+      probablemente sí), hay que reponerla como indicador propio de antigüedad de captura.
+- [x] **Señalado el detalle fino**: `created_at` se reinicia al borrar y recrear, y el cruce hace
+      `DELETE`+`INSERT` en cada regeneración ⇒ no apoyarse en el plazo para el cruce (hoy nacen
+      validados, y así debe seguir).
+- [ ] ⏸️ **Implementación: otra sesión.** Alcance estimado en §6 del plan (la regla en
+      `ValidacionSeguimientoCalculos`, sus llamadores, el `createdAt` que hay que hacer viajar al
+      front porque el estado se calcula en el cliente, y la migración solo para el flag de Ecuador).
+
+### EC4.1 — Aclaración del usuario: el bloqueo se queda y se vuelve más estricto (25-ago-2026)
+
+- [x] ✅ **Resuelta la pregunta abierta de EC4**: el usuario confirmó que **NO quiere quitar el
+      bloqueo**. La regla que quiere es *«el día anterior debe estar confirmado para poder continuar
+      al día siguiente»*.
+- [x] 🔴 **Señalado que eso NO es el comportamiento actual: es más estricto.** Hoy bloquea «hay algún
+      VENCIDO», y un registro de ayer sin validar sigue **PENDIENTE** dentro del plazo de 1 día ⇒ hoy
+      **no** bloquea. Medido en este momento: el lote 177 bloquea con las dos reglas, pero el **lote
+      180 no bloquea hoy y sí bloquearía** con la regla nueva. La regla elimina la gracia de un día.
+- [x] 🔴 **El hallazgo que reordena todo el plan EC4**: si el bloqueo pasa a colgar de «el anterior
+      confirmado», **deja de depender del plazo** ⇒ el cambio `fecha → created_at` **pasa a ser
+      cosmético** (solo colorea la alerta). Los tres parches (`ModoCargaHistorica`, el cruce, el push
+      offline) dejarían de hacer falta **por el cambio de bloqueo**, no por el del plazo.
+      La secuencia recomendada quedó reordenada: **primero el bloqueo**, el plazo al final y opcional.
+- [x] **Costo operativo medido, y no es menor**: con la regla estricta, cargar N días exige N ciclos
+      cargar→validar alternados, y **hoy no existe validación en lote** (el endpoint es
+      `POST /{modulo}/{id}/validar`, de a uno; el front valida fila por fila). Últimos 30 días:
+      **Ecuador nunca carga más de 5 días juntos** (aguanta la regla tal cual); **Panamá cargó 6+ días
+      en una sesión 41 veces, con un pico de 34 días**. Hace falta «guardar y validar» **o** «validar
+      todos los pendientes del lote» junto con la regla.
+- [x] **Confirmado lo que planteó el usuario sobre las dos empresas**: Panamá depende de tener las
+      reproductoras al día —y con `14daf32` los 7 días del cruce nacen confirmados, así que dejan de
+      trabar—; Ecuador **no tiene reproductoras** (0 registros `origen_cruce`, verificado), su flujo
+      es captura normal desde el día 1.
+- [x] ✅ **RESUELTO por el usuario: el día faltante SÍ bloquea** — ver bloque **EC4.2**, que además
+      corrige el número de abajo (eran los huecos *interiores*; contando la cola son 565 en Panamá).
+      Era: ¿un día **FALTANTE** (nunca
+      capturado) también bloquea? Hoy no —el código solo mira registros existentes sin validar—. Con
+      esa lectura, **37 lotes abiertos de Panamá quedarían bloqueados el día del deploy** (40 huecos;
+      Ecuador tiene 1). Recomendado empezar por la lectura literal («el registro anterior», que
+      existe) y tratar los huecos como reporte aparte.
+
+---
+
+## EC4.2 — Los huecos de días bloquean: qué cuesta y la trampa que hay que evitar (ANÁLISIS, 25-ago-2026)
+
+Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md) §9
+Diagnóstico reproducible: [`backend/sql/verificar_huecos_dias_seguimiento_engorde.sql`](backend/sql/verificar_huecos_dias_seguimiento_engorde.sql)
+
+> Decisión del usuario: *«todos los días se tienen que llenar hasta que se liquide el lote (…) debe
+> mostrar cuáles no hay registro (…) sí o sí antes de dejarlo seguir. Y que el campo fecha en el modal
+> me deje agregar el día específico que hace falta.»* **Sigue sin implementarse: es análisis para la
+> sesión que tome EC4.**
+
+- [x] **Respondida la pregunta directa: sí, se puede llenar el día faltante.** Verificado punta a
+      punta — el input de fecha (`modal-seguimiento-engorde.component.html:36`) **no tiene `min` ni
+      `max`**; el índice único `uq_seg_diario_aves_engorde_lote_fecha` impide duplicar un día; la
+      ventana de fecha retroactiva **no aplica a seguimientos** (`ValidarVentanaFechaRegistro` solo
+      está en inventario/gastos/movimientos/traslados); la única cota es «no antes del primer día del
+      lote» (`Crud.cs:118`), correcta; y al insertar un día **del medio**,
+      `SaldoAlimentoEngordeAplicador.RecalcularPorLoteAsync` reescribe el saldo de **todos** los días
+      del lote desde la fn, así que los posteriores se corrigen solos.
+- [x] 🔴 **Encontrada la trampa que habría que arreglar ANTES de encender la regla.**
+      `AsegurarPuedeRegistrarDiaAsync(modulo, loteId)` **no recibe la fecha** y corre en la primera
+      línea del create. Si se le agrega «los huecos bloquean», **bloquea también el POST que llena el
+      hueco** → lote encerrado sin pantalla que lo destrabe: el mismo callejón sin salida del cruce
+      (`14daf32`), por otra puerta. Fix de diseño: pasarle la fecha y **eximir el día que se está
+      llenando**. Son 5 call sites y **ningún test actual lo cubre** (hoy la fecha no participa).
+- [x] 🔴 **Corregido el número que se había reportado.** Los «40 huecos / 37 lotes» eran solo los
+      **interiores**. Contando como lo definió el usuario (todos los días hasta liquidar):
+
+      | Empresa | Días faltantes | Lotes | Interiores | Cola | Más viejo |
+      |---|---:|---:|---:|---:|---:|
+      | ItalcolPanama | **565** | 44 | 41 | **524** | 72 días |
+      | ItalcolEcuador | **133** | 5 | 4 | **129** | 130 días |
+
+      **El 93 % es cola, no hueco interior.**
+- [x] **Caracterizada la cola: son lotes TERMINADOS que nadie cerró.** Los 18 lotes de Panamá con cola
+      >7 días tienen 50–78 días de edad (un engorde se saca a ~42) y **cero salidas registradas**, con
+      ~650.000 aves en papel. La causa está a la vista: **Panamá tiene 3 ventas registradas en todo el
+      sistema; Ecuador 1.452**. No registran la venta ni liquidan → *la cola es su final de lote
+      normal*. Ecuador es el mismo cuadro: el lote 2601 lleva 125 días de cola y 191 de edad.
+      ⚠️ Aplicar la regla literal a la cola le pide al operario **inventar ~460 registros diarios** de
+      lotes cuyas aves ya no están.
+- [x] **Descartada la hipótesis de que el bloqueo se fabrica su propia cola**: 520 de los 524 días de
+      cola están en lotes que hoy **nadie bloquea**. Es abandono operativo. De paso queda verificado
+      el arreglo del cruce: **0 vencidos `origen_cruce`**, los 4 lotes de DAYLAND destrabados.
+- [x] **Listados los días concretos** para el mensaje: Ecuador lote 12 «2601» (4 días, 17–20 abr);
+      Panamá 37 lotes / 41 días, de los cuales **33 tienen exactamente un día**. Sin patrón de fin de
+      semana (jue 14, dom 10, mié 9) ⇒ olvidos legítimos y llenables.
+- [x] ✅ **DECIDIDO por el usuario: «el hueco interior bloquea, la cola se liquida».**
+      Consecuencia medida: la cola era el 93 % del número y sale del bloqueo, así que **el costo del
+      día del deploy baja de 44+5 lotes a 37 lotes de Panamá y 41 días de digitación** (33 de ellos
+      necesitan **un solo día**). Ecuador queda en 0 porque su flag está apagado. La cola pasa a ser
+      limpieza operativa: **19 lotes a liquidar** (18 Panamá + el 2601 de Ecuador).
+- [x] 🔴 **Encontrada la interacción de segundo orden entre las dos reglas** (plan §9.10): el día que
+      se llena **nace vencido**, porque `FechaLimiteValidacion(fecha) = fecha + 1` y el hueco es
+      viejo. Un vencido sin confirmar bloquea el alta ⇒ *llenar el hueco vuelve a trabar el lote*.
+      Dos consecuencias obligatorias para quien implemente: (a) la exención de la guarda tiene que ser
+      «el día que se crea es **un** día faltante», no «es **el único**» —si no, el lote 12 de Ecuador,
+      con 4 huecos seguidos, se traba al llenar el primero—; (b) hace falta **«guardar y validar»** o
+      «validar todos los pendientes del lote», porque hoy se valida de a uno. Ya estaba anotado como
+      deseable en EC4; la regla de huecos lo vuelve **obligatorio**.
+- [x] ✅ **VERIFICADO: la puerta de liquidar ABRE — pero abre mal** (plan §9.8). Ninguna precondición
+      de `CerrarLoteAsync` (`LoteAveEngordeService.cs:790-861`) exige aves en cero, venta, merma ni
+      serie continua; la doble validación **ni participa** del cierre. El problema es el opuesto al
+      que temíamos: **abre demasiado fácil, en silencio, y congela el resultado.**
+      🔴 `fn_seguimiento_diario_engorde.sql:708-712` reescribe el encasetamiento del lote cerrado
+      (`GREATEST(1, bajas + ventas)`) y el cierre congela **después** de aplicar el estado — las dos
+      cosas documentadas en el propio código. Para un lote que vendió todo es un no-op elegante; para
+      uno sin la venta registrada, **reescribe la historia**. Medido: liquidar hoy los 17 lotes
+      terminados de Panamá haría **desaparecer 610.704 aves** del registro congelado (el lote 151 pasa
+      de 45.515 encasetadas a **481**). **Ecuador es el caso de control que lo prueba**: el 2601 tiene
+      sus ventas registradas (24.318 + 1.082 = 25.400 = lo encasetado) ⇒ liquida perfecto, **0 aves
+      desaparecen**.
+- [x] 🔴 **Corregido: uno de los 19 no es cola.** El lote **215 de DAYLAND** tiene 9 días de cola pero
+      **15 de edad** — es un lote VIVO atrasado, y su cola es la cicatriz del bug del cruce que lo
+      tenía bloqueado. Se le capturan los días, no se cierra. El umbral correcto es **cola > 7 Y
+      edad > 42**. Quedan **18 lotes a cerrar** (17 Panamá + el 2601 de Ecuador).
+- [x] **Definida la receta correcta: liquidar es el ÚLTIMO paso.** (a) registrar la venta/traslado con
+      el lote **abierto** → (b) sacar el alimento sobrante del galpón → (c) recién ahí liquidar.
+      Liquidar primero cierra tres puertas de reparación (la carga masiva rechaza lotes cerrados,
+      `MigracionService.SeguimientoEngorde.cs:25-27,43`; la venta y el traslado quedan bloqueados por
+      el gate de liquidación) y `AvanzarCodigoErpGranjaSiCicloCerradoAsync`
+      (`LoteAveEngordeService.cs:838`) avanza el código ERP de la granja **+1 sin que la reapertura lo
+      decremente**.
+- [x] **Chequeo 6 agregado al `.sql`**: dice, lote por lote, cuántas aves desaparecerían si se
+      liquidara hoy. `= 0` ⇒ listo para liquidar; `> 0` ⇒ falta registrar la venta.
+- [ ] ⏸️ **DEFECTO APARTE encontrado de paso (no bloquea la receta): permiso huérfano.**
+      `movimientos_pollo_engorde.vender_lotes_cerrados` existe como seed
+      (`20260714112951_...`) y **sólo lo lee el front** (`modal-movimiento-pollo-engorde.component.ts:69`,
+      con hint al usuario en el HTML `:303`). El backend no conoce esa clave: su gate es
+      `omitirGateLiquidado` (`LiquidacionCongeladaGateCalculos.cs:80-83`), y el único que lo pone en
+      `true` es `CorreccionAvesDisponiblesEngordeService.cs:437`. **El usuario con el permiso habilita
+      el formulario y el guardado le rebota.** No estorba a la receta (ahí el lote está abierto), pero
+      es deuda real y promete algo que no cumple.
+- [ ] ⏸️ **Implementación**: pertenece a la sesión de EC4. Incluye el mensaje que distingue las dos
+      causas (§9.6 del plan) — «faltan los días X e Y, registralos» vs «este lote no tiene registros
+      desde X (N días); si ya salió, liquidalo».
+
+---
+
+## EC5 — Corrección de todos los bugs anotados en la sesión (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/correccion_bugs_anotados_plan.md`](fase_de_desarrollo/correccion_bugs_anotados_plan.md)
+
+> Pedido: *«corrige todos los bugs anotados completos»*. Recoge lo que quedó abierto en EC3 y lo que
+> apareció al verificar el liquidador en EC4.2. **No incluye la feature de huecos/plazo**, que el
+> usuario reservó para otra sesión — eso es diseño, no defecto.
+
+- [x] **Inventario cerrado: 7 defectos**, con su severidad medida (§1 y §2 del plan).
+- [x] **Alcance medido**: ItalcolPanama tiene **0 lotes liquidados** ⇒ el daño de #5 es 100 %
+      prospectivo (610.704 aves todavía no perdidas). ItalcolEcuador tiene 97 liquidados con **8**
+      que perdieron >100 aves (3.368 en total) ⇒ #6 y #7 quedan latentes, casi sin víctimas.
+- [x] **Especificación adversarial corrida**: 7 specs + 4 refutaciones. **Las refutaciones mataron 3
+      de los 7 parches y corrigieron 2 de los que quedaron.** Los dos hallazgos decisivos se
+      verificaron a mano antes de aplicar nada.
+- [x] ✅ **#1 Push offline PWA — RESUELTO por la ruta B (ver bloque EC6).** Era: El parche **apaga
+      `ValidarAlimentoObligatorio` sin decirlo**: ese guard corre sólo dentro de `if (separa)` y su
+      doc-comment nombra explícitamente «el push de la PWA» como el cliente que lo necesita ⇒ días de
+      campo viejos entrarían **sin alimento, en silencio**, en Panamá. Además compite con el plan
+      vigente, que dice que este parche **deja de hacer falta** con el cambio de bloqueo.
+      **Ruta (A)** parchear igual, perdiendo el guard de alimento · **Ruta (B)** hacer el paso 1 de
+      EC4 (bloqueo = «el día anterior confirmado»), que resuelve éste y otros dos casos sin efectos
+      colaterales. **El usuario eligió (B).**
+- [x] ✅ **#2 `MarcarValidadoAsync` — APLICADO**, en las dos direcciones (validar y des-validar).
+      🔴 **La spec pasaba el id equivocado**: para reproductora `LeerEstadoAsync` devuelve el id del
+      lote de **reproductora** y `SincronizarCruceAsync` espera el de **engorde**. No truena: no
+      encuentra nada, o sincroniza el lote que por casualidad tenga ese id. El helper resuelve el
+      puente primero. Verificado que el aplicador es **idempotente** (`yaAplicados`) — si no lo
+      fuera, el arreglo duplicaría descuentos y sería peor que el bug. Y el bug **no depende del
+      flag**: `ValidarAsync` no consulta `RequiereValidacionAsync`, aplica a todas las empresas.
+- [x] ✅ **#3 Permiso huérfano — APLICADO al revés de como estaba enunciado.** No es que al backend le
+      falte honrar el permiso: **el permiso no puede existir para un lote cerrado** (el gate rechaza
+      toda escritura y los reportes leen la copia congelada ⇒ la venta quedaría invisible). Se hizo
+      honesta la promesa con `bypassablePorPermiso`: destraba la **corrida anterior**, no el lote
+      cerrado. De paso, el predicado repetido **7 veces** en el HTML pasa a una sola fuente.
+      **+6 casos de test** (`frontend/src/tests/detectar-lotes-bloqueados-venta.funcion.spec.ts`).
+- [x] ✅ **#4 Fuga por empresa — APLICADO en las 4 ramas.** Y era **fuga real, no sólo latente**:
+      `ObtenerPendientesAsync` no valida que el lote sea de la empresa activa, así que un usuario
+      podía pedir los pendientes de un lote ajeno y recibir sus fechas. Producción se filtra por FILA
+      (única tabla de seguimiento con `company_id`); las otras tres resuelven la empresa del lote.
+- [x] ⚠️ **#5 — SOLO EL AVISO. La guarda se descartó, y me corrige a mí.** Liquidar **no** pierde
+      aves «en silencio»: el modal ya tiene un banner `role="alert"` con la cifra exacta y
+      `puedeLiquidarPorAves` devuelve `true` **a propósito**, con el motivo escrito («datos pueden
+      tener error»). Es un override informado. La guarda propuesta **no evitaba el daño: pedía
+      consentimiento para él** —si el usuario tilda, la foto truncada se congela igual—, además de
+      duplicar una fórmula existente y acusar mal. Lo aplicado: el banner ahora dice **qué pasa** si
+      continuás (el encasetamiento pasa a valer `bajas + ventas` y queda congelado).
+- [x] ✅ **#6 — RESUELTO SIN DDL.** `fn_cuadre_aves_engorde` **no tiene un solo consumidor en
+      runtime** (cero `SqlQueryRaw`/`FromSql`): agregarle columnas no crea una alarma, crea una
+      consulta que alguien tendría que escribir igual. Se resolvió con
+      [`backend/sql/verificar_salidas_aves_engorde.sql`](backend/sql/verificar_salidas_aves_engorde.sql).
+- [ ] ⏸️ **#7 Vista Power BI — NO APLICAR en este ciclo.** Consumidor **externo** que no pidió el
+      cambio; el `Down` propuesto no es round-trip seguro (un re-`Up` quedaría en no-op silencioso con
+      la vista rota); falla abierto en un lote poblado por traslado; y **apagaría la única señal
+      visible en Power BI de un lote liquidado sin su venta**, justo antes de que Panamá liquide.
+- [x] 🔴 **HALLAZGO: cinco definiciones distintas de «salida de aves» en el mismo módulo.** El
+      trigger emite `VENTA_AVES` sólo para `tipo_movimiento = 'Venta'`; `EsSalidaVenta` cuenta
+      `Venta|Despacho|Retiro`; `fn_indicadores_pollo_engorde` suma `Traslado`. Un **Despacho descuenta
+      del maestro pero no alimenta `total_ventas`** ⇒ al liquidar esas aves también desaparecen.
+      **Medido: hoy sin víctimas** — el sistema entero tiene sólo movimientos `Venta` (1.455
+      completados) y el histórico tiene exactamente 1.455 filas `VENTA_AVES`, calzan uno a uno. La
+      trampa se arma el día del primer `Despacho`. Queda en el chequeo 3 del `.sql` nuevo.
+- [x] **Validación backend**: `dotnet build` **0 errores** y `dotnet test` **3240 verdes** (eran
+      3234; +6 del #2) con el SDK .NET 10 portable. Gate `verificar-sql-llega-por-migracion` en verde.
+      ⚠️ **Para la próxima**: `dotnet`/`node` del PATH del sistema son 9.0.301 y v22.15.0 y **fallan**;
+      hay que usar `~/dotnet-portable` y `~/node-portable/node-v22.23.1-win-x64`. Y `cmd | tail`
+      devuelve el exit de `tail`, no del comando: un build con **6 errores reportaba `exit 0`**.
+- [x] **Validación front**: `yarn build` **0 errores** con el Node portable (995,90 kB inicial, sin
+      warning de budget).
+- [x] **Cerrados 4 de 7 defectos** (#2, #3, #4 y #6) más el aviso del #5. Quedan abiertos **#1**
+      —resuelto después por la **ruta B**, ver bloque **EC6**— y **#7**, con su condición de
+      reingreso escrita en §4.7 del plan.
+
+---
+
+## EC6 — Ruta B: el plazo de validación se cuenta desde la CREACIÓN (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md`](fase_de_desarrollo/plazo_validacion_desde_creacion_plan.md) §11
+
+> Decisión del usuario: **ruta B** para destrabar el push offline de la PWA sin perder el guard de
+> alimento obligatorio.
+
+- [x] 🔴 **Hallazgo al implementar: la ruta B tal como estaba redactada NO resolvía el caso.** §5 y
+      §4.1-bis proponían cambiar el **bloqueo** a «el día anterior tiene que estar confirmado». Con un
+      push de 5 días viejos eso traba igual: crear el día 2 mira al día 1, **que lo acaba de crear el
+      mismo push** y está sin confirmar. Cambiar *a qué registro mira* el bloqueo no ayuda cuando el
+      registro que mira nació en la misma operación.
+- [x] ✅ **Lo que sí lo resuelve es lo que el usuario había pedido primero**: *«debo tenerlas máximo
+      para confirmar mañana, porque hoy las hice la creación, no de acuerdo a cuándo es»*. El plazo
+      pasa a contarse desde `created_at`. Con eso el push entra completo, y **al día siguiente los 5
+      vencen y bloquean hasta confirmarse** ⇒ la confirmación extra se mantiene.
+- [x] ✅ **El BLOQUEO no se tocó.** El usuario fue explícito dos veces en conservarlo. La regla actual
+      —cualquier vencido sin validar bloquea— ya cumple «el día anterior confirmado» y es **más
+      estricta**; restringirla al día inmediatamente anterior habría **aflojado** justo lo que se pidió
+      reforzar.
+- [x] **La fórmula es `max(fecha, creación) + 1 día`**, y el `max` no es cosmético: un registro
+      cargado por anticipado no arranca con menos plazo, y **el límite nuevo es siempre ≥ el viejo**
+      ⇒ el cambio sólo puede aflojar, nunca bloquear a alguien que hoy no está bloqueado. Es la única
+      dirección segura sobre una empresa con la regla ya encendida en producción. **Hay un test que
+      fija ese invariante.** Sin `created_at` cae en el comportamiento previo, byte a byte.
+- [x] **Medido sobre la copia de producción, últimos 30 días — registros que nacían vencidos:**
+
+      | Empresa | Capturados | Regla vieja | Regla nueva |
+      |---|---:|---:|---:|
+      | ItalcolPanama | 1.331 | **1.191 (89,5 %)** | **0** |
+      | ItalcolEcuador | 658 | **93 (14,1 %)** | **0** |
+
+      Casi **nueve de cada diez** registros de Panamá nacían en rojo y trabando el lote. Y con la
+      regla vieja, encender el flag en Ecuador habría reproducido el problema **93 veces por mes**.
+- [x] **Sin migración**: la regla no toca la BD. La migración sigue haciendo falta sólo para encender
+      el flag en Ecuador, que es una decisión aparte.
+- [ ] ⏸️ **Siguiente paso de la secuencia (§11.6): el apoyo de UI que la regla exige** — «guardar y
+      validar» o «validar todos los pendientes del lote». Hoy se valida de a uno y Panamá llegó a
+      cargar 34 días en una sesión. La regla de huecos (§9) lo vuelve **obligatorio**.
+- [ ] ⏸️ Verificar una semana en Panamá (ya tiene el flag encendido, es el caso extremo) y **recién
+      entonces** encender el flag en Ecuador.

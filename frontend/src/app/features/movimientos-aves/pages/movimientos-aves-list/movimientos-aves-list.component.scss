@@ -571,6 +571,15 @@
     &:hover:not(:disabled) { background: var(--accent-100); }
   }
 
+  // Comprobante: es una accion (imprimir), por eso va en la familia de acento y no en verde ni
+  // rojo, que quedan reservados a exito y peligro (CLAUDE.md, regla de marca).
+  &--print {
+    border-color: var(--accent-100);
+    background: transparent;
+    color: var(--accent-dk);
+    &:hover:not(:disabled) { background: var(--accent-50); }
+  }
+
   &--delete {
     border-color: #fecaca;
     background: #fef2f2;
@@ -730,4 +739,56 @@
   }
 
   .ux-header__title h1 { font-size: var(--fs-lg); }
+}
+
+/* ==========================================================================
+   🧾 Comprobante de traslado (SR-DEF-5 / F9.2c)
+   ========================================================================== */
+.comprobante-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  background: rgba(24, 18, 12, 0.55);
+}
+
+.comprobante-panel {
+  width: 100%;
+  max-width: 900px;
+}
+
+.comprobante-estado {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink, #2a2a2a);
+
+  &--error {
+    display: grid;
+    gap: 1rem;
+    justify-items: center;
+    color: #b91c1c;
+  }
+}
+
+@media print {
+  /* Sin esto se imprime TODA la pantalla detras del comprobante (sidebar, filtros y la tabla
+     entera). Se oculta el arbol de la pagina y el overlay se despega a flujo normal para que el
+     comprobante ocupe la hoja el solo. */
+  :host .ux-page { display: none !important; }
+
+  .comprobante-overlay {
+    position: static;
+    inset: auto;
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+  }
+  .comprobante-panel { max-width: none; }
 }

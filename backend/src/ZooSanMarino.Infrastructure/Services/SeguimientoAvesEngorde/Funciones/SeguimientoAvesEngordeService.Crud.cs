@@ -328,6 +328,15 @@ public partial class SeguimientoAvesEngordeService
                          select s).SingleOrDefaultAsync();
         if (ent is null) return null;
 
+        // Un registro de cruce no se edita acá: lo REGENERA el trigger desde reproductora en cada
+        // cambio, así que cualquier corrección se perdería sola. El service de Ecuador ya tenía esta
+        // guarda; este no, y la asimetría se volvió visible al hacer que el cruce nazca validado —
+        // sin ella el rechazo salía por la rama de la doble validación con un mensaje que manda a
+        // «quitar la validación primero», cosa imposible para estos registros.
+        if (ent.OrigenCruce)
+            throw new InvalidOperationException(
+                "Este registro se genera automáticamente desde los lotes reproductora (primeros 7 días). Para corregirlo, edite el seguimiento del lote reproductora.");
+
         // ── Doble validación ───────────────────────────────────────────────────────────────────
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
@@ -589,6 +598,13 @@ public partial class SeguimientoAvesEngordeService
         if (ent is null) return false;
         if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
+
+        // Misma guarda que en la edición: el trigger regenera estos registros desde reproductora, así
+        // que borrarlos acá no los quita — vuelven en el siguiente cambio. Ver el comentario de
+        // UpdateAsync.
+        if (ent.Seguimiento.OrigenCruce)
+            throw new InvalidOperationException(
+                "Este registro se genera automáticamente desde los lotes reproductora (primeros 7 días). Para corregirlo, edite el seguimiento del lote reproductora.");
 
         // ── Doble validación ───────────────────────────────────────────────────────────────────
         // Borrar un pendiente solo LIBERA la separación: no hay devolución que hacer porque el

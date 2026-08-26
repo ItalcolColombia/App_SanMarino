@@ -429,6 +429,12 @@ public class InventarioGestionController : ControllerBase
     /// <summary>
     /// Elimina un traslado completo: revierte stock en origen/destino y marca
     /// anulado=true en lote_registro_historico_unificado para todos los movimientos del grupo.
+    /// <para>
+    /// Responde <b>400</b> si al destino ya no le quedan los kilos que recibió (se los llevó un
+    /// consumo o un traslado posterior): en ese caso no se toca ninguna de las dos puntas. Hay que
+    /// corregir primero ese movimiento. Antes del 25-ago-2026 esta reversión NO existía y el borrado
+    /// dejaba el origen corto y el destino largo, los dos de forma permanente.
+    /// </para>
     /// </summary>
     [HttpDelete("traslados/{transferGroupId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -515,6 +521,11 @@ public class InventarioGestionController : ControllerBase
     /// <summary>
     /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada): revierte stock
     /// y marca anulado=true en lote_registro_historico_unificado.
+    /// <para>
+    /// Responde <b>400</b> si los kilos ya salieron de la ubicación: hay que corregir primero el
+    /// movimiento que se los llevó. Antes del 25-ago-2026 el service no revertía el stock aunque este
+    /// doc ya lo prometía, y cada eliminación dejaba un descuadre que la pantalla no podía cerrar.
+    /// </para>
     /// </summary>
     [HttpDelete("ingresos/{movimientoId:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

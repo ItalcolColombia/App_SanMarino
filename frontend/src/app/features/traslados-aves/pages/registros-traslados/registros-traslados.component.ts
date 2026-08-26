@@ -10,6 +10,7 @@ import {
 } from '../../services/traslados-aves.service';
 import { TrasladoNavigationService, TrasladoUnificado, MovimientoAvesCompleto } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-registros-traslados',
@@ -43,10 +44,20 @@ export class RegistrosTrasladosComponent implements OnInit {
   constructor(
     private trasladosService: TrasladosAvesService,
     private trasladoNavigationService: TrasladoNavigationService,
-    private farmService: FarmService
+    private farmService: FarmService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
+
+  /** Empresas sin machos en postura: sus columnas no se pintan ni se exportan (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     this.cargarFarms();
   }
 

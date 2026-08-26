@@ -1,0 +1,117 @@
+@if (data) {
+  <section class="cta">
+    <!-- Encabezado -->
+    <header class="cta__head">
+      <div class="cta__brand">
+        <span class="cta__icon">🐔</span>
+        <div>
+          <h2 class="cta__title">Comprobante de traslado de aves</h2>
+          <p class="cta__subtitle">
+            {{ empresa || data.origen?.companyNombre || '' }}
+            <span class="cta__numero">N.º {{ data.numeroMovimiento }}</span>
+          </p>
+        </div>
+      </div>
+      @if (mostrarAcciones) {
+        <div class="cta__actions">
+          <button type="button" class="cta__btn cta__btn--print" (click)="print()">🖨️ Imprimir</button>
+          <button type="button" class="cta__btn cta__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
+        </div>
+      }
+    </header>
+
+    <div class="cta__body">
+      <!-- Datos del movimiento -->
+      <section class="cta__block">
+        <h3 class="cta__block-title">Datos del movimiento</h3>
+        <dl class="cta__grid">
+          @for (f of filasGenerales; track f.label) {
+            <div class="cta__item">
+              <dt>{{ f.label }}</dt>
+              <dd>{{ f.value }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <!-- Origen y destino, lado a lado -->
+      <div class="cta__cols">
+        <section class="cta__block cta__block--col">
+          <h3 class="cta__block-title">Origen</h3>
+          <dl class="cta__lista">
+            @for (f of filasOrigen; track f.label) {
+              <div class="cta__item">
+                <dt>{{ f.label }}</dt>
+                <dd>{{ f.value }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        <section class="cta__block cta__block--col">
+          <h3 class="cta__block-title">Destino</h3>
+          <dl class="cta__lista">
+            @for (f of filasDestino; track f.label) {
+              <div class="cta__item">
+                <dt>{{ f.label }}</dt>
+                <dd>{{ f.value }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      </div>
+
+      <!-- Cantidades -->
+      <section class="cta__block">
+        <h3 class="cta__block-title">Aves trasladadas</h3>
+        <div class="cta__cantidades">
+          @for (f of filasCantidades; track f.label) {
+            <div class="cta__cantidad" [class.cta__cantidad--total]="f.label === 'Total de aves'">
+              <span class="cta__cantidad-label">{{ f.label }}</span>
+              <span class="cta__cantidad-valor">{{ f.value }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Transporte -->
+      @if (hayTransporte) {
+        <section class="cta__block">
+          <h3 class="cta__block-title">Transporte</h3>
+          <dl class="cta__grid">
+            @for (f of filasTransporte; track f.label) {
+              <div class="cta__item">
+                <dt>{{ f.label }}</dt>
+                <dd>{{ f.value }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      }
+
+      <!-- Observaciones -->
+      @if (data.observaciones) {
+        <section class="cta__block">
+          <h3 class="cta__block-title">Observaciones</h3>
+          <p class="cta__obs">{{ data.observaciones }}</p>
+        </section>
+      }
+
+      <!-- Firmas -->
+      <section class="cta__firmas">
+        <div class="cta__firma">
+          <div class="cta__firma-linea"></div>
+          <span>Entrega (granja origen)</span>
+        </div>
+        <div class="cta__firma">
+          <div class="cta__firma-linea"></div>
+          <span>Transporta (conductor)</span>
+        </div>
+        <div class="cta__firma">
+          <div class="cta__firma-linea"></div>
+          <span>Recibe (granja destino)</span>
+        </div>
+      </section>
+    </div>
+  </section>
+}

@@ -27,6 +27,7 @@ import { ReporteTecnicoLevanteFilterService } from '../../services/reporte-tecni
 import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component';
 import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
 import { ReportesTabsComponent } from '../../components/reportes-tabs/reportes-tabs.component';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-reporte-tecnico-main',
@@ -54,6 +55,10 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   readonly filterSvc        = inject(ReporteTecnicoLevanteFilterService);
   private readonly reporteService = inject(ReporteTecnicoService);
+  private readonly companyConfig  = inject(ActiveCompanyConfigService);
+
+  /** Empresas sin machos en postura: se retira la pestana y las columnas (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
 
   loading               = signal(false);
   reporteLevante        = signal<ReporteTecnicoLevanteCompletoDto | null>(null);
@@ -78,6 +83,10 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.filterSvc.loadFilterData();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
   }
 
   ngOnDestroy(): void {

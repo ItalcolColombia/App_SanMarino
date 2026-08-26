@@ -6,6 +6,7 @@ import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionRequest, InformacionLoteDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { causaEmptyStateIndicadores } from '../../funciones/empty-state-causa-indicadores.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 interface IndicadorSemanal {
   semana: number;
@@ -115,11 +116,20 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   pieChartType: ChartType = 'pie';
   doughnutChartType: ChartType = 'doughnut';
 
-  constructor() {
+  constructor(private companyConfig: ActiveCompanyConfigService) {
     this.initChartOptions();
   }
 
+
+  /** Empresas sin machos en postura: no se muestran en ningun lado (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
   ngOnInit(): void {
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
+
     this.prepararDatosGraficas();
   }
 

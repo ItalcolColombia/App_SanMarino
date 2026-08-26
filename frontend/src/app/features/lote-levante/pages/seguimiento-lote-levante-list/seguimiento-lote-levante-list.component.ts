@@ -59,6 +59,7 @@ import {
   OrigenTrasladoInfo
 } from '../../../../features/traslados-aves/components/modal-traslado-aves-seguimiento/modal-traslado-aves-seguimiento.component';
 import { TrasladoAvesResultSegDto } from '../../../../features/traslados-aves/services/traslados-aves.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import {
   ConfirmationModalComponent,
   ConfirmationModalData
@@ -200,13 +201,21 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private auth: AuthService,
     private liquidacionCierreSvc: LiquidacionCierreLoteLevanteService,
     private movimientosAvesSvc: MovimientosAvesService,
+    private companyConfig: ActiveCompanyConfigService,
   ) {}
+
+  /** Empresas sin machos en postura: no se muestran ni se capturan en ninguna pantalla. */
+  ocultaMachosEnPostura = false;
 
   // ================== INIT ==================
   ngOnInit(): void {
     // Granjas, núcleos, galpones y lotes se cargan vía filter-data en FiltroSelect (una sola llamada).
     // CARGA CATÁLOGO DE ALIMENTOS (para selects y mapeos en tabla)
     this.loadAlimentosCatalog();
+    this.companyConfig.getFlags().subscribe({
+      next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
+      error: () => (this.ocultaMachosEnPostura = false)
+    });
   }
 
   // ================== CATALOGO ALIMENTOS ==================

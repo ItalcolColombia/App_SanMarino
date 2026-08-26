@@ -64,8 +64,9 @@ function reporteCon(semanas: ReporteContableSemanalDto[]) {
 }
 
 function componenteCon(reporte: ReporteContableCompletoDto | null, sublote: string | null) {
-  // No se renderiza la plantilla: sólo interesa el getter, así que el servicio no se usa.
-  const c = new ReporteContableMainComponent({} as never);
+  // No se renderiza la plantilla: sólo interesa el getter, así que los servicios no se usan
+  // (el 2.º es ActiveCompanyConfigService, que el componente solo consulta en ngOnInit).
+  const c = new ReporteContableMainComponent({} as never, {} as never);
   c.reporte.set(reporte);
   c.selectedSublote = sublote;
   return c;

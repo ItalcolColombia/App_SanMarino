@@ -12,6 +12,11 @@
         <p class="cuadre__subtitle">
           Saldo del ciclo activo contra el stock físico, descontando lo que se movió después del último
           seguimiento.
+          <br/>
+          <b>Son dos señales distintas, no se suman:</b> el <b>descuadre</b> son KILOS que faltan o
+          sobran; los <b>días en negativo</b> son DÍAS que cerraron en rojo con el total correcto
+          (está mal el orden o la fecha de los ingresos). Mezclarlas da un número que asusta y no
+          dice nada.
         </p>
       </div>
       <div class="cuadre__actions">
@@ -65,10 +70,12 @@
                 <th class="text-right">Saldo tabla</th>
                 <th class="text-right">Movs. posteriores</th>
                 <th class="text-right">Stock</th>
-                <th class="text-right">Descuadre</th>
+                <th class="text-right">Descuadre (kg)</th>
+                <th class="text-right">Días en rojo</th>
                 <th class="text-right">Ajustes manuales</th>
                 <th>Estado</th>
                 <th>Detalle</th>
+                <th class="text-right">Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -83,6 +90,13 @@
                   <td class="text-right">{{ f.stockKg | number:'1.0-1' }}</td>
                   <td class="text-right"><strong>{{ f.descuadreKg | number:'1.0-1' }}</strong></td>
                   <td class="text-right">
+                    @if (f.filasNegativas > 0) {
+                      <strong>{{ f.filasNegativas }}</strong>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td class="text-right">
                     @if (f.ajustesManualesCount > 0) {
                       {{ f.ajustesManualesKg | number:'1.0-1' }}
                       <small class="muted">({{ f.ajustesManualesCount }})</small>
@@ -92,6 +106,17 @@
                   </td>
                   <td><span [class]="claseEstadoCuadre(f)">{{ textoEstadoCuadre(f) }}</span></td>
                   <td class="cuadre__detalle">{{ f.detalle }}</td>
+                  <!-- El boton solo aparece donde hay algo que cerrar: ofrecerlo en un galpon que
+                       cuadra invita a escribir un ajuste que no corrige nada. -->
+                  <td class="text-right">
+                    @if (puedeCuadrar && requiereAtencion(f)) {
+                      <button type="button" class="cuadre__btn-cuadrar" (click)="abrirCuadrar(f)">
+                        Cuadrar
+                      </button>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -207,3 +232,11 @@
     }
   </section>
 </div>
+
+<!-- Cierra el descuadre de UN galpon desde la misma pestana que lo senala. -->
+<app-modal-cuadrar-galpon
+  [abierto]="cuadrarAbierto"
+  [fila]="filaACuadrar"
+  (cerrar)="cerrarCuadrar()"
+  (cuadrado)="onCuadrado($event)"
+></app-modal-cuadrar-galpon>

@@ -531,16 +531,24 @@
                         </span>
                       }
                     </div>
+                    @if (!puedeCorregirAves) {
+                      <div class="le-form-note">
+                        🔒 No tiene el permiso <b>lote.corregir_aves</b>: puede editar el resto de los
+                        datos del lote, pero no el encasetamiento.
+                      </div>
+                    }
                   }
 
+                  <!-- Solo al EDITAR: crear un lote fija su encasetamiento inicial y eso no es
+                       "corregir". El backend gatea el mismo caso (el delta contra lo persistido). -->
                   <div class="le-form-grid le-form-grid--wide">
                     <div class="le-field">
                       <label class="le-label">Hembras encasetadas</label>
-                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="hembrasL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
+                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="hembrasL" (input)="actualizarEncasetadas()" [readonly]="editing && !puedeCorregirAves" [class.le-input--readonly]="editing && !puedeCorregirAves" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
                       <label class="le-label">Machos encasetados</label>
-                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="machosL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
+                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="machosL" (input)="actualizarEncasetadas()" [readonly]="editing && !puedeCorregirAves" [class.le-input--readonly]="editing && !puedeCorregirAves" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
                       <label class="le-label">Aves encasetadas</label>
@@ -548,7 +556,7 @@
                     </div>
                     <div class="le-field">
                       <label class="le-label">Mixtas encasetadas</label>
-                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
+                      <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" (input)="actualizarEncasetadas()" [readonly]="editing && !puedeCorregirAves" [class.le-input--readonly]="editing && !puedeCorregirAves" class="le-input" placeholder="0"/>
                     </div>
                     <div class="le-field">
                       <label class="le-label">Peso mixto (g)</label>

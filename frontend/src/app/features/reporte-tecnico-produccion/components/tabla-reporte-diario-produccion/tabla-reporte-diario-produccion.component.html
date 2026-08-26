@@ -14,7 +14,9 @@
           <span class="info-separator">|</span>
           <span class="info-value">HEMBRAS INICIALES: {{ informacionLote.numeroHembrasIniciales || 0 }}</span>
           <span class="info-separator">|</span>
-          <span class="info-value">MACHOS INICIALES: {{ informacionLote.numeroMachosIniciales || 0 }}</span>
+          @if (!ocultaMachosEnPostura) {
+            <span class="info-value">MACHOS INICIALES: {{ informacionLote.numeroMachosIniciales || 0 }}</span>
+          }
           @if (informacionLote.fechaInicioProduccion) {
             <span class="info-separator">|</span>
           }
@@ -34,14 +36,18 @@
         <tr>
           <th rowspan="2">SEMANA</th>
           <th rowspan="2">FECHA</th>
-          <th colspan="2">MORTALIDAD</th>
-          <th colspan="2">SELECCIÓN</th>
-          <th colspan="2">SALDOS</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">MORTALIDAD</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">SELECCIÓN</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">SALDOS</th>
           <th colspan="2">HUEVOS</th>
-          <th colspan="2">KILOS ALIMENTO</th>
+          <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">KILOS ALIMENTO</th>
           <th colspan="2">ENVIADO PLANTA</th>
-          <th rowspan="2">INCUBABLE</th>
-          <th rowspan="2">CARGADO</th>
+          <!-- Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+               INCUBABLE/CARGADO salen de huevo_inc, siempre en 0 -> se ocultan. -->
+          @if (!clasificacionHuevoPorItems) {
+            <th rowspan="2">INCUBABLE</th>
+            <th rowspan="2">CARGADO</th>
+          }
           <th rowspan="2">POLLITOS<br/>% Nacimientos</th>
           <th rowspan="2">VENTA<br/>HUEVO</th>
           <th rowspan="2">POLLITOS<br/>H. VENDIDO</th>
@@ -50,15 +56,21 @@
         </tr>
         <tr>
           <!-- MORTALIDAD -->
-          <th>MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>MACHO</th>
+          }
           <th>HEMBRA</th>
 
           <!-- SELECCIÓN -->
-          <th>MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>MACHO</th>
+          }
           <th>HEMBRA</th>
 
           <!-- SALDOS -->
-          <th>MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>MACHO</th>
+          }
           <th>HEMBRA</th>
 
           <!-- HUEVOS -->
@@ -66,7 +78,9 @@
           <th>%</th>
 
           <!-- KILOS ALIMENTO -->
-          <th>MACHO</th>
+          @if (!ocultaMachosEnPostura) {
+            <th>MACHO</th>
+          }
           <th>HEMBRA</th>
 
           <!-- ENVIADO PLANTA -->
@@ -82,27 +96,37 @@
             <!-- FECHA -->
             <td class="text-center">{{ formatDate(dato.fecha) }}</td>
             <!-- MORTALIDAD -->
-            <td class="text-right">{{ dato.mortalidadMachos }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ dato.mortalidadMachos }}</td>
+            }
             <td class="text-right">{{ dato.mortalidadHembras }}</td>
             <!-- SELECCIÓN -->
-            <td class="text-right">{{ dato.seleccionMachos }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ dato.seleccionMachos }}</td>
+            }
             <td class="text-right">{{ dato.seleccionHembras }}</td>
             <!-- SALDOS -->
-            <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
+            }
             <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
             <!-- HUEVOS -->
             <td class="text-right">{{ dato.huevosTotales }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcentajePostura, 2) }}</td>
             <!-- KILOS ALIMENTO -->
-            <td class="text-right">{{ formatNumber(dato.kilosAlimentoMachos, 1) }}</td>
+            @if (!ocultaMachosEnPostura) {
+              <td class="text-right">{{ formatNumber(dato.kilosAlimentoMachos, 1) }}</td>
+            }
             <td class="text-right">{{ formatNumber(dato.kilosAlimentoHembras, 1) }}</td>
             <!-- ENVIADO PLANTA -->
             <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcentajeEnviadoPlanta, 2) }}</td>
-            <!-- INCUBABLE -->
-            <td class="text-right">{{ dato.huevosIncubables }}</td>
-            <!-- CARGADO -->
-            <td class="text-right">{{ dato.huevosCargados }}</td>
+            @if (!clasificacionHuevoPorItems) {
+              <!-- INCUBABLE -->
+              <td class="text-right">{{ dato.huevosIncubables }}</td>
+              <!-- CARGADO -->
+              <td class="text-right">{{ dato.huevosCargados }}</td>
+            }
             <!-- POLLITOS % Nacimientos -->
             <td class="text-right">{{ dato.porcentajeNacimientos ? formatPercentage(dato.porcentajeNacimientos, 2) : '-' }}</td>
             <!-- VENTA HUEVO -->

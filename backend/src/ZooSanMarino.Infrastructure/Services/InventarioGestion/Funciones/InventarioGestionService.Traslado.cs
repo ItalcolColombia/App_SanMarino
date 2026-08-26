@@ -961,9 +961,23 @@ public partial class InventarioGestionService
     }
 
     /// <summary>
-    /// Elimina todos los movimientos de un TransferGroupId.
-    /// No modifica stock. Marca anulado=true en lote_registro_historico_unificado (auditoría)
-    /// y elimina físicamente todos los registros de inventario_gestion_movimiento del grupo.
+    /// Elimina todos los movimientos de un TransferGroupId: <b>revierte el stock de las dos puntas</b>,
+    /// marca <c>anulado=true</c> en <c>lote_registro_historico_unificado</c> (auditoría) y elimina
+    /// físicamente todos los registros de <c>inventario_gestion_movimiento</c> del grupo.
+    ///
+    /// <para>
+    /// 🔴 <b>Hasta el 25-ago-2026 este método NO tocaba el stock</b> — el mismo defecto que
+    /// <c>EliminarIngresoAsync</c>, pero por duplicado: borrar un traslado dejaba el <b>origen corto</b>
+    /// (nunca recuperaba lo que entregó) y el <b>destino largo</b> (se quedaba con lo que recibió),
+    /// los dos descuadres permanentes y en galpones distintos.
+    /// </para>
+    ///
+    /// <para>
+    /// Cada fila del grupo se revierte contra <b>su propia</b> ubicación, que es la que movió. Un
+    /// traslado inter-granja todavía EN TRÁNSITO tiene una sola fila (la salida) y se revierte solo en
+    /// el origen, sin inventar un destino. Si al destino ya no le quedan los kilos, la eliminación se
+    /// rechaza entera: ninguna punta se toca.
+    /// </para>
     /// </summary>
     public async Task EliminarTrasladoAsync(Guid transferGroupId, CancellationToken ct = default)
     {
@@ -995,8 +1009,24 @@ public partial class InventarioGestionService
         foreach (var h in histElimTraslado)
             h.Anulado = true;
 
-        _db.InventarioGestionMovimientos.RemoveRange(movimientos);
-        await _db.SaveChangesAsync(ct);
+        // Las reversiones de las dos puntas, la anulación del histórico y el borrado van JUNTAS: si
+        // el destino ya no tiene los kilos, no puede quedar el origen devuelto y el destino intacto.
+        await EnTransaccionAsync(async () =>
+        {
+            // Primero las que DESCUENTAN (las entradas): son las únicas que pueden fallar por saldo,
+            // y conviene enterarse antes de haber sumado nada. La transacción revierte igual, pero
+            // así el error que ve el usuario nombra la punta que realmente lo bloquea.
+            foreach (var mov in movimientos.Where(m =>
+                         ReversionMovimientoInventarioCalculos.RequiereStockDisponible(m.MovementType)))
+                await RevertirStockDelMovimientoAsync(mov, ct);
+
+            foreach (var mov in movimientos.Where(m =>
+                         !ReversionMovimientoInventarioCalculos.RequiereStockDisponible(m.MovementType)))
+                await RevertirStockDelMovimientoAsync(mov, ct);
+
+            _db.InventarioGestionMovimientos.RemoveRange(movimientos);
+            await _db.SaveChangesAsync(ct);
+        }, ct);
 
         // Un grupo de traslado toca salida y entrada, y puede repartirse en varios galpones.
         foreach (var ubic in movimientos

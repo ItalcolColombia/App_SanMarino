@@ -57,6 +57,13 @@ public partial class LoteService
 
         var delta = AjusteEncasetamientoCalculos.Calcular(vigente, propuesto);
 
+        // El gate va ANTES de escribir, no después: acá los campos se asignan aunque el delta sea
+        // cero (a diferencia de engorde, que hace return temprano), así que rechazar más abajo
+        // dejaría la base ya pisada en la entidad rastreada.
+        if (!CorreccionAvesLoteAutorizacionCalculos.PuedeAplicar(
+                !AjusteEncasetamientoCalculos.SinCambio(delta), _current.Permissions))
+            throw new UnauthorizedAccessException(CorreccionAvesLoteAutorizacionCalculos.MensajeSinPermiso);
+
         ent.HembrasL = dto.HembrasL;
         ent.MachosL = dto.MachosL;
 

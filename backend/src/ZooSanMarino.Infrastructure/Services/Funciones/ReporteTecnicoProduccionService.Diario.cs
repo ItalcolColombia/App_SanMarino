@@ -33,6 +33,7 @@ public partial class ReporteTecnicoProduccionService
         var machos = lpp.AvesMInicial ?? lpp.MachosInicialesProd ?? lpp.MachosL ?? 0;
 
         var loteInfo = MapearInformacionLoteFromLPP(lpp);
+        loteInfo = loteInfo with { ClasificacionHuevoPorItems = await ResolverClasificacionHuevoPorItemsAsync(ct) };
         var datosDiarios = await ObtenerDatosDiariosPorLPPAsync(
             lotePosturaProduccionId,
             lpp.LoteId,
@@ -151,6 +152,7 @@ public partial class ReporteTecnicoProduccionService
         var datosSemanales = await ConsolidarSemanalesConsolidadoLPPAsync(datosConsolidados, fechaInicioProduccion, sublotesLpp, ct);
 
         var loteInfo = MapearInformacionLoteFromLPP(sublotesLpp.First());
+        loteInfo = loteInfo with { ClasificacionHuevoPorItems = await ResolverClasificacionHuevoPorItemsAsync(ct) };
 
         return new ReporteTecnicoProduccionCompletoDto(
             loteInfo,

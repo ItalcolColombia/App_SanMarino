@@ -61,10 +61,12 @@
                 <span class="label">Hembras Vivas:</span>
                 <span class="value">{{ disponibilidad()!.aves?.hembrasVivas || 0 }}</span>
               </div>
-              <div class="disponibilidad-item">
-                <span class="label">Machos Vivos:</span>
-                <span class="value">{{ disponibilidad()!.aves?.machosVivos || 0 }}</span>
-              </div>
+              @if (!ocultaMachosEnPostura) {
+                <div class="disponibilidad-item">
+                  <span class="label">Machos Vivos:</span>
+                  <span class="value">{{ disponibilidad()!.aves?.machosVivos || 0 }}</span>
+                </div>
+              }
               <div class="disponibilidad-item">
                 <span class="label">Total Aves:</span>
                 <span class="value highlight">{{ disponibilidad()!.aves?.totalAves || 0 }}</span>
@@ -72,11 +74,17 @@
             </div>
             <div class="disponibilidad-details">
               <p><strong>Hembras Iniciales:</strong> {{ disponibilidad()!.aves?.hembrasIniciales || 0 }}</p>
-              <p><strong>Machos Iniciales:</strong> {{ disponibilidad()!.aves?.machosIniciales || 0 }}</p>
+              @if (!ocultaMachosEnPostura) {
+                <p><strong>Machos Iniciales:</strong> {{ disponibilidad()!.aves?.machosIniciales || 0 }}</p>
+              }
               <p><strong>Mortalidad Acumulada Hembras:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaHembras || 0 }}</p>
-              <p><strong>Mortalidad Acumulada Machos:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaMachos || 0 }}</p>
+              @if (!ocultaMachosEnPostura) {
+                <p><strong>Mortalidad Acumulada Machos:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaMachos || 0 }}</p>
+              }
               <p><strong>Retiros Acumulados Hembras:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosHembras || 0 }}</p>
-              <p><strong>Retiros Acumulados Machos:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosMachos || 0 }}</p>
+              @if (!ocultaMachosEnPostura) {
+                <p><strong>Retiros Acumulados Machos:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosMachos || 0 }}</p>
+              }
             </div>
           </div>
         }
@@ -116,6 +124,7 @@
             }
           </div>
 
+          @if (!ocultaMachosEnPostura) {
           <div class="form-group">
             <label for="cantidadMachos">Cantidad de Machos <span class="required">*</span></label>
             <input
@@ -131,6 +140,7 @@
                 </div>
               }
             </div>
+          }
 
             <!-- Campos para Traslado -->
             @if (formAves.get('tipoOperacion')?.value === 'Traslado') {

@@ -30,6 +30,7 @@ import { Company, CompanyService } from '../../../../core/services/company/compa
 import { GuiaGeneticaService } from '../../services/guia-genetica.service';
 import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
 import { ModalAsignarHuevoItemsComponent } from '../modal-asignar-huevo-items/modal-asignar-huevo-items.component';
 import {
@@ -247,6 +248,19 @@ export class LoteListComponent implements OnInit {
 
   /** Flag de la empresa activa: muestra el bloque de centro de costo ERP. Fail-closed. */
   manejaCodigosErp = false;
+  /** Empresas sin machos en postura: no se capturan ni se muestran (SR-DEF-1). */
+  ocultaMachosEnPostura = false;
+
+  /**
+   * Permiso para corregir el ENCASETAMIENTO de un lote que ya tiene seguimiento. Hasta el
+   * 25-ago-2026 esta pantalla no tenia NINGUN gate: quien viera el modulo en el menu podia cambiar
+   * las aves de cualquier lote de postura de su empresa, con la cascada a 6 copias incluida.
+   *
+   * Campo y no getter: los permisos solo cambian con la sesion, y un getter por ciclo de change
+   * detection no compra nada.
+   */
+  readonly permCorregirAves = 'lote.corregir_aves';
+  puedeCorregirAves = false;
 
   /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
   manejaInventarioPorSilo = false;
@@ -351,7 +365,8 @@ export class LoteListComponent implements OnInit {
     private companySvc: CompanyService,
     private guiaGeneticaSvc: GuiaGeneticaService,
     private toastService: ToastService,
-    private companyConfig: ActiveCompanyConfigService
+    private companyConfig: ActiveCompanyConfigService,
+    private permSvc: UserPermissionService
   ) {}
 
   // Método de prueba para diagnosticar problemas
@@ -369,6 +384,7 @@ export class LoteListComponent implements OnInit {
 
   // ===================== Ciclo de vida ======================
   ngOnInit(): void {
+    this.puedeCorregirAves = this.permSvc.has(this.permCorregirAves);
     this.initForm();
     this.initBaseForm();
     this.loadData();
@@ -530,6 +546,8 @@ export class LoteListComponent implements OnInit {
       this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
       // F7.3 — el botón de tipos de huevo solo existe si la empresa clasifica por ítems.
       this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      // SR-DEF-1 — empresas sin machos en postura no los capturan ni los muestran en ningún lado.
+      this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
 
       // Las pestañas por etapa son opcionales por empresa. Si el flag se apaga mientras el usuario
       // está parado en una de ellas, hay que devolverlo a la lista completa o se quedaría mirando

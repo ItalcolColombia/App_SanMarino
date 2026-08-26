@@ -52,6 +52,12 @@ public class ReporteTecnicoProduccionExcelService
 
     private void EscribirReporteDiario(ExcelWorksheet ws, ReporteTecnicoProduccionCompletoDto reporte)
     {
+        // Empresas que clasifican por ITEM del catalogo (flag clasificacion_huevo_por_items):
+        // INCUBABLE (col 15) y CARGADO (col 16) salen de huevo_inc, siempre en 0. El indice de
+        // columna es fijo en toda la hoja (sin lista dinamica que filtrar como en Contable), asi
+        // que se deja el encabezado y se deja SIN ASIGNAR la celda de dato -- ningun otro indice
+        // se mueve.
+        var clasificacionHuevoPorItems = reporte.LoteInfo.ClasificacionHuevoPorItems;
         var row = 1;
 
         // Encabezado
@@ -122,8 +128,11 @@ public class ReporteTecnicoProduccionExcelService
             ws.Cells[row, 12].Value = dato.KilosAlimentoHembras;
             ws.Cells[row, 13].Value = dato.HuevosEnviadosPlanta;
             ws.Cells[row, 14].Value = dato.PorcentajeEnviadoPlanta;
-            ws.Cells[row, 15].Value = dato.HuevosIncubables;
-            ws.Cells[row, 16].Value = dato.HuevosCargados;
+            if (!clasificacionHuevoPorItems)
+            {
+                ws.Cells[row, 15].Value = dato.HuevosIncubables;
+                ws.Cells[row, 16].Value = dato.HuevosCargados;
+            }
             ws.Cells[row, 17].Value = dato.PorcentajeNacimientos;
             ws.Cells[row, 18].Value = dato.VentaHuevo;
             ws.Cells[row, 19].Value = dato.PollitosVendidos;
@@ -148,6 +157,11 @@ public class ReporteTecnicoProduccionExcelService
 
     private void EscribirCuadro(ExcelWorksheet ws, ReporteTecnicoProduccionCuadroCompletoDto reporte)
     {
+        // Empresas que clasifican por ITEM del catalogo: HUEVOS INCUB (col 23) y H. CARGA (col 25)
+        // salen de huevo_inc, siempre en 0. STD ROSS (col 24, guia genetica) no depende de
+        // huevo_inc y se mantiene. %DESCARTE/%ACUM INCUB/LAA tambien son huevo_inc-dependientes
+        // pero esta hoja simplificada nunca los escribe -- nada que gatear ahi.
+        var clasificacionHuevoPorItems = reporte.LoteInfo.ClasificacionHuevoPorItems;
         var row = 1;
 
         // Encabezado
@@ -254,9 +268,15 @@ public class ReporteTecnicoProduccionExcelService
             ws.Cells[row, 20].Value = dato.EnviadosPlanta;
             ws.Cells[row, 21].Value = dato.PorcentajeEnviaP;
             ws.Cells[row, 22].Value = dato.PorcentajeHala;
-            ws.Cells[row, 23].Value = dato.HuevosIncub;
+            if (!clasificacionHuevoPorItems)
+            {
+                ws.Cells[row, 23].Value = dato.HuevosIncub;
+            }
             ws.Cells[row, 24].Value = dato.StdRoss;
-            ws.Cells[row, 25].Value = dato.HCarga;
+            if (!clasificacionHuevoPorItems)
+            {
+                ws.Cells[row, 25].Value = dato.HCarga;
+            }
             ws.Cells[row, 26].Value = dato.Paa;
             ws.Cells[row, 27].Value = dato.PaaRoss;
             ws.Cells[row, 28].Value = dato.KgSemHembra;

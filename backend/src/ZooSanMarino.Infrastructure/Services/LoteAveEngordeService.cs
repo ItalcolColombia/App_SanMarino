@@ -536,6 +536,14 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         var delta = AjusteEncasetamientoCalculos.Calcular(inicialVigente, propuesto);
         if (AjusteEncasetamientoCalculos.SinCambio(delta)) return;
 
+        // A partir de acá el PUT SÍ mueve aves, así que exige la key dedicada. El gate está acá y no
+        // en el controller a propósito: es el único punto donde ya se sabe si el ajuste mueve aves o
+        // si el usuario solo vino a corregir el técnico. Hasta el 25-ago-2026 no había ningún
+        // chequeo de permiso en este camino — el *appHasPermission del front solo escondía el botón y
+        // el mismo PUT por curl aplicaba el ajuste igual.
+        if (!CorreccionAvesLoteAutorizacionCalculos.PuedeAplicar(true, _current.Permissions))
+            throw new UnauthorizedAccessException(CorreccionAvesLoteAutorizacionCalculos.MensajeSinPermiso);
+
         var inicialNuevo = AjusteEncasetamientoCalculos.Normalizar(inicialVigente, propuesto);
 
         if (delta.Total < 0 && loteId > 0)

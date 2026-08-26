@@ -745,9 +745,27 @@ public partial class InventarioGestionService
     }
 
     /// <summary>
-    /// Elimina un movimiento de tipo Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada.
-    /// No modifica stock. Marca anulado=true en lote_registro_historico_unificado (auditoría)
-    /// y elimina físicamente el registro de inventario_gestion_movimiento.
+    /// Elimina un movimiento de tipo Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada:
+    /// <b>revierte el stock</b>, marca <c>anulado=true</c> en <c>lote_registro_historico_unificado</c>
+    /// (auditoría) y elimina físicamente el registro de <c>inventario_gestion_movimiento</c>.
+    ///
+    /// <para>
+    /// 🔴 <b>Hasta el 25-ago-2026 este método NO tocaba el stock</b>, mientras el doc del endpoint
+    /// prometía que sí. Efecto: el histórico quedaba anulado —la tabla diaria dejaba de contar el
+    /// ingreso, que es lo correcto— pero los kilos seguían vivos en <c>inventario_gestion_stock</c>,
+    /// y el invariante del cuadre (<c>saldo == stock − movimientos posteriores</c>) quedaba roto
+    /// <b>para siempre</b>: nada de lo que hiciera el usuario volvía a tocar ese stock.
+    /// Medido en Sacachún 3A / 685062 / G0044, ítem 5: tabla 7.720,000 kg contra stock 12.720,000 kg,
+    /// y esos 5.000,000 de diferencia son el ingreso duplicado de la remisión 63705 que la operación
+    /// había borrado cuatro días antes.
+    /// </para>
+    ///
+    /// <para>
+    /// La reversión sigue el patrón ya probado de <c>AnularMovimientoHistoricoAsync</c>: transacción
+    /// única y <c>UPDATE</c> atómico condicional. Si los kilos ya se los llevó un consumo o un
+    /// traslado posterior, la eliminación se <b>rechaza</b> en vez de dejar el stock en negativo —
+    /// ver <see cref="ReversionMovimientoInventarioCalculos.MensajeStockInsuficienteParaRevertir"/>.
+    /// </para>
     /// </summary>
     public async Task EliminarIngresoAsync(int movimientoId, CancellationToken ct = default)
     {
@@ -811,9 +829,79 @@ public partial class InventarioGestionService
         if (histElimIngreso != null)
             histElimIngreso.Anulado = true;
 
-        _db.InventarioGestionMovimientos.Remove(mov);
-        await _db.SaveChangesAsync(ct);
+        // La reversión del stock, la anulación del histórico y el borrado del movimiento van JUNTAS.
+        // Partirlas es exactamente el defecto que este método tenía: el histórico anulado sin la
+        // reversión deja kilos que la tabla diaria ya no cuenta pero el inventario sigue teniendo.
+        await EnTransaccionAsync(async () =>
+        {
+            await RevertirStockDelMovimientoAsync(mov, ct);
+
+            _db.InventarioGestionMovimientos.Remove(mov);
+            await _db.SaveChangesAsync(ct);
+        }, ct);
+
         // El histórico queda `anulado`, que el saldo sí filtra: el alimento eliminado debe desaparecer.
         await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+    }
+
+    /// <summary>
+    /// Deshace el efecto de UN movimiento sobre el stock de su propia ubicación.
+    ///
+    /// <para>
+    /// Cada fila de <c>inventario_gestion_movimiento</c> guarda la ubicación que ELLA movió
+    /// (<c>farm_id</c>/<c>nucleo_id</c>/<c>galpon_id</c>/<c>silo_id</c>); los campos <c>From*</c> son
+    /// el otro extremo del traslado, que tiene su propia fila. Por eso revertir es uniforme: se le
+    /// aplica a cada fila el inverso de lo que hizo, sin que el llamador tenga que saber si es la
+    /// punta de salida o la de entrada.
+    /// </para>
+    ///
+    /// <para>
+    /// El signo lo decide <see cref="ReversionMovimientoInventarioCalculos"/> (puro, con tests): es
+    /// la parte que puede equivocarse en silencio y dejar el stock movido para el lado contrario.
+    /// </para>
+    /// </summary>
+    private async Task RevertirStockDelMovimientoAsync(InventarioGestionMovimiento mov, CancellationToken ct)
+    {
+        var efecto = ReversionMovimientoInventarioCalculos.EfectoSobreStock(mov.MovementType);
+
+        switch (efecto)
+        {
+            case ReversionMovimientoInventarioCalculos.EfectoReversion.Ninguno:
+                return;
+
+            case ReversionMovimientoInventarioCalculos.EfectoReversion.NoSoportado:
+                throw new InvalidOperationException(
+                    ReversionMovimientoInventarioCalculos.MensajeTipoNoReversible);
+
+            case ReversionMovimientoInventarioCalculos.EfectoReversion.Descontar:
+            {
+                // Deshacer una ENTRADA resta: si otro movimiento ya se llevó esos kilos, no se puede
+                // borrar sin dejar el stock en negativo. Se rechaza, igual que AnularMovimientoHistoricoAsync.
+                var stock = await BuscarStockSinRastreoAsync(
+                    mov.FarmId, mov.ItemInventarioEcuadorId, mov.NucleoId, mov.GalponId, mov.SiloId, ct);
+
+                if (stock == null || !await DescontarStockAtomicoAsync(stock.Id, mov.Quantity, ct))
+                    throw new InvalidOperationException(
+                        ReversionMovimientoInventarioCalculos.MensajeStockInsuficienteParaRevertir);
+                return;
+            }
+
+            case ReversionMovimientoInventarioCalculos.EfectoReversion.Devolver:
+            {
+                // Deshacer una SALIDA suma, y sumar nunca falla por saldo. La unidad la fija el
+                // catálogo del ítem (TK-2026-000019): el movimiento puede traer una unidad vieja.
+                var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
+                var unidadCatalogo = await _db.ItemInventario.AsNoTracking()
+                    .Where(i => i.Id == mov.ItemInventarioEcuadorId)
+                    .Select(i => i.Unidad)
+                    .FirstOrDefaultAsync(ct);
+
+                await SumarStockAtomicoAsync(
+                    cId, pId, mov.FarmId, mov.NucleoId, mov.GalponId,
+                    mov.ItemInventarioEcuadorId, mov.Quantity,
+                    UnidadInventarioCalculos.Resolver(unidadCatalogo, mov.Unit), mov.SiloId, ct);
+                return;
+            }
+        }
     }
 }

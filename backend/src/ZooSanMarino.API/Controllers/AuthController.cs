@@ -142,6 +142,9 @@ public class AuthController : ControllerBase
     /// (eso se hace por el flujo administrativo de usuarios). Defensa contra escalada de privilegios.
     /// </summary>
     [Authorize]
+    // Segunda puerta de alta de usuarios: gatear solo POST /api/Users la dejaría abierta. El propio
+    // doc de arriba ya la declara «función administrativa»; desde el 25-ago-2026 eso se enforcea.
+    [ZooSanMarino.API.Infrastructure.GestionUsuariosEscrituraFilter]
     [HttpPost("register")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]

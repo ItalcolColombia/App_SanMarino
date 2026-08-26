@@ -123,6 +123,7 @@
                   }
                 </div>
               </div>
+              @if (!ocultaMachosEnPostura) {
               <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleMortalidadMachos)">
                 <div class="card-header">
                   <h5>Mortalidad Machos</h5>
@@ -151,6 +152,7 @@
                   }
                 </div>
               </div>
+              }
               <!-- Consumo -->
               <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleConsumoHembras)">
                 <div class="card-header">
@@ -180,6 +182,7 @@
                   }
                 </div>
               </div>
+              @if (!ocultaMachosEnPostura) {
               <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleConsumoMachos)">
                 <div class="card-header">
                   <h5>Consumo Machos</h5>
@@ -208,6 +211,7 @@
                   }
                 </div>
               </div>
+              }
               <!-- Peso -->
               @if (comparacion.pesoFinalHembras) {
                 <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumplePesoHembras)">
@@ -239,7 +243,7 @@
                   </div>
                 </div>
               }
-              @if (comparacion.pesoFinalMachos) {
+              @if (!ocultaMachosEnPostura && comparacion.pesoFinalMachos) {
                 <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumplePesoMachos)">
                   <div class="card-header">
                     <h5>Peso Machos</h5>
