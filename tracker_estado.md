@@ -3648,7 +3648,9 @@ Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_des
 
 ---
 
-## X19 · Guía Genética — tres módulos con identidad propia (26-ago-2026)
+## X20 · Guía Genética — tres módulos con identidad propia (26-ago-2026) — CERRADO, commit `a34e7bb`
+
+> Renumerado de X19 a **X20**: ya existía un bloque X19 (App móvil, 22-ago) más arriba en el archivo.
 
 Plan: [`fase_de_desarrollo/guia_genetica_tres_modulos_plan.md`](fase_de_desarrollo/guia_genetica_tres_modulos_plan.md)
 
@@ -3814,11 +3816,24 @@ cargar su línea genética.
       perdería su ítem viejo y el nuevo no llevaría a ningún lado.
 
 ### Validación
-- [ ] `dotnet build` + `dotnet test` + `yarn build` + `dotnet ef database update` local.
-- [ ] Gate multipaís: 2ª corrida de `verificar_paridad_guia_genetica.sql` ⇒ **0 en todas las
-      columnas** para toda empresa que no sea Santa Reyes.
-- [ ] Smoke doble: Sanmarino/Demo ⇒ cero cambios visibles salvo el rótulo; Santa Reyes ⇒ 615 filas,
-      alta, edición, baja, import idempotente.
+- [x] **Corrido por el orquestador, no por los agentes** (`dotnet build` 0 errores / 0 warnings ·
+      `dotnet test` **3453/3453**, 112 nuevos · `yarn build` 0 errores · `dotnet ef database update`
+      aplicó las 3 migraciones en la BD local). Y el backend **arranca limpio** con ellas aplicadas
+      (`Now listening on: http://[::]:5502` + `Application started`) — era el riesgo de SIGSEGV que
+      documenta CLAUDE.md §🚀. Backend apagado al terminar, `:5502` y `:5002` verificados libres.
+- [x] **Gate multipaís — delta cero medido**: línea base tomada 10:20:14 (pre-migración), 2ª corrida
+      post-aplicación ⇒ **24 objetos × empresa con 0 en todas las columnas de diff** y **0 claves
+      cambiadas**. Cubre Sanmarino (889 filas de guía), Demo (224), Ecuador (15+1+171), Panamá (1+57).
+- [x] **Menú efectivo verificado con `fn_menu_usuario` post-migración** — la fn que arma el sidebar,
+      no `company_menus` a mano: Sanmarino 5 usuarios y Demo 3 siguen en `/config/guia-genetica`,
+      Ecuador 2 y Panamá 5 en `/config/guia-genetica-ecuador`, **Santa Reyes 2 → `/config/guia-genetica-santa-reyes`**.
+      Swap 1:1: nadie fuera de Santa Reyes pierde ni gana una ruta. Tildes confirmadas en BD por
+      comparación contra el literal (`label = 'Guía Genética Pollo Engorde'` ⇒ `t`).
+- [!] **Smoke en navegador NO hecho** — no tengo credenciales de un usuario de Santa Reyes y Swagger
+      está detrás de su propia pantalla de auth. Lo que sí quedó probado sin token: el endpoint existe
+      y está gateado (`GET /api/guia-genetica-santa-reyes` ⇒ **401**). **Falta que alguien entre y haga
+      alta / edición / baja / import** con un usuario real de Santa Reyes antes de dar el módulo por
+      bueno en producción.
 
 ### Fuera de alcance, declarado (§7 del plan)
 - [i] **Hueco de LECTURA**: `fn_indicadores_produccion_postura` y `fn_indicadores_levante_postura`
