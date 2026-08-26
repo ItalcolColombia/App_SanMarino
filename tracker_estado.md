@@ -3628,6 +3628,17 @@ Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_des
 - [x] **Defecto encontrado y corregido en la propia validación**: la 1ª versión del loop dormía
       60 s **después** del 3er fallo y anunciaba un reintento que no existía. Ahora el sleep se
       saltea en el último intento.
-- [ ] **Validación en pipeline (PENDIENTE, no afirmable desde acá)**: el 2º deploy consecutivo sin
-      cambios en `yarn.lock` debe dar layers `CACHED` > 0. El 1º todavía baja todo, porque la imagen
-      que hoy está en ECR no tiene manifiesto de caché.
+- [x] **Verificado con Docker REAL** (máquina con 0 imágenes y 0 caché, = runner limpio): con
+      `--cache-from :deps-cache` y el caché en cero ⇒ **5 layers CACHED incluido el `yarn install`,
+      3 s sin tocar npm**. Control con `--cache-from` contra la imagen completa (lo que hace CI hoy)
+      ⇒ **0 CACHED, 113 s, bajó los 763 paquetes**. Misma prueba, única variable distinta.
+- [x] **Los otros 6 controles**: BuildKit acepta el `RUN`; loop bajo el `ash` real de Alpine
+      (BusyBox 1.37.0) con los 3 casos; backend `--target restore` OK; build completo end-to-end
+      (`verificar-ngsw` 197 archivos, `nginx -t` OK, imagen 64,8 MB); **invalidación** al cambiar
+      `yarn.lock` (5 ⇒ 3 CACHED, vuelve a la red: no sirve dependencias viejas); y **round-trip por
+      un registry real** (push → borrar local → pull → build ⇒ 5 CACHED), que era el único hueco
+      que dejaban las pruebas con imágenes locales.
+- [ ] **Falta verlo en el pipeline**: el 1er deploy con el cambio TODAVÍA baja todo (la tag
+      `:deps-cache` aún no existe en ECR — ese run la crea). El 2º es el que debe dar `CACHED` > 0.
+      ⚠️ El deploy lanzado el 26-ago (run 32971303424, `main-produccion@5e780e5`) **NO lleva estos
+      arreglos**: `8a78ea5` sigue sin pushear.

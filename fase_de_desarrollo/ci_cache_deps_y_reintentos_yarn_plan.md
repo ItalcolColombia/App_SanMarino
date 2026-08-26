@@ -92,3 +92,28 @@ byte a byte el mismo.
 - Casos 1–5, locales, antes de commitear.
 - Caso 6 sólo se puede confirmar **en el pipeline**, comparando el conteo de `CACHED` del run
   siguiente contra el 0/0 de este. Queda anotado como verificación pendiente, no como hecho.
+
+## 8. Verificación con Docker real (26-ago-2026)
+
+Corrida en una máquina con **0 imágenes y 0 caché de build** — el mismo estado que un runner
+limpio de CI. Todo medido, no inferido.
+
+| # | Prueba | Resultado |
+|---|---|---|
+| 1 | BuildKit acepta el `RUN` con reintentos | ✅ `yarn install` completó, 111 s |
+| 2 | Loop bajo el `ash` real de Alpine (BusyBox v1.37.0) | ✅ `sh -n` OK; 0 fallos ⇒ 1 invocación/exit 0; 2 ⇒ anda a la 3ª/exit 0; 3 ⇒ exit 1 |
+| 3 | Backend `--target restore` | ✅ `dotnet restore` 20,7 s, imagen escrita |
+| 4 | **`--cache-from :deps-cache` con caché de build en CERO** | ✅ **5 layers CACHED, incluido el `yarn install`. 3 s, sin tocar npm** |
+| 5 | **Control: `--cache-from` contra la imagen completa (lo que hace CI HOY)** | ❌ **0 CACHED, 113 s, bajó los 763 paquetes** — reproduce el bug |
+| 6 | Build completo end-to-end | ✅ bundle Angular OK, `verificar-ngsw` 197 archivos con SHA1 coincidente, `nginx -t` OK, imagen 64,8 MB |
+| 7 | Invalidación al cambiar `yarn.lock` | ✅ 5 CACHED → 3 CACHED, vuelve a la red, 97 s. **No sirve dependencias viejas** |
+| 8 | Round-trip por un registry real (push → borrar local → pull → build) | ✅ 5 CACHED, 3 s, cero red. El manifiesto sobrevive el push/pull |
+
+Las filas 4 y 5 son la misma prueba con lo único distinto siendo el `--cache-from`: es la
+evidencia de que el arreglo es lo que hace la diferencia, no otra variable.
+
+La fila 8 cierra el hueco de que las pruebas 1-7 usaban imágenes locales: en CI la imagen va y
+vuelve por ECR, y el inline cache sobrevive ese viaje.
+
+**Limpieza:** contenedores, imágenes y caché eliminados; Docker quedó en 0/0/0 como estaba. Se
+evitó a propósito `docker volume prune`, que habría borrado `backend_pgdata` (la BD local).
