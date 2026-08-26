@@ -194,28 +194,134 @@ Sin eso, la regla es correcta y la operación la va a sentir como un castigo.
 
 ---
 
-## 9. La ambigüedad que falta cerrar: ¿un día FALTANTE también bloquea?
+## 9. ✅ RESUELTO por el usuario: un día FALTANTE también bloquea
 
-«Que todo quede cuadrado día a día» admite dos lecturas:
+Decisión textual: *«todos los días se tienen que llenar hasta que se liquide el lote (…) debe mostrar
+cuáles no hay registro (…) y también hace esa validación, de tener registros para esos días que
+tienen esos huecos. Sí o sí, antes de dejarlo seguir con el proceso.»*
 
-- **(A) Solo los registros que existen y no están confirmados bloquean.** Es lo que hace hoy el
-  código: `LeerPendientesDelLoteAsync` lee registros existentes sin validar. Un día que **nunca se
-  capturó** no bloquea nada.
-- **(B) Un hueco en la serie también bloquea** — «cuadrado día a día» de verdad.
+Queda elegida la lectura **(B)**: el hueco bloquea. Lo que sigue es lo que hay que resolver para que
+esa regla se pueda cumplir sin dejar a nadie encerrado.
 
-🔴 **El número decide, y es grande.** Huecos en los lotes **abiertos**:
+### 9.1 🔴 Tal como está escrita hoy, la guarda se muerde la cola
 
-| Empresa | Huecos | Lotes con hueco | Peor hueco |
+`AsegurarPuedeRegistrarDiaAsync(modulo, loteId)` **no recibe la fecha** del registro que se está
+creando, y corre en la **primera línea** del create (`SeguimientoAvesEngordeService.Crud.cs:96`),
+antes incluso de validar la fecha contra el encasetamiento.
+
+Si a esa guarda se le agrega «los huecos bloquean», entonces bloquea **también el POST que vendría a
+llenar el hueco**. El lote queda encerrado y no hay pantalla que lo destrabe: es **exactamente** el
+callejón sin salida del cruce que se arregló en `14daf32`, reintroducido por otra puerta.
+
+**El fix es de diseño, no de detalle:** la guarda tiene que recibir la fecha y **eximir el día que se
+está llenando** cuando ese día es uno de los faltantes. Son 5 call sites
+(`ProduccionService.Seguimiento.cs:236`, `SeguimientoAvesEngordeService.Crud.cs:96`,
+`SeguimientoAvesEngordeEcuadorService.Crud.cs:40`, `SeguimientoDiarioLoteReproductoraService.cs:270`,
+`SeguimientoLoteLevanteService.Crud.cs:35`). **Ningún test actual cubre esto**, porque hoy la fecha no
+participa de la decisión.
+
+### 9.2 ✅ El camino para llenar el hueco existe y está limpio
+
+Era la pregunta directa del usuario («que el campo fecha en el modal me deje agregar el día
+específico que hace falta»). Verificado punta a punta:
+
+| Qué | Estado |
+|---|---|
+| Campo fecha del modal (`modal-seguimiento-engorde.component.html:36`) | ✅ `<input type="date">` **sin `min` ni `max`** — acepta cualquier día |
+| Duplicar un día por accidente | ✅ Imposible: índice único `uq_seg_diario_aves_engorde_lote_fecha (lote, fecha)` |
+| Ventana de fecha retroactiva (el permiso de Lady) | ✅ **No aplica**: `ValidarVentanaFechaRegistro` sólo está en los controllers de inventario, gastos, movimientos y traslados. Los seguimientos **nunca** estuvieron limitados por fecha |
+| Única cota de fecha en el create | ✅ No anterior al primer día del lote (encasetamiento + hora), `Crud.cs:118`. Correcta, no estorba |
+| Aritmética al insertar un día **en el medio** | ✅ `RecalcularPorLoteAsync` reescribe `saldo_alimento_kg` de **todos** los días del lote desde la fn — los días posteriores se corrigen solos |
+| La guarda de vencidos | 🔴 Ver §9.1 — es lo único que hay que tocar |
+
+### 9.3 🔴 El número que di antes era el chico: la cola cambia la escala
+
+Los **40 huecos / 37 lotes** que se reportaron eran sólo los **interiores** (entre el primer y el
+último registro). Con la definición del usuario —*todos los días hasta que se liquide*— hay que contar
+también la **cola**: desde el último registro hasta ayer. Medido el 25-ago-2026 sobre la copia de
+producción, lotes abiertos (`liquidado_at IS NULL`):
+
+| Empresa | Días faltantes | Lotes | **Interiores** | **Cola** | Hueco más viejo |
+|---|---:|---:|---:|---:|---:|
+| **ItalcolPanama** | **565** | 44 | 41 | **524** | 72 días |
+| **ItalcolEcuador** | **133** | 5 | 4 | **129** | 130 días |
+
+**El 93 % del problema es cola, no hueco interior.** Y la cola es otra cosa:
+
+| Panamá — tramo | Lotes | Días | Edad del lote |
 |---|---:|---:|---:|
-| **ItalcolPanama** | 40 | **37** | 2 días |
-| **ItalcolEcuador** | 1 | 1 | 4 días |
+| al día | 11 | 0 | 18–33 |
+| cola 1–3 días | 5 | 8 | 8–40 |
+| cola 4–7 días | 10 | 52 | 12–47 |
+| **cola > 7 días** | **18** | **464** | **15–78** |
 
-Con la lectura **(B)**, **37 lotes abiertos de Panamá quedan bloqueados el día del deploy** y no hay
-forma de destrabarlos salvo capturando esos días faltantes. Con **(A)**, ninguno.
+### 9.4 🔴 La cola de Panamá son lotes TERMINADOS que nadie cerró
 
-**Recomendación: empezar por (A)**, que es lo que el usuario describió literalmente («el día anterior
-debe estar confirmado» habla de un registro que existe), y tratar los huecos como un **reporte**
-aparte. Pasar a (B) sería una segunda etapa, con los 37 lotes saneados antes.
+Los 18 lotes de cola larga tienen entre 50 y 78 días de edad —un engorde se saca a ~42— y **cero
+salidas registradas**, con unas 650.000 aves todavía en papel. La causa está a la vista:
+
+> **Panamá tiene 3 ventas registradas en todo el sistema. Ecuador tiene 1.452.**
+
+Panamá no registra la venta ni liquida el lote: **la cola *es* su final de lote normal**. El caso de
+Ecuador es el mismo cuadro al revés — el lote 2601 lleva 125 días de cola, 191 de edad, y ya tiene
+50.896 aves vendidas contra 25.400 encasetadas: terminado hace meses.
+
+⚠️ **Consecuencia:** aplicar la regla literal a la cola le pide al operario que **invente ~460
+registros diarios** de lotes cuyas aves ya no están en la granja. Eso no cuadra nada — ensucia el
+histórico con datos falsos y no es lo que el usuario quiere lograr.
+
+**Recomendación (decisión del usuario, no se implementa sin su OK):** separar los dos casos.
+
+- **Hueco interior ⇒ bloquea.** Son 41 días en Panamá y 4 en Ecuador, casi todos de **un solo día**,
+  sin patrón de fin de semana (jue 14, dom 10, mié 9): olvidos legítimos y llenables. Es exactamente
+  la regla que el usuario pidió, y su costo es manejable.
+- **Cola ⇒ avisa, y se resuelve liquidando el lote**, no inventando días. Si igual se quiere que
+  bloquee, que sea con un techo (p. ej. más de N días de cola ⇒ el lote se manda a liquidar, no a
+  capturar).
+
+### 9.5 Los días concretos que faltan (interiores, para el aviso)
+
+Ecuador — Kilometro 86, lote 12 «2601»: 2026-04-17 al 20 (4 días).
+
+Panamá, 37 lotes / 41 días. Los de más de un día:
+
+| Granja | Lote | Días faltantes |
+|---|---|---|
+| MENDOZA | 160 «17 - 2» | 2026-06-27, 2026-06-28 |
+| DOÑA MARIA | 165 «94 - 2» | 2026-07-08, 2026-07-28 |
+| DOÑA MARIA | 169 «60 - 4» | 2026-07-12, 2026-07-31 |
+| DOÑA MARIA | 171 «60 - 2» | 2026-07-16, 2026-08-10 |
+
+Los 33 restantes tienen **exactamente un día** cada uno. La consulta que los lista está en
+`backend/sql/verificar_huecos_dias_seguimiento_engorde.sql`.
+
+### 9.6 El aviso que pidió el usuario
+
+*«darle un mensaje, alguna novedad, decirle: ese lote le hace falta tales días»*. El molde ya existe:
+`ValidacionSeguimientoCalculos.MensajeBloqueoPorVencidos(fechas)` nombra las fechas concretas en vez
+de un «tiene pendientes» genérico. El mensaje de huecos debe seguir el mismo criterio y **distinguir
+las dos causas**, porque se arreglan distinto:
+
+- «Faltan los días 2026-07-08 y 2026-07-28 — registralos para continuar.» (hueco interior)
+- «Este lote no tiene registros desde 2026-06-20 (65 días). Si ya salió, liquidalo.» (cola)
+
+### 9.7 Descartado: la cola **no** la causa el bloqueo
+
+Hipótesis razonable que había que descartar antes de culpar al operario: *un lote bloqueado no puede
+registrar, así que el bloqueo se fabrica su propia cola y después la castiga*. Medido sobre la copia
+de producción **con el arreglo del cruce (`14daf32`) ya aplicado**:
+
+| Estado del lote | Lotes | Días de cola |
+|---|---:|---:|
+| BLOQUEADO hoy por vencidos | 1 | 4 |
+| no bloqueado | 43 | **520** |
+
+**520 de los 524 días de cola están en lotes que hoy nadie bloquea.** La cola es abandono operativo,
+no un efecto del bloqueo — lo que refuerza la lectura de §9.4: son lotes terminados sin cerrar.
+
+De paso queda verificado el arreglo del cruce: **0 vencidos `origen_cruce`** y los 4 lotes de DAYLAND
+(215, 216, 224, 225) ya no están trabados. El lote **215** conserva 9 días de cola que sí son reales y
+ahora sí se pueden capturar.
 
 ---
 
@@ -228,3 +334,7 @@ aparte. Pasar a (B) sería una segunda etapa, con los 37 lotes saneados antes.
 | «Ecuador no tiene reproductoras, su flujo es normal desde el día 1» | ✅ Confirmado: **0 registros `origen_cruce` en Ecuador**; los 5.482 son captura normal. |
 | «el día anterior debe estar confirmado para continuar» | ✅ Es implementable, y es **más simple** que lo que hay. Pero pide apoyo de UI en Panamá (§8). |
 | «que tenga una confirmación extra» | ✅ Es exactamente lo que da la doble validación; el flag ya existe por empresa. |
+| «todos los días deben tener registro hasta liquidar» | ⚠️ Correcto como principio, pero el número real es **565 días en Panamá**, no 40, y **93 % es cola de lotes terminados sin cerrar**. Ver §9.3–9.4: el hueco interior se llena, la cola se liquida. |
+| «que muestre cuáles días no hay registro» | ✅ Implementable y ya medido — la lista concreta está en §9.5 y la reproduce `verificar_huecos_dias_seguimiento_engorde.sql`. |
+| «que el campo fecha me deje agregar el día que hace falta» | ✅ **Verificado punta a punta** (§9.2): el input no tiene `min`/`max`, el índice único impide duplicar, la ventana retroactiva no aplica a seguimientos y al insertar un día del medio se recalcula el lote entero. |
+| — | 🔴 **Lo único que hay que arreglar antes:** la guarda no recibe la fecha y bloquearía el POST que llena el hueco (§9.1). Es el mismo callejón sin salida del cruce, por otra puerta. |
