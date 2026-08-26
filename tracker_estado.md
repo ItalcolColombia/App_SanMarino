@@ -3567,3 +3567,81 @@ Plan: [`fase_de_desarrollo/menu_efectivo_por_empresa_plan.md`](fase_de_desarroll
       **7 horas** pasa. En producción eso no desloguea a nadie de golpe, pero **recorta 5 h a cada
       sesión** de las 16 h configuradas (`DurationInMinutes: 960`), y el usuario lo ve como «la sesión
       expiró» antes de tiempo. No se tocó: es del módulo de sesiones, no de menús.
+
+---
+
+## SESION-UTC — La revocacion de sesion juzga las fechas 5 h antes (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/sesion_b1_fecha_local_vs_utc_plan.md`](fase_de_desarrollo/sesion_b1_fecha_local_vs_utc_plan.md)
+
+> Sale del smoke del bloque MENU-EMP. El usuario pidio arreglarlo en su propio commit.
+
+- [x] **Defecto medido**: una sesion que vence en 1 h da `401 token-expirado`; la misma fila con 7 h
+      da 200. El salto es el offset de la maquina.
+- [x] **`Kind` confirmado, no supuesto**: `/api/Session/mias` devuelve `...-05:00` y System.Text.Json
+      solo emite offset para `Kind = Local` ⇒ `ToUniversalTime()` es la conversion correcta.
+- [x] **Alcance acotado**: las comparaciones que corren **en SQL** estan bien (verificado: una fila
+      vencida hace 2 h no aparece en `/mias`). Solo fallan las de **memoria**: `Evaluar` y
+      `DebeActualizarUltimaVista`.
+- [x] **La normalizacion va en la parte PURA** (`RevocacionSesionCalculos.AUtc`), no en el service:
+      asi queda cubierta por tests y ningun call site futuro puede pasar una fecha cruda de la base.
+- [x] **Sin tocar**: el switch legacy de `Program.cs` (cambia el mapeo de fechas de TODO el proyecto),
+      `ToDto` (el JSON con offset ya lleva el instante correcto) y las consultas que filtran en SQL.
+- [x] **Tests**: 9 casos nuevos, suite entera en **3307 verde** (+10). ⚠️ **Con una advertencia
+      escrita en el propio archivo**: reproducen el defecto con `.ToLocalTime()`, o sea con el offset
+      de la maquina. En una maquina en **UTC** el defecto NO EXISTE y estos tests pasan con arreglo y
+      sin el — son correctos pero VACIOS. Los runners de CI son UTC, asi que **el verde de CI no
+      verifica este caso**; la evidencia real es el smoke.
+- [x] **Validacion**: `dotnet build` limpio (0 err / 0 warn) + `dotnet test` 3307 verde + **smoke
+      HTTP**: fila que vence en **1 hora** ⇒ antes `401 token-expirado`, ahora **200**. Y los tres
+      controles siguen firmes — vencida hace 1 minuto ⇒ 401 `token-expirado`, revocada ⇒ 401
+      `sesion-revocada`, sin fila ⇒ 401 `sesion-revocada`. **El borde quedo exacto.** Filas de smoke
+      borradas y puertos libres.
+
+---
+
+## CI-CACHE — Un 503 de npm tumba el deploy del front (26-ago-2026)
+
+Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md)
+
+> Sale del run `89219049283`: front muerto en `yarn install`, back ya desplegado.
+> Producción quedó con back nuevo y front viejo hasta que se relance el job.
+
+- [x] **Disparador medido**: `registry.npmjs.org` devolvió 503 en `karma-6.4.4.tgz`, en
+      `[2/4] Fetching packages`. El resolve pasó bien. No es del repo.
+- [x] **Causa de fondo medida**: **0 layers `CACHED`** en los DOS builds del run. El
+      `--cache-from` importa un manifiesto vacío ⇒ cada deploy rebaja los 763 paquetes de npm.
+- [x] **Hipótesis descartada antes de implementar**: `BUILDKIT_INLINE_CACHE=1` solo NO sirve —
+      es `mode=min`, exporta únicamente la imagen final, y el `yarn install` (etapa `deps`) y el
+      `dotnet restore` (etapa `restore`) viven en etapas intermedias que no llegan a ella.
+- [x] **Arreglo 1 — caché que sí pega**: publicar la etapa de deps como imagen propia
+      (`--target deps` / `--target restore` → tag `:deps-cache`) y sembrar el build completo
+      desde ella. En los dos jobs.
+- [x] **Arreglo 2 — reintentos**: `RUN yarn install` con 3 intentos y backoff 20s/40s.
+      Mismas flags (`--frozen-lockfile` incluido); falla las 3 ⇒ `exit 1`, el gate no se ablanda.
+- [x] **Sin tocar**: etapas del Dockerfile fuera del `RUN`, guarda del borde, tags `:sha`/`:latest`,
+      despliegue a ECS. El artefacto que llega a prod es byte a byte el mismo.
+- [x] **Validación local**: YAML parsea (trigger `push`/`main-produccion` y cadena `needs`
+      intactos); `sh -n` OK sobre el `RUN` **extraído del propio Dockerfile**, no una copia;
+      loop probado con un `yarn` falso — falla 0 ⇒ 1 invocación / exit 0; falla 2 ⇒ anda a la
+      3ª / exit 0; falla 3 ⇒ exit 1. Flags idénticas en las 3 invocaciones.
+- [x] **Defecto encontrado y corregido en la propia validación**: la 1ª versión del loop dormía
+      60 s **después** del 3er fallo y anunciaba un reintento que no existía. Ahora el sleep se
+      saltea en el último intento.
+- [x] **Verificado con Docker REAL** (máquina con 0 imágenes y 0 caché, = runner limpio): con
+      `--cache-from :deps-cache` y el caché en cero ⇒ **5 layers CACHED incluido el `yarn install`,
+      3 s sin tocar npm**. Control con `--cache-from` contra la imagen completa (lo que hace CI hoy)
+      ⇒ **0 CACHED, 113 s, bajó los 763 paquetes**. Misma prueba, única variable distinta.
+- [x] **Los otros 6 controles**: BuildKit acepta el `RUN`; loop bajo el `ash` real de Alpine
+      (BusyBox 1.37.0) con los 3 casos; backend `--target restore` OK; build completo end-to-end
+      (`verificar-ngsw` 197 archivos, `nginx -t` OK, imagen 64,8 MB); **invalidación** al cambiar
+      `yarn.lock` (5 ⇒ 3 CACHED, vuelve a la red: no sirve dependencias viejas); y **round-trip por
+      un registry real** (push → borrar local → pull → build ⇒ 5 CACHED), que era el único hueco
+      que dejaban las pruebas con imágenes locales.
+- [ ] **Falta verlo en el pipeline**: el 1er deploy con el cambio TODAVÍA baja todo (la tag
+      `:deps-cache` aún no existe en ECR — ese run la crea). El 2º es el que debe dar `CACHED` > 0.
+      ✅ Confirmado que el problema es sistematico, no del incidente: el run **32971303424** salio
+      **verde** (3 jobs success) y aun asi dio **0 CACHED**, con el `yarn install` del front bajando
+      los 763 paquetes otra vez (step de 25,6 s). El cache esta muerto en TODOS los deploys.
+      ⚠️ El deploy lanzado el 26-ago (run 32971303424, `main-produccion@5e780e5`) **NO lleva estos
+      arreglos**: `8a78ea5` sigue sin pushear.

@@ -299,11 +299,10 @@ public class SesionActivaService : ISesionActivaService
         return limpio.Length <= max ? limpio : limpio[..max];
     }
 
-    /// <summary>Npgsql exige <c>Kind = Utc</c> para <c>timestamptz</c>.</summary>
-    private static DateTime ANormalizarUtc(DateTime valor) => valor.Kind switch
-    {
-        DateTimeKind.Utc => valor,
-        DateTimeKind.Local => valor.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(valor, DateTimeKind.Utc),
-    };
+    /// <summary>
+    /// Npgsql exige <c>Kind = Utc</c> para <c>timestamptz</c>. Una sola definición para todo el
+    /// módulo: la conversión vive en <see cref="RevocacionSesionCalculos.AUtc(DateTime)"/>, que es la
+    /// parte pura y la que los tests fijan.
+    /// </summary>
+    private static DateTime ANormalizarUtc(DateTime valor) => RevocacionSesionCalculos.AUtc(valor);
 }

@@ -18,12 +18,35 @@ RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 COPY package.json yarn.lock* ./
 
 # Instalar dependencias con optimizaciones
-RUN yarn install \
-    --frozen-lockfile \
-    --non-interactive \
-    --production=false \
-    --network-timeout 100000 \
-    && yarn cache clean
+#
+# Reintentos: registry.npmjs.org devuelve 503 esporádicos y yarn 1 aborta el install
+# entero ante cualquier respuesta non-2xx (--network-timeout sólo acota la espera, no
+# reintenta). El 2026-08-26 un 503 aislado en karma-6.4.4.tgz tumbó el deploy del front
+# (run 89219049283) con el backend ya desplegado.
+#
+# Las flags son las mismas de siempre (--frozen-lockfile incluido): el lockfile sigue
+# siendo la fuente de verdad y esto no relaja la resolución de dependencias. Si los 3
+# intentos fallan corta igual (exit 1); no enmascara un error real.
+RUN ok=0; \
+    for intento in 1 2 3; do \
+      if yarn install \
+           --frozen-lockfile \
+           --non-interactive \
+           --production=false \
+           --network-timeout 100000; then \
+        ok=1; break; \
+      fi; \
+      if [ "$intento" != "3" ]; then \
+        espera=$((intento * 20)); \
+        echo ">> yarn install falló (intento ${intento}/3); reintento en ${espera}s"; \
+        sleep "$espera"; \
+      fi; \
+    done; \
+    if [ "$ok" != "1" ]; then \
+      echo ">> yarn install falló en los 3 intentos - se corta el build"; \
+      exit 1; \
+    fi; \
+    yarn cache clean
 
 # ---------- build (optimizado) ----------
 FROM node:22-alpine AS build

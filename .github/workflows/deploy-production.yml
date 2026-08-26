@@ -179,6 +179,7 @@ jobs:
 
           echo "image_sha=${REGISTRY}/${REPO}:${SHA}"   >> "$GITHUB_OUTPUT"
           echo "image_latest=${REGISTRY}/${REPO}:latest" >> "$GITHUB_OUTPUT"
+          echo "image_deps=${REGISTRY}/${REPO}:deps-cache" >> "$GITHUB_OUTPUT"
           echo "registry=${REGISTRY}"                    >> "$GITHUB_OUTPUT"
 
           echo "### Backend Image Tags" >> "$GITHUB_STEP_SUMMARY"
@@ -188,8 +189,29 @@ jobs:
       # ── Build Docker ────────────────────────────────────────────────────────
       # Se usa --cache-from para reutilizar capas de la imagen latest anterior.
       # --platform linux/amd64 garantiza compatibilidad con Fargate x86_64.
-      - name: Pull imagen anterior (cache)
-        run: docker pull ${{ steps.tags.outputs.image_latest }} || true
+      - name: Pull imágenes de caché anteriores
+        run: |
+          docker pull ${{ steps.tags.outputs.image_latest }} || true
+          docker pull ${{ steps.tags.outputs.image_deps }}   || true
+
+      # El inline cache es mode=min: sólo exporta las capas de la imagen RESULTANTE.
+      # La etapa `restore` (dotnet restore) es intermedia y no llega a la imagen final,
+      # así que nunca quedaba cacheada: cada deploy volvía a bajar los paquetes de NuGet
+      # desde la red. Medido en el run 89219049283: 0 layers CACHED en los DOS builds — y
+      # un 503 de npm en un tarball tumbó el deploy del front. Publicándola con --target,
+      # esa etapa es la imagen resultante de SU propio build ⇒ sus capas sí se exportan, y
+      # el build de abajo las reusa vía --cache-from.
+      - name: Build etapa de dependencias (caché)
+        working-directory: backend
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --file Dockerfile \
+            --target restore \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from ${{ steps.tags.outputs.image_deps }} \
+            --tag ${{ steps.tags.outputs.image_deps }} \
+            .
 
       - name: Build imagen Docker
         working-directory: backend
@@ -197,6 +219,8 @@ jobs:
           docker build \
             --platform linux/amd64 \
             --file Dockerfile \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from ${{ steps.tags.outputs.image_deps }} \
             --cache-from ${{ steps.tags.outputs.image_latest }} \
             --tag ${{ steps.tags.outputs.image_sha }} \
             --tag ${{ steps.tags.outputs.image_latest }} \
@@ -210,6 +234,7 @@ jobs:
         run: |
           docker push ${{ steps.tags.outputs.image_sha }}
           docker push ${{ steps.tags.outputs.image_latest }}
+          docker push ${{ steps.tags.outputs.image_deps }}
 
       # ── Desplegar en ECS ────────────────────────────────────────────────────
       # Estrategia: descargar task definition actual de ECS, actualizar sólo
@@ -315,14 +340,36 @@ jobs:
 
           echo "image_sha=${REGISTRY}/${REPO}:${SHA}"   >> "$GITHUB_OUTPUT"
           echo "image_latest=${REGISTRY}/${REPO}:latest" >> "$GITHUB_OUTPUT"
+          echo "image_deps=${REGISTRY}/${REPO}:deps-cache" >> "$GITHUB_OUTPUT"
           echo "registry=${REGISTRY}"                    >> "$GITHUB_OUTPUT"
 
           echo "### Frontend Image Tags" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA: \`${SHA}\`"       >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`${REGISTRY}/${REPO}:${SHA}\`" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Pull imagen anterior (cache)
-        run: docker pull ${{ steps.tags.outputs.image_latest }} || true
+      - name: Pull imágenes de caché anteriores
+        run: |
+          docker pull ${{ steps.tags.outputs.image_latest }} || true
+          docker pull ${{ steps.tags.outputs.image_deps }}   || true
+
+      # El inline cache es mode=min: sólo exporta las capas de la imagen RESULTANTE.
+      # La etapa `deps` (yarn install) es intermedia y no llega a la imagen final,
+      # así que nunca quedaba cacheada: cada deploy volvía a bajar los 763 paquetes del lockfile
+      # desde la red. Medido en el run 89219049283: 0 layers CACHED en los DOS builds — y
+      # un 503 de npm en un tarball tumbó el deploy del front. Publicándola con --target,
+      # esa etapa es la imagen resultante de SU propio build ⇒ sus capas sí se exportan, y
+      # el build de abajo las reusa vía --cache-from.
+      - name: Build etapa de dependencias (caché)
+        working-directory: frontend
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --file Dockerfile \
+            --target deps \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from ${{ steps.tags.outputs.image_deps }} \
+            --tag ${{ steps.tags.outputs.image_deps }} \
+            .
 
       # El Dockerfile del frontend usa  --configuration docker  (angular.json)
       # que genera el bundle de producción con environment.prod.ts
@@ -332,6 +379,8 @@ jobs:
           docker build \
             --platform linux/amd64 \
             --file Dockerfile \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from ${{ steps.tags.outputs.image_deps }} \
             --cache-from ${{ steps.tags.outputs.image_latest }} \
             --tag ${{ steps.tags.outputs.image_sha }} \
             --tag ${{ steps.tags.outputs.image_latest }} \
@@ -441,6 +490,7 @@ jobs:
         run: |
           docker push ${{ steps.tags.outputs.image_sha }}
           docker push ${{ steps.tags.outputs.image_latest }}
+          docker push ${{ steps.tags.outputs.image_deps }}
 
       - name: Obtener task definition actual de ECS
         run: |
