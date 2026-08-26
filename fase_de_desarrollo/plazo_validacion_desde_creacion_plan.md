@@ -329,6 +329,85 @@ De paso queda verificado el arreglo del cruce: **0 vencidos `origen_cruce`** y l
 (215, 216, 224, 225) ya no están trabados. El lote **215** conserva 9 días de cola que sí son reales y
 ahora sí se pueden capturar.
 
+### 9.8 ✅ VERIFICADO: la puerta de liquidar **abre** — pero abre mal, y el orden importa
+
+Era la obligación que abría la decisión: si al operario le decimos *«liquidá»*, esa salida tiene que
+existir. **Existe.** Ninguna precondición de `CerrarLoteAsync`
+(`LoteAveEngordeService.cs:790-861`) exige aves en cero, venta registrada, merma, días completos ni
+serie continua — la merma es opcional (`:818`) y la doble validación **ni participa** del cierre (el
+service no inyecta `IValidacionSeguimientoService`). Un lote de cola se liquida hoy, sin resistencia.
+
+🔴 **Y ese es el problema: abre demasiado fácil, en silencio, y congela el resultado.**
+
+#### Lo que pasa al cerrar, en palabras del propio código
+
+`fn_seguimiento_diario_engorde.sql:708-712` redefine el encasetamiento cuando el lote está cerrado:
+
+```sql
+WHEN li.estado_operativo_lote = 'cerrado'
+     THEN GREATEST(1, st.bajas_seguimiento + vt.total_ventas)
+```
+
+El comentario de arriba lo dice sin vueltas: *«la rama 'cerrado' … ya fuerza el cierre en 0 por
+construcción propia (bajas+ventas)»*. Y el cierre congela **después** de aplicar el estado, también
+documentado en `LoteAveEngordeService.cs:838-841`: *«Congelar DESPUÉS de aplicar 'Cerrado': la fn
+fuerza el cierre en 0 con ese estado»*.
+
+Para un lote que vendió todo eso es un no-op elegante: `bajas + ventas == encasetadas`, el saldo cae
+a 0 limpio. **Para un lote de Panamá que nunca registró la venta, reescribe la historia.**
+
+#### El número, medido sobre la copia de producción
+
+| | Lotes | Aves en papel | **Aves que desaparecen del registro congelado** |
+|---|---:|---:|---:|
+| **Panamá — terminados** (edad > 42) | **17** | 632.642 | **610.704** |
+| Ecuador — lote 2601 | 1 | 25.400 | **0** |
+
+**Ecuador es el caso de control que prueba el mecanismo.** El 2601 tiene sus ventas registradas
+(24.318 vendidas + 1.082 bajas = 25.400 = exactamente lo encasetado) ⇒ liquida perfecto, no
+desaparece ni un ave. Los 17 de Panamá tienen 0 ventas ⇒ el lote 151, por ejemplo, pasa de 45.515
+encasetadas a **481** («bajas + ventas»), y esa foto queda congelada.
+
+#### 🔴 Corrección a lo que dije antes: uno de los 19 no es cola
+
+El lote **215 de DAYLAND** tiene 9 días de cola pero **15 días de edad**: es un lote **vivo y
+atrasado**, no uno terminado — y es uno de los 4 que el bug del cruce (`14daf32`) tenía bloqueados,
+así que su cola es la cicatriz del bloqueo. **Se le capturan los 9 días; no se liquida.** El umbral
+correcto para «cola» no es sólo días sin registrar: es **cola > 7 días Y edad > 42**.
+
+#### La receta correcta: liquidar es el ÚLTIMO paso, no el primero
+
+1. **Registrar la venta / traslado** con el lote **todavía abierto** (es lo que falta: Panamá tiene 3
+   ventas en todo el sistema).
+2. **Sacar el alimento sobrante** del galpón.
+3. **Recién ahí liquidar.**
+
+Liquidar primero cierra tres puertas de reparación: la carga masiva rechaza lotes cerrados
+(`MigracionService.SeguimientoEngorde.cs:25-27,43`), la venta queda bloqueada por el gate de
+liquidación, y el traslado también. Además `AvanzarCodigoErpGranjaSiCicloCerradoAsync`
+(`LoteAveEngordeService.cs:838`) avanza `farms.codigo_erp_engorde` **+1 dentro de la transacción**, y
+**la reapertura no lo decrementa** (doc-comment en `:905`).
+
+#### Defecto aparte, encontrado de paso: un permiso huérfano
+
+`movimientos_pollo_engorde.vender_lotes_cerrados` existe como seed
+(`20260714112951_AddPermisoVentaLotesCerradosMovimientoPolloEngorde.cs`) y **sólo lo lee el front**
+(`modal-movimiento-pollo-engorde.component.ts:69`, hint al usuario en el HTML `:303`). El backend no
+conoce esa clave: su gate es `omitirGateLiquidado`
+(`LiquidacionCongeladaGateCalculos.cs:80-83`), cuyo único llamador que lo pone en `true` es
+`CorreccionAvesDisponiblesEngordeService.cs:437`. **El usuario con el permiso habilita el formulario y
+el guardado le rebota.** No bloquea la receta de arriba (ahí el lote está abierto), pero es deuda real.
+
+#### Lo que rompe si igual se liquida sin registrar la venta
+
+Cuatro reportes pasan a mentir, y el detector de aves **no** levanta la mano (`fn_cuadre_aves_engorde`
+no mira `estado`): Informe Semanal Panamá (saldo inicial ~630.000 y final 0 sin una sola venta),
+Reporte Diario de Costos Engorde (las aves vivas se desploman en **todo el histórico**, porque la fn
+recalcula la serie entera), `vw_seguimiento_pollo_engorde` de Power BI (**Total ≠ H + M en la misma
+fila**, porque el total sale de la fn y el desglose de `lote.hembras_l/machos_l`, que el cierre no
+toca) y la tabla diaria del operario. **El cuadre de alimento, en cambio, es invariante** — sus
+columnas no dependen de `estado`.
+
 ### 9.9 Lo que la decisión cambia en el costo del deploy
 
 Con **«la cola no bloquea»**, el número del día del deploy baja mucho: la cola era el 93 % y sale de
@@ -346,11 +425,14 @@ van a liquidar igual, así que sus 18 días son irrelevantes. Lo mismo el único
 
 > **22 lotes vivos de Panamá (edad 16–47 días) y 23 días a capturar.**
 
-Eso no es una tarde: es un rato. **Pero el orden importa** — hay que liquidar primero los 19 lotes de
-cola; si no, arrancan bloqueados por un hueco que nadie va a llenar porque el lote ya terminó.
+Eso no es una tarde: es un rato. **Pero el orden importa** — hay que cerrar primero los lotes de cola;
+si no, arrancan bloqueados por un hueco que nadie va a llenar porque el lote ya terminó.
 
-La cola pasa a ser **limpieza operativa** (liquidar 19 lotes terminados: 18 de Panamá + el 2601 de
-Ecuador), no un bloqueo.
+La cola pasa a ser **limpieza operativa: 18 lotes a cerrar** (17 de Panamá con edad > 42, más el 2601
+de Ecuador), no un bloqueo. ⚠️ Y «cerrar» **no** es liquidar de una: es la receta de §9.8 —registrar
+la venta con el lote abierto, sacar el alimento, y recién ahí liquidar—, porque liquidar sin la venta
+hace desaparecer **610.704 aves** del registro congelado. El lote 215 de DAYLAND **no** entra: tiene 9
+días de cola pero 15 de edad, está vivo y se le capturan los días.
 
 ### 9.10 🔴 La interacción entre las dos reglas: el día que se llena nace vencido
 

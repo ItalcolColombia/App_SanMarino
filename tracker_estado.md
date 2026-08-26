@@ -3308,10 +3308,39 @@ Diagnóstico reproducible: [`backend/sql/verificar_huecos_dias_seguimiento_engor
       con 4 huecos seguidos, se traba al llenar el primero—; (b) hace falta **«guardar y validar»** o
       «validar todos los pendientes del lote», porque hoy se valida de a uno. Ya estaba anotado como
       deseable en EC4; la regla de huecos lo vuelve **obligatorio**.
-- [ ] ⏸️ **VERIFICANDO: ¿la cola SE PUEDE liquidar hoy?** Es la obligación que abre la decisión: si le
-      decimos al operario «liquidá», esa puerta tiene que existir. Los lotes de cola tienen ~45.000
-      aves en papel y **cero salidas registradas** — si el liquidador exige aves en cero, o una venta,
-      o merma no nula, sería una puerta cerrada (el mismo error que la guarda de §9.1). En curso.
+- [x] ✅ **VERIFICADO: la puerta de liquidar ABRE — pero abre mal** (plan §9.8). Ninguna precondición
+      de `CerrarLoteAsync` (`LoteAveEngordeService.cs:790-861`) exige aves en cero, venta, merma ni
+      serie continua; la doble validación **ni participa** del cierre. El problema es el opuesto al
+      que temíamos: **abre demasiado fácil, en silencio, y congela el resultado.**
+      🔴 `fn_seguimiento_diario_engorde.sql:708-712` reescribe el encasetamiento del lote cerrado
+      (`GREATEST(1, bajas + ventas)`) y el cierre congela **después** de aplicar el estado — las dos
+      cosas documentadas en el propio código. Para un lote que vendió todo es un no-op elegante; para
+      uno sin la venta registrada, **reescribe la historia**. Medido: liquidar hoy los 17 lotes
+      terminados de Panamá haría **desaparecer 610.704 aves** del registro congelado (el lote 151 pasa
+      de 45.515 encasetadas a **481**). **Ecuador es el caso de control que lo prueba**: el 2601 tiene
+      sus ventas registradas (24.318 + 1.082 = 25.400 = lo encasetado) ⇒ liquida perfecto, **0 aves
+      desaparecen**.
+- [x] 🔴 **Corregido: uno de los 19 no es cola.** El lote **215 de DAYLAND** tiene 9 días de cola pero
+      **15 de edad** — es un lote VIVO atrasado, y su cola es la cicatriz del bug del cruce que lo
+      tenía bloqueado. Se le capturan los días, no se cierra. El umbral correcto es **cola > 7 Y
+      edad > 42**. Quedan **18 lotes a cerrar** (17 Panamá + el 2601 de Ecuador).
+- [x] **Definida la receta correcta: liquidar es el ÚLTIMO paso.** (a) registrar la venta/traslado con
+      el lote **abierto** → (b) sacar el alimento sobrante del galpón → (c) recién ahí liquidar.
+      Liquidar primero cierra tres puertas de reparación (la carga masiva rechaza lotes cerrados,
+      `MigracionService.SeguimientoEngorde.cs:25-27,43`; la venta y el traslado quedan bloqueados por
+      el gate de liquidación) y `AvanzarCodigoErpGranjaSiCicloCerradoAsync`
+      (`LoteAveEngordeService.cs:838`) avanza el código ERP de la granja **+1 sin que la reapertura lo
+      decremente**.
+- [x] **Chequeo 6 agregado al `.sql`**: dice, lote por lote, cuántas aves desaparecerían si se
+      liquidara hoy. `= 0` ⇒ listo para liquidar; `> 0` ⇒ falta registrar la venta.
+- [ ] ⏸️ **DEFECTO APARTE encontrado de paso (no bloquea la receta): permiso huérfano.**
+      `movimientos_pollo_engorde.vender_lotes_cerrados` existe como seed
+      (`20260714112951_...`) y **sólo lo lee el front** (`modal-movimiento-pollo-engorde.component.ts:69`,
+      con hint al usuario en el HTML `:303`). El backend no conoce esa clave: su gate es
+      `omitirGateLiquidado` (`LiquidacionCongeladaGateCalculos.cs:80-83`), y el único que lo pone en
+      `true` es `CorreccionAvesDisponiblesEngordeService.cs:437`. **El usuario con el permiso habilita
+      el formulario y el guardado le rebota.** No estorba a la receta (ahí el lote está abierto), pero
+      es deuda real y promete algo que no cumple.
 - [ ] ⏸️ **Implementación**: pertenece a la sesión de EC4. Incluye el mensaje que distingue las dos
       causas (§9.6 del plan) — «faltan los días X e Y, registralos» vs «este lote no tiene registros
       desde X (N días); si ya salió, liquidalo».

@@ -114,3 +114,40 @@ SELECT CASE WHEN CURRENT_DATE - ultimo - 1 > 7 THEN '2. tambien es COLA -> liqui
        empresa, granja, lote, lote_nombre,
        CURRENT_DATE - encaset AS edad_dias, huecos, faltantes
 FROM h ORDER BY 1, 2, 3, 4;
+
+\echo ''
+\echo '=== 6. ANTES DE LIQUIDAR: cuantas aves desaparecen del registro congelado ==='
+\echo '    fn_seguimiento_diario_engorde reescribe el encasetamiento cuando el lote esta cerrado:'
+\echo '      WHEN estado_operativo_lote = ''cerrado'' THEN GREATEST(1, bajas_seguimiento + total_ventas)'
+\echo '    Para un lote que vendio todo es un no-op elegante (bajas+ventas = encasetadas, el saldo'
+\echo '    cierra en 0 limpio). Para un lote SIN la venta registrada, reescribe la historia. Y el'
+\echo '    cierre CONGELA esa foto, asi que queda mal para siempre salvo reabrir.'
+\echo ''
+\echo '    LEER ASI: aves_que_desaparecen = 0  -> el lote esta listo, liquidalo.'
+\echo '              aves_que_desaparecen > 0  -> FALTA REGISTRAR LA VENTA. Registrala con el lote'
+\echo '                                           ABIERTO, sacá el alimento sobrante, y recien liquida.'
+WITH base AS (
+  SELECT r.lote, r.lote_nombre, r.empresa, r.granja, r.encaset, r.ultimo,
+         CURRENT_DATE - r.encaset      AS edad,
+         CURRENT_DATE - r.ultimo - 1   AS cola_dias,
+         COALESCE((SELECT l.aves_encasetadas FROM lote_ave_engorde l
+                   WHERE l.lote_ave_engorde_id = r.lote), 0) AS encasetadas,
+         COALESCE((SELECT SUM(COALESCE(s.mortalidad_hembras,0)+COALESCE(s.mortalidad_machos,0)
+                             +COALESCE(s.sel_h,0)+COALESCE(s.sel_m,0)
+                             +COALESCE(s.error_sexaje_hembras,0)+COALESCE(s.error_sexaje_machos,0))
+                   FROM seguimiento_diario_aves_engorde s
+                   WHERE s.lote_ave_engorde_id = r.lote), 0) AS bajas,
+         COALESCE((SELECT SUM(COALESCE(h.cantidad_hembras,0)+COALESCE(h.cantidad_machos,0)
+                             +COALESCE(h.cantidad_mixtas,0))
+                   FROM lote_registro_historico_unificado h
+                   WHERE h.lote_ave_engorde_id = r.lote
+                     AND h.tipo_evento = 'VENTA_AVES' AND NOT h.anulado), 0) AS ventas
+  FROM v_rango_lotes_engorde r
+  WHERE CURRENT_DATE - r.ultimo - 1 > 7
+)
+SELECT CASE WHEN edad > 42 THEN 'TERMINADO -> cerrar' ELSE 'VIVO y atrasado -> capturar, NO cerrar' END AS que_hacer,
+       empresa, granja, lote, lote_nombre, edad, cola_dias,
+       encasetadas, bajas, ventas,
+       GREATEST(1, bajas + ventas)              AS inicial_si_se_liquida,
+       encasetadas - GREATEST(1, bajas + ventas) AS aves_que_desaparecen
+FROM base ORDER BY 12 DESC;
