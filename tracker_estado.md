@@ -3344,3 +3344,78 @@ Diagnóstico reproducible: [`backend/sql/verificar_huecos_dias_seguimiento_engor
 - [ ] ⏸️ **Implementación**: pertenece a la sesión de EC4. Incluye el mensaje que distingue las dos
       causas (§9.6 del plan) — «faltan los días X e Y, registralos» vs «este lote no tiene registros
       desde X (N días); si ya salió, liquidalo».
+
+---
+
+## EC5 — Corrección de todos los bugs anotados en la sesión (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/correccion_bugs_anotados_plan.md`](fase_de_desarrollo/correccion_bugs_anotados_plan.md)
+
+> Pedido: *«corrige todos los bugs anotados completos»*. Recoge lo que quedó abierto en EC3 y lo que
+> apareció al verificar el liquidador en EC4.2. **No incluye la feature de huecos/plazo**, que el
+> usuario reservó para otra sesión — eso es diseño, no defecto.
+
+- [x] **Inventario cerrado: 7 defectos**, con su severidad medida (§1 y §2 del plan).
+- [x] **Alcance medido**: ItalcolPanama tiene **0 lotes liquidados** ⇒ el daño de #5 es 100 %
+      prospectivo (610.704 aves todavía no perdidas). ItalcolEcuador tiene 97 liquidados con **8**
+      que perdieron >100 aves (3.368 en total) ⇒ #6 y #7 quedan latentes, casi sin víctimas.
+- [x] **Especificación adversarial corrida**: 7 specs + 4 refutaciones. **Las refutaciones mataron 3
+      de los 7 parches y corrigieron 2 de los que quedaron.** Los dos hallazgos decisivos se
+      verificaron a mano antes de aplicar nada.
+- [ ] ⏸️ **#1 Push offline PWA — NO APLICADO, necesita tu decisión.** El parche **apaga
+      `ValidarAlimentoObligatorio` sin decirlo**: ese guard corre sólo dentro de `if (separa)` y su
+      doc-comment nombra explícitamente «el push de la PWA» como el cliente que lo necesita ⇒ días de
+      campo viejos entrarían **sin alimento, en silencio**, en Panamá. Además compite con el plan
+      vigente, que dice que este parche **deja de hacer falta** con el cambio de bloqueo.
+      **Ruta (A)** parchear igual, perdiendo el guard de alimento · **Ruta (B)** hacer el paso 1 de
+      EC4 (bloqueo = «el día anterior confirmado»), que resuelve éste y otros dos casos sin efectos
+      colaterales. **Recomendada: (B).**
+- [x] ✅ **#2 `MarcarValidadoAsync` — APLICADO**, en las dos direcciones (validar y des-validar).
+      🔴 **La spec pasaba el id equivocado**: para reproductora `LeerEstadoAsync` devuelve el id del
+      lote de **reproductora** y `SincronizarCruceAsync` espera el de **engorde**. No truena: no
+      encuentra nada, o sincroniza el lote que por casualidad tenga ese id. El helper resuelve el
+      puente primero. Verificado que el aplicador es **idempotente** (`yaAplicados`) — si no lo
+      fuera, el arreglo duplicaría descuentos y sería peor que el bug. Y el bug **no depende del
+      flag**: `ValidarAsync` no consulta `RequiereValidacionAsync`, aplica a todas las empresas.
+- [x] ✅ **#3 Permiso huérfano — APLICADO al revés de como estaba enunciado.** No es que al backend le
+      falte honrar el permiso: **el permiso no puede existir para un lote cerrado** (el gate rechaza
+      toda escritura y los reportes leen la copia congelada ⇒ la venta quedaría invisible). Se hizo
+      honesta la promesa con `bypassablePorPermiso`: destraba la **corrida anterior**, no el lote
+      cerrado. De paso, el predicado repetido **7 veces** en el HTML pasa a una sola fuente.
+      **+6 casos de test** (`frontend/src/tests/detectar-lotes-bloqueados-venta.funcion.spec.ts`).
+- [x] ✅ **#4 Fuga por empresa — APLICADO en las 4 ramas.** Y era **fuga real, no sólo latente**:
+      `ObtenerPendientesAsync` no valida que el lote sea de la empresa activa, así que un usuario
+      podía pedir los pendientes de un lote ajeno y recibir sus fechas. Producción se filtra por FILA
+      (única tabla de seguimiento con `company_id`); las otras tres resuelven la empresa del lote.
+- [x] ⚠️ **#5 — SOLO EL AVISO. La guarda se descartó, y me corrige a mí.** Liquidar **no** pierde
+      aves «en silencio»: el modal ya tiene un banner `role="alert"` con la cifra exacta y
+      `puedeLiquidarPorAves` devuelve `true` **a propósito**, con el motivo escrito («datos pueden
+      tener error»). Es un override informado. La guarda propuesta **no evitaba el daño: pedía
+      consentimiento para él** —si el usuario tilda, la foto truncada se congela igual—, además de
+      duplicar una fórmula existente y acusar mal. Lo aplicado: el banner ahora dice **qué pasa** si
+      continuás (el encasetamiento pasa a valer `bajas + ventas` y queda congelado).
+- [x] ✅ **#6 — RESUELTO SIN DDL.** `fn_cuadre_aves_engorde` **no tiene un solo consumidor en
+      runtime** (cero `SqlQueryRaw`/`FromSql`): agregarle columnas no crea una alarma, crea una
+      consulta que alguien tendría que escribir igual. Se resolvió con
+      [`backend/sql/verificar_salidas_aves_engorde.sql`](backend/sql/verificar_salidas_aves_engorde.sql).
+- [ ] ⏸️ **#7 Vista Power BI — NO APLICAR en este ciclo.** Consumidor **externo** que no pidió el
+      cambio; el `Down` propuesto no es round-trip seguro (un re-`Up` quedaría en no-op silencioso con
+      la vista rota); falla abierto en un lote poblado por traslado; y **apagaría la única señal
+      visible en Power BI de un lote liquidado sin su venta**, justo antes de que Panamá liquide.
+- [x] 🔴 **HALLAZGO: cinco definiciones distintas de «salida de aves» en el mismo módulo.** El
+      trigger emite `VENTA_AVES` sólo para `tipo_movimiento = 'Venta'`; `EsSalidaVenta` cuenta
+      `Venta|Despacho|Retiro`; `fn_indicadores_pollo_engorde` suma `Traslado`. Un **Despacho descuenta
+      del maestro pero no alimenta `total_ventas`** ⇒ al liquidar esas aves también desaparecen.
+      **Medido: hoy sin víctimas** — el sistema entero tiene sólo movimientos `Venta` (1.455
+      completados) y el histórico tiene exactamente 1.455 filas `VENTA_AVES`, calzan uno a uno. La
+      trampa se arma el día del primer `Despacho`. Queda en el chequeo 3 del `.sql` nuevo.
+- [x] **Validación backend**: `dotnet build` **0 errores** y `dotnet test` **3240 verdes** (eran
+      3234; +6 del #2) con el SDK .NET 10 portable. Gate `verificar-sql-llega-por-migracion` en verde.
+      ⚠️ **Para la próxima**: `dotnet`/`node` del PATH del sistema son 9.0.301 y v22.15.0 y **fallan**;
+      hay que usar `~/dotnet-portable` y `~/node-portable/node-v22.23.1-win-x64`. Y `cmd | tail`
+      devuelve el exit de `tail`, no del comando: un build con **6 errores reportaba `exit 0`**.
+- [x] **Validación front**: `yarn build` **0 errores** con el Node portable (995,90 kB inicial, sin
+      warning de budget).
+- [x] **Cerrados 4 de 7 defectos** (#2, #3, #4 y #6) más el aviso del #5. Quedan abiertos **#1**
+      —esperando tu decisión entre las rutas (A) y (B)— y **#7**, con su condición de reingreso
+      escrita en §4.7 del plan.

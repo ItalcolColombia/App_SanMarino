@@ -300,7 +300,8 @@
                     </p>
                     @if (hayLoteBloqueadoSinPermiso) {
                       <p class="form-hint form-hint--block form-hint--bloqueo">
-                        🔒 Los lotes cerrados o de una corrida anterior en el mismo galpón no admiten cantidad (se muestran solo como referencia). Si necesita venderlos, solicite el permiso <code>movimientos_pollo_engorde.vender_lotes_cerrados</code>.
+                        🔒 Los lotes de una <strong>corrida anterior</strong> en el mismo galpón no admiten cantidad (se muestran solo como referencia). Si necesita venderlos, solicite el permiso <code>movimientos_pollo_engorde.vender_lotes_cerrados</code>.
+                        Un lote <strong>cerrado</strong> (liquidado) no lo habilita ningún permiso: hay que reabrirlo.
                       </p>
                     }
                     @if (loadingVentaLineas) {
@@ -336,13 +337,13 @@
                                   @for (line of g.lineas; track line) {
                                     <tr
                                       [class.venta-granja-table__row-error]="line.h > line.maxH || line.m > line.maxM || line.x > line.maxX"
-                                      [class.venta-granja-table__row-bloqueada]="line.bloqueada && !puedeVenderLotesCerrados">
+                                      [class.venta-granja-table__row-bloqueada]="lineaBloqueadaEfectiva(line)">
                                       <td>
                                         {{ line.loteNombre }}
                                         @if (line.bloqueada) {
                                           <span
                                             class="venta-granja-lote-badge"
-                                            [class.venta-granja-lote-badge--bypass]="puedeVenderLotesCerrados"
+                                            [class.venta-granja-lote-badge--bypass]="line.bypassablePorPermiso && puedeVenderLotesCerrados"
                                             [attr.title]="line.motivoBloqueo">
                                             {{ line.motivoBloqueo }}
                                           </span>
@@ -355,8 +356,8 @@
                                           inputmode="numeric"
                                           autocomplete="off"
                                           class="form-input form-input--sm venta-granja-qty"
-                                          [disabled]="line.maxH === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
-                                          [class.form-input--readonly]="line.maxH === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
+                                          [disabled]="line.maxH === 0 || (lineaBloqueadaEfectiva(line))"
+                                          [class.form-input--readonly]="line.maxH === 0 || (lineaBloqueadaEfectiva(line))"
                                           [class.form-input--error]="line.flashExcesoH"
                                           [value]="line.hStr"
                                           (input)="onLineaCantidadInput($event, line, 'h')"
@@ -375,8 +376,8 @@
                                             inputmode="numeric"
                                             autocomplete="off"
                                             class="form-input form-input--sm venta-granja-qty"
-                                            [disabled]="line.maxM === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
-                                            [class.form-input--readonly]="line.maxM === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
+                                            [disabled]="line.maxM === 0 || (lineaBloqueadaEfectiva(line))"
+                                            [class.form-input--readonly]="line.maxM === 0 || (lineaBloqueadaEfectiva(line))"
                                             [class.form-input--error]="line.flashExcesoM"
                                             [value]="line.mStr"
                                             (input)="onLineaCantidadInput($event, line, 'm')"
@@ -395,8 +396,8 @@
                                               inputmode="numeric"
                                               autocomplete="off"
                                               class="form-input form-input--sm venta-granja-qty"
-                                              [disabled]="line.maxX === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
-                                              [class.form-input--readonly]="line.maxX === 0 || (line.bloqueada && !puedeVenderLotesCerrados)"
+                                              [disabled]="line.maxX === 0 || (lineaBloqueadaEfectiva(line))"
+                                              [class.form-input--readonly]="line.maxX === 0 || (lineaBloqueadaEfectiva(line))"
                                               [class.form-input--error]="line.flashExcesoX"
                                               [value]="line.xStr"
                                               (input)="onLineaCantidadInput($event, line, 'x')"

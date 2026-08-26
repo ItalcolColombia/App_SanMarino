@@ -1,6 +1,7 @@
 // Validar y des-validar: convertir la separación en descuento real, y deshacerlo.
 // Partial de ValidacionSeguimientoService (namespace plano).
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Domain.Entities;
@@ -68,6 +69,11 @@ public partial class ValidacionSeguimientoService
         await _ctx.SaveChangesAsync(ct);
 
         await MarcarValidadoAsync(modulo, seguimientoId, validado: true, ct);
+
+        // Reproductora: escribir `confirmado` acaba de disparar el cruce, que rehízo por SQL los días
+        // 1-7 del lote de engorde. Sus bajas tienen que llegar al maestro DENTRO de esta transacción;
+        // para el resto de los módulos es un no-op.
+        await SincronizarCruceReproductoraAsync(modulo, estado.LoteRefInt, ct);
 
         if (tx is not null) await tx.CommitAsync(ct);
 
@@ -140,9 +146,57 @@ public partial class ValidacionSeguimientoService
 
         await MarcarValidadoAsync(modulo, seguimientoId, validado: false, ct);
 
+        // Reproductora: quitar `confirmado` re-disparó el cruce, y la fn sólo cuenta días confirmados
+        // ⇒ BORRÓ los días 1-7. Sin esto sus filas del histórico unificado quedan apuntando a
+        // seguimientos que ya no existen y las aves no vuelven nunca al maestro.
+        await SincronizarCruceReproductoraAsync(modulo, estado.LoteRefInt, ct);
+
         if (tx is not null) await tx.CommitAsync(ct);
 
         return new ResultadoValidacionDto(modulo, seguimientoId, reservasAlimento.Count, kg, aves);
+    }
+
+    /// <summary>
+    /// Lleva al maestro de aves del lote de engorde las bajas de los días que generó (o borró) el
+    /// cruce, después de tocar la marca <c>confirmado</c> de un seguimiento de reproductora.
+    ///
+    /// <para>
+    /// ⚠️ <b>El id no es el mismo.</b> Para reproductora, <c>LeerEstadoAsync</c> devuelve en
+    /// <c>LoteRefInt</c> el id del <b>lote de reproductora</b>, mientras que
+    /// <c>SincronizarCruceAsync</c> espera el del <b>lote de engorde</b>. Pasarlo directo no lanza
+    /// ninguna excepción: no encuentra el lote y no hace nada —o peor, sincroniza el lote de engorde
+    /// que por casualidad tenga ese id—. Por eso se resuelve el puente primero, igual que
+    /// <c>SeguimientoDiarioLoteReproductoraService.SincronizarBajasCruceAsync</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotente (el aplicador saltea los orígenes ya aplicados). Los fallos se registran sin tumbar
+    /// la validación: el cruce ya ocurrió y el reporte diario, que calcula desde
+    /// <c>aves_encasetadas</c>, sigue mostrando el saldo correcto.
+    /// </para>
+    /// </summary>
+    private async Task SincronizarCruceReproductoraAsync(
+        string modulo, int loteReproductoraId, CancellationToken ct)
+    {
+        if (!ModuloSeguimiento.RequiereSincronizarCruce(modulo)) return;
+        if (loteReproductoraId <= 0) return;
+
+        try
+        {
+            var loteEngordeId = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                .Where(l => l.Id == loteReproductoraId)
+                .Select(l => l.LoteAveEngordeId)
+                .FirstOrDefaultAsync(ct);
+            if (loteEngordeId <= 0) return;
+
+            await RetiroAvesEngordeAplicador.SincronizarCruceAsync(_ctx, _current.CompanyId, loteEngordeId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex,
+                "Error al sincronizar las bajas del cruce con el maestro de aves, lote reproductora {LoteReproductoraId}",
+                loteReproductoraId);
+        }
     }
 
     // ─── Aplicación del efecto ────────────────────────────────────────────────

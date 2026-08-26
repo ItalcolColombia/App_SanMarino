@@ -224,6 +224,9 @@
           @if (!loteCerrado && avesVivasPendientes > 0) {
             <p class="liq-lote__banner" role="alert">
               Advertencia: hay <strong>{{ avesVivasPendientes | number:'1.0-0' }}</strong> aves registradas como vivas/disponibles.
+              Al liquidar, el encasetamiento del lote pasa a valer <strong>bajas + ventas</strong> y esa foto queda
+              <strong>congelada</strong>: esas aves desaparecen de los reportes y sólo vuelven reabriendo el lote.
+              Si todavía falta cargar la <strong>venta</strong>, regístrela antes de liquidar.
               Si corresponde (aves no reportadas o ya no presentes físicamente), puede continuar con la liquidación.
             </p>
           }

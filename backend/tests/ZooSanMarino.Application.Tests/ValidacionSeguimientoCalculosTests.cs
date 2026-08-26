@@ -190,6 +190,32 @@ public class ValidacionSeguimientoCalculosTests
         Assert.False(ModuloSeguimiento.EsValido(null));
     }
 
+    // ─── Sincronización del cruce: sólo reproductora ──────────────────────────
+    // Reproductora es el único módulo cuyas bajas las escribe el TRIGGER del cruce y no un aplicador
+    // de C#, así que validar/des-validar tiene que sincronizar el maestro de aves a mano. Para los
+    // demás la sincronización es un no-op: si esto devolviera true de más, se correría el aplicador
+    // del cruce sobre lotes que no tienen días de cruce.
+
+    [Theory]
+    [InlineData(ModuloSeguimiento.Reproductora, true)]
+    [InlineData(ModuloSeguimiento.Engorde, false)]
+    [InlineData(ModuloSeguimiento.EngordeEcuador, false)]
+    [InlineData(ModuloSeguimiento.Levante, false)]
+    [InlineData(ModuloSeguimiento.Produccion, false)]
+    public void SoloReproductoraRequiereSincronizarElCruce(string modulo, bool esperado)
+    {
+        Assert.Equal(esperado, ModuloSeguimiento.RequiereSincronizarCruce(modulo));
+    }
+
+    [Fact]
+    public void RequiereSincronizarCruceEsInsensibleAMayusculasYToleraNulo()
+    {
+        Assert.True(ModuloSeguimiento.RequiereSincronizarCruce("reproductora"));
+        Assert.False(ModuloSeguimiento.RequiereSincronizarCruce(null));
+        Assert.False(ModuloSeguimiento.RequiereSincronizarCruce(""));
+        Assert.False(ModuloSeguimiento.RequiereSincronizarCruce("VACUNACION"));
+    }
+
     // ─── Literal canónico: los dos engordes son UN solo registro ──────────────
     // Nace del bug de agosto-2026: el formulario de engorde hace su CRUD contra el controller de
     // Ecuador (que separaba como ENGORDE_EC) pero pide pendientes y valida como ENGORDE. Al filtrar

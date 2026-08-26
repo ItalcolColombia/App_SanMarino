@@ -3,9 +3,17 @@
  *
  * Dentro de un mismo galpón puede haber varias corridas históricas (ej. lotes `2601`, `2602`,
  * `2603`). Solo la corrida vigente (la de `fechaEncaset` más reciente) debe admitir cantidades en
- * la venta por granja; las demás — y cualquier lote ya `Cerrado` — quedan bloqueadas salvo que el
- * usuario tenga el permiso `movimientos_pollo_engorde.vender_lotes_cerrados`. Función pura sin
- * estado de Angular.
+ * la venta por granja; las demás — y cualquier lote ya `Cerrado` — quedan bloqueadas.
+ *
+ * ⚠️ **El permiso `movimientos_pollo_engorde.vender_lotes_cerrados` NO destraba un lote cerrado**,
+ * aunque su nombre lo sugiera. El backend rechaza toda escritura sobre un lote liquidado en
+ * `LiquidacionCongeladaGateCalculos.ValidarEscritura` (→ 400) y no consulta ese permiso en ninguna
+ * parte: su único bypass (`omitirGateLiquidado`) lo usa la herramienta de corrección de aves. Antes
+ * este archivo prometía lo contrario, así que quien tenía el permiso podía cargar cantidades sobre
+ * un lote cerrado y el guardado le rebotaba sin explicación.
+ *
+ * Lo que el permiso sí destraba es la **corrida anterior** (`bypassablePorPermiso`), que el backend
+ * acepta sin chistar porque no tiene noción de «corrida vigente». Función pura sin estado de Angular.
  */
 import { VentaLineaGranja } from '../models/venta-granja.model';
 import { LoteAveEngordeDto } from '../../lote-engorde/services/lote-engorde.service';
@@ -64,6 +72,10 @@ export function marcarLotesBloqueadosVenta(
     return {
       ...linea,
       bloqueada,
+      // `cerrado` gana sobre `!esVigente`: si el lote está liquidado no importa que además sea
+      // corrida anterior — el gate de liquidación del backend lo rechaza igual, así que ningún
+      // permiso puede destrabarlo.
+      bypassablePorPermiso: bloqueada && !cerrado,
       motivoBloqueo: !bloqueada ? undefined : cerrado ? 'Lote cerrado' : 'Corrida anterior en este galpón'
     };
   });

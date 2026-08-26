@@ -33,6 +33,28 @@ public static class ModuloSeguimiento
         EngordeEcuador.Equals(modulo, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True para el único módulo cuyas bajas NO las escribe un aplicador de C# sino el TRIGGER del
+    /// cruce, y que por eso necesita una sincronización explícita con el maestro de aves.
+    ///
+    /// <para>
+    /// Escribir <c>confirmado</c> en reproductora dispara el cruce, que rehace por SQL los días 1-7 en
+    /// <c>seguimiento_diario_aves_engorde</c>. Esas filas no pasan por ningún service, así que su
+    /// mortalidad no llega sola a <c>lote_ave_engorde</c>: hay que correr
+    /// <c>RetiroAvesEngordeAplicador.SincronizarCruceAsync</c> después de tocar la marca, en las DOS
+    /// direcciones. Al confirmar sin sincronizar el maestro queda por encima del real —se despachan
+    /// aves ya muertas—; al des-confirmar, el cruce borra sus días y las filas del histórico quedan
+    /// apuntando a seguimientos que ya no existen.
+    /// </para>
+    ///
+    /// <para>
+    /// Los demás módulos descuentan por <c>AplicarAvesAsync</c> y devuelven <c>false</c>: para ellos la
+    /// sincronización del cruce es un no-op y el camino previo queda intacto.
+    /// </para>
+    /// </summary>
+    public static bool RequiereSincronizarCruce(string? modulo) =>
+        modulo is not null && Reproductora.Equals(modulo, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Literal con el que se GUARDAN y se BUSCAN las reservas y el estado de un registro.
     ///
     /// <para>
