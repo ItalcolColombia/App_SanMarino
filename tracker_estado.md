@@ -3043,3 +3043,48 @@ restaurada en local el 25-ago-2026.
       historico quedaron `anulado = true` por el trigger, que de paso prueba que el `AFTER DELETE`
       tambien cubre el `tipo_evento` nuevo); fila de `sesiones_activas` borrada; backend detenido y
       puertos `:5002`/`:4200` verificados libres.
+
+---
+
+## EC2 — Barrido del cuadre de alimento de ItalcolPanama (25-ago-2026)
+
+Plan: [`fase_de_desarrollo/barrido_cuadre_panama_plan.md`](fase_de_desarrollo/barrido_cuadre_panama_plan.md)
+
+Pedido tras cerrar EC1: entender y cerrar los galpones descuadrados de Panamá, que en EC1 habían
+quedado declarados fuera de alcance sin diagnóstico.
+
+- [x] 🔴 **El número que se había reportado estaba mal.** «12 galpones / 55.866,5 kg» es el crudo de
+      `fn_cuadre_alimento_engorde`. **La pantalla muestra 11 / 63.668,2 kg**, porque el servicio le
+      suma lo *reservado* por la doble validación. **G0479 ni siquiera está descuadrado** (su −907,0
+      es exactamente su reserva de 907,0); G0463 sube a 8.306,9 y G0492 pasa a +2.812,0.
+- [x] **Causa atribuida galpón por galpón.** El patrón dominante es uno solo: alguien corrigió el
+      inventario a mano y la tabla diaria nunca se enteró (`INV_OTRO`, que la fn no lee). Los dos
+      más grandes coinciden **al kilo** con una `EliminacionStock`: G0475 con 18.650,356 kg (07-ago)
+      y G0483 con 12.500,000 kg (01-ago) — **31.150 kg, casi la mitad del total**, son dos clics.
+- [x] **Ninguno es el bug de EC1.** Ese produce el signo contrario. Se buscaron explícitamente
+      entradas borradas sin reversión de stock: hay en G0483, G0495 y G0496, pero ninguna coincide
+      con su descuadre.
+- [x] 🟢 **Ensayo en transacción revertida: los 6 seguros quedan en 0,0**, Panamá pasa de 12 a 6
+      descuadrados y de 55.866,5 a 15.289,1 kg (**73 % cerrado**), y —lo que importa— **ningún
+      galpón gana días en rojo** (16 antes, 16 después). Script:
+      `backend/sql/verificar_barrido_cuadre_panama.sql`.
+- [x] 🔴 **El ensayo cazó un galpón que NO se puede barrer: G0495.** Tiene 178,3 kg de stock y
+      2.786,0 kg entrados después del último seguimiento ⇒ declarar que el stock manda exige que la
+      tabla cierre en **−2.607,7 kg**. En el primer ensayo el saldo quedó negativo y el galpón
+      **ganó un día en rojo que hoy no tiene**. Ahí lo que está mal es el inventario, no la tabla.
+      Es exactamente el «verificar antes de limpiar datos» de CLAUDE.md.
+- [x] **Otros 3 quedan fuera con motivo**: G0463 (+8.306,9) y G0492 (+2.812,0) son **reservas
+      activas** —seguimientos sin validar, no kilos faltantes— y se cierran validándolos; G0460
+      (−6.667,2) es un problema de **fecha** (3 llegadas de julio, 18.018,2 kg, anteriores al
+      arranque del ciclo); G0461 (+317,5) es prematuro (ciclo recién arrancado, más de medio stock
+      en movimientos posteriores).
+- [x] 🔴 **Lo que NO se pudo cerrar, dicho como tal**: reconstruí el delta con signo de cada ajuste
+      parseando su motivo (`Anterior → Nuevo`) y **la aritmética solo cierra en G0477**. En el resto
+      los ajustes suman más que el descuadre (parte ya la absorbió la apertura del ciclo), y en
+      G0476 directamente no hay ajustes registrados. Causa clara ≠ causa atribuida al kilo.
+- [ ] ⏸️ **Ejecución en producción: BLOQUEADA por dos cosas.** (1) el deploy de EC1 —sin
+      «Cuadrar galpón» seis de estos no tienen arreglo posible—; y (2) una confirmación de
+      costos/operación a una sola pregunta que el código no puede contestar: **¿el inventario de
+      esos galpones es confiable hoy?** Pesa sobre todo para G0475 y G0483 (31.150 kg entre los dos).
+- [ ] ⏸️ **G0495 queda como pendiente propio**: es el único que señala un problema real de
+      inventario (kilos que entraron y no están), no de sincronización entre las dos vistas.
