@@ -3829,11 +3829,36 @@ cargar su línea genética.
       Ecuador 2 y Panamá 5 en `/config/guia-genetica-ecuador`, **Santa Reyes 2 → `/config/guia-genetica-santa-reyes`**.
       Swap 1:1: nadie fuera de Santa Reyes pierde ni gana una ruta. Tildes confirmadas en BD por
       comparación contra el literal (`label = 'Guía Genética Pollo Engorde'` ⇒ `t`).
-- [!] **Smoke en navegador NO hecho** — no tengo credenciales de un usuario de Santa Reyes y Swagger
-      está detrás de su propia pantalla de auth. Lo que sí quedó probado sin token: el endpoint existe
-      y está gateado (`GET /api/guia-genetica-santa-reyes` ⇒ **401**). **Falta que alguien entre y haga
-      alta / edición / baja / import** con un usuario real de Santa Reyes antes de dar el módulo por
-      bueno en producción.
+- [x] **Smoke end-to-end HECHO contra el backend real** (`:5002`, BD local = copia de prod), con la
+      receta del repo: JWT minteado para el **Admin de Santa Reyes** (`90c29eab…`, rol 30, company 6,
+      país 1, sus 35 permisos), fila en `sesiones_activas` (B1 exige la lista blanca por `jti`: sin
+      ella el token es rechazado, **no hay bypass en Development**) y `X-Secret-Up` replicando
+      `EncryptionService.Encrypt`. **8 de 8 pasos verdes:**
+
+      | # | Prueba | Resultado |
+      |---|---|---|
+      | 1 | `GET` listado | **200**, `total = 615` — la guía sembrada se ve |
+      | 2 | `POST` alta de **`Lohmann Brown`** | **201**, id 619 — *la raza que el cliente no podía cargar* |
+      | 3 | `POST` duplicado | **400** con mensaje que manda a editar la existente |
+      | 4 | `GET` filtrado por raza | **200**, la encuentra |
+      | 5 | `PUT` edición | **200**, valores actualizados |
+      | 6 | `GET` plantilla | **200**, 4.518 bytes de Excel |
+      | 7 | Guard: escribir la **compartida** desde SR | **403** con mensaje que nombra el módulo correcto |
+      | 7b | Guard: **import Excel** de la compartida | **403** — corta **antes** de parsear el archivo |
+      | 8 | `DELETE` (baja suave) | **204**; `GET` posterior **404**; listado en 0 |
+
+      ⚠️ El primer intento de 7b dio **400 y no 403**: el guard está en `ExcelImportController:62`,
+      **después** de la validación de archivo (`:59`), así que un POST sin archivo muere antes de
+      llegar. Re-probado **con un archivo real** ⇒ 403. No es un hueco, es el orden de los mensajes.
+      **Limpieza:** la línea 619 y la fila de sesión se borraron; la guía volvió a **615 filas**.
+- [x] **Permiso verificado replicando `AuthService.PermisosEfectivosAsync`** (`role_permissions` ∩
+      `company_permissions` habilitadas): `guia_genetica.gestionar` llega a las 5 empresas, **2
+      usuarios en Santa Reyes**. El módulo no nace 403. El claim se llama `permission`, igual que en
+      `GestionUsuariosEscrituraFilter` y `VentanaFechaRegistroGuard`.
+- [i] **Sin smoke en NAVEGADOR** (la pantalla en sí). El backend quedó probado end-to-end y el
+      componente revisado línea por línea —`ChangeDetectionStrategy.Eager`, `finalize()` que apaga el
+      spinner pase lo que pase, `takeUntil(destroy$)` sin fugas, `puedeEscribir = false` ante error
+      (fail-closed)—, pero **nadie abrió la pantalla todavía**. Es lo único que queda por mirar.
 
 ### F5 · El hueco de LECTURA — CERRADO, commit `a278361`
 
