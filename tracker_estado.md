@@ -4043,3 +4043,19 @@ faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar l
       `ENDPOINTS_OPERATIVOS` y el gate sigue verde.
 - [~] Re-disparar el deploy a `main-produccion` (fuera del repo: requiere push, que el usuario pide
       explícitamente).
+- [x] **Aparte, del mismo run:** el warning de GitHub de que `checkout@v4`, `setup-dotnet@v4` y
+      `setup-node@v4` apuntan a Node 20 (retirado) y los está forzando a Node 24. Se subieron a
+      `checkout@v7`, `setup-dotnet@v6`, `setup-node@v7` y —no lo avisaba el run, porque su job no
+      llegó a correr— `configure-aws-credentials@v6`, que también era `node20`.
+- [x] Los otros tres `aws-actions` NO se tocaron: se verificó `using:` en el `action.yml` de su tag
+      y `ecr-login@v2`, `ecs-render-task-definition@v1` y `ecs-deploy-task-definition@v2` **ya
+      resuelven a node24**. El criterio quedó escrito en la cabecera del workflow: decide el
+      runtime, no el número de versión.
+- [x] Breaking changes revisados uno por uno contra este workflow, no asumidos: `setup-node` v5/v6
+      (caché automática) no aplica —no hay `packageManager` en `package.json` y el `cache: yarn` es
+      explícito—; `configure-aws-credentials` v5 (booleanos inválidos) tampoco —sólo se le pasan
+      `role-to-assume`, `aws-region` y `role-session-name`—; `checkout` v6 (credenciales a un archivo
+      aparte) y v7 (bloquea fork PRs en `pull_request_target`/`workflow_run`) no aplican: el
+      workflow no corre ningún comando `git` y dispara por `push`.
+- [x] Los 4 tags nuevos existen y declaran `using: node24` (verificado por API, no de memoria). El
+      diff son 7 líneas de `uses:` + 8 de comentario, cero cambios estructurales.

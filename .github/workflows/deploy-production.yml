@@ -9,6 +9,14 @@
 #   1. OIDC provider configurado en IAM para token.actions.githubusercontent.com
 #   2. Rol IAM  github-actions-deploy  con la política adjunta (ver docs/iam-policy.json)
 #   3. Los servicios ECS y task definitions ya deben existir en AWS
+#
+# Versiones de las actions: van pineadas al MAJOR, y el criterio para subirlas no es "estar al dia"
+# sino el RUNTIME. GitHub esta retirando Node 20 y hoy fuerza a Node 24 las que lo declaran, con un
+# warning en cada run (visto en el run 89511545875). Por eso checkout@v7, setup-dotnet@v6,
+# setup-node@v7 y configure-aws-credentials@v6, que ya son node24. Los otros tres aws-actions se
+# quedan donde estan (ecr-login@v2, ecs-render-task-definition@v1, ecs-deploy-task-definition@v2)
+# porque ESE major ya resuelve a node24: subirlos no compraria nada. Antes de mover una version,
+# mira `using:` en el action.yml del tag — es el dato que decide, no el numero.
 # =============================================================================
 
 name: Deploy to Production
@@ -70,11 +78,11 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # ── Backend: xUnit ──────────────────────────────────────────────────────
       - name: Configurar .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -86,7 +94,7 @@ jobs:
       # ubuntu-latest trae Google Chrome preinstalado; karma-chrome-launcher lo
       # localiza vía CHROME_BIN.
       - name: Configurar Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22.23.1"
           cache: yarn
@@ -154,11 +162,11 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # ── Autenticación AWS vía OIDC (sin claves estáticas) ──────────────────
       - name: Configurar credenciales AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
@@ -318,10 +326,10 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar credenciales AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
