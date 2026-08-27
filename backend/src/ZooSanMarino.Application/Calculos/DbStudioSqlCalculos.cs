@@ -292,95 +292,200 @@ public static class DbStudioSqlCalculos
         return $"ARRAY[{string.Join(", ", items)}]";
     }
 
-    // ===================== Orden de rutinas para el backup =====================
+    // ===================== Orden de funciones y vistas para el backup =====================
+
+    /// <summary>
+    /// Qué clase de objeto de esquema es. Importa porque de eso depende cómo se detecta que otro lo usa:
+    /// a una función se la INVOCA (su nombre lleva <c>(</c> a la derecha), a una vista se la LEE como
+    /// relación (<c>FROM vw_x g</c>, sin paréntesis).
+    /// </summary>
+    public enum TipoObjetoEsquema
+    {
+        /// <summary>Función o procedimiento.</summary>
+        Funcion = 0,
+        /// <summary>Vista, normal o materializada.</summary>
+        Vista = 1
+    }
+
+    /// <summary>
+    /// Un objeto de esquema exportado por el backup. <c>Orden</c> es solo la clave de desempate entre
+    /// objetos que ya podrían emitirse: el OID (orden de creación) para las funciones, la posición
+    /// alfabética para las vistas — o sea, exactamente el orden que tenía cada bloque cuando se emitían
+    /// por separado.
+    /// </summary>
+    public sealed record ObjetoEsquemaDef(long Orden, string Name, string Definition, TipoObjetoEsquema Tipo);
 
     /// <summary>Una rutina exportada por el backup: su OID (orden de creación), su nombre y su <c>CREATE ... FUNCTION</c> completo.</summary>
     public sealed record RoutineDef(long Oid, string Name, string Definition);
 
     /// <summary>
-    /// Ordena las rutinas para que cada una se cree DESPUÉS de las que su cuerpo invoca. El cuerpo de una
-    /// función <c>LANGUAGE sql</c> se valida contra el catálogo AL CREARSE (a diferencia de <c>plpgsql</c>,
-    /// opaco hasta ejecutarse): si llama a una que todavía no existe, el restore falla con 42883.
+    /// Ordena funciones y vistas en UNA sola secuencia para que cada objeto se cree después de los que
+    /// usa. Emitirlas en dos bloques separados (funciones topológicas, vistas alfabéticas al final)
+    /// asume que las funciones no leen vistas y que las vistas no se leen entre sí; las dos cosas son
+    /// falsas: <c>fn_resumen_semanal_ra_pesadas_levante</c> y otras 3 leen <c>vw_guia_genetica_postura</c>
+    /// (42P01 al restaurar el backup del 27ago26) y <c>vw_guia_genetica_por_lote_postura</c> lee esa
+    /// misma vista además de <c>f_safe_numeric</c>. Como la dependencia va en los dos sentidos, tampoco
+    /// alcanza con dar vuelta los bloques: el orden tiene que ser uno solo sobre los dos tipos.
     ///
-    /// El orden por OID (creación) NO alcanza: <c>DROP FUNCTION</c> + <c>CREATE</c> —obligatorio para
-    /// cambiarle el <c>RETURNS TABLE</c> a una función— le asigna un OID nuevo, más alto que el de sus
-    /// llamadores, y la manda al final. <c>pg_depend</c> tampoco sirve: Postgres no registra ahí las
-    /// llamadas dentro del cuerpo de una función SQL clásica (verificado contra la base: 2 filas
-    /// <c>pg_proc→pg_proc</c> en todo el esquema). Leer los cuerpos es la única señal disponible.
+    /// Tanto el cuerpo de una función <c>LANGUAGE sql</c> como la consulta de una vista se validan
+    /// contra el catálogo AL CREARSE. El <c>plpgsql</c> es la excepción (opaco hasta ejecutarse) y por
+    /// eso pasa callado: si al restaurar solo revientan algunos objetos, mirá el <c>LANGUAGE</c>.
     ///
-    /// Kahn con desempate por OID, para que el resultado sea determinista y se mantenga lo más cerca
-    /// posible del orden de creación. Si queda un ciclo —solo puede venir de una arista falsa, porque un
-    /// ciclo real entre funciones SQL es imposible de crear— esos nodos se emiten al final en orden de
-    /// OID, o sea el comportamiento previo. La salida es SIEMPRE una permutación exacta de la entrada:
-    /// ninguna rutina se pierde ni se duplica.
+    /// La arista se detecta leyendo el texto, según el tipo del objeto REFERIDO:
+    /// <see cref="RutinaInvocaA"/> para funciones (exige el paréntesis) y
+    /// <see cref="DefinicionUsaRelacion"/> para vistas (frontera de palabra a los dos lados).
+    /// <c>pg_depend</c> no sirve para la mitad de funciones: Postgres no registra ahí las llamadas
+    /// dentro del cuerpo de una función SQL clásica (verificado contra la base: 2 filas
+    /// <c>pg_proc→pg_proc</c> en todo el esquema).
+    ///
+    /// Kahn con desempate <c>(Tipo, Orden)</c>: entre varios objetos listos sale primero una función y,
+    /// dentro de cada tipo, el de menor <c>Orden</c>. Así el archivo queda lo más cerca posible del de
+    /// siempre —todas las funciones, después las vistas— y solo se adelanta lo que una dependencia
+    /// obliga. Si queda un ciclo (solo puede venir de una arista falsa) esos nodos se emiten al final
+    /// en ese mismo orden, o sea el comportamiento previo. La salida es SIEMPRE una permutación exacta
+    /// de la entrada: ningún objeto se pierde ni se duplica.
+    /// </summary>
+    public static IReadOnlyList<ObjetoEsquemaDef> OrdenarObjetosEsquemaPorDependencia(IReadOnlyList<ObjetoEsquemaDef> objetos)
+    {
+        if (objetos.Count < 2) return objetos;
+
+        // Un mismo nombre puede tener varios overloads: la arista va a todos (sobre-restringe, nunca
+        // sub-restringe), porque el cuerpo no dice a qué firma le está llamando.
+        var porNombre = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        for (var i = 0; i < objetos.Count; i++)
+        {
+            if (string.IsNullOrEmpty(objetos[i].Name)) continue;
+            if (!porNombre.TryGetValue(objetos[i].Name, out var lista))
+                porNombre[objetos[i].Name] = lista = new List<int>();
+            lista.Add(i);
+        }
+
+        // dependientes[j] = objetos que esperan a j; pendientes[i] = cuántos le faltan a i.
+        var dependientes = new List<int>[objetos.Count];
+        var pendientes = new int[objetos.Count];
+        for (var i = 0; i < objetos.Count; i++) dependientes[i] = new List<int>();
+
+        for (var i = 0; i < objetos.Count; i++)
+        {
+            var yaContadas = new HashSet<int>();
+            foreach (var (nombre, indices) in porNombre)
+            {
+                // Autorreferencia (recursivas, y el propio CREATE que nombra al objeto) fuera: se
+                // esperaría a sí mismo y nunca entraría a la cola.
+                if (string.Equals(nombre, objetos[i].Name, StringComparison.Ordinal)) continue;
+
+                // El texto se recorre una vez por tipo, no una vez por overload.
+                bool? comoFuncion = null, comoVista = null;
+                foreach (var j in indices)
+                {
+                    if (j == i) continue;
+
+                    bool usa;
+                    if (objetos[j].Tipo == TipoObjetoEsquema.Funcion)
+                    {
+                        comoFuncion ??= RutinaInvocaA(objetos[i].Definition, nombre);
+                        usa = comoFuncion.Value;
+                    }
+                    else
+                    {
+                        comoVista ??= DefinicionUsaRelacion(objetos[i].Definition, nombre);
+                        usa = comoVista.Value;
+                    }
+
+                    if (usa && yaContadas.Add(j))
+                    {
+                        dependientes[j].Add(i);
+                        pendientes[i]++;
+                    }
+                }
+            }
+        }
+
+        // Cola ordenada por (Tipo, Orden): entre varios listos sale primero la función creada antes.
+        var listos = new SortedSet<(int Tipo, long Orden, int Idx)>();
+        for (var i = 0; i < objetos.Count; i++)
+            if (pendientes[i] == 0) listos.Add(Clave(objetos, i));
+
+        var salida = new List<ObjetoEsquemaDef>(objetos.Count);
+        var emitido = new bool[objetos.Count];
+        while (listos.Count > 0)
+        {
+            var minimo = listos.Min;
+            listos.Remove(minimo);
+            salida.Add(objetos[minimo.Idx]);
+            emitido[minimo.Idx] = true;
+
+            foreach (var dep in dependientes[minimo.Idx])
+                if (--pendientes[dep] == 0) listos.Add(Clave(objetos, dep));
+        }
+
+        // Ciclo (arista falsa): al final en orden (Tipo, Orden) — el comportamiento de siempre.
+        if (salida.Count < objetos.Count)
+        {
+            var restantes = new List<ObjetoEsquemaDef>();
+            for (var i = 0; i < objetos.Count; i++)
+                if (!emitido[i]) restantes.Add(objetos[i]);
+            restantes.Sort((a, b) => a.Tipo != b.Tipo
+                ? ((int)a.Tipo).CompareTo((int)b.Tipo)
+                : a.Orden.CompareTo(b.Orden));
+            salida.AddRange(restantes);
+        }
+
+        return salida;
+
+        static (int Tipo, long Orden, int Idx) Clave(IReadOnlyList<ObjetoEsquemaDef> objs, int i)
+            => ((int)objs[i].Tipo, objs[i].Orden, i);
+    }
+
+    /// <summary>
+    /// Envoltorio histórico de <see cref="OrdenarObjetosEsquemaPorDependencia"/> para cuando el lote es
+    /// solo de funciones: todas entran como <see cref="TipoObjetoEsquema.Funcion"/>, con lo que el
+    /// desempate <c>(Tipo, Orden)</c> se reduce al de OID puro que este método tenía desde el 13ago26.
     /// </summary>
     public static IReadOnlyList<RoutineDef> OrdenarRutinasPorDependencia(IReadOnlyList<RoutineDef> rutinas)
     {
         if (rutinas.Count < 2) return rutinas;
 
-        // Un mismo nombre puede tener varios overloads: la arista va a todos (sobre-restringe, nunca
-        // sub-restringe), porque el cuerpo no dice a qué firma le está llamando.
-        var porNombre = new Dictionary<string, List<int>>(StringComparer.Ordinal);
-        for (var i = 0; i < rutinas.Count; i++)
-        {
-            if (string.IsNullOrEmpty(rutinas[i].Name)) continue;
-            if (!porNombre.TryGetValue(rutinas[i].Name, out var lista))
-                porNombre[rutinas[i].Name] = lista = new List<int>();
-            lista.Add(i);
-        }
+        var objetos = new List<ObjetoEsquemaDef>(rutinas.Count);
+        foreach (var r in rutinas)
+            objetos.Add(new ObjetoEsquemaDef(r.Oid, r.Name, r.Definition, TipoObjetoEsquema.Funcion));
 
-        // dependientes[j] = rutinas que esperan a j; pendientes[i] = cuántas le faltan a i.
-        var dependientes = new List<int>[rutinas.Count];
-        var pendientes = new int[rutinas.Count];
-        for (var i = 0; i < rutinas.Count; i++) dependientes[i] = new List<int>();
+        var ordenados = OrdenarObjetosEsquemaPorDependencia(objetos);
 
-        for (var i = 0; i < rutinas.Count; i++)
-        {
-            var yaContadas = new HashSet<int>();
-            foreach (var (nombre, indices) in porNombre)
-            {
-                // Autorreferencia (recursivas) fuera: se esperaría a sí misma y nunca entraría a la cola.
-                if (string.Equals(nombre, rutinas[i].Name, StringComparison.Ordinal)) continue;
-                if (!RutinaInvocaA(rutinas[i].Definition, nombre)) continue;
-
-                foreach (var j in indices)
-                    if (j != i && yaContadas.Add(j))
-                    {
-                        dependientes[j].Add(i);
-                        pendientes[i]++;
-                    }
-            }
-        }
-
-        // Cola ordenada por OID: entre varias rutinas listas, sale primero la creada antes.
-        var listas = new SortedSet<(long Oid, int Idx)>();
-        for (var i = 0; i < rutinas.Count; i++)
-            if (pendientes[i] == 0) listas.Add((rutinas[i].Oid, i));
-
-        var salida = new List<RoutineDef>(rutinas.Count);
-        var emitida = new bool[rutinas.Count];
-        while (listas.Count > 0)
-        {
-            var (_, idx) = listas.Min;
-            listas.Remove(listas.Min);
-            salida.Add(rutinas[idx]);
-            emitida[idx] = true;
-
-            foreach (var dep in dependientes[idx])
-                if (--pendientes[dep] == 0) listas.Add((rutinas[dep].Oid, dep));
-        }
-
-        // Ciclo (arista falsa): al final en orden de OID — el comportamiento de siempre.
-        if (salida.Count < rutinas.Count)
-        {
-            var restantes = new List<RoutineDef>();
-            for (var i = 0; i < rutinas.Count; i++)
-                if (!emitida[i]) restantes.Add(rutinas[i]);
-            restantes.Sort((a, b) => a.Oid.CompareTo(b.Oid));
-            salida.AddRange(restantes);
-        }
-
+        var salida = new List<RoutineDef>(ordenados.Count);
+        foreach (var o in ordenados) salida.Add(new RoutineDef(o.Orden, o.Name, o.Definition));
         return salida;
+    }
+
+    /// <summary>
+    /// ¿La definición <paramref name="definicion"/> LEE la relación <paramref name="nombre"/>? A
+    /// diferencia de <see cref="RutinaInvocaA"/> acá no se puede exigir el paréntesis: una vista se
+    /// nombra <c>FROM vw_x g</c>, no <c>vw_x(...)</c>. La frontera de palabra va entonces a los DOS
+    /// lados —el punto y la comilla doble cuentan como frontera, para capturar <c>public.vw_x</c> y
+    /// el entrecomillado que emite el backup— y es lo que descarta prefijos y sufijos pegados:
+    /// <c>vw_guia_genetica_postura</c> no matchea dentro de <c>vw_guia_genetica_por_lote_postura</c>
+    /// ni de <c>vw_guia_genetica_postura_v2</c>. Un nombre citado en un comentario genera una arista
+    /// de más, no de menos.
+    /// </summary>
+    public static bool DefinicionUsaRelacion(string? definicion, string nombre)
+    {
+        if (string.IsNullOrEmpty(definicion) || string.IsNullOrEmpty(nombre)) return false;
+
+        var desde = 0;
+        while (desde <= definicion.Length - nombre.Length)
+        {
+            var pos = definicion.IndexOf(nombre, desde, StringComparison.Ordinal);
+            if (pos < 0) return false;
+            desde = pos + 1;
+
+            if (pos > 0 && EsCaracterDeIdentificador(definicion[pos - 1])) continue;
+
+            var fin = pos + nombre.Length;
+            if (fin < definicion.Length && EsCaracterDeIdentificador(definicion[fin])) continue;
+
+            return true;
+        }
+        return false;
     }
 
     /// <summary>

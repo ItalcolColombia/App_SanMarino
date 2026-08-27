@@ -4193,3 +4193,39 @@ podía fechar cualquier día pasado sin límite y sin el permiso).
       movimientos; con el permiso, cualquier fecha pasada entra; futuro siempre rechazado. **No
       ejecutado** — queda para que el usuario lo confirme en pantalla (Levante y Producción, con y
       sin el permiso).
+
+---
+
+## DB Studio — el backup no ordena vistas y funciones juntas (27-ago-2026)
+
+Plan: [`db_studio_backup_orden_vistas_funciones_plan.md`](fase_de_desarrollo/db_studio_backup_orden_vistas_funciones_plan.md)
+
+Reportado: restaurar el dump del 27-ago en la local corta con
+`ERROR: relation "vw_guia_genetica_postura" does not exist` (línea 138089, 42P01). El backup emite
+funciones (topológicas) y después vistas (alfabéticas), pero 4 funciones `LANGUAGE sql` LEEN una
+vista y una vista lee otra vista + una función: el orden correcto es uno solo sobre los dos tipos.
+
+- [x] Diagnóstico medido sobre el dump: 4 aristas función→vista, 1 vista→vista (latente, corta
+      1.676 líneas después del primer error) y 1 vista→función (por eso «vistas primero» tampoco sirve).
+- [x] `DbStudioSqlCalculos`: `ObjetoEsquemaDef` + `TipoObjetoEsquema` + `OrdenarObjetosEsquemaPorDependencia`
+      (Kahn mixto, detección de arista por tipo) + `DefinicionUsaRelacion`; `OrdenarRutinasPorDependencia`
+      queda como envoltorio para no tocar el contrato del 13-ago.
+- [x] `DbStudioService.Backup.cs`: `WriteRoutinesAsync` + `WriteViewsAsync` → un solo
+      `WriteRutinasYVistasAsync`; `SET check_function_bodies = off;` como red de seguridad (lo que hace
+      `pg_dump`); encabezado y marcador de sección actualizados.
+- [x] Tests xUnit nuevos (función→vista, vista→vista, vista→función, cadena mixta, fronteras de
+      palabra, permutación exacta) + los 9 de rutinas verdes.
+- [x] `dotnet build` + `dotnet test`.
+- [x] Dump del 27-ago reordenado con la misma regla y restaurado en `sanmarinoapplocal` (vacía) con
+      `-v ON_ERROR_STOP=1`: 0 errores.
+- [x] Verificación real, no solo tests: `psql -v ON_ERROR_STOP=1` sobre `sanmarinoapplocal` vacía
+      terminó en **exit 0**, con **136 tablas / 97.253 filas** — idéntico al pie del archivo — más 59
+      funciones, 5 vistas, 16 triggers, 526 índices, 184 FKs y 336 migraciones. Las vistas que antes
+      no existían devuelven datos (`vw_guia_genetica_postura` 1.743 filas,
+      `vw_guia_genetica_por_lote_postura` 1.059) y `fn_indicadores_levante_postura` ejecuta.
+- [x] Prueba de que el orden se sostiene SOLO (sin la red de seguridad): re-correr el tramo de
+      funciones+vistas con `check_function_bodies = on` y `ON_ERROR_STOP=1` da exit 0 — o sea que los
+      64 objetos se validan contra el catálogo en ese orden.
+- [!] La local quedó 21 migraciones atrás del código (336 en `__EFMigrationsHistory` vs 357 archivos):
+      es lo esperado —el dump es de producción— y el próximo arranque del backend las aplica solo
+      (`Database:RunMigrations=true`).
