@@ -40,6 +40,16 @@ describe('decidirCacheable', () => {
     expect(decidirCacheable('GET', '/api/CuadreAlimentoEngorde/liquidados-con-alimento')).toBeFalse();
   });
 
+  it('🔴 excluye la guía de Santa Reyes, pero NO las otras dos guías genéticas', () => {
+    // La reducida sólo la pide su pantalla de administración, que es de oficina; los indicadores de
+    // postura de Santa Reyes los calcula Postgres (`vw_guia_genetica_postura`), no el front. Las
+    // otras dos sí las leen pantallas de campo, así que la exclusión tiene que ser quirúrgica.
+    expect(decidirCacheable('GET', '/api/guia-genetica-santa-reyes?page=1')).toBeFalse();
+    expect(decidirCacheable('GET', '/api/guia-genetica-santa-reyes/plantilla')).toBeFalse();
+    expect(decidirCacheable('GET', '/api/guia-genetica')).toBeTrue();
+    expect(decidirCacheable('GET', '/api/guia-genetica-ecuador/anos')).toBeTrue();
+  });
+
   it('es LISTA BLANCA: un endpoint desconocido no se cachea', () => {
     // Lo peor que pasa al agregar un módulo nuevo es que no ande sin red hasta que se agregue
     // a la lista. Con lista negra, en cambio, se cachearía solo.

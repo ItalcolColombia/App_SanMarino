@@ -4015,3 +4015,31 @@ faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar l
       (Ecuador/Panamá): requiere login que este agente no tiene — queda para que el usuario lo
       confirme. El bug #1 es el que más probablemente explica el reporte (afecta el 100% de las
       ediciones en esas empresas); el #2 es un caso más acotado (lotes legado / raza sin guía).
+
+---
+
+## 🚑 Deploy 89511545875 cortado: `guia-genetica-santa-reyes` sin clasificar en la lista cacheable
+
+**Plan:** [`fase_de_desarrollo/lista_cacheable_guia_genetica_santa_reyes_plan.md`](fase_de_desarrollo/lista_cacheable_guia_genetica_santa_reyes_plan.md)
+
+- [i] El job «Tests — Backend & Frontend» falló con `exit 1` y **no fue un test**: backend
+      3.453/3.453 verdes, Karma 673/673 verdes y el gate de `changeDetection` OK (234 componentes).
+      Cortó el gate 9, `verificar-lista-cacheable.js`: `sin decisión tomada : 1 -
+      guia-genetica-santa-reyes`. El endpoint lo agregó `a34e7bb` y nadie lo clasificó. Segunda vez
+      que pasa lo mismo (la primera fue `a41fa6e`, cuadre de alimento).
+- [x] Clasificado en **`EXCLUIDOS`** de `decidir-cacheable.funcion.ts`, con el porqué escrito: sus
+      dos hermanas se cachean porque las leen pantallas de campo (indicadores de engorde, form de
+      lote); la reducida **sólo** la pide su propia pantalla de administración `/config/...`, que es
+      de oficina. Los indicadores de postura de Santa Reyes no pasan por el front: los calcula
+      Postgres contra `vw_guia_genetica_postura` (`a278361`).
+- [x] Test que fija la decisión **y** que las otras dos guías siguen cacheándose — las tres comparten
+      el prefijo `guia-genetica`, así que la exclusión tenía que verificarse quirúrgica.
+- [x] Riesgo de comportamiento: CERO. Al no estar en `ENDPOINTS_OPERATIVOS`, `decidirCacheable` ya
+      devolvía `false` para esa ruta; esto hace explícita la decisión, que es lo que el gate exige.
+- [x] Verificado local: los dos gates en verde (55 cacheables / 34 excluidos / 0 sin decisión ·
+      234 componentes con estrategia declarada), `yarn test` del spec 12/12 y `yarn build` sin errores.
+- [!] **Decisión de producto, reversible en una línea:** si operación quiere que la pantalla de la
+      guía de Santa Reyes se consulte sin red, se mueve la cadena de `EXCLUIDOS` a
+      `ENDPOINTS_OPERATIVOS` y el gate sigue verde.
+- [~] Re-disparar el deploy a `main-produccion` (fuera del repo: requiere push, que el usuario pide
+      explícitamente).
