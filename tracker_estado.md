@@ -2013,12 +2013,16 @@ insuficiente al sincronizar, **aceptar el dia y marcar para cuadre** en vez de r
 - [!] **4 decisiones de negocio** (una ya respondida: preservar el dia). Ver el bloque de abajo
 
 ### Lo que si se puede arrancar sin esperar
-- [ ] **F1 — calculo puro a `Application/Calculos/`**: `ItemConsumoCalculos`, `ConsumoDiffCalculos`,
-      `MetadataItemSeguimientoCalculos`, `FechaMovimientoSeguimientoCalculos`. Refactor puro, cero
-      cambio de comportamiento, solo agrega archivos. Hoy ese bucle esta inline TRES veces y ninguna
-      es testeable
-- [ ] **F5.2 — la UI del selector de items en Flutter**: repos distintos, cero archivos compartidos
-      con el backend. Es el trabajo de mayor plazo: conviene arrancarlo temprano y shippearlo tarde
+- [x] **F1 — calculo puro a `Application/Calculos/`**: `ItemConsumoCalculos`, `ConsumoDiffCalculos`,
+      `FechaMovimientoSeguimientoCalculos`. Checkbox obsoleto — quedó sin marcar aunque el trabajo se
+      cerró más abajo, en «F1, F2, F3 y F4 — hechos y verificados» (línea ~2050) el mismo 22-ago-2026.
+      Verificado en código el 27-ago-2026: los 3 archivos existen en `Calculos/` con tests propios
+      (`MetadataItemSeguimientoCalculos` no se necesitó — no aparece en el cierre real).
+- [x] **F5.2 — la UI del selector de items en Flutter**: checkbox obsoleto — ya está hecho y en uso.
+      Verificado en código el 27-ago-2026: `SelectorItemsInventario` (widget) wireado en
+      `zootecnicoapp/lib/features/seguimiento/pages/seguimiento_page.dart` detrás del kill switch
+      `_usaSelectorItems ⇒ widget.usuario.descuentaInventarioDesdeMovil` (comentario propio del código:
+      "F5.2/F0.2#4"), último commit del archivo `bb953aa` (23-ago-2026, bloque «rediseño visual»).
 
 ### 🟢 Alcance REDUCIDO por un dato (22ago26) — los 2 "huecos" no existen
 
@@ -2089,7 +2093,9 @@ directo, F3 si (marcado "RIESGOSA" en el plan) y se dejo para el final con el pa
         nuevo ni descuadre que crecio (los 11 descuadres que muestra son preexistentes y
         documentados, no de este cambio)
 - [x] F5 (la app emite items — el interruptor real del descuento) — hecho y verificado (22ago26)
-- [ ] F7 (`requiere_cuadre`) sigue sin arrancar
+- [x] F7 (`requiere_cuadre`) — checkbox obsoleto, contradicho 60 líneas más abajo en el mismo archivo:
+      «F7 — requiere_cuadre, hecho y verificado (22ago26)» (migración, gate de máquina, smoke de 15
+      verificaciones). Recontrastado en código el 27-ago-2026.
 
 ### F5 — el interruptor, hecho (22ago26)
 
@@ -3162,16 +3168,32 @@ bloqueado hacer el seguimiento; no deja crear otro seguimiento diario». Captura
 - [i] **Lote 180** (registro del 24-ago) pasa a EN_RETRASO mañana si nadie lo valida. Mismo caso.
 - [i] **Dos lotes en cola** (186 y 226): sus reproductoras tienen días sin confirmar desde hace 27 y
       6 días. Con el arreglo puesto, al confirmarlas los días nacen validados y **no** se traban.
-- [ ] ⏸️ **La misma clase de defecto sigue abierta en el push offline de la PWA**
-      (`Sync/SyncPushService.cs`, único escritor de seguimientos que no usa `ModoCargaHistorica`):
-      un día capturado offline y sincronizado >24 h después nace EN_RETRASO. Es **menos grave** —esos
-      registros sí son editables y validables desde la pantalla, no son un callejón sin salida— pero
-      va a generar el mismo ticket. Tarea aparte.
-- [ ] ⏸️ **Segundo camino de confirmación de reproductora sin sincronizar aves**:
-      `ValidacionSeguimientoService.MarcarValidadoAsync` escribe `Confirmado` por EF (lo que dispara
-      el cruce) pero **nunca llama** a `RetiroAvesEngordeAplicador.SincronizarCruceAsync`; solo lo
-      hace `SeguimientoDiarioLoteReproductoraService.ConfirmarAsync`. Hoy no muerde (el front usa el
-      endpoint específico), pero es la pata sobre la que se apoya el «no duplica ningún descuento».
+- [x] **La misma clase de defecto en el push offline de la PWA — MOOT, no era un bug (27-ago-2026).**
+      Apliqué primero (mecánicamente) el mismo patrón de `ModoCargaHistorica` que
+      `MigracionService`/`PuentePanamaService`, y lo **revertí** antes de commitear al verificar el
+      efecto real: `ModoCargaHistorica` no solo evita la fecha límite vencida, **desactiva por
+      completo `SepararAsync`** (la separación/doble validación del módulo) — habría descontado
+      alimento de inmediato y sin confirmación humana para TODO push offline a una empresa con
+      `requiere_validacion_seguimiento_diario` (hoy Panamá), no solo para el caso viejo de "nace
+      vencido". Habría sido una regresión peor que el problema original.
+      🔴 **El problema original ya no existe, por EC6 (un día antes, `94e1f9f`, 26-ago).**
+      `CreateAsync` fija `CreatedAt = DateTime.UtcNow` al momento de escribir (línea propia del
+      service, no depende de `CapturadoAtDispositivo`), y desde EC6
+      `FechaLimiteValidacion = max(fecha, creación) + 1 día` con `hoy > límite` estricto ⇒ un
+      registro creado HOY nunca puede nacer `EN_RETRASO` HOY, sin importar cuán vieja sea su
+      `fecha` — la condición que describía EC3.3 (escrita el 25-ago, un día antes de EC6) es
+      estructuralmente imposible después de EC6. Verificado leyendo
+      `ValidacionSeguimientoCalculos.Estado`/`EstaEnRetraso` y
+      `AsegurarPuedeRegistrarDiaAsync` (filtra por `EstaEnRetraso`, no por "pendiente"): un push de
+      varios días seguidos tampoco se traba entre sí, porque ninguno de los recién creados está
+      vencido todavía. **`SyncPushService.cs` quedó sin cambios** (`git diff` vacío). El plan
+      [`sync_push_offline_carga_historica_plan.md`](fase_de_desarrollo/sync_push_offline_carga_historica_plan.md)
+      queda como registro de la investigación y la corrección, no de un fix aplicado.
+- [x] **Segundo camino de confirmación de reproductora sin sincronizar aves — YA RESUELTO, no es un
+      pendiente.** Checkbox obsoleto: EC5 #2 (25-ago-2026) ya aplicó el fix "en las dos direcciones
+      (validar y des-validar)". Verificado en código el 27-ago-2026:
+      `ValidacionSeguimientoService.Validar.cs:195` sí llama a
+      `RetiroAvesEngordeAplicador.SincronizarCruceAsync(...)` dentro de `MarcarValidadoAsync`.
 - [i] **Observación**: `LeerPendientesDelLoteAsync` (rama Engorde) filtra por `LoteAveEngordeId` sin
       `company_id`, a diferencia de `LeerEstadoAsync`. Inocuo con una sola empresa con el flag
       encendido; deja de serlo con la segunda. Pre-existente.
@@ -3211,9 +3233,12 @@ análisis y la validación con datos.
 - [x] **Señalado el detalle fino**: `created_at` se reinicia al borrar y recrear, y el cruce hace
       `DELETE`+`INSERT` en cada regeneración ⇒ no apoyarse en el plazo para el cruce (hoy nacen
       validados, y así debe seguir).
-- [ ] ⏸️ **Implementación: otra sesión.** Alcance estimado en §6 del plan (la regla en
-      `ValidacionSeguimientoCalculos`, sus llamadores, el `createdAt` que hay que hacer viajar al
-      front porque el estado se calcula en el cliente, y la migración solo para el flag de Ecuador).
+- [x] **Implementación: checkbox obsoleto — ya se hizo, un día después, como EC6 (`94e1f9f`).** No fue
+      "otra sesión" separada: el usuario pidió la ruta B esa misma noche y la regla `fechaCreacion` de
+      `ValidacionSeguimientoCalculos` (`FechaLimiteValidacion` = `max(fecha, creación) + 1 día`) está en
+      `main` desde el 26-ago-2026, con tests y el front actualizado. Verificado en código el 27-ago-2026
+      — ver EC6 para el detalle real (no coincide del todo con lo que este análisis estimaba: no hizo
+      falta tocar el bloqueo, solo de dónde cuenta el plazo).
 
 ### EC4.1 — Aclaración del usuario: el bloqueo se queda y se vuelve más estricto (25-ago-2026)
 
@@ -4059,3 +4084,112 @@ faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar l
       workflow no corre ningún comando `git` y dispara por `push`.
 - [x] Los 4 tags nuevos existen y declaran `using: node24` (verificado por API, no de memoria). El
       diff son 7 líneas de `uses:` + 8 de comentario, cero cambios estructurales.
+
+---
+
+## EC8 — Cierre de la lista de pendientes pedida (27-ago-2026): 1 fix real + 4 checkboxes obsoletos + 3 que necesitan tu decisión
+
+> Contexto: el usuario pidió "solucionar" 7 puntos que yo mismo había resumido del tracker. Antes de
+> tocar código verifiqué cada uno **contra el código actual**, no contra la nota vieja (regla del
+> repo: el código manda). Resultado: 4 de los 7 ya estaban hechos (solo el checkbox quedó viejo), 1
+> era un bug real y se cerró, y 3 son decisiones de negocio/producción que no me corresponde tomar.
+
+### Ya estaban hechos — corregidos los checkboxes obsoletos in situ (no había nada que programar)
+- [x] **X20 móvil F1** (cálculo puro a `Calculos/`) — cerrado el 22-ago, el checkbox de arranque nunca
+      se tachó. Ver corrección en el bloque X20 (línea ~2016).
+- [x] **X20 móvil F5.2** (selector de ítems en Flutter) — cerrado, wireado en `seguimiento_page.dart`
+      con su kill switch. Ver corrección en el bloque X20.
+- [x] **X20 móvil F7** (`requiere_cuadre`) — cerrado el 22-ago con migración + gate de máquina + smoke;
+      el propio archivo lo dice 60 líneas más abajo del checkbox que quedó sin marcar.
+- [x] **EC3 — segundo camino de confirmación de reproductora** — ya resuelto por EC5 #2 (25-ago);
+      verificado que `ValidacionSeguimientoService.Validar.cs:195` sí llama a `SincronizarCruceAsync`.
+
+### Corregido a tiempo: un fix que casi entra sin hacer falta y con una regresión encima
+- [x] **EC3 — push offline de la PWA "sin `ModoCargaHistorica`"**: apliqué el fix, y al verificar el
+      efecto real (no solo el build) encontré que era innecesario **y** peligroso — **revertido**
+      antes de commitear nada. El defecto que describía EC3.3 ya no existe desde EC6 (26-ago, un día
+      antes): un registro creado hoy nunca puede nacer `EN_RETRASO` hoy, sin importar la fecha del
+      seguimiento. Envolver `PushAsync` en `ModoCargaHistorica` no arreglaba eso — apagaba la
+      separación/doble validación completa para todo push offline a Panamá (alimento descontado sin
+      confirmación humana). Detalle completo en el bloque EC3 (línea ~3171). `SyncPushService.cs` sin
+      cambios netos (`git diff` vacío).
+
+### Permiso `registros.fecha_retroactiva` para Ecuador — verificado EN VIVO, funciona (27-ago-2026)
+> Pedido del usuario: "esta mañana traté de darle permiso a la empresa de Ecuador para que puedan
+> hacer registros con fechas viejas y no me dejo seleccionar en el módulo de empresa".
+- [x] **Datos locales correctos**: `company_permissions.is_enabled = true` para las 5 empresas
+      (incluida ItalcolEcuador) — las dos migraciones (`SeedPermisoFechaRetroactivaRegistros` 20-ago,
+      `AsignaFechaRetroactivaEcuadorAdministrador` 25-ago) ya corrieron localmente.
+- [x] **Confirmado que ambas migraciones ya están en el commit desplegado en producción**
+      (`ecd0548`, TaskDef `sanmarino-back-task:169`, desplegado hoy 27-ago 00:43) —
+      `git merge-base --is-ancestor` de los dos commits contra el SHA de la imagen corriendo.
+- [x] **Código revisado, sin bugs**: `CompanyPermissionService.GetPermissionsForCompanyAsync` devuelve
+      el catálogo completo sin paginar ni filtrar; `company-management.component.html` no tiene
+      `[disabled]` en el checkbox de permisos.
+- [x] **Reproducido EN VIVO en el navegador local** (sesión propia minteada con la clave de
+      `appsettings.Development.json` — SOLO desarrollo, autorizado explícitamente por el usuario ante
+      el bloqueo del clasificador; sesión y fila de `sesiones_activas` borradas al terminar):
+      Gestión de Empresas → Permisos de ItalcolEcuador → `registros.fecha_retroactiva` aparece
+      **marcado, no deshabilitado, y togglea al instante** al hacer clic (verificado leyendo
+      `checked`/`disabled` del DOM antes y después del clic). Cerrado con "Cancelar", sin guardar
+      ningún cambio.
+- [i] **No pude reproducir el problema.** Localmente y en el commit ya desplegado, todo funciona.
+      Hipótesis más probable: la sesión de esta mañana ocurrió **antes** del deploy de las 00:43 (si
+      fue una sesión muy temprano) o el usuario estaba en una pantalla distinta (p. ej. asignando el
+      permiso a un ROL puntual en "Roles y Permisos" en vez de habilitarlo a nivel empresa). Si el
+      problema persiste, hace falta reproducirlo en el navegador real contra producción (URL exacta +
+      pasos) para diagnosticar más.
+
+### Repasados, sin acción — ya estaban correctamente cerrados como "no aplica"
+- [i] **EC5 #7 (vista Power BI)**: la decisión ya tomada es NO aplicar este ciclo. No hay nada que
+      programar; reabre solo si cambia la condición escrita en §4.7 del plan de EC5.
+- [i] **EC7 — "guardar y validar" en el modal de alta**: dejado afuera a propósito por el usuario. No
+      se toca salvo que lo pida explícitamente.
+
+### Necesitan una decisión que no es mía — NO se tocó código
+- [!] **EC2 (cuadre Panamá)**: ejecutar en producción exige (1) desplegar "Cuadrar galpón" (deploy real,
+      requiere tu confirmación) y (2) una respuesta de operación a "¿el inventario de G0475/G0483 es
+      confiable hoy?" — sin eso, aplicar el barrido puede introducir el mismo tipo de daño que el
+      barrido de auditoría evitó (ver B3/EC2 "verificar antes de limpiar"). G0495 además necesita
+      inspección física de inventario, no código.
+- [!] **EC4/EC6 (plazo desde `created_at`)**: la implementación quedó reservada explícitamente para
+      "otra sesión" por su alcance (toca `ValidacionSeguimientoCalculos`, propagar `createdAt` al
+      front, migración del flag Ecuador) — no la arranqué sin que confirmes que es AHORA. Y "verificar
+      una semana en Panamá" es una espera de calendario real (el flag ya está encendido ahí desde
+      antes de EC6): no hay nada que un agente pueda ejecutar hoy para adelantarla.
+- [!] **CI-CACHE**: el fix de caché Docker está verificado en local pero solo se prueba de verdad
+      corriendo en el pipeline real — eso exige pushear el commit `8a78ea5` a la rama que dispara
+      deploy a producción. Es una acción de deploy, no de código: la dejo para tu confirmación
+      explícita en vez de pushearla sola.
+
+---
+
+## `registros.fecha_retroactiva` extendido a Seguimiento Diario Levante y Producción (27-ago-2026)
+
+Plan: [`fecha_retroactiva_seguimiento_levante_produccion_plan.md`](fase_de_desarrollo/fecha_retroactiva_seguimiento_levante_produccion_plan.md)
+
+Pedido: el permiso ya gobierna movimientos/traslados/gastos (20-ago); el usuario pidió que también
+gobierne la fecha de Seguimiento Diario Levante y Producción, que hoy no tienen ninguna ventana (se
+podía fechar cualquier día pasado sin límite y sin el permiso).
+
+- [x] Verificado antes de tocar código: `SeguimientoLoteLevanteController` y
+      `SeguimientoProduccionController` eran los únicos controllers manuales del alcance del permiso
+      que NO llamaban `ValidarVentanaFechaRegistro` (grep negativo). El mecanismo
+      (`VentanaFechaRegistroCalculos`/`VentanaFechaRegistroGuard`, backend;
+      `ventana-fecha-registro.funcion.ts`, front) ya es genérico — no se tocó, solo se invoca desde
+      los controllers/componentes que faltaban.
+- [x] Backend: `SeguimientoLoteLevanteController.Create`/`Update` y
+      `SeguimientoProduccionController.Create`/`Update` — mismo patrón de 8 controllers existentes
+      (`this.ValidarVentanaFechaRegistro(fecha)` antes de llamar al service).
+- [x] Frontend: `lote-levante/pages/modal-create-edit` y
+      `lote-produccion/pages/modal-seguimiento-diario` — `UserPermissionService` inyectado,
+      `aplicarVentanaFecha()` en `ngOnInit` (mismo patrón que `movimiento-alimento-form`), `[attr.min]`/
+      `[max]` en el datepicker + hint dinámico (reemplaza el hint estático de Producción).
+- [x] Sin permiso ni migración nuevos: `registros.fecha_retroactiva` ya existe y ya está habilitado
+      por empresa desde el 20-ago.
+- [x] `dotnet build` 0/0, `dotnet test` 3453/3453 (sin regresiones — el cálculo compartido no se tocó).
+- [x] `yarn build` — 0 errores, `Application bundle generation complete` (433s).
+- [!] Smoke manual en pantalla: sin el permiso, fecha fuera de ventana → 400 con el mismo mensaje que
+      movimientos; con el permiso, cualquier fecha pasada entra; futuro siempre rechazado. **No
+      ejecutado** — queda para que el usuario lo confirme en pantalla (Levante y Producción, con y
+      sin el permiso).

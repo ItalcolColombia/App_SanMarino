@@ -37,8 +37,9 @@
             <div class="grid grid-3">
               <div class="form-field">
                 <label for="f-fecha-registro"><span class="label-icon">📅</span> Fecha de Registro *</label>
-                <input id="f-fecha-registro" type="date" formControlName="fechaRegistro" required />
-                <small class="ux-hint">Fecha del seguimiento diario</small>
+                <input id="f-fecha-registro" type="date" formControlName="fechaRegistro" required
+                  [attr.min]="fechaRegistroMin" [max]="fechaRegistroMax" />
+                <small class="ux-hint">{{ fechaRegistroHint }}</small>
               </div>
             
               <div class="form-field">

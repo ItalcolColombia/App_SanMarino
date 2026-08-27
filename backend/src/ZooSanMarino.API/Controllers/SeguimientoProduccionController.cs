@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -66,6 +67,11 @@ public class SeguimientoProduccionController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CreateSeguimientoProduccionDto dto)
     {
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto.Fecha) is { } fueraDeVentana) return fueraDeVentana;
+
         var result = await _svc.CreateAsync(dto);
         return CreatedAtAction(nameof(GetByLoteId), new { loteId = result.LoteId }, result);
     }
@@ -91,7 +97,11 @@ public class SeguimientoProduccionController : ControllerBase
     public async Task<IActionResult> Update(int id, UpdateSeguimientoProduccionDto dto)
     {
         if (id != dto.Id) return BadRequest("El ID de la ruta no coincide con el del cuerpo.");
-        
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(dto.Fecha) is { } fueraDeVentana) return fueraDeVentana;
+
         var updated = await _svc.UpdateAsync(dto);
         return updated is null ? NotFound() : Ok(updated);
     }

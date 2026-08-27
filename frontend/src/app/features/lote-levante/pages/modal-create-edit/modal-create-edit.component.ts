@@ -41,6 +41,12 @@ import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
 import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
 import { obtenerEtapaCicloPostura, etiquetaEtapaCicloPostura } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
 @Component({
   selector: 'app-modal-create-edit',
@@ -194,7 +200,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   private fechaHuevosSubscription?: Subscription;
   private huevosSubscription?: Subscription;
 
-  constructor(private toast: ToastService, 
+  /** Ventana de fechas admitida para `fechaRegistro` (mes en curso ∪ últimos 15 días, o sin piso con el permiso). */
+  fechaRegistroMin: string | null = '';
+  fechaRegistroMax = '';
+  fechaRegistroHint = '';
+
+  constructor(private toast: ToastService,
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
     private inventarioSvc: InventarioService,
@@ -202,8 +213,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     private countryFilter: CountryFilterService,
     private storage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
-    private silosSvc: SilosService
+    private silosSvc: SilosService,
+    private userPermService: UserPermissionService
   ) { }
+
+  /** Deja min/max/hint listos para el template (referencias estables). */
+  private aplicarVentanaFecha(): void {
+    const puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+    const hoy = new Date();
+    const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);
+    this.fechaRegistroMin = extremos.min;
+    this.fechaRegistroMax = extremos.max;
+    this.fechaRegistroHint = hintVentanaFechaRegistro(hoy, puedeRetroactivar);
+  }
 
   /** Opciones de "Tipo de ítem": en Ecuador/Panamá son los conceptos de item_inventario_ecuador; si no, la lista fija. */
   get tiposItemDisplay(): string[] {
@@ -295,6 +317,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnInit(): void {
     this.initializeForm();
+    this.aplicarVentanaFecha();
     // No cargar catálogo automáticamente, se cargará cuando se seleccione un tipo de ítem
     // Verificar si es Ecuador o Panamá
     this.updateEcuadorOrPanamaStatus();
