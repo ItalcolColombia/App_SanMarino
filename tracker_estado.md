@@ -3900,3 +3900,47 @@ Ya no está fuera de alcance: el usuario pidió corregirlo todo. Los 5 objetos S
       carga un duplicado mañana, cuál gana pasa a depender del plan.
 - [i] El UNIQUE que le falta a la tabla compartida (644/1128 filas con código NULL ⇒ el reimport
       duplica en silencio) y la normalización de los joins de las fns: cambio de comportamiento, gate propio.
+
+---
+
+## Lote Aves de Engorde: el botón "Actualizar" quedaba deshabilitado al editar
+
+Reporte del usuario: en el módulo de Lote Pollo Engorde, al editar un lote y completar un dato que
+faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar los cambios.
+
+- [x] Causa raíz #1 (la severa): en una empresa con `companies.programacion_lotes_engorde = true`,
+      el subscriber de `granjaId` en `lote-engorde-list.component.ts` blanqueaba `loteNombre` cada
+      vez que su valor se PATCHEABA — no solo cuando el usuario cambiaba de granja a mano, sino
+      también al precargar el form para EDITAR (`applyModalFormState` también patchea `granjaId`).
+      En ese modo el template no muestra ningún input para `loteNombre` (se ve el select de lote
+      base), así que el campo quedaba requerido, vacío, y sin ningún control en pantalla para
+      corregirlo: el form nacía inválido en TODA edición de esa empresa, sin importar qué tan
+      completo estuviera el resto del lote. Fix: la limpieza de `loteNombre` ahora respeta el mismo
+      guard `!this.editing` que ya usa `recomputeNombrePorCorrida()` al lado.
+- [x] Causa raíz #2 (más acotada): lotes legado sin `raza`/`anoTablaGenetica` (nulos en BD, el
+      backend los admite) nacen inválidos al abrirlos para editar — y si el usuario completa una
+      raza que no tiene años cargados en la guía Ecuador, el desplegable de año queda sin ninguna
+      opción seleccionable (dead-end ya advertido con un mensaje, pero fácil de no ver en un form
+      largo). No se tocó ninguna regla de negocio acá: los campos siguen requeridos en el front tal
+      como estaban.
+- [x] UX: nuevo aviso junto al botón (`camposQueFaltan` + bloque `.le-form-note` en el template) que
+      lista los campos obligatorios que faltan, SIN esperar a que el usuario los toque — antes el
+      error de cada campo solo se pintaba con `.touched`, y un campo que el propio código vació
+      (caso de arriba) no tenía ninguna pista visible.
+- [x] Bug menor de paso: `applyModalFormState()` disparaba `loadAnosDisponibles` DOS veces al abrir
+      un lote con raza ya cargada (un `GET /guia-genetica-ecuador/anos` de más por cada edición).
+      Se eliminó la llamada redundante.
+- [x] Hallazgo aparte (no de este módulo): `flags-empresa.funcion.spec.ts` no compilaba —
+      `a34e7bb` agregó `guiaGeneticaPerfil` a `CompanyFlags` sin actualizar este fixture
+      (`satisfies CompanyFlags`), lo que rompía la compilación de **todo** `yarn test` del frontend
+      (no solo este módulo). Se agregó el campo faltante (`'sanmarino'`, el default fail-closed).
+- [x] Reproducido y verificado con `TestBed` + `HttpTestingController` (sin backend, sin login) por
+      el flujo real `openModal()` → `applyModalFormState()`, no simulado a mano. Nuevo
+      `lote-engorde-list.component.spec.ts` (5 tests, cubre el bug de `loteNombre`, el guard de
+      ALTA que no debía tocarse, y `camposQueFaltan`).
+- [x] `yarn test --include='**/lote-engorde-list.component.spec.ts'` — 5/5 SUCCESS.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores.
+- [!] Smoke manual en pantalla editando un lote real de una empresa con programación de lotes ON
+      (Ecuador/Panamá): requiere login que este agente no tiene — queda para que el usuario lo
+      confirme. El bug #1 es el que más probablemente explica el reporte (afecta el 100% de las
+      ediciones en esas empresas); el #2 es un caso más acotado (lotes legado / raza sin guía).

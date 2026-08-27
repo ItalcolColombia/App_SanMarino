@@ -256,9 +256,13 @@ export class LoteEngordeListComponent implements OnInit {
         this.form.patchValue({ galponId: this.galponesFiltrados[0]?.galponId ?? null }, { emitEvent: false });
       }
       // Al cambiar de granja, el lote base debe re-elegirse entre los de esa granja.
-      // (En edición, applyModalFormState vuelve a fijar el valor tras el patch de granja.)
       this.form.patchValue({ loteBaseEngordeId: null }, { emitEvent: false });
-      if (this.programacionLotes) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
+      // Solo en ALTA: el nombre se recalcula por corrida más abajo. En EDICIÓN este mismo patch de
+      // granjaId ocurre al precargar el form (applyModalFormState patchea granjaId también), y como
+      // en ese modo no hay input de loteNombre en pantalla (el template muestra el select de lote
+      // base), blanquearlo acá lo dejaba inválido y sin ningún campo visible para corregirlo — el
+      // "Actualizar" quedaba apagado en TODA edición de una empresa con programación de lotes.
+      if (this.programacionLotes && !this.editing) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
       this.recomputeLotesBaseParaGranja();
       this.recomputeNombrePorCorrida();
       this.aplicarErpGranjaPanama();
@@ -843,7 +847,8 @@ export class LoteEngordeListComponent implements OnInit {
       this.filteredNucleos = this.nucleosFiltrados;
       this.galponesFiltrados = this.galpones.filter(g => g.granjaId === l.granjaId && g.nucleoId === String(l.nucleoId ?? ''));
       this.filteredGalpones = this.galponesFiltrados;
-      if (this.selectedRaza) this.loadAnosDisponibles(this.selectedRaza);
+      // El patchValue de arriba ya disparó el subscriber de `raza` (valueChanges emite aunque el
+      // valor no cambie), que llama loadAnosDisponibles solo. Repetirlo acá duplicaba el request.
     } else {
       this.selectedRaza = '';
       this.anosDisponibles = [];
@@ -927,6 +932,31 @@ export class LoteEngordeListComponent implements OnInit {
 
   closeReproductorDetail(): void {
     this.selectedReproductor = null;
+  }
+
+  /** Rótulo de cada campo obligatorio del form, para el aviso de "qué falta" junto al botón. */
+  private readonly rotuloCampoRequerido: Record<string, string> = {
+    loteNombre: 'Nombre del lote',
+    granjaId: 'Granja',
+    fechaEncaset: 'Fecha de encasetamiento',
+    raza: 'Raza (guía Ecuador)',
+    anoTablaGenetica: 'Año Tabla Genética',
+    loteBaseEngordeId: 'Lote base',
+  };
+
+  /**
+   * Campos obligatorios que hoy bloquean el guardado, listos para mostrar.
+   *
+   * El botón "Actualizar" se deshabilita con `form.invalid`, pero el error de cada campo solo se
+   * pinta si está `touched` — un lote viejo sin raza/año (o sin lote base, con la empresa programada)
+   * nace inválido sin que el usuario haya tocado nada, y el botón queda apagado sin ninguna pista en
+   * pantalla. Esto lo hace explícito sin depender de que el usuario haya pasado por cada campo.
+   */
+  get camposQueFaltan(): string[] {
+    if (!this.form || this.form.valid) return [];
+    return Object.entries(this.rotuloCampoRequerido)
+      .filter(([campo]) => this.form.get(campo)?.enabled && this.form.get(campo)?.invalid)
+      .map(([, rotulo]) => rotulo);
   }
 
   save(): void {
