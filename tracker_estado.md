@@ -4229,3 +4229,58 @@ vista y una vista lee otra vista + una función: el orden correcto es uno solo s
 - [!] La local quedó 21 migraciones atrás del código (336 en `__EFMigrationsHistory` vs 357 archivos):
       es lo esperado —el dump es de producción— y el próximo arranque del backend las aplica solo
       (`Database:RunMigrations=true`).
+
+---
+
+## Enrutamiento de tickets por empresa: Sanmarino, Panamá, Ecuador (27-ago-2026)
+
+Plan: [`enrutamiento_tickets_por_empresa_plan.md`](fase_de_desarrollo/enrutamiento_tickets_por_empresa_plan.md)
+
+Pedido: quién recibe cada tipo de ticket por empresa — Sanmarino y Panamá con un rol "Sistemas X"
+para SOPORTE/DUDAS y una persona (Verenice / Ricardo) para REQUERIMIENTO que escala a Desarrollo
+(moiesbbuga@gmail.com); Ecuador sin área de sistemas, todo a Lady Malave.
+
+- [x] **Mecanismo real investigado antes de tocar nada**: el módulo de tickets ya tiene un motor de
+      enrutamiento vivo (`ticket_resolutores`, `ticket_resolutor_rol`, `ticket_perfil_usuario` +
+      `TicketPerfilService`) — no hacía falta construir nada nuevo, solo configurarlo bien.
+- [x] 🔴 **Los roles "Sistemas sanmarino" (34) y "sistemas panama" (35) YA EXISTÍAN** — una primera
+      consulta con error propio los mostró como inexistentes; verificado dos veces antes de crear
+      nada (por poco se duplicaban).
+- [x] 🔴 **2 bugs de código reales, corregidos en `TicketPerfilService.GetAsignablesInternalAsync`**:
+      ni los resolutores directos (`ticket_resolutores`) ni los de rol (`ticket_resolutor_rol`)
+      filtraban por `company_id` — solo por tipo+país. Medido con Verenice: aparecía como asignable
+      en tickets de CUALQUIER empresa; medido con el rol "Admin Demo": aparecía como asignable de
+      SOPORTE en Sanmarino. Se agregó el filtro a los dos, verificado que el rol Admin
+      (DESARROLLO global, moiesbbuga) sigue funcionando igual porque ya usaba una fila POR empresa.
+- [x] 🔴 **2 datos mal cargados encontrados y corregidos**: el perfil de Lady Malave
+      (`ticket_perfil_usuario`) estaba en `company_id` de Sanmarino en vez de Ecuador; ni ella ni
+      Verenice tenían `tickets.gestionar` en su rol — sin él, `TicketService.PuedeGestionar()` les
+      niega hasta gestionar sus propios tickets asignados (verificado leyendo el código: el gate no
+      distingue "es mío" de "es ajeno").
+- [x] Migración `20260827214243_SeedEnrutamientoTicketsPorEmpresa` (data-only, idempotente,
+      localizada por nombre/email, con guarda fail-closed si algo no resuelve):
+  - Sanmarino: rol 34 → SOPORTE+DUDAS; Verenice → solo REQUERIMIENTO activo (se apagó
+    SOPORTE/DUDAS/DESARROLLO); `tickets.gestionar` a su rol.
+  - Panamá: `tickets.gestionar` encendido a nivel empresa (estaba apagado) + al rol 35 + menú
+    "Bandeja de gestión"; rol 35 → SOPORTE+DUDAS; Ricardo → REQUERIMIENTO (ya era IMPLEMENTADOR por
+    `tickets.admin`, no necesitó perfil nuevo).
+  - Ecuador: `tickets.gestionar` creado a nivel empresa (no existía la fila) + al rol Ecuador
+    Administrador; perfil de Lady Malave movido a company_id correcto; ella → SOPORTE+DUDAS+
+    REQUERIMIENTO (sin DESARROLLO, eso lo cubre el rol Admin global, ya configurado desde antes).
+  - DESARROLLO/atención global: sin cambios — ya cubierto para Sanmarino/Ecuador/Demo/Panamá. Falta
+    Santa Reyes, no se pidió, no se tocó.
+- [x] Validado por transacción (`BEGIN` + 2 pasadas + verificación + `ROLLBACK`) antes de aplicar de
+      verdad — confirmado idempotente, datos exactos.
+- [x] Aplicada de verdad en local (arrancando el backend, migración registrada en
+      `__EFMigrationsHistory`) y re-verificada con la tabla ya escrita.
+- [x] `dotnet build` 0/0 (dos veces, uno por cada fix), `dotnet test` 3466/3466 sin regresiones.
+- [x] **Simulación de la consulta real (con los dos fixes) contra los datos ya migrados**: SOPORTE
+      empresa 1 → Alexander Mejia + moiesbbuga (ya no Demo); SOPORTE empresa 5 → 0 filas (nadie
+      asignado al rol todavía, a propósito); REQUERIMIENTO empresa 1/5/3 → exactamente Verenice /
+      Ricardo / Lady Malave, uno cada uno; DESARROLLO en las 4 empresas → moiesbbuga intacto.
+- [!] Smoke HTTP real (login + crear/ver tickets en pantalla) **no ejecutado** — la verificación de
+      arriba es a nivel de datos y de la consulta que los lee (equivalente exacto al LINQ real), no
+      un clic real en el navegador. Queda para que el usuario lo confirme.
+- [i] Los roles "Sistemas sanmarino"/"sistemas panama" quedaron sin nadie asignado en Panamá aparte
+      de lo que ya tenían (decisión del usuario); Alexander Mejia ya tenía "Sistemas sanmarino" desde
+      antes, así que ya empieza a recibir SOPORTE/DUDAS de Sanmarino apenas se despliegue.
