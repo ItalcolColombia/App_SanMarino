@@ -57,5 +57,8 @@ public record CreateCompanyDto(
     bool     LimitaTiposInventarioAlimentoYAves = false,
     bool     SeparaLotesPosturaPorEtapa         = false,
     /// <summary>La app móvil manda ítems reales de inventario. Kill switch de F5.</summary>
-    bool     DescuentaInventarioDesdeMovil      = false
+    bool     DescuentaInventarioDesdeMovil      = false,
+    /// <summary>Perfil de guía genética: <c>"sanmarino"</c> (default) | <c>"reducida"</c>.
+    /// <c>null</c>/vacío ⇒ default neutro. Un valor desconocido se rechaza (no cae al default).</summary>
+    string?  GuiaGeneticaPerfil                 = null
 );

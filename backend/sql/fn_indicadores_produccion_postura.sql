@@ -102,6 +102,9 @@ DECLARE
     g_retiro_ac_h    double precision;
     g_retiro_ac_m    double precision;
     g_found          boolean;
+    -- De que tabla salio la fila: 'compartida' (guia_genetica_sanmarino_colombia) o 'propia'
+    -- (guia_genetica_santa_reyes, 3 metricas y solo hembras). Gobierna los COALESCE de abajo.
+    g_origen         text;
     -- consumo real
     r_cons_real_h    double precision;
     r_cons_real_m    double precision;
@@ -377,10 +380,12 @@ BEGIN
                NULLIF(btrim(g.prod_porcentaje),'')::double precision,
                NULLIF(btrim(g.peso_huevo),'')::double precision,
                NULLIF(btrim(g.retiro_ac_h),'')::double precision,
-               NULLIF(btrim(g.retiro_ac_m),'')::double precision
+               NULLIF(btrim(g.retiro_ac_m),'')::double precision,
+               g.origen
           INTO g_found, g_cons_h, g_cons_m, g_mort_h, g_mort_m, g_peso_h, g_peso_m, g_unif,
-               g_huevos_tot, g_huevos_inc, g_prod_pct, g_peso_huevo, g_retiro_ac_h, g_retiro_ac_m
-          FROM guia_genetica_sanmarino_colombia g
+               g_huevos_tot, g_huevos_inc, g_prod_pct, g_peso_huevo, g_retiro_ac_h, g_retiro_ac_m,
+               g_origen
+          FROM vw_guia_genetica_postura g
          WHERE g.company_id = p_company_id
            AND g.deleted_at IS NULL
            AND btrim(lower(g.raza)) = btrim(lower(v_raza))
@@ -401,12 +406,27 @@ BEGIN
             -- ParseDouble => 0 cuando el string es vacío/no numérico (no NULL). Las columnas de la
             -- guía "obtenerGuiaGeneticaProduccion" pasan por ParseDouble (0 si vacío); las del raw
             -- (huevos/%prod/pesoHuevo) por ParseDecimal (NULL si vacío). Se respeta esa diferencia:
-            g_cons_h := COALESCE(g_cons_h, 0);
-            g_cons_m := COALESCE(g_cons_m, 0);
-            g_mort_h := COALESCE(g_mort_h, 0);
-            g_mort_m := COALESCE(g_mort_m, 0);
-            g_peso_h := COALESCE(g_peso_h, 0) / 1000;   -- peso_h/1000
-            g_peso_m := COALESCE(g_peso_m, 0) / 1000;   -- peso_m/1000
+            -- 🔴 Los COALESCE a 0 son EXCLUSIVOS de la guía compartida.
+            -- Ahí la columna existe en toda la curva y el 0 se lee como «la guía dice 0»
+            -- (y quitarlos NO sería delta cero: en el rango de producción, company 1 tiene
+            -- entre 6 y 14 filas en blanco por columna). En la guía propia esas métricas
+            -- NO EXISTEN —no trae peso, ni consumo de machos, ni mortalidad semanal— y el 0
+            -- ahí no es «sin dato»: es un objetivo falso. Peor todavía, `fn_dif_pp` documenta
+            -- que con guía = 0 NO devuelve NULL, así que la columna «diferencia vs guía» de
+            -- mortalidad pintaría la mortalidad REAL del lote como si fuera la desviación.
+            -- Con NULL, `fn_dif_pct`/`fn_dif_pp` degradan solas y el front pinta un guion.
+            IF g_origen IS DISTINCT FROM 'propia' THEN
+                g_cons_h := COALESCE(g_cons_h, 0);
+                g_cons_m := COALESCE(g_cons_m, 0);
+                g_mort_h := COALESCE(g_mort_h, 0);
+                g_mort_m := COALESCE(g_mort_m, 0);
+            END IF;
+            -- El /1000 sí se aplica siempre (la guía viene en gramos y la salida en kg);
+            -- lo condicional es el COALESCE, porque NULL/1000 = NULL y eso es lo correcto.
+            g_peso_h := CASE WHEN g_origen = 'propia' THEN g_peso_h / 1000
+                             ELSE COALESCE(g_peso_h, 0) / 1000 END;   -- peso_h/1000
+            g_peso_m := CASE WHEN g_origen = 'propia' THEN g_peso_m / 1000
+                             ELSE COALESCE(g_peso_m, 0) / 1000 END;   -- peso_m/1000
             -- ⚠️ EXCEPCIÓN DELIBERADA a la regla ParseDouble=>0 de sus vecinas: g_unif NO se
             --   coalescea. La guía genética no define uniformidad para las edades de PRODUCCIÓN
             --   (solo 25 de sus 98 filas la traen, todas de levante) ⇒ el 0 se pintaba en TODAS
@@ -418,8 +438,12 @@ BEGIN
             --   la curva y cambiarlos movería números sin necesidad.
             -- huevos/%prod/pesoHuevo: quedan NULL si vacíos (ParseDecimal), no 0.
             -- retiro_ac_h/m guía: mismo criterio que mort_h/mort_m (ParseDouble => 0 si vacío).
-            g_retiro_ac_h := COALESCE(g_retiro_ac_h, 0);
-            g_retiro_ac_m := COALESCE(g_retiro_ac_m, 0);
+            -- retiro_ac_h SÍ lo trae la guía propia (es su métrica de mortalidad, acumulada);
+            -- retiro_ac_m no, y por eso el COALESCE queda condicionado igual que los de arriba.
+            IF g_origen IS DISTINCT FROM 'propia' THEN
+                g_retiro_ac_h := COALESCE(g_retiro_ac_h, 0);
+                g_retiro_ac_m := COALESCE(g_retiro_ac_m, 0);
+            END IF;
         ELSE
             g_cons_h := NULL; g_cons_m := NULL; g_mort_h := NULL; g_mort_m := NULL;
             g_peso_h := NULL; g_peso_m := NULL; g_unif := NULL;

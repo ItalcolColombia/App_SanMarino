@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -362,6 +363,13 @@ builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableE
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
 builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorService>();
 
+// Guía Genética REDUCIDA (guia_genetica_santa_reyes): la puerta de escritura que la tabla no tenía.
+builder.Services.AddScoped<IGuiaGeneticaSantaReyesService, GuiaGeneticaSantaReyesService>();
+
+// Perfil de guía genética de la empresa activa: lo consumen los guards fail-closed de los
+// controllers de guía (reducida ⇄ compartida). Ver GuiaGeneticaEscrituraGuard.
+builder.Services.AddScoped<IGuiaGeneticaPerfilResolver, GuiaGeneticaPerfilResolver>();
+
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();
@@ -618,6 +626,35 @@ builder.Services.AddControllers()
         // cuando reportes tienen división por cero (ej. machoIni=0 → ConsAcGrMGUIA infinito)
         options.JsonSerializerOptions.Converters.Add(new ZooSanMarino.API.Infrastructure.JsonDoubleConverter());
         options.JsonSerializerOptions.Converters.Add(new ZooSanMarino.API.Infrastructure.JsonNullableDoubleConverter());
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // [ApiController] responde 400 solo (ValidationProblemDetails: {title, errors}) cuando el
+        // JSON del body no calza con el contrato ANTES de que el action corra — ej. un decimal
+        // tipeado en un campo `int` (caso real: liquidación Panamá, 26-ago-2026, "avesFinalGranja").
+        // Esa forma no tiene `error` ni `message`, así que el front cae al genérico de Angular
+        // ("Http failure response for URL: 400 OK") sin decir nada. Se reescribe con la MISMA forma
+        // {error} que ya usan todos los controllers, nombrando el campo que falló.
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var detalles = context.ModelState
+                .Where(kv => kv.Value is { Errors.Count: > 0 })
+                .Select(kv =>
+                {
+                    var campo = kv.Key.TrimStart('$', '.');
+                    var err = kv.Value!.Errors[0];
+                    var texto = !string.IsNullOrWhiteSpace(err.ErrorMessage)
+                        ? err.ErrorMessage
+                        : err.Exception?.Message ?? "dato inválido";
+                    return string.IsNullOrWhiteSpace(campo) ? texto : $"{campo}: {texto}";
+                })
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
+            var mensaje = detalles.Count > 0
+                ? "Solicitud inválida — " + string.Join(" | ", detalles)
+                : "Solicitud inválida: revise los datos enviados.";
+            return new BadRequestObjectResult(new { error = mensaje });
+        };
     });
 
 var app = builder.Build();

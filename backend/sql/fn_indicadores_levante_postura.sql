@@ -222,6 +222,10 @@ DECLARE
     r_peso_tabla_m double precision;
     r_mort_tabla_h double precision;
     r_mort_tabla_m double precision;
+    -- De que tabla salio la fila de guia: 'compartida' (guia_genetica_sanmarino_colombia,
+    -- >40 columnas) o 'propia' (guia_genetica_santa_reyes, 3 metricas y solo hembras).
+    -- Ver el bloque de la guia mas abajo: gobierna si se coalescea a 0 o se deja NULL.
+    v_origen_guia  text;
     r_mort_pct_h   double precision;
     r_mort_pct_m   double precision;
     r_retiro_pct_h double precision;
@@ -462,30 +466,56 @@ BEGIN
         r_cons_dia_m  := CASE WHEN r_aves_prom_m > 0 AND r_dias > 0
                               THEN (r_cons_kg_m*1000)/(r_aves_prom_m*r_dias) ELSE NULL END;
 
-        -- Guía real (Colombia) para la semana. Mixto (compat) + por sexo SIN promediar (REQ-002e).
-        SELECT (COALESCE(NULLIF(btrim(g.gr_ave_dia_h),'')::double precision,0)
-              + COALESCE(NULLIF(btrim(g.gr_ave_dia_m),'')::double precision,0))/2,
-               (COALESCE(NULLIF(btrim(g.peso_h),'')::double precision,0)
-              + COALESCE(NULLIF(btrim(g.peso_m),'')::double precision,0))/2,
-               COALESCE(NULLIF(btrim(g.uniformidad),'')::double precision,0),
-               (COALESCE(NULLIF(btrim(g.mort_sem_h),'')::double precision,0)
-              + COALESCE(NULLIF(btrim(g.mort_sem_m),'')::double precision,0))/2,
+        -- Guía real para la semana. Mixto (compat) + por sexo SIN promediar (REQ-002e).
+        --
+        -- 🔴 EL PROMEDIO MIXTO NO SE PUEDE APLICAR A UNA GUÍA DE SOLO HEMBRAS.
+        -- Las tres expresiones mixtas hacen COALESCE de cada término y dividen por 2 FIJO.
+        -- Con la guía reducida —que trae hembras y NO machos— eso da (95.00 + 0)/2 = 47,5
+        -- donde el cliente dice 95,00: no es NULL, no es 0, no revienta. Es un número
+        -- plausible y equivocado por un factor de 2, que nadie detecta mirando la pantalla.
+        -- Por eso el promedio se aplica SOLO cuando la fila viene de la guía compartida;
+        -- para la propia se usa el valor de hembras tal cual, que es el único que existe.
+        -- La rama 'compartida' es LITERALMENTE la expresión de siempre ⇒ delta cero por
+        -- construcción para Sanmarino, Demo, Ecuador y Panamá, no «verificado después».
+        SELECT CASE WHEN g.origen = 'propia'
+                    THEN NULLIF(btrim(g.gr_ave_dia_h),'')::double precision
+                    ELSE (COALESCE(NULLIF(btrim(g.gr_ave_dia_h),'')::double precision,0)
+                        + COALESCE(NULLIF(btrim(g.gr_ave_dia_m),'')::double precision,0))/2 END,
+               CASE WHEN g.origen = 'propia'
+                    THEN NULLIF(btrim(g.peso_h),'')::double precision
+                    ELSE (COALESCE(NULLIF(btrim(g.peso_h),'')::double precision,0)
+                        + COALESCE(NULLIF(btrim(g.peso_m),'')::double precision,0))/2 END,
+               CASE WHEN g.origen = 'propia'
+                    THEN NULLIF(btrim(g.uniformidad),'')::double precision
+                    ELSE COALESCE(NULLIF(btrim(g.uniformidad),'')::double precision,0) END,
+               CASE WHEN g.origen = 'propia'
+                    THEN NULLIF(btrim(g.mort_sem_h),'')::double precision
+                    ELSE (COALESCE(NULLIF(btrim(g.mort_sem_h),'')::double precision,0)
+                        + COALESCE(NULLIF(btrim(g.mort_sem_m),'')::double precision,0))/2 END,
                NULLIF(btrim(g.gr_ave_dia_h),'')::double precision,
                NULLIF(btrim(g.gr_ave_dia_m),'')::double precision,
                NULLIF(btrim(g.peso_h),'')::double precision,
                NULLIF(btrim(g.peso_m),'')::double precision,
                NULLIF(btrim(g.mort_sem_h),'')::double precision,
-               NULLIF(btrim(g.mort_sem_m),'')::double precision
+               NULLIF(btrim(g.mort_sem_m),'')::double precision,
+               g.origen
           INTO r_cons_tabla, r_peso_tabla, r_unif_tabla, r_mort_tabla, r_cons_tabla_h, r_cons_tabla_m,
-               r_peso_tabla_h, r_peso_tabla_m, r_mort_tabla_h, r_mort_tabla_m
-          FROM guia_genetica_sanmarino_colombia g
+               r_peso_tabla_h, r_peso_tabla_m, r_mort_tabla_h, r_mort_tabla_m, v_origen_guia
+          FROM vw_guia_genetica_postura g
          WHERE g.raza = v_raza AND g.anio_guia = v_anio AND g.company_id = v_company
            AND btrim(g.edad) = s::text
          LIMIT 1;
-        r_cons_tabla := COALESCE(r_cons_tabla,0);
-        r_peso_tabla := COALESCE(r_peso_tabla,0);
-        r_unif_tabla := COALESCE(r_unif_tabla,0);
-        r_mort_tabla := COALESCE(r_mort_tabla,0);
+        -- El COALESCE a 0 también es exclusivo de la guía compartida: ahí la columna existe en
+        -- toda la curva y el 0 se lee como «la guía dice 0». En la propia la métrica NO EXISTE
+        -- (no trae peso, ni uniformidad, ni mortalidad semanal — su retiro_ac_h es ACUMULADO),
+        -- y un 0 ahí se leería como un objetivo real. NULL es la única lectura honesta, y el
+        -- front ya lo sabe pintar: las series por sexo llegan NULL desde siempre.
+        IF v_origen_guia IS DISTINCT FROM 'propia' THEN
+            r_cons_tabla := COALESCE(r_cons_tabla,0);
+            r_peso_tabla := COALESCE(r_peso_tabla,0);
+            r_unif_tabla := COALESCE(r_unif_tabla,0);
+            r_mort_tabla := COALESCE(r_mort_tabla,0);
+        END IF;
         -- r_cons_tabla_h/_m, r_peso_tabla_h/_m, r_mort_tabla_h/_m se dejan NULL si la guía
         -- no trae el dato del sexo (series de guía degradan a NULL, sin promediar).
 

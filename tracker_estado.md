@@ -3645,3 +3645,373 @@ Plan: [`fase_de_desarrollo/ci_cache_deps_y_reintentos_yarn_plan.md`](fase_de_des
       los 763 paquetes otra vez (step de 25,6 s). El cache esta muerto en TODOS los deploys.
       ⚠️ El deploy lanzado el 26-ago (run 32971303424, `main-produccion@5e780e5`) **NO lleva estos
       arreglos**: `8a78ea5` sigue sin pushear.
+
+---
+
+## X20 · Guía Genética — tres módulos con identidad propia (26-ago-2026) — CERRADO, commit `a34e7bb`
+
+> Renumerado de X19 a **X20**: ya existía un bloque X19 (App móvil, 22-ago) más arriba en el archivo.
+
+Plan: [`fase_de_desarrollo/guia_genetica_tres_modulos_plan.md`](fase_de_desarrollo/guia_genetica_tres_modulos_plan.md)
+
+**Decisión del usuario:** NO se unifican las tres tablas. Se separan los menús en tres ítems
+(**Pollo Engorde** / **Sanmarino** / **Santa Reyes**) y se le construye a Santa Reyes la puerta de
+escritura que nunca tuvo. Origen: el usuario entró a producción de Santa Reyes y no encontró dónde
+cargar su línea genética.
+
+**Medido antes de empezar (auditoría de 13 agentes):**
+- `guia_genetica_santa_reyes` nació **seed-only**: 615 filas (5 razas × semanas 18–140) por la
+  migración `20260820093323`, y **cero endpoints de escritura**. `grep` de
+  `.Add|.Update|.Remove|SaveChanges` sobre la entidad fuera de migraciones ⇒ **vacío**; las 20
+  referencias C# son todas `.AsNoTracking()`. `GuiaGeneticaController` es 100 % `[HttpGet]`.
+- El ítem «Guia Genetica» (sin tildes) que ve Santa Reyes es el de **engorde de Ecuador**: la
+  migración `20260623080001_RenameMenu_GuiaGenetica:16` renombra la etiqueta **sobre**
+  `route='/config/guia-genetica-ecuador'`, y Santa Reyes lo heredó del clon de menús de
+  `20260725190000_SeedEmpresaSantaReyes:195`, cuyo filtro excluía `%engorde%` pero **no** `%ecuador%`.
+- ⚠️ **Las dos filas de `menus` no las creó ninguna migración** — viven sólo como espejo en
+  `backend/sql/add_guia_genetica_menu.sql` y `add_guia_genetica_ecuador_menu.sql`, corridas a mano
+  en prod. El repo **no puede probar** qué existe realmente en producción ⇒ las migraciones de menú
+  van defensivas (por `route`, `WHERE NOT EXISTS`, y **desactivan en vez de borrar**).
+
+### F0 · Red de seguridad
+- [x] `backend/sql/verificar_paridad_guia_genetica.sql` — creado, con el patrón de
+      `verificar_paridad_saldo_engorde.sql` (1ª corrida congela, 2ª compara). Snapshot en esquema
+      propio **`diagnostico`** (no en `public`), con `COMMENT` que lo marca desechable; solo lectura
+      sobre datos de negocio. Exento del gate de migración por prefijo `verificar_*` (confirmado en
+      `backend/scripts/verificar-sql-llega-por-migracion.js:63`) ⇒ **sin** marca `SIN-MIGRACION`.
+      **Los 8 objetos vivos se identificaron contra la BD, no contra el repo** (`pg_get_functiondef`
+      / `pg_get_viewdef` filtrados por las 5 tablas): 6 fns + 2 vistas. Cubiertos 7 ejecutándolos;
+      **`fn_congelar_liquidacion_engorde` NO se ejecuta** — hace `INSERT` en
+      `liquidacion_lote_engorde_congelada(_fila)`; en su lugar se congela, en solo lectura, la única
+      lectura de guía que hace (el header de Ecuador que resolvería por lote).
+      🔴 **Hallazgo que obligó a pinar la sesión:** `fn_informe_semanal_pollo_engorde(5)` devuelve
+      **212 filas con `timezone=America/Bogota`** (el default del servidor) y **213 con UTC**. Un
+      verificador sin `SET timezone` da distinto según desde qué shell se corra; se pinan además
+      `extra_float_digits` y `DateStyle`, que cambian el `::text` que va al hash.
+      Dos trampas más: `fn_indicadores_produccion_postura` **no es re-entrante** (crea `_seg` sin
+      dropearla ⇒ `CROSS JOIN LATERAL` revienta con «relation "_seg" already exists»; va en LOOP con
+      `DROP TABLE pg_temp._seg` entre iteraciones), y `vw_guia_genetica_por_lote_postura` **no tiene
+      clave única** (546 filas sobre 525 claves) ⇒ el snapshot guarda `n_filas` y colapsa duplicados
+      con `string_agg(... ORDER BY hash)`, independiente del orden.
+- [x] Línea base congelada contra la BD local (copia de prod, `127.0.0.1:5433`): **11.261 claves**,
+      1,8 s por corrida. **Corrida 1 congela / corrida 2 compara sin ningún cambio en el medio ⇒ 0
+      en las 24 filas (5 empresas × objeto), sección «claves que cambiaron» vacía.**
+      Filas de guía por empresa: Sanmarino 889 · Demo 224 · Ecuador 15 + 1 header/171 detalle ·
+      Panamá 1 header/57 detalle · Santa Reyes 615.
+      **Control negativo (100 % de solo lectura, sin escribir una fila):** perturbando `peso_tabla`
+      +1 sólo para Sanmarino, el gate marca **92 claves con `dif_guia`** y deja Demo y Santa Reyes en
+      **0** — o sea que detecta, y detecta acotado a la empresa afectada.
+
+### F1 · Flag tipado en `companies`
+- [x] Migración `20260826142448_AddGuiaGeneticaPerfilCompany`: `guia_genetica_perfil varchar(16) NOT
+      NULL DEFAULT 'sanmarino'`, backfill **por datos** (`EXISTS` sobre la tabla reducida), nunca por
+      nombre. Idempotente (`ADD COLUMN IF NOT EXISTS` + `IS DISTINCT FROM`). Validada contra la BD
+      local en transacción revertida: flipea **1 empresa** (Santa Reyes, id 6, 615 filas) y deja las
+      otras 4 en `sanmarino`; 2ª pasada = cero cambios; `Down()` dropea limpio.
+- [x] `GuiaGeneticaPerfilCalculos` + xUnit (34 tests) — **`throw` ante valor desconocido**, no default
+      silencioso. Helpers `UsaGuiaReducida`/`UsaGuiaCompartida` + `EsPerfilConocido` (no lanza, para
+      rechazar con 400 en vez de 500).
+- [x] Propagarlo a las proyecciones que siempre se olvidan — resultaron **8 sitios en 6 archivos**, no
+      4: `CompanyDto`, `CreateCompanyDto`, `UpdateCompanyDto`, `CompanyService.ToDto`,
+      `CompanyService.Crud` (**Create y Update, 2 sitios**), `CompanyResolver` (**`GetCompanyByNameAsync`
+      y `GetCompaniesForUserAsync`, 2 sitios**), `CompanyPaisService.GetCompaniesByPaisAsync`.
+
+### F2 · Backend de Santa Reyes — la puerta que falta
+- [x] `IGuiaGeneticaSantaReyesService` + DTOs + service `partial` (ancla + `Funciones/Crud` + `Funciones/Import`).
+      Paginado por **`PaginacionCalculos`** (default 20, tope `MaximoCatalogoMaestro` = 2.000): pedir de
+      más devuelve **el tope**, no el default — el clamp casero `>200 ⇒ 20` que anda por el repo hace lo
+      contrario y ya costó dos incidentes. Medido: `pageSize=999999` ⇒ 2.000; la guía entera (615) entra
+      en una página.
+- [x] `GuiaGeneticaSantaReyesController` (`api/guia-genetica-santa-reyes`) con **`[Authorize]`** +
+      permiso **`guia_genetica.gestionar`** (patrón `_current.Permissions.Contains(...)` ⇒ 403 con
+      cuerpo, el de los 11 controllers del repo; **no** una policy nueva, que nadie registraría).
+      Las LECTURAS quedan abiertas, incluida la plantilla.
+      🔴 **DEPENDE DE F4**: el permiso **invierte el default** (hoy escribe cualquiera). Si F4 no lo
+      siembra heredando de `role_menus` **por `route`**, el módulo nace inutilizable. Y los permisos
+      viajan en la sesión cifrada ⇒ hay que **re-loguear** para verlo.
+- [x] Import Excel **idempotente** por `codigo = Raza+Anio+Edad` contra el UNIQUE parcial existente.
+      **Soft delete** (`deleted_at`), no el hard delete de `ProduccionAvicolaRawService:195`.
+      Medido contra la BD local en transacción revertida: reimportar las 615 filas reales ⇒
+      `ins=0 act=0 omi=615 err=0` en la 1ª y en la 2ª pasada; las 40 filas nulas de Criolla siguen
+      **NULL** (vacío ⇒ NULL, nunca 0); dar de baja y recrear el mismo código funciona.
+- [x] Guard fail-closed en los dos sentidos (403 con cuerpo — mismo status que `Forbid()`, pero con
+      mensaje: `Forbid()` devuelve el cuerpo vacío y el front lee `err.error?.message`).
+      ⚠️ Se guardó también **`ExcelImportController.ImportProduccionAvicola`**: es la 2ª puerta de
+      escritura de la tabla compartida y la que realmente usa el cliente.
+      Verificado que no bloquea a nadie: sólo pasa a perfil `reducida` la empresa **con filas propias**
+      y hoy es una sola (Santa Reyes, id 6, con **0** filas en la compartida).
+- [x] 🔴 `GuiaGeneticaService.ObtenerRazasCrudoAsync:105` corta a nivel **EMPRESA**, no de raza ⇒ el
+      único workaround aparente falla en silencio. Corregido uniendo ambas fuentes
+      (`GuiaGeneticaRazasCalculos.CombinarRazas`, con tests).
+      **Gate de delta cero medido contra la BD local, empresa por empresa** (viejo vs nuevo, salida real
+      de `ObtenerRazasDisponiblesAsync`): Sanmarino 4=4, Ecuador 1=1, Demo 3=3, Panamá 0=0,
+      Santa Reyes 5=5 ⇒ **0 (idéntico) en las cinco**. Y con «Lohmann Brown» cargada en la compartida de
+      Santa Reyes (transacción revertida): viejo 5 → nuevo **6**, la raza llega al selector.
+      ✅ `ObtenerAniosCrudoAsync` **NO tiene el defecto y no se tocó**: su corte es por **RAZA**
+      (`Raza == razaPropia` en la 1ª consulta), o sea la pregunta correcta; unirlo mezclaría años de dos
+      guías distintas para la misma línea genética.
+
+### F3 · Pantalla propia — 🔓 destraba la ESCRITURA
+- [x] `features/config/guia-genetica-santa-reyes/` (grid + form + modal import + export), con la
+      metodología de clean code del repo: `models/` (tipos), `guia-genetica-santa-reyes.service.ts`
+      (cliente HTTP propio — **no** reutiliza `GuiaGeneticaAdminService`, que pega a otra tabla),
+      `funciones/` (5 funciones **puras** + `README.md`) y `pages/` como orquestador delgado.
+      Ruta `/config/guia-genetica-santa-reyes` con `loadComponent`, igual que las otras dos de config.
+      Contratos verificados contra el controller y los DTOs reales: el listado es un **GET con query
+      string** (no `POST /search` como el módulo compartido), el `PagedResult` viene
+      `{items,total,page,pageSize}`, el import sube el campo `file` a `POST …/import` y devuelve
+      `{success,totalFilas,insertados,actualizados,omitidos,errores[{fila,motivo}]}`.
+- [x] `changeDetection: ChangeDetectionStrategy.Eager` **explícito**. Resultó **un** componente, no
+      cuatro: los dos modales (alta/edición e import) viven en la misma página con `@if`, así que no
+      hay componentes hijos donde omitirlo. Ambos modales **resetean su estado en cada apertura**
+      (`abrirNuevo`/`abrirEditar`/`abrirImport`), que es lo que hace que abrir → cerrar → abrir no
+      muestre el resultado del import anterior ni el formulario de la fila anterior.
+- [x] Raza **texto libre** (`<input>`, no `<select>`) en el formulario y en el filtro — el *deadlock
+      de arranque* de la pantalla de Ecuador no se repite: sin ninguna línea cargada se puede crear
+      la primera.
+- [x] Nota de cobertura **siempre visible** bajo la barra de acciones (no en un tooltip): «Esta guía
+      cubre semanas 18 a 140 (producción). Los reportes de levante cubren semanas 1 a 25.» Además,
+      una semana fuera de 18–140 se **marca** en el grid y avisa en el formulario, pero **no
+      bloquea**: el modelo no lo prohíbe y una línea nueva puede legítimamente empezar antes.
+- [x] `ActiveCompanyConfigService` expone `guiaGeneticaPerfil` (`'sanmarino' | 'reducida'`) desde
+      `CompanyDto` — el hueco que F1 dejó señalado. Caché 5 min e invalidación por `session$` ya
+      eran del servicio. **Fail-closed con default neutro**: error, campo ausente o valor
+      desconocido ⇒ `'sanmarino'` ⇒ la pantalla queda en **solo lectura** con un aviso que lo
+      explica, en vez de ofrecer botones que el backend va a rechazar con 403.
+- [x] Validado: `yarn build` ⇒ **0 errores y 0 warnings** (ni siquiera el de bundle budget: el
+      inicial quedó en 996,03 kB / 232,30 kB transferidos). La pantalla salió como **lazy chunk
+      propio** (`chunk-CaBMGTpo.js`), no en el bundle inicial.
+      ⚠️ Pendiente de F4 para poder probarla en vivo: sin el ítem de menú se llega sólo por URL, y
+      sin el permiso `guia_genetica.gestionar` sembrado toda escritura responde 403.
+
+### F4 · Menús — los tres ítems
+- [x] Migración `20260826160000_SeedMenusGuiaGeneticaTresModulos`: renombra a **Guía Genética Pollo
+      Engorde** y **Guía Genética Sanmarino** (con tildes), crea **Guía Genética Santa Reyes**, y
+      **desactiva** (`is_enabled=false`, no borra) los ítems viejos para las empresas de perfil
+      `reducida` — resueltas por el flag `guia_genetica_perfil` o por DATOS, nunca por nombre.
+      🔎 **Corrige un supuesto del plan, medido en la copia de prod:** el ítem que Santa Reyes heredó
+      del clon de menús es el **27 `/config/guia-genetica`** (tabla ancha de Sanmarino), **no** el 51
+      de engorde — Sanmarino nunca tuvo el de Ecuador, así que no había nada de engorde que heredar.
+      La migración desactiva **los dos**, así que da igual cuál sea en prod.
+      ⚠️ El icono es `clipboard-list`, no `dna`: el `ICON_MAP` del front no conoce `'dna'` ⇒ el ítem
+      de Ecuador se dibuja hoy **sin icono**; copiar ese nombre habría copiado el defecto.
+- [x] Migración `20260826160100_SeedPermisoGuiaGeneticaGestionar`: `guia_genetica.gestionar` en
+      `permissions` (**ninguna migración la había sembrado** y el guard ya la exige ⇒ sin esto el
+      módulo nace 403 para todos), `company_permissions` en las 5 empresas (es **fail-closed**: sin
+      la fila no viaja en el JWT) y `role_permissions` **ON para los 14 roles que hoy ven alguno de
+      los tres ítems**, localizando por `route`. **No toca `menu_permissions` a propósito**: esa
+      tabla *esconde* el menú a quien no tenga la key, y las lecturas quedan abiertas.
+- [x] Espejos `.sql` (`backend/sql/add_guia_genetica_tres_modulos_menus.sql` y
+      `add_permiso_guia_genetica_gestionar.sql`) + gate `verificar-sql-llega-por-migracion.js`
+      **verde**. Los espejos se corrieron como 2ª pasada del test ⇒ prueban idempotencia **y**
+      fidelidad al `.cs` (0 filas afectadas en las 12 sentencias).
+- [x] **Validado contra la BD local en transacción revertida** (las 3 migraciones juntas: perfil +
+      menús + permiso; `ROLLBACK` verificado, la BD quedó intacta). Diff de rutas visibles **usuario
+      por usuario** sobre los 21 pares (usuario, empresa) que hoy ven guía: el **único** cambio en
+      todo el sistema es Santa Reyes, que pierde `/config/guia-genetica` y gana
+      `/config/guia-genetica-santa-reyes` — swap 1:1. Totales de rutas: Sanmarino 94→94, Ecuador
+      90→90, Demo 47→47, Panamá 89→89, Santa Reyes 50→50. **Delta cero fuera de Santa Reyes, medido.**
+- [i] 🔗 **Depende de F3 en el mismo release**: el ítem apunta a `/config/guia-genetica-santa-reyes`.
+      Verificado que la ruta ya está declarada en `app.config.ts:515`; si F4 saliera sola, Santa Reyes
+      perdería su ítem viejo y el nuevo no llevaría a ningún lado.
+
+### Validación
+- [x] **Corrido por el orquestador, no por los agentes** (`dotnet build` 0 errores / 0 warnings ·
+      `dotnet test` **3453/3453**, 112 nuevos · `yarn build` 0 errores · `dotnet ef database update`
+      aplicó las 3 migraciones en la BD local). Y el backend **arranca limpio** con ellas aplicadas
+      (`Now listening on: http://[::]:5502` + `Application started`) — era el riesgo de SIGSEGV que
+      documenta CLAUDE.md §🚀. Backend apagado al terminar, `:5502` y `:5002` verificados libres.
+- [x] **Gate multipaís — delta cero medido**: línea base tomada 10:20:14 (pre-migración), 2ª corrida
+      post-aplicación ⇒ **24 objetos × empresa con 0 en todas las columnas de diff** y **0 claves
+      cambiadas**. Cubre Sanmarino (889 filas de guía), Demo (224), Ecuador (15+1+171), Panamá (1+57).
+- [x] **Menú efectivo verificado con `fn_menu_usuario` post-migración** — la fn que arma el sidebar,
+      no `company_menus` a mano: Sanmarino 5 usuarios y Demo 3 siguen en `/config/guia-genetica`,
+      Ecuador 2 y Panamá 5 en `/config/guia-genetica-ecuador`, **Santa Reyes 2 → `/config/guia-genetica-santa-reyes`**.
+      Swap 1:1: nadie fuera de Santa Reyes pierde ni gana una ruta. Tildes confirmadas en BD por
+      comparación contra el literal (`label = 'Guía Genética Pollo Engorde'` ⇒ `t`).
+- [x] **Smoke end-to-end HECHO contra el backend real** (`:5002`, BD local = copia de prod), con la
+      receta del repo: JWT minteado para el **Admin de Santa Reyes** (`90c29eab…`, rol 30, company 6,
+      país 1, sus 35 permisos), fila en `sesiones_activas` (B1 exige la lista blanca por `jti`: sin
+      ella el token es rechazado, **no hay bypass en Development**) y `X-Secret-Up` replicando
+      `EncryptionService.Encrypt`. **8 de 8 pasos verdes:**
+
+      | # | Prueba | Resultado |
+      |---|---|---|
+      | 1 | `GET` listado | **200**, `total = 615` — la guía sembrada se ve |
+      | 2 | `POST` alta de **`Lohmann Brown`** | **201**, id 619 — *la raza que el cliente no podía cargar* |
+      | 3 | `POST` duplicado | **400** con mensaje que manda a editar la existente |
+      | 4 | `GET` filtrado por raza | **200**, la encuentra |
+      | 5 | `PUT` edición | **200**, valores actualizados |
+      | 6 | `GET` plantilla | **200**, 4.518 bytes de Excel |
+      | 7 | Guard: escribir la **compartida** desde SR | **403** con mensaje que nombra el módulo correcto |
+      | 7b | Guard: **import Excel** de la compartida | **403** — corta **antes** de parsear el archivo |
+      | 8 | `DELETE` (baja suave) | **204**; `GET` posterior **404**; listado en 0 |
+
+      ⚠️ El primer intento de 7b dio **400 y no 403**: el guard está en `ExcelImportController:62`,
+      **después** de la validación de archivo (`:59`), así que un POST sin archivo muere antes de
+      llegar. Re-probado **con un archivo real** ⇒ 403. No es un hueco, es el orden de los mensajes.
+      **Limpieza:** la línea 619 y la fila de sesión se borraron; la guía volvió a **615 filas**.
+- [x] **Permiso verificado replicando `AuthService.PermisosEfectivosAsync`** (`role_permissions` ∩
+      `company_permissions` habilitadas): `guia_genetica.gestionar` llega a las 5 empresas, **2
+      usuarios en Santa Reyes**. El módulo no nace 403. El claim se llama `permission`, igual que en
+      `GestionUsuariosEscrituraFilter` y `VentanaFechaRegistroGuard`.
+- [i] **Sin smoke en NAVEGADOR** (la pantalla en sí). El backend quedó probado end-to-end y el
+      componente revisado línea por línea —`ChangeDetectionStrategy.Eager`, `finalize()` que apaga el
+      spinner pase lo que pase, `takeUntil(destroy$)` sin fugas, `puedeEscribir = false` ante error
+      (fail-closed)—, pero **nadie abrió la pantalla todavía**. Es lo único que queda por mirar.
+
+### F5 · El hueco de LECTURA — CERRADO, commit `a278361`
+
+Ya no está fuera de alcance: el usuario pidió corregirlo todo. Los 5 objetos SQL leen
+`vw_guia_genetica_postura` (migración `20260826170000_VwGuiaGeneticaPosturaYFnsOrigen`).
+
+- [x] **Dos premisas del §7 resultaron FALSAS al medir.** (a) El «punto ciego de la grafía» **no
+      existe en el camino SQL**: las grafías rotas viven sólo en `lote_postura_base` y **ninguno de
+      los 5 objetos lee esa tabla** (`grep -c` ⇒ 0,0,0,0,0). Las fns leen `lotes` /
+      `lote_postura_levante` / `lote_postura_produccion`, donde SR tiene **una sola raza**,
+      `Criolla`, byte-idéntica a su guía — la raza **no se hereda** del base (base 29 =
+      `BABCOK BROWN`, lote operativo = `Criolla`). (b) El año **cruzaba bien desde siempre**.
+      ⇒ Se descartó emitir las grafías del lote: no compraba nada y **duplicaba**, porque
+      `vw_guia_genetica_por_lote_postura` es el único de los 5 **sin `LIMIT 1`**.
+- [x] 🔴 **Apareció un defecto peor que el que íbamos a arreglar.** Cambiar sólo el `FROM` habría
+      entregado **números falsos**: levante promedia por sexo dividiendo por **2 fijo**
+      (`:466`), así que con una guía de solo hembras `(95.00 + 0)/2 = 47,5` ⇒ **la mitad** de lo que
+      dice el cliente. Y en producción `fn_dif_pp` no devuelve NULL con guía = 0 ⇒ la columna
+      «diferencia vs guía» pintaría la **mortalidad real** como si fuera la desviación.
+      Por eso la vista lleva una columna **`origen`** y las 2 fns aplican el `COALESCE` **sólo**
+      cuando vale `'compartida'` — literalmente la expresión de hoy. Quitarlos a secas **no** sería
+      delta cero: company 1 tiene entre **6 y 14 filas en blanco por columna** en ese rango.
+- [x] **Ni un solo `WHERE` tocado.** Los criterios divergen a propósito (levante raza exacta y sin
+      `deleted_at`; producción `btrim(lower())` y con filtro; edad texto exacto vs parseada con
+      desempate `'25P'`). Unificarlos haría que empiecen a matchear filas que hoy no matchean.
+- [x] **Gate multipaís**: 25 objetos × empresa. Sanmarino, Demo, Ecuador y Panamá en **CERO en todas
+      las columnas**, `dif_multiplicidad` incluida (no duplica). Santa Reyes **gana 123 filas** =
+      las semanas 18–140 de `Criolla`, repartidas en levante (18–25) y producción.
+- [x] **El factor 2, probado con dato sintético en transacción REVERTIDA** (hoy no es observable: el
+      único lote de SR está en **semana 1** y su guía arranca en la 18). Con el lote en semana 20 la
+      guía dice `gr_ave_dia_h = 107,00` y la fn devuelve **`consumo_tabla = 107`**; sin el arreglo
+      habría devuelto **53,5**. Y `peso_tabla` / `unif_tabla` / `mort_tabla` salen **vacíos, no 0**.
+- [i] **Límite del dato, no del código:** las semanas **1 a 17 de levante quedan sin guía para
+      siempre** — la del cliente arranca en la 18. Overlap real: levante **8** semanas (18–25),
+      producción **115** (26–140). El lote de SR llega a la semana 18 el **2026-12-16**.
+- [!] **`LIMIT 1` sin `ORDER BY` es no-determinista** y envolver la tabla en una vista cambia el plan.
+      Medido hoy: **0 duplicados** por `(company, raza, anio, btrim(edad))` en ambas tablas. Pero
+      **no hay UNIQUE que lo garantice** — la limpieza es de la carga, no del esquema. Si alguien
+      carga un duplicado mañana, cuál gana pasa a depender del plan.
+- [i] El UNIQUE que le falta a la tabla compartida (644/1128 filas con código NULL ⇒ el reimport
+      duplica en silencio) y la normalización de los joins de las fns: cambio de comportamiento, gate propio.
+
+---
+
+## Ocultar Guía/Sellos en venta Panamá + reorganizar modal de detalle
+
+Plan: [venta_panama_ocultar_guia_sellos_detalle_reorganizado_plan.md](fase_de_desarrollo/venta_panama_ocultar_guia_sellos_detalle_reorganizado_plan.md)
+
+Guía Agrocalidad / Sellos son un trámite de ECUADOR (Agrocalidad); Panamá no lo usa. Confirmado
+con el usuario en el chat: ocultar SOLO para Panamá, Ecuador sin cambios. Se aprovecha para
+reorganizar el modal de detalle compartido (Ecuador + Panamá), reportado como "muy plano a lo largo".
+
+- [x] Quitar Guía/Sellos del modal `modal-venta-panama` (Panamá, sin gate — el archivo ya es
+      exclusivo de Panamá).
+- [x] `CountryFilterService.isPanama()` inyectado en `modal-movimiento-pollo-engorde.component.ts`
+      + getter `ocultarGuiaYSellos`.
+- [x] Gate `@if (!ocultarGuiaYSellos)` en la sección "Datos de despacho" del formulario
+      crear/editar (cubre al usuario Panamá que entra por el flujo estándar, no solo por el
+      modal dedicado).
+- [x] Gate `@if (!ocultarGuiaYSellos)` en las filas Guía Agrocalidad/Sellos de la vista de
+      detalle (solo lectura).
+- [x] Reorganización visual de la vista de detalle: secciones cortas (Datos generales / Origen
+      y destino / Cantidades) lado a lado en `.detail-columns`; cada dato pasa a tarjeta de
+      campo (`.detail-item` envolviendo `dt`/`dd`, válido HTML5 dentro de `<dl>`) en vez de la
+      lista fija de 2 columnas; secciones con fondo/borde/radio en vez de separador de línea.
+      Mismo patrón que `.vp-grid`/`.vp-field` (modal Panamá) y `.form-grid` (form de este mismo
+      componente) — sin inventar un patrón nuevo. Media query de 768px actualizada al nuevo
+      markup.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores, 0 warnings nuevos (238.8s,
+      `dist/` generado).
+- [!] Smoke manual en navegador: Ecuador (crear/editar/detalle) sin cambios; Panamá (modal
+      dedicado + flujo estándar + detalle) sin Guía/Sellos; responsive <768px legible. **No
+      ejecutado**: requiere login real (Ecuador y Panamá) que este agente no tiene: queda para
+      que el usuario lo confirme en pantalla.
+
+---
+
+## Liquidación Panamá: 400 sin mensaje al guardar los insumos (lote 13-1)
+
+Plan: [liquidacion_panama_400_deserializacion_plan.md](fase_de_desarrollo/liquidacion_panama_400_deserializacion_plan.md)
+
+Reporte del usuario: al liquidar un lote de pollo engorde en Panamá, el modal mostraba
+"Http failure response for .../ReporteIndicadorPanama/liquidar: 400 OK" — el genérico de Angular,
+sin decir el motivo real. No pasa en Ecuador porque Ecuador no usa este endpoint (liquida directo
+por `LoteAveEngordeService.CerrarLoteAsync`); el que sí falla es el paso previo, propio de Panamá,
+que guarda los 6 insumos (`ReporteIndicadorPanamaController.Liquidar`).
+
+- [x] Causa raíz identificada: `AvesFinalGranja`/`AvesBeneficiada`/`DiasEngorde`/`DiasEnGranja` son
+      `int` en el contrato, pero los inputs del modal no restringían decimales — un decimal ahí
+      pasa el gate `panamaCamposCompletos` (solo exige `> 0`) y falla la deserialización del JSON
+      ANTES del controller; `[ApiController]` responde el 400 automático
+      (`ValidationProblemDetails: {title, errors}`), forma que el front no sabía leer (no tiene
+      `error` ni `message`) ⇒ cae al genérico de Angular.
+- [x] Backend: `ConfigureApiBehaviorOptions` en `Program.cs` reescribe ESA respuesta automática a
+      `{error: "..."}` (misma forma que ya usan todos los controllers), nombrando el campo que
+      falló. Cambio global — aplica a cualquier `[FromBody]` del app, no solo a este endpoint.
+      Verificado en vivo contra el backend local (`POST /api/Auth/recover-password` con JSON
+      malformado): antes `{title, errors}` sin mensaje utilizable, después `{error: "..."}`.
+- [x] Frontend (`aves-engorde/funciones/`): `validar-insumos-panama.funcion.ts` (rechaza decimales
+      en los 4 campos enteros ANTES de enviar, mensaje inmediato) + `extraer-mensaje-error.funcion.ts`
+      (lee el mensaje real del backend, cubre las 3 formas de respuesta) — reemplaza las 7 cadenas
+      `err?.error?.error ?? err?.error?.message ?? err?.message ?? '...'` duplicadas en
+      `modal-liquidacion-lote-engorde.component.ts`. `step="1"` en los 4 inputs enteros de Panamá.
+- [x] Sin cambio de reglas de negocio: la decisión de no bloquear "liquidar" por falta de ventas
+      registradas (commit `6a37736`, mismo día) no se toca — el banner informativo ya existente
+      (`avesVivasPendientes > 0`) sigue igual.
+- [x] `dotnet build` (backend, SDK 10 portable) — 0 errores, 0 warnings.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores.
+- [x] `yarn test` (Karma, scoped a `aves-engorde/funciones/*.spec.ts`) — 27/27 SUCCESS (incluye las
+      13 pruebas nuevas de los 2 archivos).
+- [x] Smoke manual en pantalla contra un lote Panamá real liquidando con datos válidos: confirmado
+      por el usuario ("ya quedo corregido").
+
+---
+
+## Lote Aves de Engorde: el botón "Actualizar" quedaba deshabilitado al editar
+
+Reporte del usuario: en el módulo de Lote Pollo Engorde, al editar un lote y completar un dato que
+faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar los cambios.
+
+- [x] Causa raíz #1 (la severa): en una empresa con `companies.programacion_lotes_engorde = true`,
+      el subscriber de `granjaId` en `lote-engorde-list.component.ts` blanqueaba `loteNombre` cada
+      vez que su valor se PATCHEABA — no solo cuando el usuario cambiaba de granja a mano, sino
+      también al precargar el form para EDITAR (`applyModalFormState` también patchea `granjaId`).
+      En ese modo el template no muestra ningún input para `loteNombre` (se ve el select de lote
+      base), así que el campo quedaba requerido, vacío, y sin ningún control en pantalla para
+      corregirlo: el form nacía inválido en TODA edición de esa empresa, sin importar qué tan
+      completo estuviera el resto del lote. Fix: la limpieza de `loteNombre` ahora respeta el mismo
+      guard `!this.editing` que ya usa `recomputeNombrePorCorrida()` al lado.
+- [x] Causa raíz #2 (más acotada): lotes legado sin `raza`/`anoTablaGenetica` (nulos en BD, el
+      backend los admite) nacen inválidos al abrirlos para editar — y si el usuario completa una
+      raza que no tiene años cargados en la guía Ecuador, el desplegable de año queda sin ninguna
+      opción seleccionable (dead-end ya advertido con un mensaje, pero fácil de no ver en un form
+      largo). No se tocó ninguna regla de negocio acá: los campos siguen requeridos en el front tal
+      como estaban.
+- [x] UX: nuevo aviso junto al botón (`camposQueFaltan` + bloque `.le-form-note` en el template) que
+      lista los campos obligatorios que faltan, SIN esperar a que el usuario los toque — antes el
+      error de cada campo solo se pintaba con `.touched`, y un campo que el propio código vació
+      (caso de arriba) no tenía ninguna pista visible.
+- [x] Bug menor de paso: `applyModalFormState()` disparaba `loadAnosDisponibles` DOS veces al abrir
+      un lote con raza ya cargada (un `GET /guia-genetica-ecuador/anos` de más por cada edición).
+      Se eliminó la llamada redundante.
+- [x] Hallazgo aparte (no de este módulo): `flags-empresa.funcion.spec.ts` no compilaba —
+      `a34e7bb` agregó `guiaGeneticaPerfil` a `CompanyFlags` sin actualizar este fixture
+      (`satisfies CompanyFlags`), lo que rompía la compilación de **todo** `yarn test` del frontend
+      (no solo este módulo). Se agregó el campo faltante (`'sanmarino'`, el default fail-closed).
+- [x] Reproducido y verificado con `TestBed` + `HttpTestingController` (sin backend, sin login) por
+      el flujo real `openModal()` → `applyModalFormState()`, no simulado a mano. Nuevo
+      `lote-engorde-list.component.spec.ts` (5 tests, cubre el bug de `loteNombre`, el guard de
+      ALTA que no debía tocarse, y `camposQueFaltan`).
+- [x] `yarn test --include='**/lote-engorde-list.component.spec.ts'` — 5/5 SUCCESS.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores.
+- [!] Smoke manual en pantalla editando un lote real de una empresa con programación de lotes ON
+      (Ecuador/Panamá): requiere login que este agente no tiene — queda para que el usuario lo
+      confirme. El bug #1 es el que más probablemente explica el reporte (afecta el 100% de las
+      ediciones en esas empresas); el #2 es un caso más acotado (lotes legado / raza sin guía).

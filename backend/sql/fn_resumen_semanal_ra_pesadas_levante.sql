@@ -370,7 +370,11 @@ con_guia AS (
       FROM sem_objetivo so
       LEFT JOIN LATERAL (
             SELECT gg.*
-              FROM guia_genetica_sanmarino_colombia gg
+              -- Fuente unificada: la compartida + la reducida proyectada al mismo shape.
+              -- Aca NO hace falta leer `origen` como en fn_indicadores_*: estas columnas
+              -- pasan por f_safe_numeric(), que ya devuelve NULL ante NULL o texto no
+              -- numerico ⇒ no fabrica el 0 falso que alla habia que condicionar.
+              FROM vw_guia_genetica_postura gg
              WHERE gg.company_id = p_company_id
                AND gg.deleted_at IS NULL
                AND lower(trim(gg.raza)) = lower(trim(COALESCE(so.raza, '')))

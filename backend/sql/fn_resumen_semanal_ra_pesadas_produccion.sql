@@ -248,7 +248,9 @@ con_guia AS (
       FROM sem_objetivo so
       LEFT JOIN LATERAL (
             SELECT gg.*
-              FROM guia_genetica_sanmarino_colombia gg
+              -- Fuente unificada (ver nota gemela en fn_resumen_semanal_ra_pesadas_levante):
+              -- f_safe_numeric() degrada a NULL sola, asi que el cambio es solo la fuente.
+              FROM vw_guia_genetica_postura gg
              WHERE gg.company_id = p_company_id
                AND gg.deleted_at IS NULL
                AND lower(trim(gg.raza)) = lower(trim(COALESCE(so.raza, '')))

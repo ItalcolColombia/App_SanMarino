@@ -436,6 +436,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("email");
 
+                    b.Property<string>("GuiaGeneticaPerfil")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("sanmarino")
+                        .HasColumnName("guia_genetica_perfil");
+
                     b.Property<int?>("HuevoPrimeraPosturaHastaSemana")
                         .HasColumnType("integer")
                         .HasColumnName("huevo_primera_postura_hasta_semana");

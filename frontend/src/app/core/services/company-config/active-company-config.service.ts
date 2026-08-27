@@ -7,6 +7,23 @@ import { environment } from '../../../../environments/environment';
 import { TokenStorageService } from '../../auth/token-storage.service';
 
 /**
+ * Perfil de guía genética de la empresa (`companies.guia_genetica_perfil`).
+ *
+ * - `sanmarino`: la tabla ANCHA compartida (`guia_genetica_sanmarino_colombia`) — pantalla
+ *   `/config/guia-genetica`. Es el **default neutro**: toda empresa nace acá.
+ * - `reducida`: la tabla PLANA de 3 métricas (`guia_genetica_santa_reyes`) — pantalla
+ *   `/config/guia-genetica-santa-reyes`.
+ *
+ * No es un booleano porque no es una capacidad que se enciende, sino **cuál de los dos modelos de
+ * datos** usa la empresa; y una tercera empresa con un tercer modelo sería un valor más, no un flag
+ * más. El backend lo resuelve con `GuiaGeneticaPerfilCalculos`.
+ */
+export type GuiaGeneticaPerfil = 'sanmarino' | 'reducida';
+
+/** Valor con el que se responde cuando no hay dato: el default neutro (ver `GuiaGeneticaPerfil`). */
+export const GUIA_GENETICA_PERFIL_DEFECTO: GuiaGeneticaPerfil = 'sanmarino';
+
+/**
  * Flags de comportamiento de la EMPRESA ACTIVA (columnas tipadas en `companies`).
  *
  * Patrón multi-empresa del repo: nunca se detecta país ni nombre de empresa en el front;
@@ -90,6 +107,12 @@ export interface CompanyFlags {
    * límite configurado (todas las empresas salvo Santa Reyes) — no se oculta nada.
    */
   huevoPrimeraPosturaHastaSemana: number | null;
+  /**
+   * Cuál de las dos tablas de guía genética de POSTURA administra la empresa. Ver
+   * {@link GuiaGeneticaPerfil}. Fail-closed = `'sanmarino'` (el default neutro: es el perfil con el
+   * que nace toda empresa, así que tratarlo así ante un error no habilita nada que no estuviera).
+   */
+  guiaGeneticaPerfil: GuiaGeneticaPerfil;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -109,7 +132,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   ocultaMachosEnPostura: false,
   limitaTiposInventarioAlimentoYAves: false,
   separaLotesPosturaPorEtapa: false,
-  huevoPrimeraPosturaHastaSemana: null
+  huevoPrimeraPosturaHastaSemana: null,
+  guiaGeneticaPerfil: GUIA_GENETICA_PERFIL_DEFECTO
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -138,6 +162,8 @@ interface CompanyFlagsResponse {
   limitaTiposInventarioAlimentoYAves?: boolean | null;
   separaLotesPosturaPorEtapa?: boolean | null;
   huevoPrimeraPosturaHastaSemana?: number | null;
+  /** `companies.guia_genetica_perfil` — llega como texto libre; se valida contra los conocidos. */
+  guiaGeneticaPerfil?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -236,6 +262,18 @@ export class ActiveCompanyConfigService {
     distinctUntilChanged()
   );
 
+  /** Atajo: perfil de guía genética de la empresa activa (`sanmarino` | `reducida`). */
+  readonly guiaGeneticaPerfil$: Observable<GuiaGeneticaPerfil> = this.flags$.pipe(
+    map(f => f.guiaGeneticaPerfil),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa administra la guía genética REDUCIDA (tabla plana de 3 métricas)? */
+  readonly usaGuiaGeneticaReducida$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.guiaGeneticaPerfil === 'reducida'),
+    distinctUntilChanged()
+  );
+
   /** Caché en memoria por companyId (TTL 5 min). */
   private readonly cache = new Map<number, CacheEntry>();
   /** Peticiones en vuelo por companyId (evita N GET simultáneos desde varios formularios). */
@@ -327,6 +365,16 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.programacionLotesEngorde));
   }
 
+  /** Azúcar: sólo el perfil de guía genética de la empresa activa. */
+  guiaGeneticaPerfil(): Observable<GuiaGeneticaPerfil> {
+    return this.getFlags().pipe(map(f => f.guiaGeneticaPerfil));
+  }
+
+  /** Azúcar: ¿la empresa activa administra la guía genética reducida? */
+  usaGuiaGeneticaReducida(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.guiaGeneticaPerfil === 'reducida'));
+  }
+
   /** Descarta la caché (p. ej. tras editar la empresa en configuración). */
   invalidate(): void {
     this.cache.clear();
@@ -353,7 +401,13 @@ export class ActiveCompanyConfigService {
       separaLotesPosturaPorEtapa: dto?.separaLotesPosturaPorEtapa === true,
       huevoPrimeraPosturaHastaSemana: typeof dto?.huevoPrimeraPosturaHastaSemana === 'number'
         ? dto.huevoPrimeraPosturaHastaSemana
-        : null
+        : null,
+      // Sólo se acepta un perfil CONOCIDO. Un valor nuevo que el front todavía no entiende cae al
+      // default neutro en vez de habilitar una pantalla equivocada — igual criterio que el backend,
+      // que ante un valor desconocido lanza en vez de adivinar.
+      guiaGeneticaPerfil: dto?.guiaGeneticaPerfil?.trim().toLowerCase() === 'reducida'
+        ? 'reducida'
+        : GUIA_GENETICA_PERFIL_DEFECTO
     };
   }
 
@@ -377,7 +431,8 @@ export class ActiveCompanyConfigService {
       actual.ocultaMachosEnPostura === flags.ocultaMachosEnPostura &&
       actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves &&
       actual.separaLotesPosturaPorEtapa === flags.separaLotesPosturaPorEtapa &&
-      actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana
+      actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana &&
+      actual.guiaGeneticaPerfil === flags.guiaGeneticaPerfil
     ) return;
     this.flagsSubject.next(flags);
   }

@@ -508,6 +508,16 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.GuiaGeneticaEcuadorPageComponent)
           },
 
+          // Guía genética REDUCIDA (guia_genetica_santa_reyes) — tabla plana de 3 métricas por
+          // raza/año/semana. Es la TERCERA pantalla de guía genética, y son tres a propósito: cada
+          // una administra una tabla distinta (ver models/guia-genetica-santa-reyes.model.ts).
+          {
+            path: 'guia-genetica-santa-reyes',
+            loadComponent: () =>
+              import('./features/config/guia-genetica-santa-reyes/pages/guia-genetica-santa-reyes-page/guia-genetica-santa-reyes-page.component')
+                .then(m => m.GuiaGeneticaSantaReyesPageComponent)
+          },
+
           // Catálogo de Alimentos (lazy)
           {
             path: 'catalogo-alimentos',

@@ -321,6 +321,26 @@
         /// </summary>
         public bool DescuentaInventarioDesdeMovil { get; set; }
 
+        /// <summary>
+        /// Qué MODELO de guía genética usa la empresa: <c>"sanmarino"</c> (default) = la tabla ANCHA
+        /// compartida <c>guia_genetica_sanmarino_colombia</c>; <c>"reducida"</c> = la tabla PLANA de 3
+        /// métricas <c>guia_genetica_santa_reyes</c> (prod %, retiro ac. H, gr/ave/día H).
+        /// <para>
+        /// La señal es por COMPORTAMIENTO, no por empresa: nada acá dice «Santa Reyes» ni «Ecuador».
+        /// CLAUDE.md §🏢 prohíbe <c>if (empresa == X)</c> / <c>if (pais == X)</c> justamente para que
+        /// la cuarta empresa que quiera el modelo plano se dé de alta cambiando UN DATO, sin desplegar
+        /// código. El backfill de la migración se deriva de datos (<c>EXISTS</c> sobre la tabla
+        /// reducida), nunca de <c>name</c>.
+        /// </para>
+        /// <para>
+        /// Los valores válidos y la resolución viven en <c>GuiaGeneticaPerfilCalculos</c> (Application),
+        /// que <b>lanza</b> ante un valor desconocido en vez de caer al default: mostrar —o dejar
+        /// escribir— la tabla equivocada en silencio es peor que fallar. Acá se guarda el texto crudo
+        /// porque Domain no depende de Application.
+        /// </para>
+        /// </summary>
+        public string GuiaGeneticaPerfil { get; set; } = "sanmarino";
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

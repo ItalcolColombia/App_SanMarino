@@ -42,7 +42,8 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     ocultaMachosEnPostura: false,
     limitaTiposInventarioAlimentoYAves: false,
     separaLotesPosturaPorEtapa: false,
-    huevoPrimeraPosturaHastaSemana: null
+    huevoPrimeraPosturaHastaSemana: null,
+    guiaGeneticaPerfil: 'sanmarino'
   } satisfies CompanyFlags;
 
   it('TODO flag booleano que lee el runtime se puede configurar desde la pantalla de Empresas', () => {

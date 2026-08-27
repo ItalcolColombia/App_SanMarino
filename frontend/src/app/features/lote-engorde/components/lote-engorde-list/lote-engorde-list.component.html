@@ -589,6 +589,12 @@
                   </div>
                   <p class="le-form-hint">Los pesos se registran en gramos. Los separadores de miles se aplican automáticamente.</p>
                 </div>
+                @if (form.invalid && camposQueFaltan.length > 0) {
+                  <p class="le-form-note" role="alert">
+                    Para {{ editing ? 'actualizar' : 'guardar' }} falta completar:
+                    <strong>{{ camposQueFaltan.join(', ') }}</strong>.
+                  </p>
+                }
                 <div class="le-modal__actions">
                   <button type="button" (click)="modalOpen = false" class="le-btn le-btn--muted">Cancelar</button>
                   <button type="submit" [disabled]="form.invalid || loading" class="le-btn le-btn--primary">

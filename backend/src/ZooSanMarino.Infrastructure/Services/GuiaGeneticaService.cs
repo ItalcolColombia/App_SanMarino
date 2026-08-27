@@ -97,8 +97,27 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     }
 
     /// <summary>
-    /// Razas disponibles para la empresa: primero la tabla dedicada, y si está vacía para esta
-    /// empresa, la compartida — mismo criterio de <see cref="ObtenerCandidatosAsync"/>.
+    /// Razas disponibles para la empresa: las de su guía propia MÁS las de la compartida, sin duplicar.
+    ///
+    /// <para>
+    /// 🔴 <b>Lo que había antes cortaba a nivel EMPRESA, no de raza:</b>
+    /// <c>if (propias.Count &gt; 0) return propias;</c>. Con 615 filas propias sembradas, la empresa
+    /// entraba SIEMPRE por esa rama, así que una raza cargada en la guía compartida se importaba
+    /// «OK», se listaba en el grid y <b>nunca aparecía en el selector de lotes</b>. No fallaba:
+    /// mentía. Y era el único workaround aparente para una raza sin guía propia.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Delta cero para toda empresa SIN guía propia</b> —Sanmarino, Demo, Ecuador y Panamá, las
+    /// cuatro medidas con 0 filas propias—: la lista compartida se devuelve tal cual, misma
+    /// instancia y mismo orden. La combinación y su invariante viven en
+    /// <see cref="GuiaGeneticaRazasCalculos.CombinarRazas"/>, con tests.
+    /// </para>
+    ///
+    /// <para>
+    /// Se consultan las dos fuentes siempre: para una empresa sin propias son exactamente las dos
+    /// consultas que ya se hacían.
+    /// </para>
     /// </summary>
     private async Task<List<string>> ObtenerRazasCrudoAsync(int companyId)
     {
@@ -109,19 +128,29 @@ public class GuiaGeneticaService : IGuiaGeneticaService
             .Distinct()
             .ToListAsync();
 
-        if (propias.Count > 0) return propias;
-
-        return await _ctx.ProduccionAvicolaRaw
+        var compartidas = await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
             .Where(p => p.CompanyId == companyId && p.DeletedAt == null && !string.IsNullOrWhiteSpace(p.Raza))
             .Select(p => p.Raza!)
             .Distinct()
             .ToListAsync();
+
+        return GuiaGeneticaRazasCalculos.CombinarRazas(propias, compartidas);
     }
 
     /// <summary>
     /// Años (crudos, como texto) disponibles para una raza de la empresa — mismo criterio de
     /// <see cref="ObtenerCandidatosAsync"/>.
+    ///
+    /// <para>
+    /// ✅ <b>Este método NO tiene el defecto de <see cref="ObtenerRazasCrudoAsync"/> y por eso no se
+    /// toca.</b> Acá el corte es <b>por RAZA</b>, no por empresa: la primera consulta ya filtra
+    /// <c>Raza == razaPropia</c>, así que una raza que sólo vive en la guía compartida devuelve cero
+    /// propios y cae a la compartida como corresponde. Cada raza vive en una sola tabla; el
+    /// <c>if (propios.Count &gt; 0)</c> pregunta «¿dónde vive el dato de ESTA raza?», que es la
+    /// pregunta correcta. Unirlo también mezclaría años de dos guías distintas para la misma línea
+    /// genética — un cambio de comportamiento sin defecto que lo justifique.
+    /// </para>
     /// </summary>
     private async Task<List<string>> ObtenerAniosCrudoAsync(int companyId, string razaNorm)
     {

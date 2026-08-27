@@ -1,25 +1,45 @@
 // src/ZooSanMarino.API/Controllers/ExcelImportController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
 namespace ZooSanMarino.API.Controllers;
 
+/// <summary>
+/// Import Excel de la guía genética <b>compartida</b> (<c>ProduccionAvicolaRaw</c>).
+///
+/// <para>
+/// 🔴 Es la SEGUNDA puerta de escritura de esa tabla —y la real, la que usa el cliente— así que
+/// lleva el mismo guard fail-closed por perfil que <c>ProduccionAvicolaRawController</c>: dejarla
+/// abierta permitiría a una empresa de perfil <c>reducida</c> escribir por Excel justo lo que el
+/// otro controller le niega.
+/// </para>
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Tags("ExcelImport")]
+[Authorize]
 public class ExcelImportController : ControllerBase
 {
     private readonly IExcelImportService _excelImportService;
+    private readonly IGuiaGeneticaPerfilResolver _perfilResolver;
     private readonly ILogger<ExcelImportController> _logger;
 
     public ExcelImportController(
         IExcelImportService excelImportService,
+        IGuiaGeneticaPerfilResolver perfilResolver,
         ILogger<ExcelImportController> logger)
     {
         _excelImportService = excelImportService;
+        _perfilResolver = perfilResolver;
         _logger = logger;
     }
+
+    /// <summary>Perfil de guía que administra la tabla que este import escribe.</summary>
+    private const string PerfilDeLaTabla = GuiaGeneticaPerfilCalculos.Sanmarino;
 
     /// <summary>
     /// Importa datos de producción avícola desde un archivo Excel
@@ -29,18 +49,22 @@ public class ExcelImportController : ControllerBase
     [HttpPost("produccion-avicola")]
     [ProducesResponseType(typeof(ExcelImportResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
     public async Task<ActionResult<ExcelImportResultDto>> ImportProduccionAvicola(IFormFile file)
     {
+        if (file == null)
+        {
+            return BadRequest(new { message = "No se ha proporcionado ningún archivo." });
+        }
+
+        var rechazo = await this.ExigirPerfilGuiaGeneticaAsync(_perfilResolver, PerfilDeLaTabla);
+        if (rechazo is not null) return rechazo;
+
         try
         {
-            if (file == null)
-            {
-                return BadRequest(new { message = "No se ha proporcionado ningún archivo." });
-            }
-
-            _logger.LogInformation("Iniciando importación de archivo Excel: {FileName}, Tamaño: {FileSize} bytes", 
+            _logger.LogInformation("Iniciando importación de archivo Excel: {FileName}, Tamaño: {FileSize} bytes",
                 file.FileName, file.Length);
 
             var result = await _excelImportService.ImportProduccionAvicolaFromExcelAsync(file);
