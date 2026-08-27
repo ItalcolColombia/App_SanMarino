@@ -4015,3 +4015,47 @@ faltaba, el botón "Actualizar" seguía apagado — el front no dejaba guardar l
       (Ecuador/Panamá): requiere login que este agente no tiene — queda para que el usuario lo
       confirme. El bug #1 es el que más probablemente explica el reporte (afecta el 100% de las
       ediciones en esas empresas); el #2 es un caso más acotado (lotes legado / raza sin guía).
+
+---
+
+## 🚑 Deploy 89511545875 cortado: `guia-genetica-santa-reyes` sin clasificar en la lista cacheable
+
+**Plan:** [`fase_de_desarrollo/lista_cacheable_guia_genetica_santa_reyes_plan.md`](fase_de_desarrollo/lista_cacheable_guia_genetica_santa_reyes_plan.md)
+
+- [i] El job «Tests — Backend & Frontend» falló con `exit 1` y **no fue un test**: backend
+      3.453/3.453 verdes, Karma 673/673 verdes y el gate de `changeDetection` OK (234 componentes).
+      Cortó el gate 9, `verificar-lista-cacheable.js`: `sin decisión tomada : 1 -
+      guia-genetica-santa-reyes`. El endpoint lo agregó `a34e7bb` y nadie lo clasificó. Segunda vez
+      que pasa lo mismo (la primera fue `a41fa6e`, cuadre de alimento).
+- [x] Clasificado en **`EXCLUIDOS`** de `decidir-cacheable.funcion.ts`, con el porqué escrito: sus
+      dos hermanas se cachean porque las leen pantallas de campo (indicadores de engorde, form de
+      lote); la reducida **sólo** la pide su propia pantalla de administración `/config/...`, que es
+      de oficina. Los indicadores de postura de Santa Reyes no pasan por el front: los calcula
+      Postgres contra `vw_guia_genetica_postura` (`a278361`).
+- [x] Test que fija la decisión **y** que las otras dos guías siguen cacheándose — las tres comparten
+      el prefijo `guia-genetica`, así que la exclusión tenía que verificarse quirúrgica.
+- [x] Riesgo de comportamiento: CERO. Al no estar en `ENDPOINTS_OPERATIVOS`, `decidirCacheable` ya
+      devolvía `false` para esa ruta; esto hace explícita la decisión, que es lo que el gate exige.
+- [x] Verificado local: los dos gates en verde (55 cacheables / 34 excluidos / 0 sin decisión ·
+      234 componentes con estrategia declarada), `yarn test` del spec 12/12 y `yarn build` sin errores.
+- [!] **Decisión de producto, reversible en una línea:** si operación quiere que la pantalla de la
+      guía de Santa Reyes se consulte sin red, se mueve la cadena de `EXCLUIDOS` a
+      `ENDPOINTS_OPERATIVOS` y el gate sigue verde.
+- [~] Re-disparar el deploy a `main-produccion` (fuera del repo: requiere push, que el usuario pide
+      explícitamente).
+- [x] **Aparte, del mismo run:** el warning de GitHub de que `checkout@v4`, `setup-dotnet@v4` y
+      `setup-node@v4` apuntan a Node 20 (retirado) y los está forzando a Node 24. Se subieron a
+      `checkout@v7`, `setup-dotnet@v6`, `setup-node@v7` y —no lo avisaba el run, porque su job no
+      llegó a correr— `configure-aws-credentials@v6`, que también era `node20`.
+- [x] Los otros tres `aws-actions` NO se tocaron: se verificó `using:` en el `action.yml` de su tag
+      y `ecr-login@v2`, `ecs-render-task-definition@v1` y `ecs-deploy-task-definition@v2` **ya
+      resuelven a node24**. El criterio quedó escrito en la cabecera del workflow: decide el
+      runtime, no el número de versión.
+- [x] Breaking changes revisados uno por uno contra este workflow, no asumidos: `setup-node` v5/v6
+      (caché automática) no aplica —no hay `packageManager` en `package.json` y el `cache: yarn` es
+      explícito—; `configure-aws-credentials` v5 (booleanos inválidos) tampoco —sólo se le pasan
+      `role-to-assume`, `aws-region` y `role-session-name`—; `checkout` v6 (credenciales a un archivo
+      aparte) y v7 (bloquea fork PRs en `pull_request_target`/`workflow_run`) no aplican: el
+      workflow no corre ningún comando `git` y dispara por `push`.
+- [x] Los 4 tags nuevos existen y declaran `using: node24` (verificado por API, no de memoria). El
+      diff son 7 líneas de `uses:` + 8 de comentario, cero cambios estructurales.

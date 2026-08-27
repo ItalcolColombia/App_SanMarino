@@ -153,6 +153,16 @@ const EXCLUIDOS: readonly string[] = [
   // devuelve todas a la vez. Cubre también `/liquidados-con-alimento`: comparten primer segmento.
   'cuadrealimentoengorde',
 
+  // Guía genética REDUCIDA de Santa Reyes. Sus dos hermanas (`guia-genetica`,
+  // `guia-genetica-ecuador`) sí se cachean porque las leen pantallas de campo —los indicadores de
+  // engorde y el form de lote las piden para calcular—; ésta no la pide nadie más que su propia
+  // pantalla de administración (`/config/guia-genetica-santa-reyes`), que es de oficina: crear,
+  // editar e importar exigen red y el permiso `guia_genetica.gestionar`. Los indicadores de postura
+  // de Santa Reyes NO pasan por acá: los calcula Postgres contra `vw_guia_genetica_postura`.
+  // Mismo criterio que `vacunacionplantilla`: es la fuente aguas arriba, y servirla de caché
+  // mostraría una guía vieja como si fuera la vigente justo antes de importarle encima.
+  'guia-genetica-santa-reyes',
+
   // Herramientas internas (gestión del área de desarrollo, cargas masivas, integraciones). No las
   // usa un galponero, y varias devuelven datos de todas las empresas a la vez.
   'tickets',
