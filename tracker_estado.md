@@ -3903,6 +3903,77 @@ Ya no está fuera de alcance: el usuario pidió corregirlo todo. Los 5 objetos S
 
 ---
 
+## Ocultar Guía/Sellos en venta Panamá + reorganizar modal de detalle
+
+Plan: [venta_panama_ocultar_guia_sellos_detalle_reorganizado_plan.md](fase_de_desarrollo/venta_panama_ocultar_guia_sellos_detalle_reorganizado_plan.md)
+
+Guía Agrocalidad / Sellos son un trámite de ECUADOR (Agrocalidad); Panamá no lo usa. Confirmado
+con el usuario en el chat: ocultar SOLO para Panamá, Ecuador sin cambios. Se aprovecha para
+reorganizar el modal de detalle compartido (Ecuador + Panamá), reportado como "muy plano a lo largo".
+
+- [x] Quitar Guía/Sellos del modal `modal-venta-panama` (Panamá, sin gate — el archivo ya es
+      exclusivo de Panamá).
+- [x] `CountryFilterService.isPanama()` inyectado en `modal-movimiento-pollo-engorde.component.ts`
+      + getter `ocultarGuiaYSellos`.
+- [x] Gate `@if (!ocultarGuiaYSellos)` en la sección "Datos de despacho" del formulario
+      crear/editar (cubre al usuario Panamá que entra por el flujo estándar, no solo por el
+      modal dedicado).
+- [x] Gate `@if (!ocultarGuiaYSellos)` en las filas Guía Agrocalidad/Sellos de la vista de
+      detalle (solo lectura).
+- [x] Reorganización visual de la vista de detalle: secciones cortas (Datos generales / Origen
+      y destino / Cantidades) lado a lado en `.detail-columns`; cada dato pasa a tarjeta de
+      campo (`.detail-item` envolviendo `dt`/`dd`, válido HTML5 dentro de `<dl>`) en vez de la
+      lista fija de 2 columnas; secciones con fondo/borde/radio en vez de separador de línea.
+      Mismo patrón que `.vp-grid`/`.vp-field` (modal Panamá) y `.form-grid` (form de este mismo
+      componente) — sin inventar un patrón nuevo. Media query de 768px actualizada al nuevo
+      markup.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores, 0 warnings nuevos (238.8s,
+      `dist/` generado).
+- [!] Smoke manual en navegador: Ecuador (crear/editar/detalle) sin cambios; Panamá (modal
+      dedicado + flujo estándar + detalle) sin Guía/Sellos; responsive <768px legible. **No
+      ejecutado**: requiere login real (Ecuador y Panamá) que este agente no tiene: queda para
+      que el usuario lo confirme en pantalla.
+
+---
+
+## Liquidación Panamá: 400 sin mensaje al guardar los insumos (lote 13-1)
+
+Plan: [liquidacion_panama_400_deserializacion_plan.md](fase_de_desarrollo/liquidacion_panama_400_deserializacion_plan.md)
+
+Reporte del usuario: al liquidar un lote de pollo engorde en Panamá, el modal mostraba
+"Http failure response for .../ReporteIndicadorPanama/liquidar: 400 OK" — el genérico de Angular,
+sin decir el motivo real. No pasa en Ecuador porque Ecuador no usa este endpoint (liquida directo
+por `LoteAveEngordeService.CerrarLoteAsync`); el que sí falla es el paso previo, propio de Panamá,
+que guarda los 6 insumos (`ReporteIndicadorPanamaController.Liquidar`).
+
+- [x] Causa raíz identificada: `AvesFinalGranja`/`AvesBeneficiada`/`DiasEngorde`/`DiasEnGranja` son
+      `int` en el contrato, pero los inputs del modal no restringían decimales — un decimal ahí
+      pasa el gate `panamaCamposCompletos` (solo exige `> 0`) y falla la deserialización del JSON
+      ANTES del controller; `[ApiController]` responde el 400 automático
+      (`ValidationProblemDetails: {title, errors}`), forma que el front no sabía leer (no tiene
+      `error` ni `message`) ⇒ cae al genérico de Angular.
+- [x] Backend: `ConfigureApiBehaviorOptions` en `Program.cs` reescribe ESA respuesta automática a
+      `{error: "..."}` (misma forma que ya usan todos los controllers), nombrando el campo que
+      falló. Cambio global — aplica a cualquier `[FromBody]` del app, no solo a este endpoint.
+      Verificado en vivo contra el backend local (`POST /api/Auth/recover-password` con JSON
+      malformado): antes `{title, errors}` sin mensaje utilizable, después `{error: "..."}`.
+- [x] Frontend (`aves-engorde/funciones/`): `validar-insumos-panama.funcion.ts` (rechaza decimales
+      en los 4 campos enteros ANTES de enviar, mensaje inmediato) + `extraer-mensaje-error.funcion.ts`
+      (lee el mensaje real del backend, cubre las 3 formas de respuesta) — reemplaza las 7 cadenas
+      `err?.error?.error ?? err?.error?.message ?? err?.message ?? '...'` duplicadas en
+      `modal-liquidacion-lote-engorde.component.ts`. `step="1"` en los 4 inputs enteros de Panamá.
+- [x] Sin cambio de reglas de negocio: la decisión de no bloquear "liquidar" por falta de ventas
+      registradas (commit `6a37736`, mismo día) no se toca — el banner informativo ya existente
+      (`avesVivasPendientes > 0`) sigue igual.
+- [x] `dotnet build` (backend, SDK 10 portable) — 0 errores, 0 warnings.
+- [x] `yarn build` (frontend, Node portable 22.23.1) — 0 errores.
+- [x] `yarn test` (Karma, scoped a `aves-engorde/funciones/*.spec.ts`) — 27/27 SUCCESS (incluye las
+      13 pruebas nuevas de los 2 archivos).
+- [x] Smoke manual en pantalla contra un lote Panamá real liquidando con datos válidos: confirmado
+      por el usuario ("ya quedo corregido").
+
+---
+
 ## Lote Aves de Engorde: el botón "Actualizar" quedaba deshabilitado al editar
 
 Reporte del usuario: en el módulo de Lote Pollo Engorde, al editar un lote y completar un dato que

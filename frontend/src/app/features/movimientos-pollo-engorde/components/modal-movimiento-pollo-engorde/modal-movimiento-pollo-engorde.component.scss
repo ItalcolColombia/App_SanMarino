@@ -135,41 +135,77 @@
 
 .detail-view {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Las 3 secciones cortas (generales / origen-destino / cantidades) lado a lado en desktop,
+   en vez de apilarse una debajo de otra — corta el efecto "lista plana a lo largo". */
+.detail-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  align-items: start;
 }
 
 .detail-section {
-  margin-bottom: 1.35rem;
-  padding-bottom: 1.15rem;
-  border-bottom: 1px solid var(--ital-green-100);
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--ital-cream-50);
+  border: 1px solid var(--ital-green-100);
+  border-radius: 12px;
 
-  &:last-of-type {
-    border-bottom: none;
+  &--despacho {
+    background: var(--ital-green-50);
   }
 
   &__title {
-    margin: 0 0 0.65rem 0;
-    font-size: 0.95rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.8rem;
     font-weight: 800;
     color: var(--ital-orange-dark);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
   }
 }
 
+/* Cada dato es una tarjeta chica (etiqueta arriba, valor abajo) en vez de una fila de una
+   lista de 2 columnas — mismo patrón que .vp-field/.vp-grid y .form-grid del propio modal. */
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(100px, 140px) 1fr;
-  gap: 0.35rem 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.85rem 1rem;
   margin: 0;
-  font-size: clamp(0.85rem, 2.5vw, 0.92rem);
+
+  &--wide {
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  }
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+
+  &--highlight dd {
+    color: var(--ital-green-dark, #166534);
+    font-weight: 700;
+  }
 
   dt {
     margin: 0;
+    font-size: 0.7rem;
     color: var(--ital-muted);
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   dd {
     margin: 0;
+    font-size: clamp(0.85rem, 2.5vw, 0.92rem);
     color: var(--ital-text);
     word-break: break-word;
   }
@@ -475,16 +511,14 @@
     grid-template-columns: 1fr;
   }
 
-  .detail-grid {
+  .detail-columns {
     grid-template-columns: 1fr;
-    gap: 0.15rem 0;
+  }
 
-    dt {
-      margin-top: 0.5rem;
-    }
-    dt:first-child {
-      margin-top: 0;
-    }
+  .detail-grid,
+  .detail-grid--wide {
+    grid-template-columns: 1fr;
+    gap: 0.65rem 0;
   }
 }
 

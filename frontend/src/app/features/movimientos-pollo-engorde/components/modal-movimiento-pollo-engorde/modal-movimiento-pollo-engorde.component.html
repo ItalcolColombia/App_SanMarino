@@ -22,51 +22,55 @@
       <!-- Vista solo lectura: Ver detalle -->
       @if (isReadOnly && editingMovimiento) {
         <div class="modal__body detail-view">
-          <div class="detail-section">
-            <h3 class="detail-section__title">Datos generales</h3>
-            <dl class="detail-grid">
-              <dt>Número</dt><dd>{{ editingMovimiento.numeroMovimiento }}</dd>
-              <dt>Fecha del traslado</dt><dd>{{ fechaCorta(editingMovimiento.fechaMovimiento) }}</dd>
-              <dt>Registrado el</dt><dd>{{ fechaHoraCorta(editingMovimiento.createdAt) }}</dd>
-              <dt>Tipo</dt><dd>{{ editingMovimiento.tipoMovimiento }}</dd>
-              <dt>Estado</dt><dd><span class="detail-badge" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.estado }}</span></dd>
-            </dl>
-          </div>
-          <div class="detail-section">
-            <h3 class="detail-section__title">Origen y destino</h3>
-            <dl class="detail-grid">
-              <dt>Origen</dt><dd>{{ origenLabel }}</dd>
-              <dt>Granja origen</dt><dd>{{ editingMovimiento.granjaOrigenNombre || '—' }}</dd>
-              <dt>Destino</dt><dd>{{ editingMovimiento.loteDestinoNombre || editingMovimiento.granjaDestinoNombre || '—' }}</dd>
-            </dl>
-          </div>
-          <div class="detail-section">
-            <h3 class="detail-section__title">Cantidades</h3>
-            <dl class="detail-grid">
-              <dt>Hembras</dt><dd>{{ formatearNumero(editingMovimiento.cantidadHembras) }}</dd>
-              <dt>Machos</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMachos) }}</dd>
-              <dt>Mixtas</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMixtas) }}</dd>
-              <dt>Total aves</dt><dd><strong>{{ formatearNumero(editingMovimiento.totalAves) }}</strong></dd>
-            </dl>
+          <div class="detail-columns">
+            <div class="detail-section">
+              <h3 class="detail-section__title">Datos generales</h3>
+              <dl class="detail-grid">
+                <div class="detail-item"><dt>Número</dt><dd>{{ editingMovimiento.numeroMovimiento }}</dd></div>
+                <div class="detail-item"><dt>Fecha del traslado</dt><dd>{{ fechaCorta(editingMovimiento.fechaMovimiento) }}</dd></div>
+                <div class="detail-item"><dt>Registrado el</dt><dd>{{ fechaHoraCorta(editingMovimiento.createdAt) }}</dd></div>
+                <div class="detail-item"><dt>Tipo</dt><dd>{{ editingMovimiento.tipoMovimiento }}</dd></div>
+                <div class="detail-item"><dt>Estado</dt><dd><span class="detail-badge" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.estado }}</span></dd></div>
+              </dl>
+            </div>
+            <div class="detail-section">
+              <h3 class="detail-section__title">Origen y destino</h3>
+              <dl class="detail-grid">
+                <div class="detail-item"><dt>Origen</dt><dd>{{ origenLabel }}</dd></div>
+                <div class="detail-item"><dt>Granja origen</dt><dd>{{ editingMovimiento.granjaOrigenNombre || '—' }}</dd></div>
+                <div class="detail-item"><dt>Destino</dt><dd>{{ editingMovimiento.loteDestinoNombre || editingMovimiento.granjaDestinoNombre || '—' }}</dd></div>
+              </dl>
+            </div>
+            <div class="detail-section">
+              <h3 class="detail-section__title">Cantidades</h3>
+              <dl class="detail-grid">
+                <div class="detail-item"><dt>Hembras</dt><dd>{{ formatearNumero(editingMovimiento.cantidadHembras) }}</dd></div>
+                <div class="detail-item"><dt>Machos</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMachos) }}</dd></div>
+                <div class="detail-item"><dt>Mixtas</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMixtas) }}</dd></div>
+                <div class="detail-item detail-item--highlight"><dt>Total aves</dt><dd><strong>{{ formatearNumero(editingMovimiento.totalAves) }}</strong></dd></div>
+              </dl>
+            </div>
           </div>
           @if (showDespachoEnDetalle) {
             <div class="detail-section detail-section--despacho">
               <h3 class="detail-section__title">Datos de despacho</h3>
-              <dl class="detail-grid">
-                <dt>Nº despacho</dt><dd>{{ editingMovimiento.numeroDespacho || '—' }}</dd>
-                <dt>Edad (días)</dt><dd>{{ valor(editingMovimiento, 'edadAves') }}</dd>
-                <dt>Total pollos galpón</dt><dd>{{ valor(editingMovimiento, 'totalPollosGalpon') }}</dd>
-                <dt>Raza</dt><dd>{{ editingMovimiento.raza || '—' }}</dd>
-                <dt>Placa</dt><dd>{{ editingMovimiento.placa || '—' }}</dd>
-                <dt>Hora salida</dt><dd>{{ valor(editingMovimiento, 'horaSalida') }}</dd>
-                <dt>Guía Agrocalidad</dt><dd>{{ editingMovimiento.guiaAgrocalidad || '—' }}</dd>
-                <dt>Sellos</dt><dd>{{ editingMovimiento.sellos || '—' }}</dd>
-                <dt>Ayuno</dt><dd>{{ editingMovimiento.ayuno || '—' }}</dd>
-                <dt>Cliente</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd>
-                <dt>Peso bruto (kg)</dt><dd>{{ editingMovimiento.pesoBruto != null ? formatearNumero(editingMovimiento.pesoBruto) : '—' }}</dd>
-                <dt>Peso tara (kg)</dt><dd>{{ editingMovimiento.pesoTara != null ? formatearNumero(editingMovimiento.pesoTara) : '—' }}</dd>
-                <dt>Peso neto (kg)</dt><dd>{{ editingMovimiento.pesoNeto != null ? formatearNumero(editingMovimiento.pesoNeto) : '—' }}</dd>
-                <dt>Promedio peso ave (kg)</dt><dd>{{ editingMovimiento.promedioPesoAve != null ? formatearNumero(editingMovimiento.promedioPesoAve) : '—' }}</dd>
+              <dl class="detail-grid detail-grid--wide">
+                <div class="detail-item"><dt>Nº despacho</dt><dd>{{ editingMovimiento.numeroDespacho || '—' }}</dd></div>
+                <div class="detail-item"><dt>Edad (días)</dt><dd>{{ valor(editingMovimiento, 'edadAves') }}</dd></div>
+                <div class="detail-item"><dt>Total pollos galpón</dt><dd>{{ valor(editingMovimiento, 'totalPollosGalpon') }}</dd></div>
+                <div class="detail-item"><dt>Raza</dt><dd>{{ editingMovimiento.raza || '—' }}</dd></div>
+                <div class="detail-item"><dt>Placa</dt><dd>{{ editingMovimiento.placa || '—' }}</dd></div>
+                <div class="detail-item"><dt>Hora salida</dt><dd>{{ valor(editingMovimiento, 'horaSalida') }}</dd></div>
+                @if (!ocultarGuiaYSellos) {
+                  <div class="detail-item"><dt>Guía Agrocalidad</dt><dd>{{ editingMovimiento.guiaAgrocalidad || '—' }}</dd></div>
+                  <div class="detail-item"><dt>Sellos</dt><dd>{{ editingMovimiento.sellos || '—' }}</dd></div>
+                }
+                <div class="detail-item"><dt>Ayuno</dt><dd>{{ editingMovimiento.ayuno || '—' }}</dd></div>
+                <div class="detail-item"><dt>Cliente</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd></div>
+                <div class="detail-item"><dt>Peso bruto (kg)</dt><dd>{{ editingMovimiento.pesoBruto != null ? formatearNumero(editingMovimiento.pesoBruto) : '—' }}</dd></div>
+                <div class="detail-item"><dt>Peso tara (kg)</dt><dd>{{ editingMovimiento.pesoTara != null ? formatearNumero(editingMovimiento.pesoTara) : '—' }}</dd></div>
+                <div class="detail-item detail-item--highlight"><dt>Peso neto (kg)</dt><dd>{{ editingMovimiento.pesoNeto != null ? formatearNumero(editingMovimiento.pesoNeto) : '—' }}</dd></div>
+                <div class="detail-item detail-item--highlight"><dt>Promedio peso ave (kg)</dt><dd>{{ editingMovimiento.promedioPesoAve != null ? formatearNumero(editingMovimiento.promedioPesoAve) : '—' }}</dd></div>
               </dl>
             </div>
           }
@@ -490,14 +494,16 @@
                                 <label for="horaSalida">Hora salida</label>
                                 <input id="horaSalida" type="time" formControlName="horaSalida" class="form-input" />
                               </div>
-                              <div class="form-group">
-                                <label for="guiaAgrocalidad">Guía Agrocalidad</label>
-                                <input id="guiaAgrocalidad" type="text" formControlName="guiaAgrocalidad" class="form-input" />
-                              </div>
-                              <div class="form-group">
-                                <label for="sellos">Sellos</label>
-                                <input id="sellos" type="text" formControlName="sellos" class="form-input" />
-                              </div>
+                              @if (!ocultarGuiaYSellos) {
+                                <div class="form-group">
+                                  <label for="guiaAgrocalidad">Guía Agrocalidad</label>
+                                  <input id="guiaAgrocalidad" type="text" formControlName="guiaAgrocalidad" class="form-input" />
+                                </div>
+                                <div class="form-group">
+                                  <label for="sellos">Sellos</label>
+                                  <input id="sellos" type="text" formControlName="sellos" class="form-input" />
+                                </div>
+                              }
                               <div class="form-group">
                                 <label for="ayuno">Ayuno</label>
                                 <input id="ayuno" type="text" formControlName="ayuno" class="form-input" placeholder="Ej. horas" />

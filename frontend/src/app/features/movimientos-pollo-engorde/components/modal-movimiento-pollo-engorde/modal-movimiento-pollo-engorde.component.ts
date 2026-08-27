@@ -24,6 +24,7 @@ import {
 import { LoteAveEngordeDto, LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
   LoteDestinoOption,
@@ -321,6 +322,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private nucleoSvc: NucleoService,
     private galponSvc: GalponService,
     private loteEngordeSvc: LoteEngordeService,
+    private countryFilter: CountryFilterService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
@@ -1138,5 +1140,10 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   get showDespachoEnDetalle(): boolean {
     return (this.editingMovimiento?.tipoMovimiento ?? '') === 'Venta';
+  }
+
+  /** Guía Agrocalidad / Sellos son un trámite de ECUADOR: Panamá no los usa, en ningún flujo. */
+  get ocultarGuiaYSellos(): boolean {
+    return this.countryFilter.isPanama();
   }
 }

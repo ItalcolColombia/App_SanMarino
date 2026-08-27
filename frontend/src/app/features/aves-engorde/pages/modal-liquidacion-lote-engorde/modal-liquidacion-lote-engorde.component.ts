@@ -9,6 +9,8 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 import { separarStockPorUbicacion } from '../../funciones/separar-stock-por-ubicacion.funcion';
+import { extraerMensajeError } from '../../funciones/extraer-mensaje-error.funcion';
+import { validarInsumosEnterosPanama } from '../../funciones/validar-insumos-panama.funcion';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { IndicadorEcuadorService } from '../../../indicador-ecuador/services/indicador-ecuador.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
@@ -202,7 +204,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
         },
         error: err => {
           this.error =
-            err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el resumen.';
+            extraerMensajeError(err, 'No se pudo cargar el resumen.');
         }
       });
   }
@@ -254,7 +256,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
         next: rows => { this.ventasConPeso = rows ?? []; },
         error: err => {
           this.ventasConPesoError =
-            err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudieron cargar los registros de venta.';
+            extraerMensajeError(err, 'No se pudieron cargar los registros de venta.');
         }
       });
   }
@@ -402,7 +404,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
           this.stockUsandoFallbackUbicacion = fallback;
         },
         error: err => {
-          this.stockError = err?.error?.message ?? err?.message ?? 'No se pudo cargar el stock de alimento.';
+          this.stockError = extraerMensajeError(err, 'No se pudo cargar el stock de alimento.');
           this.stockAlimento = [];
           this.stockOtrosGalpones = [];
           this.stockUsandoFallbackUbicacion = false;
@@ -504,6 +506,18 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
       this.error = 'Complete todos los datos de liquidación (Panamá) antes de cerrar el lote.';
       return;
     }
+    if (this.esPanama) {
+      const errorInsumos = validarInsumosEnterosPanama({
+        diasEnGranja: this.panamaDiasEnGranja,
+        diasEngorde: this.panamaDiasEngorde,
+        avesFinalGranja: this.panamaAvesFinalGranja,
+        avesBeneficiada: this.panamaAvesBeneficiada
+      });
+      if (errorInsumos) {
+        this.error = errorInsumos;
+        return;
+      }
+    }
     this.guardandoCerrar = true;
     this.error = null;
 
@@ -524,7 +538,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
         );
       } catch (err: any) {
         this.guardandoCerrar = false;
-        this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'No se pudo guardar la liquidación Panamá.';
+        this.error = extraerMensajeError(err, 'No se pudo guardar la liquidación Panamá.');
         return;
       }
     }
@@ -541,7 +555,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
           this.onClose();
         },
         error: err => {
-          this.error = err?.error?.message ?? err?.error ?? err?.message ?? 'No se pudo cerrar el lote.';
+          this.error = extraerMensajeError(err, 'No se pudo cerrar el lote.');
         }
       });
   }
@@ -570,7 +584,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
           this.loteActualizado.emit();
         },
         error: err => {
-          this.error = err?.error?.message ?? err?.error ?? err?.message ?? 'No se pudo guardar la merma.';
+          this.error = extraerMensajeError(err, 'No se pudo guardar la merma.');
         }
       });
   }
@@ -622,7 +636,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
           this.cargarResumen();
         },
         error: err => {
-          this.error = err?.error?.message ?? err?.error ?? err?.message ?? 'No se pudo abrir el lote.';
+          this.error = extraerMensajeError(err, 'No se pudo abrir el lote.');
         }
       });
   }
