@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -98,8 +99,8 @@ public class SeguimientoAvesEngordeController : ControllerBase
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.SqlState == "23505")
         {
             var pgEx = (PostgresException)ex.InnerException;
-            if (string.Equals(pgEx.ConstraintName, "uq_seg_diario_aves_engorde_lote_fecha", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { message = "Ya existe un registro de seguimiento diario para este lote en la fecha seleccionada. Solo puede haber un registro por lote por día." });
+            if (DuplicadoSeguimientoDiarioCalculos.EsUnRegistroPorLotePorDia(pgEx.ConstraintName))
+                return BadRequest(new { message = DuplicadoSeguimientoDiarioCalculos.MensajeUnRegistroPorLotePorDia });
             return BadRequest(new { message = "Error de duplicado en la base de datos.", detail = pgEx.Message });
         }
     }
@@ -125,8 +126,8 @@ public class SeguimientoAvesEngordeController : ControllerBase
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.SqlState == "23505")
         {
             var pgEx = (PostgresException)ex.InnerException;
-            if (string.Equals(pgEx.ConstraintName, "uq_seg_diario_aves_engorde_lote_fecha", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { message = "Ya existe un registro de seguimiento diario para este lote en la fecha seleccionada. Solo puede haber un registro por lote por día." });
+            if (DuplicadoSeguimientoDiarioCalculos.EsUnRegistroPorLotePorDia(pgEx.ConstraintName))
+                return BadRequest(new { message = DuplicadoSeguimientoDiarioCalculos.MensajeUnRegistroPorLotePorDia });
             return BadRequest(new { message = "Error de duplicado en la base de datos.", detail = pgEx.Message });
         }
     }

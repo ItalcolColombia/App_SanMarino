@@ -4361,3 +4361,49 @@ Plan: [`fase_de_desarrollo/dia_operativo_plazo_validacion_plan.md`](fase_de_desa
       `created_at`, comportamiento previo byte a byte).
 - [x] `dotnet build` 0 errores + `dotnet test` en verde.
 - [x] Recontar los 9 pendientes de DAYLAND con la fórmula nueva dentro de la ventana 19:00–24:00.
+
+---
+
+## DUP-DIA — Indice unico por DIA en los seguimientos + el bloqueo real de la galera 6 (28-ago-2026)
+
+Plan: [`fase_de_desarrollo/indice_unico_dia_seguimientos_plan.md`](fase_de_desarrollo/indice_unico_dia_seguimientos_plan.md)
+
+> Sale de la auditoria del ticket de DAYLAND. Validado contra la copia de produccion recargada hoy.
+
+- [x] **Auditoria de duplicados: 6 filas en todo el sistema.** 5 en engorde (todos ItalcolPanama, todos
+      con el patron cruce `00:00Z` + manual `12:00Z`: lotes 161, 178, 216) y 1 en levante (Demo).
+      Reproductora y produccion en 0 — produccion porque YA tiene el indice funcional por dia UTC
+      (`20260801070000`), que es el precedente copiado.
+- [x] 🔴 **Correccion de una afirmacion mia previa.** Dije que ninguna fila duplicada tenia movimiento
+      de inventario; el regex estaba mal. Con el patron correcto, **las 4 viejas de engorde y las 2 de
+      levante SI tienen movimiento + fila en el historico unificado**. Solo `12676` estaba limpia. Eso
+      cambio el diseno: la migracion **no borra nada**, excluye por id.
+- [x] **`12676` borrado por la API** (no por SQL): las dos reservas quedaron `LIBERADA`, no huerfanas.
+      Duplicados de engorde: 5 → 4.
+- [x] 🔴 **El hallazgo grande: la galera 6 NO estaba trabada por el plazo ni por el duplicado.**
+      `POST validar-pendientes` corta en el primero y no intenta el resto. Con los 5: corto en `12676`
+      por «No hay stock suficiente». Borrado ese, corto en `12674` por lo mismo. **Stock del galpon
+      G0471: 416,24 kg; las reservas piden 2.222,64 kg ⇒ faltan 1.806,40 kg.** El ultimo ingreso de
+      alimento fue el 19-ago. Falta registrar el ingreso, no validar.
+- [x] **El POST fallido no escribio nada**: snapshot identico antes y despues (reservas, aves,
+      movimientos). El corte y el rollback funcionan como estan documentados.
+- [x] **Evidencia dura de que `12676` sobraba**: el 17-ago ese galpon ya tenia el alimento descontado
+      por `Seguimiento reproductora #802` (272,16 kg — exactamente lo que espeja la fila del cruce) y
+      por `Seguimiento aves engorde #12668` del lote 215, que comparte galpon.
+- [x] **Migracion `20260828120000_IndiceUnicoDiaSeguimientos`**: 4 indices unicos funcionales por dia
+      UTC (engorde, levante x2, reproductora), parciales por id donde hay historia aplicada. Fail-soft
+      con `RAISE WARNING` como el precedente: nunca tira el arranque de prod.
+- [x] **El controller tenia que cambiar**: cazaba el duplicado por NOMBRE de indice, y el caso nuevo
+      dispara el indice nuevo ⇒ el usuario habria visto el texto crudo de Postgres justo en el caso
+      que veniamos a proteger. Extraido a `DuplicadoSeguimientoDiarioCalculos` con test que fija los
+      dos nombres.
+- [x] **Simulacion en transaccion** contra la copia de prod: los 4 indices se crean; un duplicado del
+      mismo dia a otra hora se RECHAZA; un dia libre entra; las 4 filas historicas sobreviven; el
+      rollback no deja nada.
+- [x] `dotnet build` 0 errores / 0 advertencias + `dotnet test` **3487/3487** (+8 nuevos).
+- [ ] ⏸️ **NO APLICADA.** Falta el OK explicito. Antes: re-correr el diagnostico contra el dump del dia
+      y decidir si `12676` se borra en produccion o queda excluido.
+- [ ] ⏸️ **Queda abierto: alinear el cruce a mediodia UTC.** Es la correccion de fondo y **no se puede
+      hacer tal cual** — el cruce re-inserta sin `ON CONFLICT`, asi que donde ya exista una fila manual
+      de ese dia la confirmacion de reproductora fallaria entera. Exige darle antes una estrategia de
+      conflicto. Otra entrega.
