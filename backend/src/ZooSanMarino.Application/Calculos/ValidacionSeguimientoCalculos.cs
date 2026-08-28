@@ -112,6 +112,47 @@ public static class ValidacionSeguimientoCalculos
     /// </summary>
     public const int DiasPlazoValidacion = 1;
 
+    // ─── Día operativo ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Día de la GRANJA (UTC−5) al que pertenece un instante. Con esto se juzga el plazo: el día del
+    /// operario, no el del servidor.
+    ///
+    /// <para>
+    /// <b>Por qué.</b> Colombia, Ecuador y Panamá operan las tres en UTC−5 sin horario de verano. Con
+    /// el día UTC a secas, entre las <b>19:00 y la medianoche</b> locales el backend ya está contando
+    /// el día siguiente: el plazo vence a las 19:00 en vez de a la medianoche, y encima dura distinto
+    /// según la hora en que se cargó el registro. Medido el 27-ago-2026 sobre la copia de producción,
+    /// los 9 registros que tenían trabada la granja DAYLAND se guardaron el 26-ago 11:47–13:57 y
+    /// vencieron el 27-ago a las 19:00; en 60 días hubo <b>5 confirmaciones</b> que cayeron dentro de
+    /// esas 5 horas robadas y dejaron el lote bloqueado igual.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔴 <b>Sólo para INSTANTES</b> (<c>created_at</c>, el reloj). La <c>fecha</c> del seguimiento es
+    /// una fecha PURA guardada como <c>timestamptz</c> y <b>no</b> pasa por acá: el formulario la
+    /// escribe a mediodía UTC y el trigger del cruce de reproductora a medianoche UTC, así que
+    /// desplazarla −5 h correría las filas del cruce un día hacia atrás y reescribiría el estado del
+    /// histórico.
+    /// </para>
+    ///
+    /// <para>
+    /// El offset no se redefine acá: delega en <see cref="VentanaFechaRegistroCalculos.DiaOperativo"/>,
+    /// que ya es el dueño de esa constante para la ventana de fecha de los registros. Una sola fórmula
+    /// por número.
+    /// </para>
+    /// </summary>
+    public static DateOnly DiaOperativo(DateTime instante)
+    {
+        // Npgsql entrega los `timestamptz` con Kind=Utc, pero un DateTime que llegue como Local se
+        // interpretaría como si fuera UTC y correría el día: se normaliza antes de convertir.
+        var utc = instante.Kind == DateTimeKind.Local
+            ? instante.ToUniversalTime()
+            : DateTime.SpecifyKind(instante, DateTimeKind.Utc);
+
+        return DateOnly.FromDateTime(VentanaFechaRegistroCalculos.DiaOperativo(new DateTimeOffset(utc)));
+    }
+
     // ─── Gate del flag ────────────────────────────────────────────────────────
 
     /// <summary>

@@ -4321,3 +4321,43 @@ para SOPORTE/DUDAS y una persona (Verenice / Ricardo) para REQUERIMIENTO que esc
 - [x] `dotnet build`/`dotnet test` del fix de Ricardo también en verde (3466/3466).
 - [x] Limpieza: las 6 sesiones de prueba (`sesiones_activas`) borradas, backend/frontend locales
       apagados, puertos libres, archivos temporales del smoke eliminados.
+
+---
+
+## DIA-OP-VAL — El plazo de la doble validación se juzga en día operativo UTC−5 (28-ago-2026)
+
+Plan: [`fase_de_desarrollo/dia_operativo_plazo_validacion_plan.md`](fase_de_desarrollo/dia_operativo_plazo_validacion_plan.md)
+
+> Origen: ticket de operación de Panamá — granja **DAYLAND**, galeras 6, 5, 4 y 3 sin poder ingresar
+> registros. Cierra el último consumidor que seguía juzgando fechas en UTC crudo, después de la
+> ventana de inventario y de la revocación de sesión (`6fb1edd`).
+
+- [x] **Auditoría previa del ticket (hecha antes de tocar código).** El fix de `94e1f9f` (plazo desde
+      `created_at`) y `cc5beb4` (validar en bloque) **sí están en producción** — merges `79886a8`
+      (26-ago 01:04) y `5e780e5` (26-ago 07:56), TaskDef `sanmarino-back-task:169`, rollout
+      `COMPLETED`, imagen `...:ecd05486`. Confirmar registros viejos **sí** está permitido y confirmar
+      **sí** destraba: verificado en los datos, no solo en el código — en DAYLAND se confirmaron
+      registros del 17 al 25 de agosto y las galeras 1, 2 y 3 quedaron libres.
+- [x] 🔴 **El defecto real es otro: `Hoy` es `DateTime.UtcNow` crudo.** Panamá opera en UTC−5, así que
+      el plazo **vence a las 19:00 locales, no a la medianoche**. Los 9 registros que trababan DAYLAND
+      se cargaron el 26-ago 11:47–13:57 y murieron el 27-ago a las 19:00.
+- [x] **La distinción que decide el cambio: instante vs fecha pura.** `created_at` y `now()` son
+      instantes ⇒ van a día operativo. `fecha` es una fecha pura guardada como `timestamptz` ⇒ **no se
+      toca**: el formulario la escribe a `12:00Z` y el trigger del cruce a `00:00Z`, y desplazarla −5 h
+      movería las filas del cruce un día atrás.
+- [x] **Medición que eligió el diseño** (copia de prod, ItalcolPanama, 60 días, 1.097 capturas):
+      corregir sólo `Hoy` afloja y no aprieta nada; corregir también `Creacion` aprieta 309 registros
+      **con daño real 0** — ninguna confirmación de 60 días cayó en la ventana de 19 h que elimina. En
+      la otra dirección, **5 confirmaciones sí cayeron dentro de las 5 h que la regla actual roba**.
+      Se implementan las dos mitades.
+- [x] `DiaOperativo` nuevo en `ValidacionSeguimientoCalculos`, delegando en el helper canónico
+      `VentanaFechaRegistroCalculos.DiaOperativo` (una sola fórmula por número).
+- [x] `Hoy` + los 4 casos de `LeerPendientesDelLoteAsync` (`CreatedAt`) pasan a día operativo.
+- [x] **Front sin cambios**: `estado-validacion-seguimiento.funcion.ts` ya usa el día calendario local
+      del navegador, que en Panamá *es* el día operativo. El espejo ya era correcto; el cambio alinea
+      el backend con él.
+- [x] **Sin migración**: la regla no toca la BD.
+- [x] Tests xUnit del helper y de los invariantes (día operativo ≤ día UTC; flag apagado idéntico; sin
+      `created_at`, comportamiento previo byte a byte).
+- [x] `dotnet build` 0 errores + `dotnet test` en verde.
+- [x] Recontar los 9 pendientes de DAYLAND con la fórmula nueva dentro de la ventana 19:00–24:00.
