@@ -332,7 +332,7 @@ public partial class MigracionService
             // solo advierte.
             if (lote.FechaEncaset.HasValue)
             {
-                var horaRegla = EncasetamientoCalculos.HoraEfectiva(lote.HoraEncaset, reglaHoraActiva);
+                var horaRegla = lote.HoraEncaset;
                 var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
                 if (fecha.Date < primerDia.Date)
                 {

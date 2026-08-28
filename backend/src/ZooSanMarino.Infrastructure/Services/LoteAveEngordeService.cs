@@ -696,8 +696,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 .Select(s => s.Fecha)
                 .ToListAsync();
 
-            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
-                dto.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, ent.CompanyId));
+            var horaRegla = dto.HoraEncasetamiento;
             var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
                 nuevaFechaEncaset, horaRegla, fechasSeguimiento);
             if (!diag.Compatible)

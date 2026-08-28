@@ -647,7 +647,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   private get diaParaPesaje(): number {
     const edad = this.diasDesdeEncaset;
     if (edad < 0) return -1;
-    const desplazamiento = desplazamientoPrimerDia(this.horaEncasetamiento, this.reglaPrimerRegistroPorHora);
+    const desplazamiento = desplazamientoPrimerDia(this.horaEncasetamiento);
     return diaParaReglaDePesaje(edad, diaDeNegocioDesdeEdad(edad, desplazamiento), this.reglaPrimerRegistroPorHora);
   }
 

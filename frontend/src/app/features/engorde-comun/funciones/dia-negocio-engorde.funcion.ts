@@ -20,14 +20,14 @@ export const DIAS_PESAJE_DIARIO = 7;
 
 /**
  * Días que se corre el primer día con registro respecto del encasetamiento: 0 o 1.
- * Solo se corre si la empresa tiene la regla activa Y el lote llegó a las 13:00 o después.
- * Fail-closed: sin regla o sin hora ⇒ 0 (comportamiento previo).
+ * Lo decide la HORA DEL LOTE: desde las 13:00 (inclusive) las aves no consumen el día del encaset.
+ * Fail-closed: sin hora informada ⇒ 0 (comportamiento previo).
+ *
+ * Ya NO se gatea por el flag de empresa (28-ago-2026): el formulario ofrece el campo «Hora de
+ * encasetamiento» con su leyenda a todas las empresas y con el gate puesto Ecuador lo llenó 16
+ * veces —todas ≥ 13:00— sin efecto alguno. El flag sigue gobernando SOLO el día de pesaje, abajo.
  */
-export function desplazamientoPrimerDia(
-  horaEncasetamiento: string | null | undefined,
-  reglaActiva: boolean
-): number {
-  if (!reglaActiva) return 0;
+export function desplazamientoPrimerDia(horaEncasetamiento: string | null | undefined): number {
   const h = (horaEncasetamiento ?? '').toString().trim();
   return h.length >= 5 && h.slice(0, 5) >= HORA_CORTE_ENCASETAMIENTO ? 1 : 0;
 }

@@ -22,7 +22,6 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
-import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
@@ -211,8 +210,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
     private aviso: AvisoValidacionService,
     private lesionSvc: LesionService,
-    private permSvc: UserPermissionService,
-    private companyConfig: ActiveCompanyConfigService
+    private permSvc: UserPermissionService
   ) {}
 
   /** True si el usuario puede confirmar registros. */
@@ -259,8 +257,6 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.companyConfig.primerRegistroSegunHoraLlegada()
-      .subscribe(activa => (this.reglaPrimerRegistroPorHora = activa));
     this.loading = true;
     this.segSvc.getFilterData().subscribe({
       next: (data: SeguimientoDiarioLoteReproductoraFilterDataDto) => {
@@ -659,9 +655,6 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.confirmModalOpen = false;
   }
 
-  /** Flag de empresa: la hora de llegada decide el primer día con registro. Fail-closed en false. */
-  reglaPrimerRegistroPorHora = false;
-
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
   trackByIdx = (i: number) => i;
 
@@ -670,11 +663,10 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   /**
    * Días que se corre el PRIMER día con registro respecto del encasetamiento: 0 o 1.
-   * Solo aplica si la empresa tiene activa la regla de la hora de llegada (flag) Y el lote llegó a
-   * las 13:00 o después. Espejo de `EncasetamientoCalculos.DiasDesplazamiento` en el backend.
+   * Lo decide la HORA DEL LOTE (13:00 inclusive), sin gate de empresa: el campo se ofrece a todas.
+   * Espejo de `EncasetamientoCalculos.DiasDesplazamiento` en el backend.
    */
   private get desplazamientoPrimerDia(): number {
-    if (!this.reglaPrimerRegistroPorHora) return 0;
     const h = (this.selectedReproductoraDetail?.horaEncasetamiento ?? '').toString().trim();
     return h.length >= 5 && h.slice(0, 5) >= SeguimientoDiarioLoteReproductoraListComponent.HORA_CORTE ? 1 : 0;
   }

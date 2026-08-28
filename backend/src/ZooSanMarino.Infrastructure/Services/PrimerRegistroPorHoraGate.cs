@@ -1,9 +1,11 @@
 // src/ZooSanMarino.Infrastructure/Services/PrimerRegistroPorHoraGate.cs
-// Resuelve el flag de empresa que habilita la regla "la hora de llegada decide el primer día con
-// registro". Vive acá y no dentro de un service porque lo consultan los cinco puntos de captura
-// (formulario diario de reproductora, formulario diario de engorde x2, y las dos cargas masivas) más
-// los dos PUT de lote: si cada uno resolviera el flag a su manera, la regla se aplicaría distinto
-// según el canal — que es justo el bug que ya tuvimos con la validación de fecha.
+// Resuelve el flag de empresa `primer_registro_segun_hora_llegada`.
+//
+// ⚠️ 28-ago-2026: su alcance se REDUJO al corrimiento del DÍA DE PESAJE. El PRIMER DÍA CON REGISTRO
+// dejó de gatearse por empresa —lo decide la hora del lote y punto—, porque el formulario ofrece el
+// campo "Hora de encasetamiento" a todas las empresas con la leyenda "desde las 13:00 el primer
+// registro pasa al día siguiente" y con el gate puesto ItalcolEcuador la llenó 16 veces, todas
+// ≥ 13:00, sin que el backend la mirara. Ver EncasetamientoCalculos.HoraEfectiva.
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Infrastructure.Persistence;
 

@@ -172,4 +172,53 @@ public class EncasetamientoCalculosTests
 
         Assert.Equal(semanaFn, EncasetamientoCalculos.SemanaDeNegocio(edad + 1));
     }
+
+    // ─── El flag de empresa quedó SOLO para el día de pesaje (28-ago-2026) ──────────────────────
+    // El primer día con registro lo decide la HORA DEL LOTE en todas las empresas: el formulario
+    // ofrece el campo con su leyenda a todas, y con el gate puesto ItalcolEcuador lo llenó 16 veces
+    // —todas ≥ 13:00— sin que el backend lo mirara. Estos tests fijan que las dos reglas ya no
+    // comparten interruptor.
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PrimerDiaConRegistro_NoDependeDelFlagDeEmpresa(bool flagEmpresa)
+    {
+        // La hora llega CRUDA al cálculo del primer día: el flag no participa.
+        var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, new TimeOnly(23, 58));
+
+        Assert.Equal(Encaset.AddDays(1), primerDia);
+        // Y el flag sigue existiendo, pero solo para el pesaje: con él apagado la hora se anula.
+        Assert.Equal(
+            flagEmpresa ? new TimeOnly(23, 58) : null,
+            EncasetamientoCalculos.HoraEfectiva(new TimeOnly(23, 58), flagEmpresa));
+    }
+
+    [Fact]
+    public void FlagApagado_PrimerDiaSeCorre_PeroElDiaDePesajeNoSeMueve()
+    {
+        var hora = new TimeOnly(14, 0);                       // llegada tardía, empresa sin flag
+        var septimoDiaDeVida = Encaset.AddDays(7);            // edad 7
+
+        // El primer día con registro SÍ se corre: es lo que pidió el ticket.
+        Assert.Equal(Encaset.AddDays(1), EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, hora));
+
+        // El día de pesaje NO: con el flag apagado se sigue evaluando sobre la edad cruda, que es
+        // como está tabulada la guía genética de Ecuador.
+        Assert.True(PesajeEngordeCalculos.EsDiaDePesajeObligatorio(
+            septimoDiaDeVida, Encaset, hora, reglaHoraActiva: false));
+        Assert.Equal(
+            PesajeEngordeCalculos.EsDiaDePesajeObligatorio(septimoDiaDeVida, Encaset, null, reglaHoraActiva: false),
+            PesajeEngordeCalculos.EsDiaDePesajeObligatorio(septimoDiaDeVida, Encaset, hora, reglaHoraActiva: false));
+    }
+
+    [Fact]
+    public void SinHora_ElDesplazamientoEsCero_AsiQueLasEmpresasQueNoUsanElCampoNoCambian()
+    {
+        // Es la garantía de que ungatear no toca a Sanmarino, Demo ni Santa Reyes: ninguno de sus
+        // lotes tiene hora informada.
+        Assert.Equal(0, EncasetamientoCalculos.DiasDesplazamiento(null));
+        Assert.Equal(Encaset, EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, null));
+        Assert.Null(EncasetamientoCalculos.MotivoDesplazamiento(null));
+    }
 }
