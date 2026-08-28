@@ -110,10 +110,11 @@ public partial class SeguimientoAvesEngordeService
         // día siguiente del encaset). Hasta acá el formulario diario NO validaba la fecha contra el
         // encasetamiento — ni siquiera "no anterior al encaset" — así que la carga masiva rechazaba lo
         // que la pantalla aceptaba. Se alinean los dos canales.
+        // La decide la HORA DEL LOTE, no el flag de empresa (ver EncasetamientoCalculos): sin hora
+        // informada el desplazamiento es 0 y la empresa queda byte a byte como antes.
         if (lote.FechaEncaset.HasValue)
         {
-            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
-                lote.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, lote.CompanyId));
+            var horaRegla = lote.HoraEncasetamiento;
             var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
             if (dto.FechaRegistro.Date < primerDia.Date)
             {
@@ -370,10 +371,11 @@ public partial class SeguimientoAvesEngordeService
         // día siguiente del encaset). Hasta acá el formulario diario NO validaba la fecha contra el
         // encasetamiento — ni siquiera "no anterior al encaset" — así que la carga masiva rechazaba lo
         // que la pantalla aceptaba. Se alinean los dos canales.
+        // La decide la HORA DEL LOTE, no el flag de empresa (ver EncasetamientoCalculos): sin hora
+        // informada el desplazamiento es 0 y la empresa queda byte a byte como antes.
         if (lote.FechaEncaset.HasValue)
         {
-            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
-                lote.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, lote.CompanyId));
+            var horaRegla = lote.HoraEncasetamiento;
             var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
             if (dto.FechaRegistro.Date < primerDia.Date)
             {

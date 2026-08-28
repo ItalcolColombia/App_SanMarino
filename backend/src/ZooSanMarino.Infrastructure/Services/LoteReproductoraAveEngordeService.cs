@@ -229,7 +229,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             TipoLote = "LoteReproductoraAveEngorde",
             LoteAveEngordeId = null,
             LoteReproductoraAveEngordeId = ent.Id,
-            TipoRegistro = "Inicio",
+            TipoRegistro = TipoRegistroHistorialEngordeCalculos.Inicio,
             AvesHembras = ent.H ?? 0,
             AvesMachos = ent.M ?? 0,
             AvesMixtas = ent.Mixtas ?? 0,
@@ -358,8 +358,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 .Select(s => s.Fecha)
                 .ToListAsync();
 
-            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
-                dto.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
+            var horaRegla = dto.HoraEncasetamiento;
             var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
                 nuevaFechaEncaset, horaRegla, fechasSeguimiento);
             if (!diag.Compatible)

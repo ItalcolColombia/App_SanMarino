@@ -152,9 +152,6 @@ public partial class MigracionService
     {
         const int MaxDias = ReproductoraEngordeCalculos.DiasRecogidaReproductora;
 
-        // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
-        var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
-
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
@@ -257,7 +254,7 @@ public partial class MigracionService
             // al primer día con registro, que se corre un día si las aves llegaron a las 13:00 o después.
             if (repro.FechaEncasetamiento.HasValue)
             {
-                var horaRegla = EncasetamientoCalculos.HoraEfectiva(repro.HoraEncasetamiento, reglaHoraActiva);
+                var horaRegla = repro.HoraEncasetamiento;
                 var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
                 var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(repro.FechaEncasetamiento.Value, fecha);
                 if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias, edadMinima))

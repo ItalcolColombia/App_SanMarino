@@ -54,9 +54,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() enriquecerTablaConHistoricoInventario = true;
   /** Controla la visibilidad del tab R. Reproductora. */
   @Input() tieneReproductoras: boolean = false;
-  /** Flag de empresa: la hora de llegada decide cuál es el primer día con registro. Fail-closed. */
-  @Input() reglaPrimerRegistroPorHora = false;
-  /** Hora de llegada de las aves del lote seleccionado (HH:mm). Solo pesa si el flag está activo. */
+  /** Hora de llegada de las aves del lote seleccionado (HH:mm). Sin hora, el desplazamiento es 0. */
   @Input() horaEncasetamiento: string | null = null;
 
   /**
@@ -172,7 +170,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Días que se corre el primer día con registro por la hora de llegada: 0 o 1. */
   private get desplazamientoPrimerDia(): number {
-    return desplazamientoPrimerDia(this.horaEncasetamiento, this.reglaPrimerRegistroPorHora);
+    return desplazamientoPrimerDia(this.horaEncasetamiento);
   }
 
   /** Número de día que se muestra en la columna «Edad»: 1 el primer día con registro. */

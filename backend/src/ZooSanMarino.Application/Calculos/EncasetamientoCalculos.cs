@@ -29,9 +29,21 @@ public static class EncasetamientoCalculos
     public static readonly TimeOnly HoraCorte = new(13, 0);
 
     /// <summary>
-    /// Hora que realmente aplica según el flag de la empresa. Con la regla APAGADA devuelve
-    /// <c>null</c>, y como todo el cálculo trata "sin hora" igual que antes, el comportamiento de esa
-    /// empresa queda idéntico al previo aunque alguien haya cargado una hora en el lote.
+    /// Hora que aplica según el flag de empresa <c>primer_registro_segun_hora_llegada</c>. Con la
+    /// regla APAGADA devuelve <c>null</c>, y como todo el cálculo trata "sin hora" igual que antes, el
+    /// comportamiento de esa empresa queda idéntico al previo aunque el lote tenga hora cargada.
+    /// <para>
+    /// ⚠️ <b>Solo para el DÍA DE PESAJE</b> (<see cref="PesajeEngordeCalculos"/>). El PRIMER DÍA CON
+    /// REGISTRO ya no se gatea por empresa: lo decide la hora del lote y punto (28-ago-2026). El
+    /// formulario ofrece el campo "Hora de encasetamiento" con su leyenda a TODAS las empresas, y con
+    /// el gate puesto ItalcolEcuador la llenó 16 veces —todas ≥ 13:00— sin que el backend la mirara:
+    /// la pantalla prometía un comportamiento que no ocurría. Sin hora informada el desplazamiento es
+    /// 0, así que las empresas que no usan el campo quedan byte a byte como antes.
+    /// </para>
+    /// <para>
+    /// El pesaje SÍ conserva el gate: la guía genética de Ecuador está tabulada por días desde el
+    /// encaset y correr el día de pesaje la desalinearía.
+    /// </para>
     /// </summary>
     public static TimeOnly? HoraEfectiva(TimeOnly? horaEncasetamiento, bool reglaActiva) =>
         reglaActiva ? horaEncasetamiento : null;

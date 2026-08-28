@@ -206,8 +206,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var fechaAnclada = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (loteRep.FechaEncasetamiento.HasValue)
         {
-            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
-                loteRep.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
+            var horaRegla = loteRep.HoraEncasetamiento;
             var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
             var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(loteRep.FechaEncasetamiento.Value, fechaAnclada);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento, edadMinima))
@@ -372,8 +371,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var fechaAncladaUpd = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (encasetUpd.HasValue)
         {
-            var horaReglaUpd = EncasetamientoCalculos.HoraEfectiva(
-                loteUpd!.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
+            var horaReglaUpd = loteUpd!.HoraEncasetamiento;
             var edadMinimaUpd = EncasetamientoCalculos.EdadMinimaConRegistro(horaReglaUpd);
             var edadUpd = ReproductoraEngordeCalculos.EdadSeguimientoDias(encasetUpd.Value, fechaAncladaUpd);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento, edadMinimaUpd))
