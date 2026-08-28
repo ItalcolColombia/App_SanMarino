@@ -4284,3 +4284,40 @@ para SOPORTE/DUDAS y una persona (Verenice / Ricardo) para REQUERIMIENTO que esc
 - [i] Los roles "Sistemas sanmarino"/"sistemas panama" quedaron sin nadie asignado en Panamá aparte
       de lo que ya tenían (decisión del usuario); Alexander Mejia ya tenía "Sistemas sanmarino" desde
       antes, así que ya empieza a recibir SOPORTE/DUDAS de Sanmarino apenas se despliegue.
+
+### Probado en vivo en pantalla (27-ago-2026) — el pedido explícito de "pruébalos"
+
+- [x] **Levanté backend+frontend local y probé con 6 sesiones reales** (usuario Sanmarino normal,
+      Verenice, Lady Malave, Genesis Parrales —Ecuador regular—, Ricardo, Edwards), navegando a
+      `/tickets/nuevo` y leyendo `cmp.tiposPermitidos` (poblado por la respuesta REAL de
+      `GET /api/ticket-perfiles/tipos-permitidos`, no simulado). Resultado, exacto a lo esperado:
+      - Sanmarino SOPORTE/DUDAS → Alexander Mejia + moiesbbuga (sin fuga de Demo/Panamá/Ecuador).
+      - Sanmarino DESARROLLO → solo moiesbbuga. Sanmarino REQUERIMIENTO → Verenice + moiesbbuga.
+      - Ecuador SOPORTE/DUDAS/REQUERIMIENTO → solo Lady Malave. Ecuador DESARROLLO → solo moiesbbuga.
+      - Panamá REQUERIMIENTO → solo Ricardo. Panamá DESARROLLO → solo moiesbbuga.
+- [x] 🔴 **La prueba encontró un tercer hueco real, corregido con una migración de seguimiento**
+      (`20260827230000_FixRicardoPerfilTicketsPanama`): la migración anterior asumió que Ricardo ya
+      era IMPLEMENTADOR porque su rol "Admin Panama" tiene `tickets.admin` — sin verificar que
+      `company_permissions.tickets.admin` está **apagado** para Panamá (`is_enabled=false`, medido
+      recién en código). Con el permiso fail-closed a nivel empresa, Ricardo en la práctica no tenía
+      ni `tickets.admin` ni `tickets.gestionar`: `GET .../tipos-permitidos` devolvía `[]` en vivo,
+      confirmado ANTES de aplicar el fix. Se le agregó `tickets.gestionar` al rol (mismo criterio ya
+      aplicado a Sanmarino/Ecuador) + `ticket_perfil_usuario` IMPLEMENTADOR — no se tocó
+      `company_permissions` de Panamá (encenderlo ahí sería admin GLOBAL de todos los países, no
+      solo de sus propios tickets). Validado por transacción antes de aplicar; reconfirmado en vivo
+      después: `tipos-permitidos` para Ricardo pasó a `[DESARROLLO, REQUERIMIENTO]`, con él mismo
+      como único asignable de REQUERIMIENTO.
+- [i] **Edwards (mismo rol "Admin Panama") sigue viendo `[]`** — es correcto, no un bug: el nivel
+      IMPLEMENTADOR de Ricardo viene de su `ticket_perfil_usuario` individual, no del permiso de rol
+      (que en las sesiones de prueba no viaja — el JWT minteado para el smoke no llevaba claims de
+      `permission`, solo rol/empresa). En producción sí las llevaría, así que Edwards **sí** podría
+      gestionar lo que se le asigne (por `tickets.gestionar` de rol), pero no crear Requerimiento por
+      su cuenta — que es exactamente el diseño pedido: un solo implementador por país que recibe y
+      escala, el resto del equipo gestiona lo que le llega.
+- [x] Máquina bajo presión de memoria durante el smoke (VBCSCompiler acumuló hasta 5.8 GB dos veces
+      en esta sesión, atascando builds) — resuelto matando el compiler server (y en el segundo
+      episodio, todos los `dotnet.exe`) y reconstruyendo limpio; sin efecto en el resultado, solo en
+      el tiempo.
+- [x] `dotnet build`/`dotnet test` del fix de Ricardo también en verde (3466/3466).
+- [x] Limpieza: las 6 sesiones de prueba (`sesiones_activas`) borradas, backend/frontend locales
+      apagados, puertos libres, archivos temporales del smoke eliminados.
