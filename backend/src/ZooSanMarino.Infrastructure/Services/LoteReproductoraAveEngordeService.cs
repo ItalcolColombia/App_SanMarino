@@ -229,7 +229,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             TipoLote = "LoteReproductoraAveEngorde",
             LoteAveEngordeId = null,
             LoteReproductoraAveEngordeId = ent.Id,
-            TipoRegistro = "Inicio",
+            TipoRegistro = TipoRegistroHistorialEngordeCalculos.Inicio,
             AvesHembras = ent.H ?? 0,
             AvesMachos = ent.M ?? 0,
             AvesMixtas = ent.Mixtas ?? 0,

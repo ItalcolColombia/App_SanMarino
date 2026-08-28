@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/CorreccionAvesDisponiblesEngordeService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -28,12 +29,12 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
     /// Auditoría de descuento por aves fantasma (nunca descargadas): SÍ participa en la
     /// conservación (esperado = iniciales − ventas − ajustes fantasma).
     /// </summary>
-    private const string TipoRegistroAjusteFantasma = "Ajuste";
+    private const string TipoRegistroAjusteFantasma = TipoRegistroHistorialEngordeCalculos.Ajuste;
     /// <summary>
     /// Auditoría de re-sync por ventas Completadas que no descontaron: SUSTITUYE el descuento
     /// de esas ventas, por lo que NO se resta en la conservación (evita re-aplicarse).
     /// </summary>
-    private const string TipoRegistroAjusteResync = "AjusteResync";
+    private const string TipoRegistroAjusteResync = TipoRegistroHistorialEngordeCalculos.AjusteResync;
 
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;

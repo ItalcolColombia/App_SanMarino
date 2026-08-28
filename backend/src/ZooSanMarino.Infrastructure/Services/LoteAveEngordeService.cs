@@ -20,7 +20,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     private const string TipoLoteEngorde = "LoteAveEngorde";
 
     /// <summary>Registro que guarda las aves con que ARRANCÓ el lote. Es la base del encasetamiento.</summary>
-    private const string TipoRegistroInicio = "Inicio";
+    private const string TipoRegistroInicio = TipoRegistroHistorialEngordeCalculos.Inicio;
 
     /// <summary>
     /// Auditoría de una corrección del encasetamiento (el operario digitó mal las aves al crear el
@@ -31,8 +31,13 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     /// <c>CorreccionAvesDisponiblesEngordeService</c> y <c>fn_cuadre_aves_engorde</c> solo suman
     /// <c>Ajuste</c> (fantasma) ⇒ este tipo les es invisible por construcción.
     /// </para>
+    /// <para>
+    /// El valor lo admite <c>ck_hlpe_tipo_registro</c> desde la migración
+    /// <c>20260828190000_AmpliaCheckHistorialEngordeAjusteEncaset</c>: antes de ella este INSERT moría
+    /// con 23514 y se llevaba puesta toda la corrección del encasetamiento.
+    /// </para>
     /// </summary>
-    private const string TipoRegistroAjusteEncaset = "AjusteEncaset";
+    private const string TipoRegistroAjusteEncaset = TipoRegistroHistorialEngordeCalculos.AjusteEncaset;
 
     /// <summary>Evento del histórico unificado que descuenta aves por despacho (venta/retiro).</summary>
     private const string TipoEventoVentaAves = "VENTA_AVES";

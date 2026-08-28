@@ -1,7 +1,8 @@
 -- Tabla de historial de lotes de pollo engorde (Lote Ave Engorde y Lote Reproductora Ave Engorde).
 -- Objetivo: registrar con cuántas aves inició cada lote para reportes (inicio, vendidas, actuales).
 -- tipo_lote: 'LoteAveEngorde' | 'LoteReproductoraAveEngorde'
--- tipo_registro: 'Inicio' (al crear el lote) | opcionalmente otros en el futuro.
+-- tipo_registro: 'Inicio' (al crear el lote) | 'Ajuste' | 'AjusteResync' | 'AjusteEncaset'.
+-- Espejo del catalogo en C#: Application/Calculos/TipoRegistroHistorialEngordeCalculos.cs
 
 CREATE TABLE IF NOT EXISTS public.historial_lote_pollo_engorde (
     id                              SERIAL PRIMARY KEY,
@@ -26,13 +27,16 @@ CREATE TABLE IF NOT EXISTS public.historial_lote_pollo_engorde (
     CONSTRAINT fk_hlpe_movimiento FOREIGN KEY (movimiento_id)
         REFERENCES public.movimiento_pollo_engorde (id) ON DELETE SET NULL,
     CONSTRAINT ck_hlpe_tipo_lote CHECK (tipo_lote IN ('LoteAveEngorde', 'LoteReproductoraAveEngorde')),
-    CONSTRAINT ck_hlpe_tipo_registro CHECK (tipo_registro IN ('Inicio', 'Ajuste')),
+    CONSTRAINT ck_hlpe_tipo_registro CHECK (tipo_registro IN ('Inicio', 'Ajuste', 'AjusteResync', 'AjusteEncaset')),
     CONSTRAINT ck_hlpe_lote_ref CHECK (
         (tipo_lote = 'LoteAveEngorde' AND lote_ave_engorde_id IS NOT NULL AND lote_reproductora_ave_engorde_id IS NULL)
         OR (tipo_lote = 'LoteReproductoraAveEngorde' AND lote_ave_engorde_id IS NULL AND lote_reproductora_ave_engorde_id IS NOT NULL)
     ),
+    -- 'AjusteEncaset' guarda el DELTA con signo (bajar el encasetamiento audita negativo);
+    -- los demas tipos son CANTIDADES y siguen sin poder ser negativas.
     CONSTRAINT ck_hlpe_aves_nonneg CHECK (
-        aves_hembras >= 0 AND aves_machos >= 0 AND aves_mixtas >= 0
+        tipo_registro = 'AjusteEncaset'
+        OR (aves_hembras >= 0 AND aves_machos >= 0 AND aves_mixtas >= 0)
     )
 );
 
@@ -45,4 +49,4 @@ CREATE INDEX IF NOT EXISTS ix_hlpe_movimiento_id ON public.historial_lote_pollo_
 
 COMMENT ON TABLE public.historial_lote_pollo_engorde IS 'Historial de lotes pollo engorde: aves con que inicia cada lote (Lote Ave Engorde o Lote Reproductora) para reportes inicio/vendidas/actuales.';
 COMMENT ON COLUMN public.historial_lote_pollo_engorde.tipo_lote IS 'LoteAveEngorde o LoteReproductoraAveEngorde.';
-COMMENT ON COLUMN public.historial_lote_pollo_engorde.tipo_registro IS 'Inicio = registro al crear el lote; Ajuste = ajuste posterior.';
+COMMENT ON COLUMN public.historial_lote_pollo_engorde.tipo_registro IS 'Inicio = aves con que arranco el lote; Ajuste = descuento por aves fantasma (participa en la conservacion); AjusteResync = sustituye el descuento de ventas que no descontaron; AjusteEncaset = correccion del encasetamiento, guarda el DELTA con signo y no participa en la conservacion.';

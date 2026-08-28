@@ -4549,3 +4549,116 @@ Plan: [`fase_de_desarrollo/demo_lista_practica_carga_masiva_costos_plan.md`](fas
 ### Fuera de alcance (explícito)
 - [ ] ⏸️ **No se despliega.** La migración queda commiteada; el deploy es otra entrega con OK aparte.
 - [ ] ⏸️ `mobile_access` de Demo queda en `false` y los otros 22 menús de SanMarino, apagados.
+
+---
+
+## 🔴 Editar un lote de engorde revienta con 23514 — la auditoría del ajuste no cabe en el CHECK
+
+> **Sesión del 28-ago-2026.** Plan: [`fase_de_desarrollo/ajuste_encasetamiento_engorde_check_tipo_registro_plan.md`](fase_de_desarrollo/ajuste_encasetamiento_engorde_check_tipo_registro_plan.md)
+> **Caso del usuario:** SACACHUN 3B · galpón 3 · LOTE 04 — sumar 200 aves hembra (8.614 → 8.814).
+
+- [x] **Diagnóstico**: el toast «no cumple una regla de validación» = SQLSTATE **23514**; el service
+      escribe `tipo_registro = AjusteEncaset` y `ck_hlpe_tipo_registro` sólo admite
+      `Inicio | Ajuste | AjusteResync`. La funcionalidad (`a9fd721`, 21-ago) se mergeó **sin** la
+      migración que amplía el catálogo. `a9fd721` **sí está** en `origin/main-produccion` ⇒ prod corre
+      el código que escribe el valor y la BD que lo rechaza.
+- [x] **Hallazgo transversal**: la BD local tiene **0 constraints CHECK** en todo el esquema público
+      (`SELECT count(*) FROM pg_constraint WHERE contype='c'` → **0**), ni siquiera las 2 que EF
+      declara en `lote_ave_engorde` ⇒ esta clase de bug es **estructuralmente invisible en local**.
+      Por eso el arreglo del 21-ago se dio por bueno.
+- [x] **Segundo defecto, mismo origen**: la fila de auditoría guarda el **delta con signo** contra un
+      `ck_hlpe_aves_nonneg CHECK (aves_* >= 0)` ⇒ **restar** aves habría fallado con el mismo 23514
+      apenas se arreglara el primero. Van los dos en la misma migración.
+- [x] **Los 6 lectores de la tabla filtran `tipo_registro` explícitamente** (`= 'Inicio'` / `= 'Ajuste'`);
+      ninguno suma la tabla entera ⇒ la fila `AjusteEncaset` es **inerte**. Mismo criterio que `AjusteResync`.
+- [x] Catálogo puro `TipoRegistroHistorialEngordeCalculos` + los 3 services consumiéndolo
+      (`LoteAveEngordeService`, `CorreccionAvesDisponiblesEngordeService`, `LoteReproductoraAveEngordeService`).
+      Literales idénticos: refactor sin cambio de comportamiento.
+- [x] Migración `20260828190000_AmpliaCheckHistorialEngordeAjusteEncaset` (idempotente, fail-soft:
+      si hubiera filas fuera del catálogo NO se recrea y deja `RAISE WARNING` — nunca tira el arranque).
+      Designer clonado; **`ModelSnapshot` intacto** (estas constraints no viven en el modelo EF).
+- [x] Espejo `backend/sql/create_historial_lote_pollo_engorde.sql` actualizado + gate
+      `verificar-sql-llega-por-migracion.js` **en verde**.
+- [x] Tests xUnit del catálogo (congelan la lista de la migración): **27 casos, 27 en verde**.
+- [x] `dotnet build` **0 errores / 0 advertencias** + `dotnet test` **3519/3519** (aislado con
+      `--artifacts-path`: había otra sesión con el `bin/` tomado).
+- [x] **EF reconoce la migración**: `migrations list` la muestra `(Pending)` y **última**. ⚠️ Con
+      `--no-build` a secas EF lee el `bin/` del API (de las 11:03, de otra sesión) y **miente sin
+      error**: no listaba ni la mía ni la de ayer. Hay que combinar `UseArtifactsOutput`+`ArtifactsPath`
+      con `--msbuildprojectextensionspath` al `obj/` de los artifacts.
+- [x] **Verificación contra Postgres, simulando PROD** (transacción + `ROLLBACK`, SQL extraído del
+      propio `.cs`): (1) con las constraints viejas el INSERT de +200 hembras **falla con 23514** —el
+      bug del usuario, reproducido—; (2) tras la migración **guarda**, y el delta negativo también;
+      (3) siguen rechazados `Inicio` negativo, `Ajuste` negativo, tipo inventado y minúsculas;
+      (4) 2ª corrida **no-op**; (5) `Down()` ensayado en sus dos ramas. BD local **sin residuo**.
+- [ ] ⏸️ **NO se aplicó en la BD local, a propósito**: `dotnet ef database update` aplicaría también
+      `20260828170000` y `20260828180000`, que son de **otras sesiones**. De ahí la validación por
+      transacción.
+- [ ] ⏸️ **Deploy: NO se hace acá.** La migración se aplica sola al arrancar; el merge a
+      `main-produccion` va con OK aparte.
+
+---
+
+## Remediar las filas de cruce ya torcidas por la hora de llegada (engorde, Panamá) — 28-ago-2026
+
+Plan: [`fase_de_desarrollo/remediacion_cruce_engorde_hora_llegada_plan.md`](fase_de_desarrollo/remediacion_cruce_engorde_hora_llegada_plan.md).
+Continúa el commit `151cebe`, que arregló al **escritor** (`fn_cruce_reproductora_a_engorde` ya respeta
+la hora) pero **no recalculó nada** y dejó dicho que las filas viejas eran «una operación de datos
+aparte, con su propia verificación y su propio OK». Esto es esa operación.
+
+### Diagnóstico — cerrado
+- [x] **Medido en UTC, no en la zona de la máquina.** Con `America/Bogotá` (el default de `psql` acá)
+      `fecha::date` **resta un día** y el mismo query reporta **6** violaciones donde hay **3**.
+      `fecha` es `timestamptz` a `00:00Z`. Misma trampa que [[plazo-validacion-vencia-a-las-19]].
+- [x] **3 violaciones, las 3 `origen_cruce`/`SYSTEM_CRUCE`, las 3 ItalcolPanamá:** lote **215**
+      (id 12118, 10-ago, 362,880 kg), lote **216** (id 12168, 13-ago, 181,440 kg) y lote **238**
+      (id 12937, 27-ago) — este último es **el lote del ticket y está borrado**. Ecuador: **0**
+      (sus 19 lotes con hora ≥ 13:00 no usan el cruce).
+- [x] **Los lotes vivos NO tienen saldo negativo.** El −150 kg del ticket era del 238, borrado.
+      215 y 216: **0 días en rojo**, mínimo +1.558,08 kg. Lo que queda es la fila de más.
+- [x] **215 y 216 comparten el galpón G0471** ⇒ comparten stock: tocar uno mueve el cuadre del otro.
+- [x] **Segundo defecto, independiente:** el reproductora **131** (hijo del 215) tiene encaset
+      **09-ago**, un día antes que su padre, y fue **editado el 25-ago**, cuatro días *después* de que
+      corriera el cruce (21-ago). Como el cruce mapea por EDAD, ese desfase corre la serie otra vez.
+      No es general: **128 de 138** lotes reproductora están alineados.
+- [x] 🔴 **Una migración SQL a secas rompe un invariante.** El descuento de aves al maestro y la fila
+      `BAJA_SEGUIMIENTO` del histórico unificado los escribe **C#**
+      (`RetiroAvesEngordeAplicador.SincronizarCruceAsync`), no el SQL. Verificado: el histórico del 215
+      tiene la fila **17821 → origen_id 12118, `anulado = false`**, viva y apuntando justo a la fila a
+      sacar. Borrarla por SQL la deja **huérfana y sin anular** —lo que CLAUDE.md prohíbe— y deja
+      **62 aves** descontadas de más en el maestro. ⇒ **la remediación va por el camino C#.**
+- [x] **Tres opciones medidas en transacción revertida** (cuadre de G0471, `fn_cuadre_alimento_engorde`):
+      hoy **−634,64 kg** · recalcular **+1.633,36** · borrar sólo el día del encaset **−90,32** ·
+      alinear encaset + recalcular **+635,44**. Las tres dejan 0 violaciones, ninguna toca una fila
+      manual, y el cuadre de **aves** queda en desfase 0 / `cuadra = t` en las tres.
+- [x] **Por qué el recálculo pierde 2.268,00 kg:** al correr la serie, el último día del cruce cae sobre
+      un **registro manual** y la fn lo saltea (`ON CONFLICT DO NOTHING` + `RAISE WARNING`, el guarda
+      que agregó `151cebe` — sin él **reventaba** con `duplicate key`). El 215 pierde **dos** días
+      (arrastra además el desfase de encaset); el 216, **uno**.
+- [x] **El stock físico favorece la opción 2**: es la única que deja el cuadre casi en cero (−90,32 kg).
+      **Pero no es estable**: el trigger corre `AFTER INSERT OR UPDATE OR DELETE` sobre el seguimiento
+      reproductora ⇒ **el primer toque a la reproductora la convierte en la opción 1**. Los únicos
+      estados estables son la **1** y la **3**.
+- [x] `backend/sql/verificar_cruce_engorde_hora_llegada.sql` — diagnóstico repetible de solo lectura
+      (7 secciones: violaciones, desfase de encaset, colisiones, invariante del histórico y línea base
+      del cuadre). Declarado `SIN-MIGRACION`; **el gate `verificar-sql-llega-por-migracion.js` pasa**.
+
+### ⏸️ Bloqueado — falta tu decisión
+- [!] **Qué opción se aplica.** Cambia qué se pierde: **2.268,00 kg** (recalcular), **544,32 kg**
+      (borrar sólo el día del encaset) o **1.088,64 kg** (alinear encaset + recalcular).
+- [!] **Si se toca `lote_reproductora_ave_engorde.fecha_encasetamiento` del 131** (dato maestro) —sólo
+      la opción 3.
+- [!] **Confirmar que el lote 238 se deja como está** (borrado el 28-ago 14:17).
+
+### Implementación — no arrancada (depende de la decisión)
+- [ ] Camino C# de recálculo por lote (fn + `SincronizarCruceAsync`) con auditoría, en vez de una
+      migración de datos.
+- [ ] Verificación: 0 violaciones · 0 filas manuales movidas · 0 huérfanas en el histórico ·
+      `fn_cuadre_aves_engorde` en desfase 0 · el descuadre de G0471 donde dice el plan ·
+      los otros 64 galpones sin una fila de diferencia.
+
+### [i] Hallazgo aparte, NO de esta tarea
+- [i] **Lote 227** (ItalcolPanamá, «14 - 1», vivo) tiene **6 filas `BAJA_SEGUIMIENTO` huérfanas y sin
+      anular** (ids 19321-19326 → seguimientos 12817-12822, que ya no existen), creadas **hoy 28-ago
+      06:03**. Son **142 aves** (75 H + 67 M) descontadas del maestro sin registro que las respalde.
+      Es el mismo invariante, roto por otro camino; no lo toca esta tarea.
