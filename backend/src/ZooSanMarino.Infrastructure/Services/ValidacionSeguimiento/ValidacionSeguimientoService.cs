@@ -302,7 +302,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
                 return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
-                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
+                                          ValidacionSeguimientoCalculos.DiaOperativo(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Produccion:
             {
@@ -317,7 +317,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
                 return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha),
-                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
+                                          ValidacionSeguimientoCalculos.DiaOperativo(f.CreatedAt))).ToList();
             }
             // Ídem: la tabla partida devolvía SIEMPRE vacío (o 42P01 donde ni existe), así que el
             // semáforo no pintaba nada y el bloqueo por vencidos nunca se disparaba en engorde.
@@ -334,7 +334,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
                 return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
-                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
+                                          ValidacionSeguimientoCalculos.DiaOperativo(f.CreatedAt))).ToList();
             }
             case ModuloSeguimiento.Reproductora:
             {
@@ -351,7 +351,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Select(s => new { s.Id, s.Fecha, s.CreatedAt })
                     .ToListAsync(ct);
                 return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha),
-                                          DateOnly.FromDateTime(f.CreatedAt))).ToList();
+                                          ValidacionSeguimientoCalculos.DiaOperativo(f.CreatedAt))).ToList();
             }
             default:
                 return Array.Empty<(long, DateOnly, DateOnly)>();
@@ -375,8 +375,18 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
             .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
     }
 
-    /// <summary>Hoy en UTC. Aislado para poder razonar el semáforo sin depender del reloj del server.</summary>
-    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.UtcNow);
+    /// <summary>
+    /// Hoy en el <b>día operativo de la granja</b> (UTC−5), no en UTC. Aislado para poder razonar el
+    /// semáforo sin depender del reloj del server.
+    ///
+    /// <para>
+    /// Con el día UTC a secas, entre las 19:00 y la medianoche locales el backend ya contaba el día
+    /// siguiente y vencía los registros 5 horas antes de tiempo — el mismo defecto que la ventana de
+    /// fecha de inventario y la revocación de sesión ya corrigieron. Ver
+    /// <see cref="ValidacionSeguimientoCalculos.DiaOperativo"/>.
+    /// </para>
+    /// </summary>
+    private static DateOnly Hoy => ValidacionSeguimientoCalculos.DiaOperativo(DateTime.UtcNow);
 
     /// <summary>Reconstruye el diccionario tipado que esperan los servicios de inventario.</summary>
     private static Dictionary<ItemConsumoKey, decimal> AItemConsumo(IEnumerable<SeguimientoReservaAlimento> reservas)

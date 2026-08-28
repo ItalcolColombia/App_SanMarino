@@ -4229,3 +4229,181 @@ vista y una vista lee otra vista + una función: el orden correcto es uno solo s
 - [!] La local quedó 21 migraciones atrás del código (336 en `__EFMigrationsHistory` vs 357 archivos):
       es lo esperado —el dump es de producción— y el próximo arranque del backend las aplica solo
       (`Database:RunMigrations=true`).
+
+---
+
+## Enrutamiento de tickets por empresa: Sanmarino, Panamá, Ecuador (27-ago-2026)
+
+Plan: [`enrutamiento_tickets_por_empresa_plan.md`](fase_de_desarrollo/enrutamiento_tickets_por_empresa_plan.md)
+
+Pedido: quién recibe cada tipo de ticket por empresa — Sanmarino y Panamá con un rol "Sistemas X"
+para SOPORTE/DUDAS y una persona (Verenice / Ricardo) para REQUERIMIENTO que escala a Desarrollo
+(moiesbbuga@gmail.com); Ecuador sin área de sistemas, todo a Lady Malave.
+
+- [x] **Mecanismo real investigado antes de tocar nada**: el módulo de tickets ya tiene un motor de
+      enrutamiento vivo (`ticket_resolutores`, `ticket_resolutor_rol`, `ticket_perfil_usuario` +
+      `TicketPerfilService`) — no hacía falta construir nada nuevo, solo configurarlo bien.
+- [x] 🔴 **Los roles "Sistemas sanmarino" (34) y "sistemas panama" (35) YA EXISTÍAN** — una primera
+      consulta con error propio los mostró como inexistentes; verificado dos veces antes de crear
+      nada (por poco se duplicaban).
+- [x] 🔴 **2 bugs de código reales, corregidos en `TicketPerfilService.GetAsignablesInternalAsync`**:
+      ni los resolutores directos (`ticket_resolutores`) ni los de rol (`ticket_resolutor_rol`)
+      filtraban por `company_id` — solo por tipo+país. Medido con Verenice: aparecía como asignable
+      en tickets de CUALQUIER empresa; medido con el rol "Admin Demo": aparecía como asignable de
+      SOPORTE en Sanmarino. Se agregó el filtro a los dos, verificado que el rol Admin
+      (DESARROLLO global, moiesbbuga) sigue funcionando igual porque ya usaba una fila POR empresa.
+- [x] 🔴 **2 datos mal cargados encontrados y corregidos**: el perfil de Lady Malave
+      (`ticket_perfil_usuario`) estaba en `company_id` de Sanmarino en vez de Ecuador; ni ella ni
+      Verenice tenían `tickets.gestionar` en su rol — sin él, `TicketService.PuedeGestionar()` les
+      niega hasta gestionar sus propios tickets asignados (verificado leyendo el código: el gate no
+      distingue "es mío" de "es ajeno").
+- [x] Migración `20260827214243_SeedEnrutamientoTicketsPorEmpresa` (data-only, idempotente,
+      localizada por nombre/email, con guarda fail-closed si algo no resuelve):
+  - Sanmarino: rol 34 → SOPORTE+DUDAS; Verenice → solo REQUERIMIENTO activo (se apagó
+    SOPORTE/DUDAS/DESARROLLO); `tickets.gestionar` a su rol.
+  - Panamá: `tickets.gestionar` encendido a nivel empresa (estaba apagado) + al rol 35 + menú
+    "Bandeja de gestión"; rol 35 → SOPORTE+DUDAS; Ricardo → REQUERIMIENTO (ya era IMPLEMENTADOR por
+    `tickets.admin`, no necesitó perfil nuevo).
+  - Ecuador: `tickets.gestionar` creado a nivel empresa (no existía la fila) + al rol Ecuador
+    Administrador; perfil de Lady Malave movido a company_id correcto; ella → SOPORTE+DUDAS+
+    REQUERIMIENTO (sin DESARROLLO, eso lo cubre el rol Admin global, ya configurado desde antes).
+  - DESARROLLO/atención global: sin cambios — ya cubierto para Sanmarino/Ecuador/Demo/Panamá. Falta
+    Santa Reyes, no se pidió, no se tocó.
+- [x] Validado por transacción (`BEGIN` + 2 pasadas + verificación + `ROLLBACK`) antes de aplicar de
+      verdad — confirmado idempotente, datos exactos.
+- [x] Aplicada de verdad en local (arrancando el backend, migración registrada en
+      `__EFMigrationsHistory`) y re-verificada con la tabla ya escrita.
+- [x] `dotnet build` 0/0 (dos veces, uno por cada fix), `dotnet test` 3466/3466 sin regresiones.
+- [x] **Simulación de la consulta real (con los dos fixes) contra los datos ya migrados**: SOPORTE
+      empresa 1 → Alexander Mejia + moiesbbuga (ya no Demo); SOPORTE empresa 5 → 0 filas (nadie
+      asignado al rol todavía, a propósito); REQUERIMIENTO empresa 1/5/3 → exactamente Verenice /
+      Ricardo / Lady Malave, uno cada uno; DESARROLLO en las 4 empresas → moiesbbuga intacto.
+- [!] Smoke HTTP real (login + crear/ver tickets en pantalla) **no ejecutado** — la verificación de
+      arriba es a nivel de datos y de la consulta que los lee (equivalente exacto al LINQ real), no
+      un clic real en el navegador. Queda para que el usuario lo confirme.
+- [i] Los roles "Sistemas sanmarino"/"sistemas panama" quedaron sin nadie asignado en Panamá aparte
+      de lo que ya tenían (decisión del usuario); Alexander Mejia ya tenía "Sistemas sanmarino" desde
+      antes, así que ya empieza a recibir SOPORTE/DUDAS de Sanmarino apenas se despliegue.
+
+### Probado en vivo en pantalla (27-ago-2026) — el pedido explícito de "pruébalos"
+
+- [x] **Levanté backend+frontend local y probé con 6 sesiones reales** (usuario Sanmarino normal,
+      Verenice, Lady Malave, Genesis Parrales —Ecuador regular—, Ricardo, Edwards), navegando a
+      `/tickets/nuevo` y leyendo `cmp.tiposPermitidos` (poblado por la respuesta REAL de
+      `GET /api/ticket-perfiles/tipos-permitidos`, no simulado). Resultado, exacto a lo esperado:
+      - Sanmarino SOPORTE/DUDAS → Alexander Mejia + moiesbbuga (sin fuga de Demo/Panamá/Ecuador).
+      - Sanmarino DESARROLLO → solo moiesbbuga. Sanmarino REQUERIMIENTO → Verenice + moiesbbuga.
+      - Ecuador SOPORTE/DUDAS/REQUERIMIENTO → solo Lady Malave. Ecuador DESARROLLO → solo moiesbbuga.
+      - Panamá REQUERIMIENTO → solo Ricardo. Panamá DESARROLLO → solo moiesbbuga.
+- [x] 🔴 **La prueba encontró un tercer hueco real, corregido con una migración de seguimiento**
+      (`20260827230000_FixRicardoPerfilTicketsPanama`): la migración anterior asumió que Ricardo ya
+      era IMPLEMENTADOR porque su rol "Admin Panama" tiene `tickets.admin` — sin verificar que
+      `company_permissions.tickets.admin` está **apagado** para Panamá (`is_enabled=false`, medido
+      recién en código). Con el permiso fail-closed a nivel empresa, Ricardo en la práctica no tenía
+      ni `tickets.admin` ni `tickets.gestionar`: `GET .../tipos-permitidos` devolvía `[]` en vivo,
+      confirmado ANTES de aplicar el fix. Se le agregó `tickets.gestionar` al rol (mismo criterio ya
+      aplicado a Sanmarino/Ecuador) + `ticket_perfil_usuario` IMPLEMENTADOR — no se tocó
+      `company_permissions` de Panamá (encenderlo ahí sería admin GLOBAL de todos los países, no
+      solo de sus propios tickets). Validado por transacción antes de aplicar; reconfirmado en vivo
+      después: `tipos-permitidos` para Ricardo pasó a `[DESARROLLO, REQUERIMIENTO]`, con él mismo
+      como único asignable de REQUERIMIENTO.
+- [i] **Edwards (mismo rol "Admin Panama") sigue viendo `[]`** — es correcto, no un bug: el nivel
+      IMPLEMENTADOR de Ricardo viene de su `ticket_perfil_usuario` individual, no del permiso de rol
+      (que en las sesiones de prueba no viaja — el JWT minteado para el smoke no llevaba claims de
+      `permission`, solo rol/empresa). En producción sí las llevaría, así que Edwards **sí** podría
+      gestionar lo que se le asigne (por `tickets.gestionar` de rol), pero no crear Requerimiento por
+      su cuenta — que es exactamente el diseño pedido: un solo implementador por país que recibe y
+      escala, el resto del equipo gestiona lo que le llega.
+- [x] Máquina bajo presión de memoria durante el smoke (VBCSCompiler acumuló hasta 5.8 GB dos veces
+      en esta sesión, atascando builds) — resuelto matando el compiler server (y en el segundo
+      episodio, todos los `dotnet.exe`) y reconstruyendo limpio; sin efecto en el resultado, solo en
+      el tiempo.
+- [x] `dotnet build`/`dotnet test` del fix de Ricardo también en verde (3466/3466).
+- [x] Limpieza: las 6 sesiones de prueba (`sesiones_activas`) borradas, backend/frontend locales
+      apagados, puertos libres, archivos temporales del smoke eliminados.
+
+---
+
+## DIA-OP-VAL — El plazo de la doble validación se juzga en día operativo UTC−5 (28-ago-2026)
+
+Plan: [`fase_de_desarrollo/dia_operativo_plazo_validacion_plan.md`](fase_de_desarrollo/dia_operativo_plazo_validacion_plan.md)
+
+> Origen: ticket de operación de Panamá — granja **DAYLAND**, galeras 6, 5, 4 y 3 sin poder ingresar
+> registros. Cierra el último consumidor que seguía juzgando fechas en UTC crudo, después de la
+> ventana de inventario y de la revocación de sesión (`6fb1edd`).
+
+- [x] **Auditoría previa del ticket (hecha antes de tocar código).** El fix de `94e1f9f` (plazo desde
+      `created_at`) y `cc5beb4` (validar en bloque) **sí están en producción** — merges `79886a8`
+      (26-ago 01:04) y `5e780e5` (26-ago 07:56), TaskDef `sanmarino-back-task:169`, rollout
+      `COMPLETED`, imagen `...:ecd05486`. Confirmar registros viejos **sí** está permitido y confirmar
+      **sí** destraba: verificado en los datos, no solo en el código — en DAYLAND se confirmaron
+      registros del 17 al 25 de agosto y las galeras 1, 2 y 3 quedaron libres.
+- [x] 🔴 **El defecto real es otro: `Hoy` es `DateTime.UtcNow` crudo.** Panamá opera en UTC−5, así que
+      el plazo **vence a las 19:00 locales, no a la medianoche**. Los 9 registros que trababan DAYLAND
+      se cargaron el 26-ago 11:47–13:57 y murieron el 27-ago a las 19:00.
+- [x] **La distinción que decide el cambio: instante vs fecha pura.** `created_at` y `now()` son
+      instantes ⇒ van a día operativo. `fecha` es una fecha pura guardada como `timestamptz` ⇒ **no se
+      toca**: el formulario la escribe a `12:00Z` y el trigger del cruce a `00:00Z`, y desplazarla −5 h
+      movería las filas del cruce un día atrás.
+- [x] **Medición que eligió el diseño** (copia de prod, ItalcolPanama, 60 días, 1.097 capturas):
+      corregir sólo `Hoy` afloja y no aprieta nada; corregir también `Creacion` aprieta 309 registros
+      **con daño real 0** — ninguna confirmación de 60 días cayó en la ventana de 19 h que elimina. En
+      la otra dirección, **5 confirmaciones sí cayeron dentro de las 5 h que la regla actual roba**.
+      Se implementan las dos mitades.
+- [x] `DiaOperativo` nuevo en `ValidacionSeguimientoCalculos`, delegando en el helper canónico
+      `VentanaFechaRegistroCalculos.DiaOperativo` (una sola fórmula por número).
+- [x] `Hoy` + los 4 casos de `LeerPendientesDelLoteAsync` (`CreatedAt`) pasan a día operativo.
+- [x] **Front sin cambios**: `estado-validacion-seguimiento.funcion.ts` ya usa el día calendario local
+      del navegador, que en Panamá *es* el día operativo. El espejo ya era correcto; el cambio alinea
+      el backend con él.
+- [x] **Sin migración**: la regla no toca la BD.
+- [x] Tests xUnit del helper y de los invariantes (día operativo ≤ día UTC; flag apagado idéntico; sin
+      `created_at`, comportamiento previo byte a byte).
+- [x] `dotnet build` 0 errores + `dotnet test` en verde.
+- [x] Recontar los 9 pendientes de DAYLAND con la fórmula nueva dentro de la ventana 19:00–24:00.
+
+---
+
+## DUP-DIA — Indice unico por DIA en los seguimientos + el bloqueo real de la galera 6 (28-ago-2026)
+
+Plan: [`fase_de_desarrollo/indice_unico_dia_seguimientos_plan.md`](fase_de_desarrollo/indice_unico_dia_seguimientos_plan.md)
+
+> Sale de la auditoria del ticket de DAYLAND. Validado contra la copia de produccion recargada hoy.
+
+- [x] **Auditoria de duplicados: 6 filas en todo el sistema.** 5 en engorde (todos ItalcolPanama, todos
+      con el patron cruce `00:00Z` + manual `12:00Z`: lotes 161, 178, 216) y 1 en levante (Demo).
+      Reproductora y produccion en 0 — produccion porque YA tiene el indice funcional por dia UTC
+      (`20260801070000`), que es el precedente copiado.
+- [x] 🔴 **Correccion de una afirmacion mia previa.** Dije que ninguna fila duplicada tenia movimiento
+      de inventario; el regex estaba mal. Con el patron correcto, **las 4 viejas de engorde y las 2 de
+      levante SI tienen movimiento + fila en el historico unificado**. Solo `12676` estaba limpia. Eso
+      cambio el diseno: la migracion **no borra nada**, excluye por id.
+- [x] **`12676` borrado por la API** (no por SQL): las dos reservas quedaron `LIBERADA`, no huerfanas.
+      Duplicados de engorde: 5 → 4.
+- [x] 🔴 **El hallazgo grande: la galera 6 NO estaba trabada por el plazo ni por el duplicado.**
+      `POST validar-pendientes` corta en el primero y no intenta el resto. Con los 5: corto en `12676`
+      por «No hay stock suficiente». Borrado ese, corto en `12674` por lo mismo. **Stock del galpon
+      G0471: 416,24 kg; las reservas piden 2.222,64 kg ⇒ faltan 1.806,40 kg.** El ultimo ingreso de
+      alimento fue el 19-ago. Falta registrar el ingreso, no validar.
+- [x] **El POST fallido no escribio nada**: snapshot identico antes y despues (reservas, aves,
+      movimientos). El corte y el rollback funcionan como estan documentados.
+- [x] **Evidencia dura de que `12676` sobraba**: el 17-ago ese galpon ya tenia el alimento descontado
+      por `Seguimiento reproductora #802` (272,16 kg — exactamente lo que espeja la fila del cruce) y
+      por `Seguimiento aves engorde #12668` del lote 215, que comparte galpon.
+- [x] **Migracion `20260828120000_IndiceUnicoDiaSeguimientos`**: 4 indices unicos funcionales por dia
+      UTC (engorde, levante x2, reproductora), parciales por id donde hay historia aplicada. Fail-soft
+      con `RAISE WARNING` como el precedente: nunca tira el arranque de prod.
+- [x] **El controller tenia que cambiar**: cazaba el duplicado por NOMBRE de indice, y el caso nuevo
+      dispara el indice nuevo ⇒ el usuario habria visto el texto crudo de Postgres justo en el caso
+      que veniamos a proteger. Extraido a `DuplicadoSeguimientoDiarioCalculos` con test que fija los
+      dos nombres.
+- [x] **Simulacion en transaccion** contra la copia de prod: los 4 indices se crean; un duplicado del
+      mismo dia a otra hora se RECHAZA; un dia libre entra; las 4 filas historicas sobreviven; el
+      rollback no deja nada.
+- [x] `dotnet build` 0 errores / 0 advertencias + `dotnet test` **3487/3487** (+8 nuevos).
+- [ ] ⏸️ **NO APLICADA.** Falta el OK explicito. Antes: re-correr el diagnostico contra el dump del dia
+      y decidir si `12676` se borra en produccion o queda excluido.
+- [ ] ⏸️ **Queda abierto: alinear el cruce a mediodia UTC.** Es la correccion de fondo y **no se puede
+      hacer tal cual** — el cruce re-inserta sin `ON CONFLICT`, asi que donde ya exista una fila manual
+      de ese dia la confirmacion de reproductora fallaria entera. Exige darle antes una estrategia de
+      conflicto. Otra entrega.

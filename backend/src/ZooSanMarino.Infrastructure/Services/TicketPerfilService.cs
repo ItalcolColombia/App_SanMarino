@@ -81,10 +81,15 @@ public class TicketPerfilService : ITicketPerfilService
         var result = new List<AsignableDto>();
         var addedUserIds = new HashSet<Guid>();
 
-        // 1. Resolutores directos por usuario: tipo + (pais_id == paisId OR global).
+        // 1. Resolutores directos por usuario: tipo + empresa + (pais_id == paisId OR global).
+        // A diferencia de los resolutores por ROL (sección 2), acá SÍ se filtra por empresa: la
+        // fila la configura un admin para SU empresa (`ux_ticket_resolutores_user_tipo_pais_company`
+        // incluye company_id a propósito) y sin este filtro un resolutor de una empresa aparecía
+        // como asignable en los tickets de cualquier otra.
         var directResolutores = await _ctx.TicketResolutores.AsNoTracking()
             .Where(r => r.Activo &&
                         r.Tipo == tipo.ToUpperInvariant() &&
+                        r.CompanyId == companyId &&
                         (r.PaisId == null || r.PaisId == paisId))
             .Select(r => new { r.UserId, r.PaisId })
             .ToListAsync(ct);
@@ -103,19 +108,25 @@ public class TicketPerfilService : ITicketPerfilService
         // 2. Resolutores por rol: usuarios de la empresa que tengan un rol configurado
         //    como resolutor para este tipo+país. Cubre el caso donde el admin configura
         //    el rol en "Perfil de Atención" sin necesidad de "Reaplicar" manualmente.
+        // La FILA sí se filtra por empresa (`r.CompanyId == companyId`): es lo que hace que un
+        // rol como "Admin Demo" (configurado para su propia empresa) no aparezca como asignable
+        // en los tickets de otra. Para que un rol cubra varias empresas, se agrega una fila por
+        // empresa (patrón ya usado por el rol Admin/DESARROLLO) — no se logra dejando la fila sin
+        // empresa.
         var roleResolutores = await _ctx.TicketResolutorRoles.AsNoTracking()
             .Where(r => r.Activo &&
                         r.Tipo == tipo.ToUpperInvariant() &&
+                        r.CompanyId == companyId &&
                         (r.PaisId == null || r.PaisId == paisId))
             .Select(r => new { r.RoleId, r.PaisId })
             .ToListAsync(ct);
 
         foreach (var rr in roleResolutores)
         {
-            // Resolutores globales: el rol identifica al equipo que atiende (tipo, país); su
-            // pertenencia NO se filtra por empresa. Así un admin con el rol registrado solo en la
-            // empresa central sigue siendo asignable al crear tickets de cualquier subsidiaria,
-            // sin tener que duplicar su UserRole en cada país/empresa.
+            // La MEMBRESÍA del rol, en cambio, no se filtra por empresa: un usuario puede tener
+            // el UserRole anotado con el company_id de otra empresa (p. ej. el rol se le asignó
+            // desde la empresa central) y sigue contando, porque lo que importa es si TIENE el
+            // rol, no en qué empresa quedó registrada esa fila.
             var userIds = await _ctx.UserRoles.AsNoTracking()
                 .Where(ur => ur.RoleId == rr.RoleId)
                 .Select(ur => ur.UserId)

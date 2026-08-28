@@ -503,4 +503,108 @@ public class ValidacionSeguimientoCalculosTests
         Assert.Equal("VALIDADO",
             ValidacionSeguimientoCalculos.EtiquetaEstado(true, fecha, creacion, hoy));
     }
+
+    // ─── Día operativo (UTC−5): el plazo se juzga con el reloj de la granja ────
+
+    /// <summary>
+    /// El instante exacto del defecto. Las tres operaciones corren en UTC−5, así que a las 19:00
+    /// locales el reloj UTC ya marca el día siguiente: si el plazo se juzga en UTC, vence 5 horas
+    /// antes de tiempo.
+    /// </summary>
+    [Theory]
+    // 23:59 locales del 26: todavía es el 26 para el operario, aunque en UTC ya sea 27.
+    [InlineData("2026-08-27T04:59:00Z", 2026, 8, 26)]
+    // 00:00 locales del 27: recién acá cambia el día.
+    [InlineData("2026-08-27T05:00:00Z", 2026, 8, 27)]
+    // 18:59 locales: sigue siendo el 27 en los dos relojes.
+    [InlineData("2026-08-27T23:59:00Z", 2026, 8, 27)]
+    // 19:00 locales: UTC ya está en el 28 y acá estaba el bug — sigue siendo el 27 en la granja.
+    [InlineData("2026-08-28T00:00:00Z", 2026, 8, 27)]
+    public void DiaOperativo_EsElDiaDeLaGranjaNoElDelServidor(string instanteUtc, int a, int m, int d)
+    {
+        var instante = DateTime.Parse(instanteUtc, null,
+            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal);
+
+        Assert.Equal(new DateOnly(a, m, d), ValidacionSeguimientoCalculos.DiaOperativo(instante));
+    }
+
+    /// <summary>
+    /// El día operativo nunca queda ADELANTE del día UTC: el offset es negativo, así que a lo sumo
+    /// coincide. Es lo que garantiza que corregir <c>Hoy</c> sólo pueda aflojar el semáforo.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(12)]
+    [InlineData(19)]
+    [InlineData(23)]
+    public void DiaOperativo_NuncaAdelantaAlDiaUtc(int horaUtc)
+    {
+        var instante = new DateTime(2026, 8, 27, horaUtc, 30, 0, DateTimeKind.Utc);
+
+        Assert.True(
+            ValidacionSeguimientoCalculos.DiaOperativo(instante) <= DateOnly.FromDateTime(instante),
+            $"a las {horaUtc}:30 UTC el día operativo se adelantó al día UTC");
+    }
+
+    /// <summary>
+    /// Un <c>DateTime</c> que llegue como <c>Local</c> se normaliza antes de convertir. Sin esto se
+    /// interpretaría la hora de pared como si fuera UTC y el día podría correrse.
+    /// </summary>
+    [Fact]
+    public void DiaOperativo_NormalizaElKindAntesDeConvertir()
+    {
+        var utc = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(
+            ValidacionSeguimientoCalculos.DiaOperativo(utc),
+            ValidacionSeguimientoCalculos.DiaOperativo(utc.ToLocalTime()));
+    }
+
+    /// <summary>
+    /// El caso DAYLAND, reproducido. Los 9 registros que tenían trabadas las galeras 4, 5 y 6 se
+    /// guardaron el 26-ago cerca del mediodía y con el día UTC vencían el 27 a las <b>19:00</b> —
+    /// no a la medianoche. Con el día operativo llegan enteros al final del 27.
+    /// </summary>
+    [Fact]
+    public void CasoDayland_ElPlazoLlegaHastaElFinalDelDiaDeLaGranja()
+    {
+        // 26-ago 12:44 hora de Panamá.
+        var creado = new DateTime(2026, 8, 26, 17, 44, 0, DateTimeKind.Utc);
+        var fecha = new DateOnly(2026, 8, 25);
+        var creacion = ValidacionSeguimientoCalculos.DiaOperativo(creado);
+
+        Assert.Equal(new DateOnly(2026, 8, 26), creacion);
+
+        // 27-ago 19:00 locales: el instante en que la regla vieja lo daba por vencido.
+        var alas19 = ValidacionSeguimientoCalculos.DiaOperativo(new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, alas19));
+
+        // 27-ago 23:59 locales: sigue vivo.
+        var alas2359 = ValidacionSeguimientoCalculos.DiaOperativo(new DateTime(2026, 8, 28, 4, 59, 0, DateTimeKind.Utc));
+        Assert.Equal(EstadoValidacionSeguimiento.Pendiente,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, alas2359));
+
+        // 28-ago 00:00 locales: ahora sí vence. El plazo no es indefinido.
+        var medianoche = ValidacionSeguimientoCalculos.DiaOperativo(new DateTime(2026, 8, 28, 5, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(EstadoValidacionSeguimiento.EnRetraso,
+            ValidacionSeguimientoCalculos.Estado(false, fecha, creacion, medianoche));
+    }
+
+    /// <summary>
+    /// La otra mitad del cambio: un registro guardado DESPUÉS de las 19:00 locales pertenece al día
+    /// en que el operario lo guardó, no al siguiente. Con el día UTC recibía un día de plazo extra.
+    /// </summary>
+    [Fact]
+    public void CargadoDeNoche_LaCreacionEsElDiaEnQueElOperarioLoGuardo()
+    {
+        // 26-ago 20:00 hora de Panamá = 27-ago 01:00 UTC.
+        var creado = new DateTime(2026, 8, 27, 1, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(new DateOnly(2026, 8, 26), ValidacionSeguimientoCalculos.DiaOperativo(creado));
+        // Lo que hacía antes: contarlo como creado el 27 y regalarle un día.
+        Assert.Equal(new DateOnly(2026, 8, 27), DateOnly.FromDateTime(creado));
+    }
 }

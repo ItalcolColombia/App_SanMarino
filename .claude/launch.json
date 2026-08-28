@@ -25,6 +25,15 @@
       "autoPort": false
     },
     {
+      "comment": "Backend desde los binarios ya compilados (--no-build): evita que `dotnet run` recompile y se atasque peleando el bin/ con otra sesion. Requiere `dotnet build` previo.",
+      "name": "backend-nobuild",
+      "runtimeExecutable": "C:/Users/SAN MARINO/.dotnet/dotnet.exe",
+      "runtimeArgs": ["run", "--no-build", "--launch-profile", "Development"],
+      "cwd": "backend/src/ZooSanMarino.API",
+      "port": 5002,
+      "autoPort": false
+    },
+    {
       "name": "backend",
       "runtimeExecutable": "C:/Users/SAN MARINO/.dotnet/dotnet.exe",
       "runtimeArgs": ["run", "--launch-profile", "Development"],
