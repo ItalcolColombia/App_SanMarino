@@ -4643,19 +4643,52 @@ aparte, con su propia verificación y su propio OK». Esto es esa operación.
       (7 secciones: violaciones, desfase de encaset, colisiones, invariante del histórico y línea base
       del cuadre). Declarado `SIN-MIGRACION`; **el gate `verificar-sql-llega-por-migracion.js` pasa**.
 
-### ⏸️ Bloqueado — falta tu decisión
-- [!] **Qué opción se aplica.** Cambia qué se pierde: **2.268,00 kg** (recalcular), **544,32 kg**
-      (borrar sólo el día del encaset) o **1.088,64 kg** (alinear encaset + recalcular).
-- [!] **Si se toca `lote_reproductora_ave_engorde.fecha_encasetamiento` del 131** (dato maestro) —sólo
-      la opción 3.
-- [!] **Confirmar que el lote 238 se deja como está** (borrado el 28-ago 14:17).
+### Decisión — tomada
+- [x] **Opción 3: alinear el encaset del reproductora + recalcular.** Es la única coherente con la
+      regla ya desplegada («se corre la serie, el consumo es real»), es **estable**, corrige de paso un
+      dato maestro genuinamente torcido y pierde **la mitad** de los kilos que el recálculo a secas.
+      Se pierden **1.088,64 kg** (215) y **181,44 kg** (216). **El lote 238 se deja como está.**
 
-### Implementación — no arrancada (depende de la decisión)
-- [ ] Camino C# de recálculo por lote (fn + `SincronizarCruceAsync`) con auditoría, en vez de una
-      migración de datos.
-- [ ] Verificación: 0 violaciones · 0 filas manuales movidas · 0 huérfanas en el histórico ·
-      `fn_cuadre_aves_engorde` en desfase 0 · el descuadre de G0471 donde dice el plan ·
-      los otros 64 galpones sin una fila de diferencia.
+### Implementación — cerrada
+- [x] **Migración `20260828200000_RemediarCruceEngordeHoraLlegadaPanama`** (data-only, Designer
+      clonado, ModelSnapshot intacto; SQL en el partial `.Sql.cs`). ⚠️ El timestamp `…190000` lo tomó
+      otra sesión (`3988183`, CHECK de `historial_lote_pollo_engorde`) mientras esto se escribía —
+      tabla distinta, no chocan.
+- [x] **La cohorte se resuelve por la REGLA, no por ids fijos**: lote vivo, hora ≥ 13:00,
+      `aves_encasetadas > 0` y ≥1 fila `origen_cruce` anterior a `encaset + 1`. Da exactamente
+      **215 y 216**; el 238 se excluye solo por `deleted_at IS NULL`.
+- [x] **Los 4 pasos replican `SincronizarCruceAsync`**, no lo reinventan: devolver aves + anular
+      histórico *antes* del borrado (es cuando todavía se lee el baseline) → alinear encaset →
+      llamar la **fn canónica** → aplicar las bajas nuevas con el mismo reparto (`EsLoteMixto`), el
+      mismo clamp a 0 y la guarda `aves_encasetadas > 0`. Mismo patrón que
+      `20260729100000_AplicarBajasCruceReproductoraAlMaestroEngorde`.
+- [x] **De UNA sola vez, no convergente:** todo el `Up` va en un bloque guardado por la tabla de
+      respaldo. Re-correrlo volvería a recrear las filas con ids **nuevos** y dejaría el histórico de
+      la corrida anterior huérfano y sin anular — el invariante que esto viene a cuidar.
+
+### Validación — corrida, con el SQL extraído del `.cs` que se despacha
+- [x] `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **3.519/3.519** · `dotnet ef
+      migrations list` la ve `(Pending)` y **última**. Build con `--artifacts-path` aislado: había
+      **2 `dotnet` de otras sesiones**.
+      ⚠️ Para que EF liste las migraciones nuevas, `--msbuildprojectextensionspath` va al `obj/` del
+      proyecto **de migraciones** (`ZooSanMarino.Infrastructure`), no al del startup: apuntándolo al
+      del API listaba hasta `…170000` y **mentía sin error**.
+- [x] **Up**: 215 `7 filas / 5.080,320 kg / 10-16 ago` → **6 / 3.991,680 / 11-16**; 216
+      `7 / 1.542,240 / 13-19` → **6 / 1.360,800 / 14-19**. Violaciones **2 → 0**. Descuadre G0471
+      **−634,64 → +635,44**. Maestro 215 `15.175/15.087` → **15.196/15.111**, 216 `4.944/4.954` →
+      **4.949/4.959**. Cuadre de aves **0/0 `cuadra = true`**.
+- [x] **Nada colateral**: las 16 filas manuales quedan **byte a byte idénticas** (mismo id, misma
+      fecha); los **otros 64 galpones** del cuadre conservan la **misma huella** `md5 e926003d…`;
+      las huérfanas del universo siguen en **6** (las del 227, ver abajo).
+- [x] **Segunda corrida**: `NOTICE: ya aplicada, no se repite` — no mueve un solo número.
+- [x] **`Down`**: vuelve al estado inicial **línea por línea** (7 filas / 5.080,320 kg, maestro
+      15.175/15.087, encaset repro 09-ago, descuadre −634,64, violaciones 2) y borra los respaldos.
+- [x] **BD local intacta**: todo en transacción revertida — 0 tablas de respaldo, las 2 violaciones
+      siguen ahí. **No se aplicó a propósito**: `database update` arrastraría también las 3
+      migraciones pendientes de otras sesiones, y la BD local es una sola para todos los checkouts.
+
+### Fuera de alcance (explícito)
+- [ ] ⏸️ **No se despliega.** La migración queda commiteada; el deploy es otra entrega con su OK.
 
 ### [i] Hallazgo aparte, NO de esta tarea
 - [i] **Lote 227** (ItalcolPanamá, «14 - 1», vivo) tiene **6 filas `BAJA_SEGUIMIENTO` huérfanas y sin
