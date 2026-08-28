@@ -78,9 +78,12 @@
               <div class="grid grid-2">
                 <div class="form-field">
                   <label for="f-fecha">Fecha</label>
-                  <input id="f-fecha" type="date" formControlName="fechaRegistro" />
+                  <input id="f-fecha" type="date" formControlName="fechaRegistro"
+                    [attr.min]="fechaRegistroMin" [max]="fechaRegistroMax" />
                   @if (semanasCicloPosturaPorRaza && etapaCicloLabel) {
                     <small class="ux-hint">Etapa: <strong>{{ etapaCicloLabel }}</strong></small>
+                  } @else {
+                    <small class="ux-hint">{{ fechaRegistroHint }}</small>
                   }
                 </div>
                 <div class="form-field">

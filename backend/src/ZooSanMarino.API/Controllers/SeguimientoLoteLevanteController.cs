@@ -1,6 +1,7 @@
 // file: backend/src/ZooSanMarino.API/Controllers/SeguimientoLoteLevanteController.cs
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -66,6 +67,10 @@ public class SeguimientoLoteLevanteController : ControllerBase
     public async Task<ActionResult<SeguimientoLoteLevanteDto>> Create([FromBody] CreateSeguimientoLoteLevanteRequest request)
     {
         if (request is null) return BadRequest("Body requerido.");
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(request.FechaRegistro) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             // El request convierte automáticamente las unidades a kg
@@ -88,7 +93,11 @@ public class SeguimientoLoteLevanteController : ControllerBase
     public async Task<ActionResult<SeguimientoLoteLevanteDto>> Update(int id, [FromBody] CreateSeguimientoLoteLevanteRequest request)
     {
         if (request is null) return BadRequest("Body requerido.");
-        
+        // Ventana de fechas de los registros cargados a mano; la destraba el permiso de fecha
+        // retroactiva. Va acá y no en el service: el service lo comparten caminos que fechan histórico
+        // a propósito (carga masiva, devoluciones, anulaciones).
+        if (this.ValidarVentanaFechaRegistro(request.FechaRegistro) is { } fueraDeVentana) return fueraDeVentana;
+
         try
         {
             // El request convierte automáticamente las unidades a kg

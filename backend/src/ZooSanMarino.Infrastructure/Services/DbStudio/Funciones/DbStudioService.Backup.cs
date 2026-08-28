@@ -28,11 +28,11 @@ public sealed partial class DbStudioService
             await writer.WriteLineAsync("-- Formato SQL plano. Restaurar con: psql -h <host> -U <usuario> -d <bd> -f <archivo>.sql");
             await writer.WriteLineAsync("-- Alcance: tablas + datos completos + índices + FKs + secuencias + vistas + funciones + triggers.");
             await writer.WriteLineAsync("-- No incluye: roles/grants de Postgres, extensiones, comentarios, CHECK constraints.");
-            await writer.WriteLineAsync("-- Funciones en orden topológico (cada una después de las que invoca), vistas alfabéticas al final.");
+            await writer.WriteLineAsync("-- Funciones y vistas en un único bloque, en orden topológico: cada objeto después de los que usa.");
             await writer.WriteLineAsync("-- Restaurar sobre una base VACÍA y con -v ON_ERROR_STOP=1: no deberían quedar errores.");
             await writer.WriteLineAsync("-- ⚠ NO re-ejecutes este archivo completo sobre una base ya cargada: los INSERT no llevan ON CONFLICT y las");
             await writer.WriteLineAsync("--   tablas sin PK quedarían con filas duplicadas. Si alguna vez fallara una función/vista por dependencias,");
-            await writer.WriteLineAsync("--   re-corré SOLO el tramo entre '-- Funciones/procedimientos' y '-- Triggers' (todo CREATE OR REPLACE).");
+            await writer.WriteLineAsync("--   re-corré SOLO el tramo entre '-- Funciones/procedimientos y vistas' y '-- Triggers' (todo CREATE OR REPLACE).");
             await writer.WriteLineAsync("SET client_encoding = 'UTF8';");
             await writer.FlushAsync(ct);
 
@@ -120,8 +120,7 @@ public sealed partial class DbStudioService
             await writer.FlushAsync(ct);
 
             // ===== 6) Funciones, vistas, triggers (best-effort) =====
-            await WriteRoutinesAsync(writer, schemas, ct);
-            await WriteViewsAsync(writer, schemas, ct);
+            await WriteRutinasYVistasAsync(writer, schemas, ct);
             await WriteTriggersAsync(writer, schemas, tablesBySchema, ct);
 
             await writer.WriteLineAsync();
@@ -184,27 +183,33 @@ public sealed partial class DbStudioService
     }
 
     /// <summary>
+    /// Funciones, procedimientos y vistas en UN solo bloque, ordenado topológicamente por
+    /// <see cref="DbStudioSqlCalculos.OrdenarObjetosEsquemaPorDependencia"/>.
+    ///
+    /// Emitirlos en dos bloques (funciones primero, vistas alfabéticas al final) es lo que hacía el
+    /// backup hasta el 27ago26 y no alcanza: <c>fn_resumen_semanal_ra_pesadas_levante</c> y otras 3
+    /// funciones <c>LANGUAGE sql</c> LEEN <c>vw_guia_genetica_postura</c>, cuya creación quedaba 1.676
+    /// líneas más abajo ⇒ el restore cortaba con 42P01 <c>relation ... does not exist</c>. Y dar vuelta
+    /// los bloques tampoco sirve: <c>vw_guia_genetica_por_lote_postura</c> llama a <c>f_safe_numeric</c>
+    /// (vista → función) y además lee <c>vw_guia_genetica_postura</c> (vista → vista, que el orden
+    /// alfabético dejaba al revés: <c>por_</c> antes que <c>pos</c>). La dependencia va en los dos
+    /// sentidos, así que el orden tiene que ser uno solo sobre los dos tipos.
+    ///
     /// A diferencia de <c>GetFunctionSourceAsync</c> (busca por nombre + <c>LIMIT 1</c>, pensado para el
     /// explorador donde el usuario ya eligió un overload puntual), acá se consulta por <c>oid</c>
     /// directamente: si hay funciones con overloads (mismo nombre, distinta firma), cada una se exporta
     /// con su propio cuerpo en vez de duplicar el primer overload que Postgres devuelva y perder el resto.
     ///
-    /// El orden de emisión NO es el de <c>oid</c> ni el alfabético, sino el topológico que calcula
-    /// <see cref="DbStudioSqlCalculos.OrdenarRutinasPorDependencia"/> leyendo los cuerpos: una función
-    /// <c>LANGUAGE sql</c> se valida contra el catálogo AL CREARSE, así que tiene que ir después de las
-    /// que invoca o el restore falla con 42883. El orden por <c>oid</c> (creación) parece suficiente pero
-    /// no lo es: <c>DROP FUNCTION</c> + <c>CREATE</c> —obligatorio para cambiarle el <c>RETURNS TABLE</c> a
-    /// una función— le da un OID nuevo, más alto que el de sus llamadores, y la manda al final del archivo.
-    /// Pasó de verdad con <c>fn_seguimiento_diario_engorde</c> (backup del 13ago26, 4 funciones sin crear).
-    /// Ver plan: fase_de_desarrollo/db_studio_backup_orden_funciones_plan.md.
-    ///
     /// Se bufferean las definiciones antes de escribir (a diferencia del resto del backup, que va en
-    /// streaming puro): ordenar exige tenerlas todas. Son las rutinas del esquema, no las filas — el peso
-    /// del backup lo domina el volumen de datos.
+    /// streaming puro): ordenar exige tenerlas todas. Son las rutinas y vistas del esquema, no las filas
+    /// — el peso del backup lo domina el volumen de datos.
+    ///
+    /// Ver planes: fase_de_desarrollo/db_studio_backup_orden_funciones_plan.md (13ago26, funciones) y
+    /// fase_de_desarrollo/db_studio_backup_orden_vistas_funciones_plan.md (27ago26, vistas + funciones).
     /// </summary>
-    private async Task WriteRoutinesAsync(StreamWriter writer, List<string> schemas, CancellationToken ct)
+    private async Task WriteRutinasYVistasAsync(StreamWriter writer, List<string> schemas, CancellationToken ct)
     {
-        const string sql = @"
+        const string sqlRutinas = @"
             select p.oid::bigint as oid, p.proname as name, pg_get_functiondef(p.oid) as def
             from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
@@ -212,57 +217,72 @@ public sealed partial class DbStudioService
             order by p.oid;";
 
         await writer.WriteLineAsync();
-        await writer.WriteLineAsync("-- Funciones/procedimientos (orden topológico: cada una después de las que invoca)");
+        await writer.WriteLineAsync("-- Funciones/procedimientos y vistas (orden topológico: cada objeto después de los que usa)");
+        // Red de seguridad, igual que pg_dump: si al análisis de texto se le escapa una arista (SQL
+        // dinámico dentro de un EXECUTE, una función sin argumentos invocada sin paréntesis), la función
+        // se crea igual y queda sana apenas exista lo que le falta. A las VISTAS no las alcanza —su
+        // consulta se valida siempre—, así que el orden topológico sigue siendo obligatorio, no adorno.
+        await writer.WriteLineAsync("SET check_function_bodies = off;");
+
         await using var conn = await _rt.OpenReadAsync(ct);
         foreach (var schema in schemas)
         {
-            var rutinas = new List<RoutineDef>();
-            await using (var cmd = new NpgsqlCommand(sql, conn))
+            var objetos = new List<ObjetoEsquemaDef>();
+
+            await using (var cmd = new NpgsqlCommand(sqlRutinas, conn))
             {
                 cmd.Parameters.AddWithValue("schema", schema);
                 await using var rd = await cmd.ExecuteReaderAsync(ct);
                 while (await rd.ReadAsync(ct))
                 {
                     if (await rd.IsDBNullAsync(2, ct)) continue;
-                    rutinas.Add(new RoutineDef(rd.GetInt64(0), rd.GetString(1), rd.GetString(2)));
+                    objetos.Add(new ObjetoEsquemaDef(
+                        rd.GetInt64(0), rd.GetString(1), rd.GetString(2), TipoObjetoEsquema.Funcion));
                 }
             }
 
-            foreach (var r in OrdenarRutinasPorDependencia(rutinas))
-                await writer.WriteLineAsync($"{r.Definition};");
-            await writer.FlushAsync(ct);
-        }
-    }
-
-    private async Task WriteViewsAsync(StreamWriter writer, List<string> schemas, CancellationToken ct)
-    {
-        await writer.WriteLineAsync();
-        await writer.WriteLineAsync("-- Vistas (best-effort)");
-        foreach (var schema in schemas)
-        {
+            // Las vistas entran con su posición alfabética como clave de desempate (GetViewsAsync ya las
+            // trae así, y con el filtro de autorización aplicado): el archivo solo se aparta de ese orden
+            // —y del de OID de las funciones— donde una dependencia obliga.
+            var materializadas = new Dictionary<string, bool>(StringComparer.Ordinal);
+            long ordenVista = 0;
             foreach (var v in await GetViewsAsync(schema))
             {
                 try
                 {
                     var def = await GetViewDefinitionAsync(schema, v.Name);
                     if (string.IsNullOrWhiteSpace(def)) continue;
-                    var qview = QuoteQualified(schema, v.Name);
-                    if (v.Materialized)
-                    {
-                        await writer.WriteLineAsync($"DROP MATERIALIZED VIEW IF EXISTS {qview};");
-                        await writer.WriteLineAsync($"CREATE MATERIALIZED VIEW {qview} AS\n{def};");
-                    }
-                    else
-                    {
-                        await writer.WriteLineAsync($"CREATE OR REPLACE VIEW {qview} AS\n{def};");
-                    }
+                    materializadas[v.Name] = v.Materialized;
+                    objetos.Add(new ObjetoEsquemaDef(ordenVista++, v.Name, def, TipoObjetoEsquema.Vista));
                 }
                 catch (Exception ex)
                 {
+                    // Best-effort: una vista que no se pueda exportar no aborta el backup entero.
                     _logger.LogWarning(ex, "No se pudo exportar la vista {Schema}.{View} en el backup", schema, v.Name);
                     await writer.WriteLineAsync($"-- [omitida] vista {schema}.{v.Name}: {ex.Message}");
                 }
             }
+
+            foreach (var o in OrdenarObjetosEsquemaPorDependencia(objetos))
+            {
+                if (o.Tipo == TipoObjetoEsquema.Funcion)
+                {
+                    await writer.WriteLineAsync($"{o.Definition};");
+                    continue;
+                }
+
+                var qview = QuoteQualified(schema, o.Name);
+                if (materializadas.TryGetValue(o.Name, out var esMaterializada) && esMaterializada)
+                {
+                    await writer.WriteLineAsync($"DROP MATERIALIZED VIEW IF EXISTS {qview};");
+                    await writer.WriteLineAsync($"CREATE MATERIALIZED VIEW {qview} AS\n{o.Definition};");
+                }
+                else
+                {
+                    await writer.WriteLineAsync($"CREATE OR REPLACE VIEW {qview} AS\n{o.Definition};");
+                }
+            }
+            await writer.FlushAsync(ct);
         }
     }
 

@@ -51,6 +51,12 @@ import {
   ymdToIsoAtNoon as ymdToIsoAtNoonFn,
   emptyMetadata as emptyMetadataFn
 } from '../../funciones/modal-seguimiento-diario-calculos.funcion';
+import {
+  extremosVentanaRegistro,
+  hintVentanaFechaRegistro,
+  PERMISO_FECHA_RETROACTIVA
+} from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
 export type { MetadataSeguimientoNormalizada };
 
@@ -201,6 +207,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     showCancel: false
   };
 
+  /** Ventana de fechas admitida para `fechaRegistro` (mes en curso ∪ últimos 15 días, o sin piso con el permiso). */
+  fechaRegistroMin: string | null = '';
+  fechaRegistroMax = '';
+  fechaRegistroHint = '';
+
   constructor(
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
@@ -211,11 +222,23 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     private companyConfig: ActiveCompanyConfigService,
     private toast: ToastService,
     private silosSvc: SilosService,
-    private huevoItemsSvc: LoteHuevoItemsService
+    private huevoItemsSvc: LoteHuevoItemsService,
+    private userPermService: UserPermissionService
   ) { }
+
+  /** Deja min/max/hint listos para el template (referencias estables). */
+  private aplicarVentanaFecha(): void {
+    const puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
+    const hoy = new Date();
+    const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);
+    this.fechaRegistroMin = extremos.min;
+    this.fechaRegistroMax = extremos.max;
+    this.fechaRegistroHint = hintVentanaFechaRegistro(hoy, puedeRetroactivar);
+  }
 
   ngOnInit(): void {
     this.initializeForm();
+    this.aplicarVentanaFecha();
     this.checkCountry();
     this.loadCompanyFlags();
   }

@@ -317,4 +317,134 @@ public class DbStudioSqlCalculosTests
         };
         Assert.Equal(new[] { "fn_dep", "fn_llama" }, Nombres(OrdenarRutinasPorDependencia(rutinas)));
     }
+
+    // ===================== Orden de funciones Y VISTAS (27ago26) =====================
+    // El backup del 27ago26 cortó al restaurar con 42P01 `relation "vw_guia_genetica_postura" does not
+    // exist`: las funciones salían en un bloque y las vistas en otro, alfabéticas, DESPUÉS — pero 4
+    // funciones LANGUAGE sql leen esa vista. Ver plan:
+    // fase_de_desarrollo/db_studio_backup_orden_vistas_funciones_plan.md.
+
+    private static ObjetoEsquemaDef ObjFn(long orden, string name, string cuerpo = "") =>
+        new(orden, name, $"CREATE OR REPLACE FUNCTION public.{name}(p_lote_id integer)\nAS $function$ {cuerpo} $function$",
+            TipoObjetoEsquema.Funcion);
+
+    private static ObjetoEsquemaDef ObjVista(long orden, string name, string cuerpo = "SELECT 1") =>
+        new(orden, name, cuerpo, TipoObjetoEsquema.Vista);
+
+    private static string[] NombresObj(IReadOnlyList<ObjetoEsquemaDef> os) => os.Select(o => o.Name).ToArray();
+
+    [Fact]
+    public void OrdenarObjetos_FuncionQueLeeUnaVista_LaVistaSaleAntes()
+    {
+        // El caso que reventó: la función se emitía primero porque las vistas iban todas al final.
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjFn(100, "fn_resumen_semanal_ra_pesadas_levante", "FROM vw_guia_genetica_postura gg WHERE gg.company_id = 1"),
+            ObjFn(200, "fn_indicadores_levante_postura",        "LEFT JOIN vw_guia_genetica_postura g ON true"),
+            ObjVista(0, "vw_guia_genetica_postura", "SELECT g.id FROM guia_genetica_sanmarino_colombia g")
+        };
+
+        var orden = NombresObj(OrdenarObjetosEsquemaPorDependencia(objetos));
+
+        Assert.Equal("vw_guia_genetica_postura", orden[0]);
+        Assert.Equal(3, orden.Length);
+    }
+
+    [Fact]
+    public void OrdenarObjetos_VistaQueLeeOtraVista_QuedaDespuesAunqueElAlfabeticoLasDeVuelta()
+    {
+        // Alfabéticamente `por_` < `pos`, así que la que LEE se emitía primero: 2ª falla del mismo backup.
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjVista(0, "vw_guia_genetica_por_lote_postura", "SELECT * FROM vw_guia_genetica_postura g"),
+            ObjVista(1, "vw_guia_genetica_postura",          "SELECT 1")
+        };
+
+        Assert.Equal(
+            new[] { "vw_guia_genetica_postura", "vw_guia_genetica_por_lote_postura" },
+            NombresObj(OrdenarObjetosEsquemaPorDependencia(objetos)));
+    }
+
+    [Fact]
+    public void OrdenarObjetos_VistaQueLlamaAUnaFuncion_LaFuncionSaleAntes()
+    {
+        // Por esto NO alcanza con dar vuelta los bloques (vistas primero): la dependencia va y viene.
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjVista(0, "vw_guia_genetica_por_lote_postura", "SELECT f_safe_numeric(g.peso_h) FROM guia g"),
+            ObjFn(900, "f_safe_numeric", "select 1")
+        };
+
+        Assert.Equal(
+            new[] { "f_safe_numeric", "vw_guia_genetica_por_lote_postura" },
+            NombresObj(OrdenarObjetosEsquemaPorDependencia(objetos)));
+    }
+
+    [Fact]
+    public void OrdenarObjetos_CadenaMixtaFuncionVistaFuncion_QuedaEnOrdenDeDependencia()
+    {
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjFn(10, "fn_arriba", "FROM vw_medio v"),
+            ObjVista(0, "vw_medio", "SELECT f_base(x) FROM t"),
+            ObjFn(20, "f_base", "select 1")
+        };
+
+        Assert.Equal(
+            new[] { "f_base", "vw_medio", "fn_arriba" },
+            NombresObj(OrdenarObjetosEsquemaPorDependencia(objetos)));
+    }
+
+    [Fact]
+    public void OrdenarObjetos_SinDependencias_PrimeroLasFuncionesPorOidYDespuesLasVistasAlfabeticas()
+    {
+        // No reordenar porque sí: sin aristas el archivo queda igual que el de siempre.
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjVista(1, "vw_b"),
+            ObjFn(30, "fn_c"),
+            ObjVista(0, "vw_a"),
+            ObjFn(10, "fn_a")
+        };
+
+        Assert.Equal(
+            new[] { "fn_a", "fn_c", "vw_a", "vw_b" },
+            NombresObj(OrdenarObjetosEsquemaPorDependencia(objetos)));
+    }
+
+    [Fact]
+    public void OrdenarObjetos_CicloMixto_NoPierdeObjetos_YDevuelvePermutacionExacta()
+    {
+        var objetos = new List<ObjetoEsquemaDef>
+        {
+            ObjFn(10, "fn_a", "FROM vw_x v"),
+            ObjVista(0, "vw_x", "SELECT fn_a(1)"),   // ciclo real función↔vista (imposible en Postgres,
+            ObjVista(1, "vw_libre", "SELECT 1"),     //  pero una arista falsa lo simula igual)
+            ObjFn(20, "fn_libre", "select 1")
+        };
+
+        var orden = OrdenarObjetosEsquemaPorDependencia(objetos);
+
+        Assert.Equal(objetos.Count, orden.Count);
+        Assert.Equal(
+            objetos.OrderBy(o => o.Name).ToList(),
+            orden.OrderBy(o => o.Name).ToList());
+        // Los que no están en el ciclo salen normal; el ciclo degrada al final en (Tipo, Orden).
+        Assert.Equal(new[] { "fn_libre", "vw_libre", "fn_a", "vw_x" }, NombresObj(orden));
+    }
+
+    [Theory]
+    // Una vista se lee sin paréntesis: alcanza la frontera de palabra a los dos lados.
+    [InlineData("FROM vw_guia_genetica_postura gg", "vw_guia_genetica_postura", true)]
+    [InlineData("FROM public.vw_x g", "vw_x", true)]
+    [InlineData("FROM \"public\".\"vw_x\"", "vw_x", true)]
+    // Sufijo pegado a la derecha: NO es la misma relación (el caso `por_lote_` del backup real).
+    [InlineData("FROM vw_guia_genetica_por_lote_postura p", "vw_guia_genetica_postura", false)]
+    [InlineData("FROM vw_x_v2 g", "vw_x", false)]
+    // Prefijo pegado a la izquierda.
+    [InlineData("FROM mi_vw_x g", "vw_x", false)]
+    // Nombrada en un comentario: arista de más, nunca de menos.
+    [InlineData("-- ojo con vw_x acá", "vw_x", true)]
+    public void DefinicionUsaRelacion_RespetaFronterasDePalabraALosDosLados(string cuerpo, string nombre, bool esperado)
+        => Assert.Equal(esperado, DefinicionUsaRelacion(cuerpo, nombre));
 }
