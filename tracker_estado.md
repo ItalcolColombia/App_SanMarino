@@ -4532,11 +4532,19 @@ Plan: [`fase_de_desarrollo/demo_lista_practica_carga_masiva_costos_plan.md`](fas
       dos veces en transacción con `ROLLBACK`.
 
 ### Parte B — Limpieza de datos (destructiva, ⏸️ requiere OK explícito)
-- [ ] ⏸️ `backend/sql/migracion_limpieza_demo_practica_costos.sql` — **NO va por migración** (se
+- [x] `backend/sql/migracion_limpieza_demo_practica_costos.sql` escrito — **NO va por migración** (se
       re-ejecutaría en cualquier entorno nuevo y no hay `Down()`). Script de una sola vez, prefijo
-      `migracion_*` exento del gate por diseño.
-- [ ] ⏸️ Ensayo en transacción con `ROLLBACK` antes del `COMMIT` real.
-- [ ] ⏸️ Ejecutar en local solo con OK del usuario; en prod, entrega aparte.
+      `migracion_*` exento del gate por diseño; **el gate `verificar-sql-llega-por-migracion.js` pasa**.
+      Resuelve la empresa UNA vez a una temp table y aborta con `RAISE EXCEPTION` si no hay
+      exactamente una: ninguna sentencia puede correr sin el filtro.
+- [x] **Ensayo con `ROLLBACK` corrido y verificado.** Sin un solo error de FK. Operativos de Demo a 0
+      (73 histórico + 42 seguimientos + 17 lotes base + 12 movimientos + …); **estructura intacta**
+      (9 granjas / 20 galpones / 10 núcleos); las otras 4 empresas sin una fila de diferencia.
+      Confirmado además que el `ROLLBACK` revirtió: los datos siguen ahí.
+- [x] **El orden de borrado se midió con `pg_constraint`, no se supuso** — `lote_postura_produccion`
+      apunta con RESTRICT a levante, y `lotes` a `lote_postura_base`. El histórico unificado se borra
+      **explícitamente**: lo llena un trigger AFTER INSERT y ningún DELETE del origen se propaga solo.
+- [ ] ⏸️ **Ejecutar de verdad (cambiar `ROLLBACK` por `COMMIT`): FALTA TU OK.** En prod, entrega aparte.
 
 ### Fuera de alcance (explícito)
 - [ ] ⏸️ **No se despliega.** La migración queda commiteada; el deploy es otra entrega con OK aparte.
