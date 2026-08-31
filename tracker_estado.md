@@ -4888,3 +4888,36 @@ todo dejando constancia escrita* de lo que no se entregó.
 - [i] Quedan **15 casos no cerrados de OTRAS empresas** (11 SOLUCIONADO, 2 EN_ANALISIS,
       1 TRANSFERIDO, 1 EN_IMPLEMENTACION). Fuera del alcance de esta tarea: los SOLUCIONADO los
       cierra el solicitante desde la pantalla, no una migración
+
+---
+
+## Cierre de los 13 casos ya resueltos de Sanmarino, Panama y Ecuador (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/cierre_tickets_resueltos_otras_empresas_plan.md`](fase_de_desarrollo/cierre_tickets_resueltos_otras_empresas_plan.md)
+
+Continua el bloque anterior (Santa Reyes). De los 15 casos no cerrados de las otras 3 empresas,
+**13 tienen el arreglo verificado en el codigo y desplegado**; 11 solo esperaban la confirmacion del
+solicitante (unica via a CERRADO) y 2 estaban resueltos sin que nadie moviera la tarjeta.
+
+### A — Validacion caso por caso (contra el codigo y `origin/main-produccion`)
+- [ ] Los 13 con su evidencia (commit o dato) y confirmados como ancestros de `main-produccion`
+- [ ] Los 2 que quedan FUERA, con su motivo: `TK-000183` (CAROLINA) tiene trabajo real pendiente y
+      `TK-000001` es un caso de prueba de junio
+- [ ] Hallazgo: 3 casos (`20`, `164`, `165`) se marcaron SOLUCIONADO por migracion y quedaron sin
+      nota ni correo ⇒ el solicitante nunca supo que estaba resuelto
+
+### B — Migracion `20260831130000_CerrarTicketsResueltosOtrasEmpresas` (data-only)
+- [ ] Localiza por `codigo` + empresa (no por titulo: varios los tipeo el usuario)
+- [ ] Fail-safe por estado: si en prod ya esta CERRADO o lo reabrieron, lo saltea con NOTICE
+- [ ] Los 2 de EN_ANALISIS reciben solucion + fecha_solucion + las 2 notas
+- [ ] Los 11 de SOLUCIONADO conservan su solucion y fecha originales; se les agrega la nota de cierre
+- [ ] A los 3 sin nota de SOLUCIONADO se les siembra, fechada en su `fecha_solucion` real
+- [ ] La nota dice que el cierre lo hizo la GESTION, cuantos dias espero y que se reabre si vuelve
+- [ ] `Down()` devuelve cada uno a su estado previo y borra solo lo que sembro
+
+### C — Validacion
+- [ ] `Up()` dos veces en transaccion revertida: 2a pasada sin movimiento ni notas duplicadas
+- [ ] `Down()` restaura los 13, con la `fecha_solucion` original de los 11 intacta
+- [ ] Fail-safe probado forzando un caso a CERRADO antes del `Up()`
+- [ ] `TK-000183`, `TK-000001` y los de Santa Reyes intactos
+- [ ] `dotnet build` + `dotnet test` verdes
