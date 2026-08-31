@@ -5000,3 +5000,38 @@ marcara SOLUCIONADO (18-ago) — el ultimo el 27-ago, cuatro dias antes de que y
 - [x] Ninguna otra empresa tocada: el respaldo tiene **solo `company_id = 5`**
 - [x] Aplicada a la BD local: 0 duplicados, 8 filas del historico anuladas, 8 respaldadas, y
       **0 filas de stock en negativo** en toda la base
+
+---
+
+## Correccion de los 12 hallazgos de la auditoria de tickets cerrados (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/correccion_hallazgos_auditoria_tickets_plan.md`](fase_de_desarrollo/correccion_hallazgos_auditoria_tickets_plan.md)
+
+La auditoria adversarial completa (36 agentes, 0 errores) confirmo que **12 de 13 casos cerrados
+siguen fallando por algun lado**. El primero (doble descuento de alimento) ya se corrigio en `9a7b3d8`.
+Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo quedo atras**.
+
+### Tanda A — dos cambios chicos de alto impacto
+- [ ] #4 `TK-012/A` — el traslado por cierre de levante se sella con `new Date()` del navegador,
+      12 lineas despues de que la misma pantalla mande la fecha que el usuario eligio
+- [ ] #7 `TK-020/A` — la carga masiva de levante y produccion descarta el DIA COMPLETO ante una
+      simple Advertencia y aun asi reporta «Procesado»: es el mecanismo generico de «la carga llega
+      hasta la semana N»
+
+### Tanda B — el critico con datos perdidos
+- [ ] #1 `TK-164` — borrar un seguimiento de reproductora YA CONFIRMADO no devuelve el alimento
+      (952,560 kg perdidos) y la UI empuja a hacer exactamente eso
+
+### Tanda C — el critico latente
+- [ ] #2 `TK-166` — con el flag ON el backend no valida stock en ningun seguimiento
+
+### Tanda D — fechas y presentacion
+- [ ] #5 `TK-014` · #6 `TK-012/C` · #9 `TK-176` · #10 `TK-177`
+
+### Tanda E — lo mas grande
+- [ ] #3 `TK-163` · #11 `TK-012/B` · #12 `TK-015`
+
+### Sin codigo
+- [!] #8 `TK-020/B` — S369 sigue en 168 dias; el remedio indicado al usuario esta BLOQUEADO por
+      falta de stock. Hay que reabrir el caso con la instruccion correcta (falta cargar la entrada
+      de alimento; deficit informado por el propio sistema: 382.310 kg en la granja MANGOS)
