@@ -4805,3 +4805,36 @@ fase de producción.
       saltea. Medido antes de borrar: el registro no había movido el maestro (3.000 = inicial),
       no tenía fila en `lote_registro_historico_unificado` ni movimientos de inventario. Después:
       0 registros en el lote, maestro en 3.000, y los **2 tipos de huevo siguen declarados**.
+
+---
+
+# Día de encasetamiento: sin día 0 en indicadores + herencia de hora en reproductora (31-ago-2026)
+
+Plan: [fase_de_desarrollo/dia_encaset_reproductora_indicadores_engorde_plan.md](fase_de_desarrollo/dia_encaset_reproductora_indicadores_engorde_plan.md)
+
+Ticket Panamá: encaset 27-ago con hora 21:33 → el 28-ago salía como «día 2» en seguimiento
+reproductora, y los indicadores diarios de engorde arrancaban en «día 0». No hay día cero.
+
+### A — Backend: hora efectiva de la reproductora (hereda del lote pollo engorde)
+- [x] `EncasetamientoCalculos.HoraEfectivaReproductora(horaRepro, horaEngorde)` + tests xUnit
+- [x] `LoteReproductoraAveEngordeDto.HoraEncasetamientoEfectiva` (campo nuevo, no rompe contrato)
+- [x] `LoteReproductoraAveEngordeService`: proyección de la hora del engorde en TODAS las salidas
+      (GetAll/GetById/Create/CreateBulk/Update/Reabrir) + diagnóstico retroactivo con la efectiva
+- [x] `SeguimientoDiarioLoteReproductoraService`: guardas Create/Update con hora efectiva
+- [x] Carga masiva (`MigracionService.SeguimientoReproductora`): validación con hora efectiva
+
+### B — Frontend: numeración día 1 y fecha sugerida
+- [x] DTO TS `horaEncasetamientoEfectiva` + lista reproductora: desplazamiento por hora efectiva,
+      acotado a la menor edad registrada (131/132 conservan 1..7; 146/147 arrancan en día 1)
+- [x] `nextSuggestedFecha` (primer registro) = encaset + desplazamiento; modal con hora efectiva
+- [x] Indicadores engorde: `row.dia` = día de negocio 1-based (guía y ganancia siguen por edad);
+      hora pasada desde `tabs-principal-engorde` a tabla y gráficas
+- [x] Specs Karma del compute actualizados + caso tardío + caso «encaset = día 1»
+
+### C — Datos y validación
+- [x] Verificación en BD: engorde sin registros en edad 0 de lotes tardíos (nada que mover);
+      reproductora 131/132 quedan numerados 1..7 por la acotación — sin UPDATEs (el cruce ya está bien)
+- [x] `dotnet build` + `dotnet test` verdes
+- [x] `yarn build` OK + spec compute verde
+- [x] Smoke HTTP local: detail 146 con efectiva 21:33; POST 27-ago rechazado con mensaje del 28-ago;
+      empresa sin hora idéntica a antes. Backend apagado y :5002 libre al terminar

@@ -11,6 +11,11 @@ import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engord
  * diario (1ra semana a diario, luego cada 4 dias). Casos cubren: pesaje diario (sin cambio),
  * pesaje cada 4 dias, un intervalo distinto de 4 (generalizacion pedida por Moises) y un dia sin
  * peso registrado en medio de un tramo.
+ *
+ * Ticket Panama (31-ago-2026): `row.dia` paso a ser el DIA DE NEGOCIO 1-based (el primer dia con
+ * registro es el dia 1; no existe el dia 0, y en un lote que llego a las 13:00 o despues ese
+ * primer dia es el siguiente al encaset). La EDAD (0-based) se conserva internamente para el
+ * cruce con la guia genetica y para la aritmetica de ganancia, que no cambian.
  */
 describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
   const ENCASET = '2026-01-01';
@@ -33,6 +38,24 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEcuadorService;
   }
 
+  /** Guia con dos dias distintos para verificar que el cruce sigue siendo por EDAD. */
+  function guiaFakeDosDias(): GuiaGeneticaEcuadorService {
+    const base = {
+      sexo: 'mixto',
+      gananciaDiariaG: 5,
+      promedioGananciaDiariaG: 5,
+      cantidadAlimentoDiarioG: 10,
+      alimentoAcumuladoG: 10,
+      ca: 0.2,
+      mortalidadSeleccionDiaria: 0
+    };
+    const detalle: GuiaGeneticaEcuadorDetalleDto[] = [
+      { ...base, dia: 0, pesoCorporalG: PESO_INI } as GuiaGeneticaEcuadorDetalleDto,
+      { ...base, dia: 1, pesoCorporalG: 62 } as GuiaGeneticaEcuadorDetalleDto
+    ];
+    return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEcuadorService;
+  }
+
   function lote(): LoteDto {
     return {
       loteId: 1,
@@ -46,12 +69,12 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     } as LoteDto;
   }
 
-  /** Fila minima de seguimiento: dia de vida `diaVida` (respecto a ENCASET) con un peso mixto dado. */
-  function reg(diaVida: number, pesoH: number, pesoM: number): SeguimientoLoteLevanteDto {
-    const fecha = new Date(2026, 0, 1 + diaVida, 12, 0, 0, 0);
+  /** Fila minima de seguimiento en la EDAD `edad` (dias desde ENCASET; 0 = dia del encaset). */
+  function reg(edad: number, pesoH: number, pesoM: number): SeguimientoLoteLevanteDto {
+    const fecha = new Date(2026, 0, 1 + edad, 12, 0, 0, 0);
     const ymd = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
     return {
-      id: diaVida,
+      id: edad,
       fechaRegistro: ymd,
       loteId: '1',
       mortalidadHembras: 0,
@@ -88,7 +111,8 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     const { filas, guiaOk } = await service.compute(seguimientos, lote());
 
     expect(guiaOk).toBe(true);
-    for (const dia of [1, 2, 3, 4, 5, 6, 7]) {
+    // Sin hora: dia mostrado = edad + 1 (edades 1..7 → dias 2..8).
+    for (const dia of [2, 3, 4, 5, 6, 7, 8]) {
       expect(filaDia(filas, dia).gananciaDiariaRealG).toBe(5);
     }
   });
@@ -102,7 +126,7 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 11).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 12).gananciaDiariaRealG).toBe(5);
   });
 
   it('intervalo distinto de 4 dias: ganancia = delta / dias reales transcurridos', async () => {
@@ -114,7 +138,7 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 16).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 17).gananciaDiariaRealG).toBe(5);
   });
 
   it('dia sin peso registrado en medio de un tramo: null y no mueve el ultimo pesaje', async () => {
@@ -122,22 +146,57 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     const seguimientos = [
       reg(11, 95, 95),
       reg(13, 0, 0), // sin pesaje ese dia
-      reg(16, 120, 120) // debe seguir comparando contra el dia 11, no el 13
+      reg(16, 120, 120) // debe seguir comparando contra la edad 11, no la 13
     ];
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 13).gananciaDiariaRealG).toBeNull();
-    expect(filaDia(filas, 16).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 14).gananciaDiariaRealG).toBeNull();
+    expect(filaDia(filas, 17).gananciaDiariaRealG).toBe(5);
   });
 
-  it('primer pesaje del lote: compara contra el peso inicial en el dia 0', async () => {
+  it('primer pesaje del lote: compara contra el peso inicial del dia del encaset', async () => {
     const service = new IndicadoresDiariosEngordeComputeService(guiaFake());
     const seguimientos = [reg(1, 45, 45)];
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    // (45 - PESO_INI) / (1 - 0) = 5
-    expect(filaDia(filas, 1).gananciaDiariaRealG).toBe(45 - PESO_INI);
+    // (45 - PESO_INI) / (edad 1 - edad 0) = 5 — la aritmetica sigue en EDADES.
+    expect(filaDia(filas, 2).gananciaDiariaRealG).toBe(45 - PESO_INI);
+  });
+
+  // ─── Numeracion de negocio (ticket Panama 31-ago-2026: no existe el dia 0) ───
+
+  it('sin hora: el dia del encaset es el dia 1 y ninguna fila queda en dia 0', async () => {
+    const service = new IndicadoresDiariosEngordeComputeService(guiaFake());
+    const seguimientos = [reg(0, 42, 42), reg(1, 45, 45), reg(2, 50, 50)];
+
+    const { filas } = await service.compute(seguimientos, lote());
+
+    expect(filas.map(f => f.dia)).toEqual([1, 2, 3]);
+    expect(filas.every(f => f.dia >= 1)).toBe(true);
+  });
+
+  it('lote tardio (hora >= 13:00): el primer dia con registro (edad 1) se numera dia 1', async () => {
+    const service = new IndicadoresDiariosEngordeComputeService(guiaFake());
+    // Con llegada 21:33 el dia del encaset no admite registro: el lote arranca en la edad 1.
+    const seguimientos = [reg(1, 45, 45), reg(2, 50, 50), reg(3, 55, 55)];
+
+    const { filas } = await service.compute(seguimientos, lote(), '21:33');
+
+    expect(filas.map(f => f.dia)).toEqual([1, 2, 3]);
+    // La ganancia no cambia: el divisor sigue siendo en edades (45 − 40 en 1 dia).
+    expect(filaDia(filas, 1).gananciaDiariaRealG).toBe(5);
+  });
+
+  it('la guia genetica sigue cruzando por EDAD aunque el dia mostrado sea 1-based', async () => {
+    const service = new IndicadoresDiariosEngordeComputeService(guiaFakeDosDias());
+    const seguimientos = [reg(0, 42, 42), reg(1, 60, 60)];
+
+    const { filas } = await service.compute(seguimientos, lote());
+
+    // Fila mostrada como dia 1 = edad 0 → guia del dia 0 (40 g); dia 2 = edad 1 → guia del dia 1 (62 g).
+    expect(filaDia(filas, 1).pesoTablaG).toBe(PESO_INI);
+    expect(filaDia(filas, 2).pesoTablaG).toBe(62);
   });
 });

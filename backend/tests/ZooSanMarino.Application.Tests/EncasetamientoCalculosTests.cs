@@ -221,4 +221,52 @@ public class EncasetamientoCalculosTests
         Assert.Equal(Encaset, EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, null));
         Assert.Null(EncasetamientoCalculos.MotivoDesplazamiento(null));
     }
+
+    // ── Hora efectiva del lote reproductora (ticket Panamá 31-ago-2026: lote 95-1, hora 21:33) ──
+    // La hora se captura en el formulario del lote POLLO ENGORDE; las reproductoras quedan con NULL
+    // (0 de 142 en prod). Sin herencia, el primer registro de un lote tardío se numeraba «día 2» y
+    // el guarda del día del encasetamiento nunca disparaba.
+
+    [Fact]
+    public void HoraEfectivaReproductora_SinHoraPropia_HeredaLaDelLoteEngorde()
+    {
+        var horaEngorde = new TimeOnly(21, 33);
+
+        var efectiva = EncasetamientoCalculos.HoraEfectivaReproductora(null, horaEngorde);
+
+        Assert.Equal(horaEngorde, efectiva);
+        // Con la heredada tardía, el primer registro va al día siguiente del encaset (edad mínima 1).
+        Assert.Equal(1, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
+    }
+
+    [Fact]
+    public void HoraEfectivaReproductora_LaHoraPropiaGanaSobreLaDelEngorde()
+    {
+        var propia = new TimeOnly(9, 0);
+        var engorde = new TimeOnly(21, 33);
+
+        var efectiva = EncasetamientoCalculos.HoraEfectivaReproductora(propia, engorde);
+
+        Assert.Equal(propia, efectiva);
+        Assert.Equal(0, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
+    }
+
+    [Fact]
+    public void HoraEfectivaReproductora_AmbasNull_QuedaNull_ComportamientoPrevio()
+    {
+        var efectiva = EncasetamientoCalculos.HoraEfectivaReproductora(null, null);
+
+        Assert.Null(efectiva);
+        Assert.Equal(0, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
+    }
+
+    [Fact]
+    public void HoraEfectivaReproductora_HeredadaTemprana_NoDesplazaElPrimerDia()
+    {
+        var efectiva = EncasetamientoCalculos.HoraEfectivaReproductora(null, new TimeOnly(8, 30));
+
+        Assert.Equal(new TimeOnly(8, 30), efectiva);
+        Assert.Equal(0, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
+        Assert.Equal(Encaset, EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, efectiva));
+    }
 }

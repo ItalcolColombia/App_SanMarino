@@ -107,4 +107,17 @@ public static class EncasetamientoCalculos
         LlegadaTardia(horaEncasetamiento)
             ? $"las aves llegaron a las {horaEncasetamiento!.Value:HH\\:mm} (desde las {HoraCorte:HH\\:mm} el primer consumo va al día siguiente)"
             : null;
+
+    /// <summary>
+    /// Hora de llegada que rige a un lote REPRODUCTORA aves de engorde: la propia y, si no tiene
+    /// (el caso real: la hora se captura en el formulario del lote POLLO ENGORDE y las reproductoras
+    /// quedan con NULL), la de su lote de engorde — son la misma llegada física de pollitos.
+    /// <para>
+    /// Sin esta herencia el desplazamiento de la reproductora siempre daba 0: su primer registro
+    /// (día siguiente al encaset en un lote tardío) se numeraba «día 2» y el guarda del día del
+    /// encasetamiento nunca disparaba (ticket Panamá 31-ago-2026, lote 95-1 con hora 21:33).
+    /// </para>
+    /// </summary>
+    public static TimeOnly? HoraEfectivaReproductora(TimeOnly? horaReproductora, TimeOnly? horaLoteEngorde) =>
+        horaReproductora ?? horaLoteEngorde;
 }

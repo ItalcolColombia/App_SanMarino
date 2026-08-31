@@ -31,7 +31,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         return _current.CompanyId;
     }
 
-    private static LoteReproductoraAveEngordeDto Map(LoteReproductoraAveEngorde x, string estado, int avesActuales, ReproStats? stats = null)
+    private static LoteReproductoraAveEngordeDto Map(LoteReproductoraAveEngorde x, string estado, int avesActuales, ReproStats? stats = null, TimeOnly? horaLoteEngorde = null)
     {
         var avesInicioH = x.AvesInicioHembras ?? x.H ?? 0;
         var avesInicioM = x.AvesInicioMachos ?? x.M ?? 0;
@@ -68,7 +68,11 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             x.CodigoReproductora,
             x.Reabierto,
             x.NovedadApertura,
-            x.HoraEncasetamiento
+            x.HoraEncasetamiento,
+            // La hora que rige numeración y primer registro: la propia o la del lote de engorde
+            // (la captura vive en el formulario del lote pollo engorde; 0 de 142 reproductoras
+            // tienen hora propia en prod).
+            EncasetamientoCalculos.HoraEfectivaReproductora(x.HoraEncasetamiento, horaLoteEngorde)
         );
     }
 
@@ -142,40 +146,41 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 where l.CompanyId == companyId && l.DeletedAt == null
                    && (!loteAveEngordeId.HasValue || lrae.LoteAveEngordeId == loteAveEngordeId.Value)
                 orderby lrae.LoteAveEngordeId, lrae.ReproductoraId
-                select lrae;
+                select new { Lote = lrae, HoraEngorde = l.HoraEncasetamiento };
         var list = await q.ToListAsync();
         if (list.Count == 0) return Array.Empty<LoteReproductoraAveEngordeDto>();
-        var ids = list.Select(x => x.Id).ToList();
+        var ids = list.Select(x => x.Lote.Id).ToList();
         var ventas = await GetVentasPorReproductoraAsync(ids);
         var stats = await GetReproStatsAsync(ids);
         return list.Select(x =>
         {
-            var encaset = AvesEncasetadas(x);
-            var v = ventas.GetValueOrDefault(x.Id, 0);
-            var st = stats.GetValueOrDefault(x.Id);
+            var encaset = AvesEncasetadas(x.Lote);
+            var v = ventas.GetValueOrDefault(x.Lote.Id, 0);
+            var st = stats.GetValueOrDefault(x.Lote.Id);
             var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
             var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
             var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
             var (estado, avesActuales) = CalcularEstado(encaset, v, mort, sel, err, st?.NumConfirmados ?? 0);
-            return Map(x, estado, avesActuales, st);
+            return Map(x.Lote, estado, avesActuales, st, x.HoraEngorde);
         }).ToList();
     }
 
     public async Task<LoteReproductoraAveEngordeDto?> GetByIdAsync(int id)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+        var fila = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select lrae).SingleOrDefaultAsync();
-        if (ent is null) return null;
+                         select new { Lote = lrae, HoraEngorde = l.HoraEncasetamiento }).SingleOrDefaultAsync();
+        if (fila is null) return null;
+        var ent = fila.Lote;
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
         var st = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
         var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
         var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
         var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
         var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.NumConfirmados ?? 0);
-        return Map(ent, estado, avesActuales, st);
+        return Map(ent, estado, avesActuales, st, fila.HoraEngorde);
     }
 
     public async Task<LoteReproductoraAveEngordeDto> CreateAsync(CreateLoteReproductoraAveEngordeDto dto)
@@ -185,7 +190,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         if (string.IsNullOrWhiteSpace(dto.NombreLote))
             throw new InvalidOperationException("NombreLote es requerido.");
 
-        await EnsureLoteAveEngordeExistsAsync(dto.LoteAveEngordeId, bloquearSiLiquidado: true);
+        var horaEngorde = await EnsureLoteAveEngordeExistsAsync(dto.LoteAveEngordeId, bloquearSiLiquidado: true);
 
         var exists = await _ctx.LoteReproductoraAveEngorde
             .AnyAsync(x => x.LoteAveEngordeId == dto.LoteAveEngordeId && x.ReproductoraId == (dto.ReproductoraId ?? "").Trim());
@@ -220,7 +225,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
 
         var encaset = AvesEncasetadas(ent);
         var (estado, avesActuales) = CalcularEstado(encaset, 0, 0, 0, 0);
-        var result = Map(ent, estado, avesActuales);
+        var result = Map(ent, estado, avesActuales, null, horaEngorde);
 
         var companyId = await GetEffectiveCompanyIdAsync();
         _ctx.HistorialLotePolloEngorde.Add(new HistorialLotePolloEngorde
@@ -321,7 +326,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var filaUpd = await (from lrae in _ctx.LoteReproductoraAveEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select new { Ent = lrae, l.EstadoOperativoLote }).SingleOrDefaultAsync();
+                         select new { Ent = lrae, l.EstadoOperativoLote, HoraEngorde = l.HoraEncasetamiento }).SingleOrDefaultAsync();
         if (filaUpd is null) return null;
 
         // Gate B7 — con el lote de engorde liquidado, las aves asignadas no se tocan.
@@ -358,7 +363,9 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 .Select(s => s.Fecha)
                 .ToListAsync();
 
-            var horaRegla = dto.HoraEncasetamiento;
+            // La hora que rige es la efectiva: la que el usuario está guardando o, si viene null,
+            // la heredada del lote de engorde (misma regla que usan los guardas de captura).
+            var horaRegla = EncasetamientoCalculos.HoraEfectivaReproductora(dto.HoraEncasetamiento, filaUpd.HoraEngorde);
             var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
                 nuevaFechaEncaset, horaRegla, fechasSeguimiento);
             if (!diag.Compatible)
@@ -390,7 +397,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var selU  = (stU?.SelH ?? 0) + (stU?.SelM ?? 0);
         var errU  = (stU?.ErrH ?? 0) + (stU?.ErrM ?? 0);
         var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mortU, selU, errU, stU?.NumConfirmados ?? 0);
-        return Map(ent, estado, avesActuales, stU);
+        return Map(ent, estado, avesActuales, stU, filaUpd.HoraEngorde);
     }
 
     /// <summary>
@@ -410,7 +417,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var gateReabrir = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
                                join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                                where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                               select new { l.EstadoOperativoLote }).FirstOrDefaultAsync();
+                               select new { l.EstadoOperativoLote, HoraEngorde = l.HoraEncasetamiento }).FirstOrDefaultAsync();
         if (gateReabrir is null) return null;
 
         // Gate B7 — reabrir la reproductora habilita devolver aves de un lote liquidado.
@@ -434,7 +441,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
         var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
         var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.NumConfirmados ?? 0);
-        return Map(ent, estado, avesActuales, st);
+        return Map(ent, estado, avesActuales, st, gateReabrir.HoraEngorde);
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -636,17 +643,19 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
     /// Gate B7 (escrituras): las reproductoras cambian las aves asignadas del lote, que alimentan
     /// el máximo vendible — con el lote liquidado se bloquea. Las lecturas (generar código) pasan.
     /// </param>
-    private async Task EnsureLoteAveEngordeExistsAsync(int loteAveEngordeId, bool bloquearSiLiquidado = false)
+    /// <returns>La hora de encasetamiento del lote de engorde (para la hora efectiva de la reproductora).</returns>
+    private async Task<TimeOnly?> EnsureLoteAveEngordeExistsAsync(int loteAveEngordeId, bool bloquearSiLiquidado = false)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.LoteAveEngordeId == loteAveEngordeId && l.CompanyId == companyId && l.DeletedAt == null)
-            .Select(l => new { l.EstadoOperativoLote })
+            .Select(l => new { l.EstadoOperativoLote, l.HoraEncasetamiento })
             .SingleOrDefaultAsync();
         if (lote is null)
             throw new InvalidOperationException($"Lote Aves de Engorde '{loteAveEngordeId}' no existe o no pertenece a la compañía.");
         if (bloquearSiLiquidado)
             LiquidacionCongeladaGateCalculos.ValidarEscritura(
                 lote.EstadoOperativoLote, OperacionLoteEngordeLiquidado.ReproductoraLote);
+        return lote.HoraEncasetamiento;
     }
 }

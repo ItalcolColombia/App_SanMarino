@@ -3,10 +3,11 @@
  * Solo datos reales del seguimiento diario (sin overlay de guía / estándar).
  */
 
-/** Fila diaria de productividad (un punto por día de vida con registro). */
+/** Fila diaria de productividad (un punto por día con registro). */
 export interface ProductividadDiariaFila {
-  /** Edad en días de vida. */
-  edadDia: number;
+  /** Día de negocio: el primer día con registro del lote es el día 1 (no existe el día 0). En un
+   *  lote que llegó a las 13:00 o después, ese primer día es el siguiente al encasetamiento. */
+  dia: number;
   /** Peso promedio del ave del día (gramos, mixto). */
   gramos: number;
   /** Peso vivo en pie (quintales) = saldoAves × pesoPromAve_lb / 100. */

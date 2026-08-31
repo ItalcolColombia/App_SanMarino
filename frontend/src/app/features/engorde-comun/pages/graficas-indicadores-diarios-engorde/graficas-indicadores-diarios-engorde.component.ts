@@ -21,6 +21,8 @@ import { ymdSinTz } from '../../../../shared/utils/format';
 export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
   @Input() selectedLote: LoteDto | LotePosturaLevanteDto | null = null;
+  /** Hora de llegada del lote (HH:mm) — misma numeración «Día 1..N» que la tabla de indicadores. */
+  @Input() horaEncasetamiento: string | null = null;
   @Input() loading = false;
 
   cargando = false;
@@ -48,7 +50,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
   constructor(private compute: IndicadoresDiariosEngordeComputeService) {}
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['seguimientos'] || changes['selectedLote']) {
+    if (changes['seguimientos'] || changes['selectedLote'] || changes['horaEncasetamiento']) {
       void this.rebuild();
     }
   }
@@ -64,7 +66,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
 
     this.cargando = true;
     try {
-      const res = await this.compute.compute(this.seguimientos, this.selectedLote);
+      const res = await this.compute.compute(this.seguimientos, this.selectedLote, this.horaEncasetamiento);
       this.errorGuia = res.errorGuia;
       this.etiquetaGuia = res.etiquetaGuiaCargada;
       this.filas = res.filas;

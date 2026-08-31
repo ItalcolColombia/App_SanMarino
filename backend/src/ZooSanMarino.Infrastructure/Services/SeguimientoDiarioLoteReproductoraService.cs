@@ -180,7 +180,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var filaCreate = await (from l in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
                              join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                              where l.Id == dto.LoteId && lae.CompanyId == companyId && lae.DeletedAt == null
-                             select new { Lote = l, lae.EstadoOperativoLote }).SingleOrDefaultAsync();
+                             select new { Lote = l, lae.EstadoOperativoLote, HoraEngorde = lae.HoraEncasetamiento }).SingleOrDefaultAsync();
         if (filaCreate is null)
             throw new InvalidOperationException($"Lote reproductora aves de engorde '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
@@ -206,7 +206,9 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var fechaAnclada = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (loteRep.FechaEncasetamiento.HasValue)
         {
-            var horaRegla = loteRep.HoraEncasetamiento;
+            // Hora efectiva: la propia o la del lote de engorde (la captura vive en el formulario
+            // del lote pollo engorde; sin la herencia este guarda nunca disparaba).
+            var horaRegla = EncasetamientoCalculos.HoraEfectivaReproductora(loteRep.HoraEncasetamiento, filaCreate.HoraEngorde);
             var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
             var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(loteRep.FechaEncasetamiento.Value, fechaAnclada);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento, edadMinima))
@@ -363,15 +365,17 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // Regla de fecha (defensa en profundidad, espejo del Create): día 1 = día del encasetamiento
         // (edad 0); se acepta edad [0, 7] respecto al encasetamiento.
         const int MaxDiasSeguimiento = 7;
-        var loteUpd = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
-            .Where(l => l.Id == ent.LoteReproductoraAveEngordeId)
-            .Select(l => new { l.FechaEncasetamiento, l.HoraEncasetamiento })
+        var loteUpd = await (from l in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                             join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
+                             where l.Id == ent.LoteReproductoraAveEngordeId
+                             select new { l.FechaEncasetamiento, l.HoraEncasetamiento, HoraEngorde = lae.HoraEncasetamiento })
             .FirstOrDefaultAsync();
         var encasetUpd = loteUpd?.FechaEncasetamiento;
         var fechaAncladaUpd = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (encasetUpd.HasValue)
         {
-            var horaReglaUpd = loteUpd!.HoraEncasetamiento;
+            // Misma hora efectiva que en el Create: la propia o la heredada del lote de engorde.
+            var horaReglaUpd = EncasetamientoCalculos.HoraEfectivaReproductora(loteUpd!.HoraEncasetamiento, loteUpd.HoraEngorde);
             var edadMinimaUpd = EncasetamientoCalculos.EdadMinimaConRegistro(horaReglaUpd);
             var edadUpd = ReproductoraEngordeCalculos.EdadSeguimientoDias(encasetUpd.Value, fechaAncladaUpd);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento, edadMinimaUpd))
