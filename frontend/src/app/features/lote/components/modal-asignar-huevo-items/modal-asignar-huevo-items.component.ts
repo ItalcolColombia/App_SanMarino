@@ -6,15 +6,12 @@ import { finalize } from 'rxjs';
 
 import { ToastService } from '../../../../shared/services/toast.service';
 import { LoteHuevoItemDto, LoteHuevoItemsService } from '../../services/lote-huevo-items.service';
+import { GrupoHuevoItems } from '../../models/huevo-items.model';
+import { agruparHuevoItemsPorTipo, seleccionInicialHuevoItems } from '../../funciones/agrupar-huevo-items.funcion';
 
-/** Un grupo (`Primera` / `Pnc` / …) con sus ítems, para pintar el selector agrupado. */
-interface GrupoHuevoItems {
-  tipoHuevo: string;
-  items: LoteHuevoItemDto[];
-}
-
-/** Etiqueta del grupo cuando el ítem del catálogo no trae `metadata.tipoHuevo`. */
-const SIN_CATEGORIA = 'Sin categoría';
+// El tipo del grupo y el agrupador viven en models/ + funciones/ porque los comparte con la sección
+// de tipos de huevo del formulario de alta de lote: una sola definición para las dos pantallas.
+export type { GrupoHuevoItems } from '../../models/huevo-items.model';
 
 /**
  * F7.3 — declara **qué tipos de huevo produce un lote**. Esa declaración es la que el seguimiento
@@ -66,8 +63,8 @@ export class ModalAsignarHuevoItemsComponent implements OnInit {
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: items => {
-          this.seleccionados = new Set((items ?? []).filter(i => i.activo).map(i => i.catalogItemId));
-          this.grupos = this.agrupar(items ?? []);
+          this.seleccionados = seleccionInicialHuevoItems(items ?? []);
+          this.grupos = agruparHuevoItemsPorTipo(items ?? []);
           this.sinCatalogo = (items ?? []).length === 0;
         },
         error: err => {
@@ -78,22 +75,6 @@ export class ModalAsignarHuevoItemsComponent implements OnInit {
           this.toast.error(err?.error?.message ?? 'No se pudieron cargar los tipos de huevo del catálogo.');
         }
       });
-  }
-
-  /**
-   * Agrupa por `tipoHuevo` conservando el orden que ya trae el backend (Primera → Pnc → resto, y
-   * por nombre dentro de cada grupo). NO reordena: el orden es una sola regla y vive en
-   * `HuevoItemsCalculos.PesoTipoHuevo`.
-   */
-  private agrupar(items: LoteHuevoItemDto[]): GrupoHuevoItems[] {
-    const grupos: GrupoHuevoItems[] = [];
-    for (const item of items) {
-      const clave = item.tipoHuevo?.trim() || SIN_CATEGORIA;
-      const grupo = grupos.find(g => g.tipoHuevo === clave);
-      if (grupo) grupo.items.push(item);
-      else grupos.push({ tipoHuevo: clave, items: [item] });
-    }
-    return grupos;
   }
 
   estaSeleccionado(catalogItemId: number): boolean {

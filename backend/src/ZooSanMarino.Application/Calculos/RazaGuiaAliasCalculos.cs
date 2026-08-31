@@ -40,6 +40,16 @@ public static class RazaGuiaAliasCalculos
         ["hy line"]      = "hy line brown"
     };
 
+    /// <summary>
+    /// La misma tabla, de sólo lectura. Existe porque desde el 30-ago-2026 el alias vive también en
+    /// SQL —la tercera rama de <c>vw_guia_genetica_postura</c>, para que los indicadores de postura
+    /// (que calcula Postgres) crucen igual que los reportes técnicos (que calcula C#)— y las dos
+    /// definiciones tienen que decir lo MISMO: si una agrega un alias y la otra no, vuelve el
+    /// defecto original, con el mismo lote mostrando dos verdades según la pantalla.
+    /// <c>RazaGuiaAliasParidadSqlTests</c> compara ambas listas y corta el build si divergen.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> AliasConocidos => AliasPorRazaNormalizada;
+
     /// <summary>Normalización canónica de una raza para comparar: recorta y pasa a minúsculas.</summary>
     public static string Normalizar(string? raza) =>
         (raza ?? string.Empty).Trim().ToLowerInvariant();

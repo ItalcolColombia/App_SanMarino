@@ -29,6 +29,14 @@ DECLARE
     v_lote_id_str    text;            -- para el flujo legacy (lote_id como texto)
     v_lote_id_int    integer;         -- flujo legacy: lote resuelto, para fn_seguimiento_diario_produccion
     v_has_lote       boolean := false;
+    -- Semana de VIDA desde la que esta empresa muestra produccion (companies.
+    -- semana_inicio_indicadores_produccion, DEFAULT 25 = el valor que estuvo hardcodeado hasta el
+    -- 30-ago-2026). Existe porque no todas las empresas empiezan a poner en la misma semana: la
+    -- postura comercial de Santa Reyes arranca en la 18 —es la primera edad de su guia propia y es
+    -- coherente con su huevo_primera_postura_hasta_semana = 22—, y con el 25 fijo sus semanas
+    -- 18-24 no aparecian en ningun indicador. Con el DEFAULT 25 las otras cuatro empresas
+    -- ejecutan exactamente lo mismo que antes.
+    v_sem_inicio     integer;
 
     -- ── acumuladores iterativos (mismos que el C#) ──
     v_aves_h_act     integer;
@@ -282,7 +290,16 @@ BEGIN
     UPDATE _seg SET sem_vida = ((reg_date - v_enc_date) / 7) + 1;  -- división entera == C# (dias/7)+1
     -- REQ-012b: producción arranca en la semana 25 de vida (antes 26). La guía genética empieza en
     --   la semana 26, así que la 25 queda con columnas de guía en NULL (g_found=false ya lo soporta).
-    DELETE FROM _seg WHERE sem_vida < 25;
+    -- 30-ago-2026: ese 25 pasa a ser el DEFAULT de la columna por empresa, no una constante. El
+    --   COALESCE cubre tanto la empresa inexistente como la columna en NULL: sin fila, el valor es
+    --   el de siempre.
+    SELECT COALESCE(c.semana_inicio_indicadores_produccion, 25)
+      INTO v_sem_inicio
+      FROM companies c
+     WHERE c.id = p_company_id;
+    v_sem_inicio := COALESCE(v_sem_inicio, 25);
+
+    DELETE FROM _seg WHERE sem_vida < v_sem_inicio;
 
     SELECT MAX(sem_vida) INTO v_max_sem FROM _seg;
     IF v_max_sem IS NULL THEN RETURN; END IF;
@@ -295,7 +312,7 @@ BEGIN
     v_aves_h_act := v_aves_h_ini;
     v_aves_m_act := v_aves_m_ini;
 
-    FOR s IN 25..v_max_sem LOOP  -- REQ-012b: incluir semana 25 (antes 26)
+    FOR s IN v_sem_inicio..v_max_sem LOOP  -- REQ-012b: incluir semana 25 (antes 26); hoy, la de la empresa
         CONTINUE WHEN NOT EXISTS (SELECT 1 FROM _seg WHERE sem_vida = s);
 
         SELECT COUNT(*)::int,

@@ -60,5 +60,8 @@ public record CreateCompanyDto(
     bool     DescuentaInventarioDesdeMovil      = false,
     /// <summary>Perfil de guía genética: <c>"sanmarino"</c> (default) | <c>"reducida"</c>.
     /// <c>null</c>/vacío ⇒ default neutro. Un valor desconocido se rechaza (no cae al default).</summary>
-    string?  GuiaGeneticaPerfil                 = null
+    string?  GuiaGeneticaPerfil                 = null,
+    /// <summary>Semana de vida desde la que arrancan los indicadores de producción.
+    /// <c>null</c> ⇒ el DEFAULT 25 de la BD (comportamiento de siempre).</summary>
+    int?     SemanaInicioIndicadoresProduccion  = null
 );

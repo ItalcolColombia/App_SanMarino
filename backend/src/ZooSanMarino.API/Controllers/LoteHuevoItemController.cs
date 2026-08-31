@@ -39,6 +39,20 @@ public class LoteHuevoItemController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    /// <summary>
+    /// Ítems de huevo elegibles para un lote que TODAVÍA NO EXISTE, resueltos por la granja elegida
+    /// en el formulario de alta. Ninguno viene marcado: no hay declaración previa.
+    /// </summary>
+    [HttpGet("por-granja/{granjaId:int}/disponibles")]
+    [ProducesResponseType(typeof(IEnumerable<LoteHuevoItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IEnumerable<LoteHuevoItemDto>>> GetDisponiblesPorGranja(
+        int granjaId, CancellationToken ct = default)
+    {
+        try { return Ok(await _svc.GetDisponiblesPorGranjaAsync(granjaId, ct)); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     /// <summary>Reemplaza el conjunto de tipos de huevo del lote. Lista vacía = ninguno.</summary>
     [HttpPut("{loteId:int}")]
     [ProducesResponseType(typeof(IEnumerable<LoteHuevoItemDto>), StatusCodes.Status200OK)]

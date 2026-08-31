@@ -1024,6 +1024,79 @@
                                     <small class="ux-help text-warm-gray-600">Campos opcionales: se usan para integrar el lote con el ERP.</small>
                                   </div>
                                 }
+
+                                <!-- ══════ F7.3 · Tipos de huevo que produce el lote ══════ -->
+                                <!-- Se declaran ACÁ, al crear el lote: el seguimiento diario de
+                                     producción arma una fila fija por cada uno y no ofrece ningún
+                                     otro. Sin ninguno, ese lote no puede clasificar huevos. -->
+                                @if (clasificacionHuevoPorItems) {
+                                  <div class="md:col-span-3">
+                                    <hr class="my-2 border-gray-200" />
+                                    <p class="text-xs font-semibold text-ital-green uppercase tracking-wide mb-1">
+                                      🥚 Tipos de huevo que dará el lote
+                                    </p>
+                                    <small class="ux-help text-warm-gray-600">
+                                      El seguimiento diario de producción mostrará <strong>una fila por cada uno</strong>
+                                      y no ofrecerá ningún otro. Se pueden cambiar después con el botón 🥚 de la lista.
+                                    </small>
+                                  </div>
+
+                                  <div class="md:col-span-3">
+                                    @if (cargandoHuevoItemsForm) {
+                                      <p class="ux-help">Cargando el catálogo de huevo…</p>
+                                    } @else if (errorHuevoItemsForm) {
+                                      <p class="ux-help text-red-600">
+                                        No se pudo cargar el catálogo de huevo. Guardá el lote y declaralos después
+                                        con el botón 🥚 de la lista.
+                                      </p>
+                                    } @else if (huevoItemsGrupos.length === 0) {
+                                      <p class="ux-help text-warm-gray-600">
+                                        @if (form.get('granjaId')?.value) {
+                                          La empresa de esta granja no tiene ítems de huevo activos en el catálogo.
+                                        } @else {
+                                          Elegí primero la granja para ver los tipos de huevo disponibles.
+                                        }
+                                      </p>
+                                    } @else {
+                                      @for (grupo of huevoItemsGrupos; track grupo.tipoHuevo) {
+                                        <div class="mb-2">
+                                          <label class="flex items-center gap-2 text-xs font-semibold text-warm-gray-700 mb-1">
+                                            <input type="checkbox"
+                                                   [checked]="grupoHuevoItemFormCompleto(grupo)"
+                                                   (change)="alternarGrupoHuevoItemForm(grupo)" />
+                                            {{ grupo.tipoHuevo }}
+                                          </label>
+                                          <div class="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-1 pl-5">
+                                            @for (item of grupo.items; track item.catalogItemId) {
+                                              <label class="flex items-center gap-2 text-xs text-warm-gray-700">
+                                                <input type="checkbox"
+                                                       [checked]="huevoItemFormSeleccionado(item.catalogItemId)"
+                                                       (change)="alternarHuevoItemForm(item.catalogItemId)" />
+                                                <span>
+                                                  {{ item.nombre }}
+                                                  @if (item.um === 'KIL') { <span class="text-warm-gray-500">(kg)</span> }
+                                                </span>
+                                              </label>
+                                            }
+                                          </div>
+                                        </div>
+                                      }
+
+                                      <!-- Fail-closed explícito: enterarse acá y no al día siguiente,
+                                           cargando producción y encontrándose la tabla vacía. -->
+                                      @if (totalHuevoItemsSeleccionados === 0) {
+                                        <p class="ux-help text-amber-700">
+                                          ⚠️ Sin ningún tipo seleccionado, este lote <strong>no podrá registrar
+                                          clasificación de huevos</strong> en el seguimiento diario.
+                                        </p>
+                                      } @else {
+                                        <small class="ux-help text-warm-gray-600">
+                                          {{ totalHuevoItemsSeleccionados }} seleccionados.
+                                        </small>
+                                      }
+                                    }
+                                  </div>
+                                }
                               </div>
                               <div class="ux-actions">
                                 <button type="button" (click)="modalOpen = false" class="btn-muted">Cancelar</button>

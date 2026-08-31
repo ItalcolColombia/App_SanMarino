@@ -63,6 +63,7 @@ public partial class CompanyService : ICompanyService
         c.LimitaTiposInventarioAlimentoYAves,
         c.SeparaLotesPosturaPorEtapa,
         c.DescuentaInventarioDesdeMovil,
-        c.GuiaGeneticaPerfil
+        c.GuiaGeneticaPerfil,
+        c.SemanaInicioIndicadoresProduccion
     );
 }

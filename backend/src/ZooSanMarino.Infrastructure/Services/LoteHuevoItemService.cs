@@ -134,11 +134,7 @@ public class LoteHuevoItemService : ILoteHuevoItemService
     {
         var (companyId, _) = await EnsureLoteAsync(loteId, ct);
 
-        // Solo ACTIVOS: ofrecer un ítem dado de baja para declararlo nuevo no tiene sentido. Los ya
-        // declarados que se dieron de baja siguen apareciendo por GetByLoteAsync, que no filtra.
-        var items = await _ctx.CatalogItems.AsNoTracking()
-            .Where(ci => ci.CompanyId == companyId && ci.Activo && ci.ItemType == ItemTypeHuevo)
-            .ToListAsync(ct);
+        var items = await CatalogoHuevoDeEmpresaAsync(companyId, ct);
 
         var yaDeclarados = await _ctx.LoteHuevoItems.AsNoTracking()
             .Where(lhi => lhi.LoteId == loteId && lhi.Activo)
@@ -148,6 +144,36 @@ public class LoteHuevoItemService : ILoteHuevoItemService
 
         return Ordenar(items.Select(ci => ADto(0, loteId, ci, activo: declarados.Contains(ci.Id)))).ToList();
     }
+
+    public async Task<IEnumerable<LoteHuevoItemDto>> GetDisponiblesPorGranjaAsync(
+        int granjaId, CancellationToken ct = default)
+    {
+        // Fail-closed igual que EnsureLoteAsync: sin granja que resuelva empresa, no se ofrece nada.
+        // La granja tiene que existir Y estar viva: ofrecer el catálogo de una granja borrada sería
+        // dejar elegir ítems para un lote que después no se va a poder crear ahí.
+        var companyId = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId && f.DeletedAt == null)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync(ct);
+
+        if (companyId is not > 0)
+            throw new InvalidOperationException($"No se pudo resolver la empresa de la granja {granjaId}.");
+
+        var items = await CatalogoHuevoDeEmpresaAsync(companyId.Value, ct);
+
+        // LoteId 0 y Activo false: el lote todavía no existe, así que no hay nada declarado.
+        return Ordenar(items.Select(ci => ADto(0, 0, ci, activo: false))).ToList();
+    }
+
+    /// <summary>
+    /// Ítems de huevo ACTIVOS del catálogo de la empresa. Sólo activos: ofrecer uno dado de baja
+    /// para declararlo nuevo no tiene sentido. Los ya declarados que se dieron de baja siguen
+    /// apareciendo por <see cref="GetByLoteAsync"/>, que no filtra.
+    /// </summary>
+    private Task<List<CatalogItem>> CatalogoHuevoDeEmpresaAsync(int companyId, CancellationToken ct) =>
+        _ctx.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId && ci.Activo && ci.ItemType == ItemTypeHuevo)
+            .ToListAsync(ct);
 
     public async Task<IEnumerable<LoteHuevoItemDto>> AsignarAsync(
         int loteId, AsignarHuevoItemsDto dto, CancellationToken ct = default)

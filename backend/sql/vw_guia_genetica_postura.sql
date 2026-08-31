@@ -49,8 +49,16 @@
 -- hoy no matchean ⇒ el refactor cambiaria resultados por si solo. Esta vista NO
 -- toca un solo WHERE: solo cambia de donde salen las filas.
 --
--- Aplicada por la migracion 20260826170000_VwGuiaGeneticaPosturaYFnsOrigen.
--- Este archivo es el ESPEJO legible; la migracion es el vehiculo.
+-- ⚠️ TRES RAMAS, NO DOS (30-ago-2026)
+-- A la rama propia se le sumo una tercera que proyecta esas MISMAS filas bajo la
+-- grafia de raza del ERP del cliente (`BABCOK BROWN`, `HY LINE`). Es el alias que
+-- el C# ya aplicaba desde el 24-ago y el camino SQL no: sin el, un lote cargado
+-- con la grafia del ERP mostraba la guia en el reporte tecnico y no en indicadores.
+-- Ver el bloque de esa rama, mas abajo, para el detalle y la regla de paridad.
+--
+-- Aplicada por las migraciones 20260826170000_VwGuiaGeneticaPosturaYFnsOrigen
+-- (version original) y 20260831044636_AliasRazaGuiaSqlYSemanaInicioProduccion
+-- (rama alias). Este archivo es el ESPEJO legible; la migracion es el vehiculo.
 -- ============================================================================
 
 CREATE OR REPLACE VIEW public.vw_guia_genetica_postura AS
@@ -172,11 +180,107 @@ SELECT
     NULL::text                AS alim_h,
     NULL::text                AS alim_m,
     'propia'::text            AS origen
-FROM public.guia_genetica_santa_reyes g;
+FROM public.guia_genetica_santa_reyes g
+
+UNION ALL
+
+-- ── Rama ALIAS de la PROPIA: la misma fila, indexada por la grafia del ERP ────
+--
+-- POR QUE EXISTE
+-- Los lotes se cargan con el nombre de raza tal como viene del ERP del cliente
+-- (`BABCOK BROWN` sin la 2a C, `HY LINE` sin el apellido), mientras que la guia
+-- se sembro con el nombre comercial completo (`Babcock Brown`, `Hy Line Brown`).
+-- El C# ya lo tolera desde el 24-ago-2026 (`RazaGuiaAliasCalculos`, usado por
+-- `GuiaGeneticaLookup`), pero el camino SQL comparaba la raza CRUDA: medido el
+-- 30-ago-2026, un lote `BABCOK BROWN` mostraba la guia en el reporte tecnico
+-- (C#) y NADA en indicadores de produccion —y `0,00` en los de levante—, o sea
+-- el mismo lote con dos verdades segun quien calculara la pantalla.
+--
+-- Se resuelve ACA y no en cada `WHERE` a proposito: los 4 objetos que consultan
+-- la guia (los 2 fn_indicadores_*, los 2 fn_resumen_semanal_ra_pesadas_*) heredan
+-- el alias sin tocar un solo criterio de join —que divergen entre si a proposito,
+-- ver la nota de arriba—. Una sola definicion del alias para todos los lectores.
+--
+-- 🔴 DELTA CERO POR CONSTRUCCION
+-- El JOIN solo produce filas para las razas de `guia_genetica_santa_reyes` que
+-- esten en la lista, y esa tabla solo tiene filas de company 6. Para Sanmarino,
+-- Demo, Ecuador y Panama esta rama devuelve CERO filas: es inalcanzable, no
+-- «se reviso despues».
+--
+-- ⚠️ LA LISTA ES CERRADA Y SE MANTIENE EN PARIDAD CON EL C#
+-- Espeja `RazaGuiaAliasCalculos.AliasPorRazaNormalizada` (Application/Calculos).
+-- `Lohmann Brown` NO esta a proposito: es otra linea comercial que todavia no
+-- tiene guia cargada, y mapearla a `Lohmann LSL` mostraria datos de un ave que
+-- no es esa. Si se agrega un alias, va en los DOS lados o vuelven las dos verdades.
+--
+-- ⚠️ LAS DOS RAMAS NUNCA MATCHEAN JUNTAS: la propia se indexa por la grafia de la
+-- guia y esta por la del ERP, que por definicion son distintas. El `id` lleva un
+-- offset propio para que un debug delate de cual salio la fila.
+SELECT
+    -g.id - 10000000          AS id,          -- offset propio: ver nota de arriba
+    g.company_id,
+    g.created_by_user_id,
+    g.created_at,
+    g.updated_by_user_id,
+    g.updated_at,
+    g.deleted_at,
+    g.anio_guia::text         AS anio_guia,
+    a.alias::text             AS raza,       -- la grafia del ERP, no la de la guia
+    g.edad::text              AS edad,        -- int -> '18', sin decimales
+    NULL::text                AS mort_sem_h,  -- la guia reducida trae mortalidad
+    g.retiro_ac_h::text       AS retiro_ac_h, --   ACUMULADA, no semanal
+    NULL::text                AS mort_sem_m,
+    NULL::text                AS retiro_ac_m,
+    NULL::text                AS cons_ac_h,
+    NULL::text                AS cons_ac_m,
+    g.gr_ave_dia_h::text      AS gr_ave_dia_h,
+    NULL::text                AS gr_ave_dia_m,
+    NULL::text                AS peso_h,
+    NULL::text                AS peso_m,
+    NULL::text                AS uniformidad,
+    NULL::text                AS h_total_aa,
+    g.prod_porcentaje::text   AS prod_porcentaje,
+    NULL::text                AS h_inc_aa,
+    NULL::text                AS aprov_sem,
+    NULL::text                AS peso_huevo,
+    NULL::text                AS masa_huevo,
+    NULL::text                AS grasa_porcentaje,
+    NULL::text                AS nacim_porcentaje,
+    NULL::text                AS pollito_aa,
+    NULL::text                AS kcal_ave_dia_h,
+    NULL::text                AS kcal_ave_dia_m,
+    NULL::text                AS aprov_ac,
+    NULL::text                AS gr_huevo_t,
+    NULL::text                AS gr_huevo_inc,
+    NULL::text                AS gr_pollito,
+    NULL::text                AS valor_1000,
+    NULL::text                AS valor_150,
+    NULL::text                AS apareo,
+    NULL::text                AS peso_mh,
+    g.codigo_guia_genetica,
+    NULL::varchar             AS hembras,
+    NULL::varchar             AS machos,
+    NULL::varchar             AS kcal_h,
+    NULL::varchar             AS prot_h,
+    NULL::varchar             AS kcal_m,
+    NULL::varchar             AS prot_m,
+    NULL::varchar             AS kcal_sem_h,
+    NULL::varchar             AS prot_h_sem,
+    NULL::varchar             AS kcal_sem_m,
+    NULL::varchar             AS prot_sem_m,
+    NULL::text                AS alim_h,
+    NULL::text                AS alim_m,
+    'propia'::text            AS origen
+FROM public.guia_genetica_santa_reyes g
+JOIN (VALUES ('babcock brown', 'BABCOK BROWN'),
+             ('hy line brown', 'HY LINE')) AS a(raza_guia, alias)
+  ON btrim(lower(g.raza)) = a.raza_guia;
 
 COMMENT ON VIEW public.vw_guia_genetica_postura IS
   'Guia genetica de postura unificada para el camino SQL: guia_genetica_sanmarino_colombia '
-  '(origen=compartida) + guia_genetica_santa_reyes proyectada al mismo shape (origen=propia). '
+  '(origen=compartida) + guia_genetica_santa_reyes proyectada al mismo shape (origen=propia) + '
+  'esa misma guia propia indexada por la grafia de raza del ERP del cliente (tambien origen=propia; '
+  'espeja RazaGuiaAliasCalculos del C#, para que un lote BABCOK BROWN / HY LINE cruce igual). '
   'Las dos tablas estan particionadas por company_id, asi que para una empresa dada la vista '
   'devuelve exactamente lo que devolvia su tabla. La columna origen la leen las fns para NO '
   'coalescear a 0 las metricas que la guia reducida no tiene (un 0 ahi es un numero falso, no '
