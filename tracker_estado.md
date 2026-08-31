@@ -4838,3 +4838,53 @@ reproductora, y los indicadores diarios de engorde arrancaban en «día 0». No 
 - [x] `yarn build` OK + spec compute verde
 - [x] Smoke HTTP local: detail 146 con efectiva 21:33; POST 27-ago rechazado con mensaje del 28-ago;
       empresa sin hora idéntica a antes. Backend apagado y :5002 libre al terminar
+
+---
+
+## Cierre de los tickets de Santa Reyes en ItalJira (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/cierre_tickets_santa_reyes_italjira_plan.md`](fase_de_desarrollo/cierre_tickets_santa_reyes_italjira_plan.md)
+
+**Pedido:** validar lo que hay en el ticket de Santa Reyes, terminar lo que quede y **cerrar por
+migración** los casos que siguen abiertos desde el arranque. Decisión del usuario en sesión: *cerrar
+todo dejando constancia escrita* de lo que no se entregó.
+
+### A — Validación (medida en `sanmarinoapplocal:5433` + código, no contra el tracker)
+- [x] F0…F12 verificados uno por uno contra su artefacto real (tabla de evidencia en §1 del plan).
+      Medido: 8 flags en `companies` (id 6), **615** filas de guía propia (5 razas × 123 sem.),
+      **28** ítems de huevo en `catalogo_items`, silos/códigos ERP/comprobante/bodega destino en
+      código, 10 suites xUnit propias, despliegue verificado con el checklist de §🚀
+- [x] Lo NO entregado, confirmado con dato: **7 ítems de huevo sin `codigo` ERP** (`ENYEMADO` ×4,
+      `DECOLORADO` ×3, ids 698-704) ⇒ `SR-DEF-3`/F8.1 y, por dependencia, `SR-DEF-4`/F8.3; más
+      F11.3 (cliente). Decisión del usuario: **cerrar dejando constancia escrita**, no en silencio
+
+### B — Migración `20260831120000_CerrarPlanItalappSantaReyes` (data-only)
+- [x] `TK-2026-000172` ABIERTO → CERRADO, con solución y las 2 notas que escribe el servicio
+      (`CambiarEstadoAsync` + `ConfirmarCierreAsync`): la línea de tiempo se **deriva** de notas +
+      tareas, sin ellas el caso se vería cerrado sin explicación
+- [x] `HIS-2026-0024` BACKLOG → LISTO + fechas reales (20-ago → 31-ago)
+- [x] Las **42** tareas/subtareas BACKLOG → LISTO, con el fin real de su paquete resuelto por el
+      prefijo `F<n>` del título (**27** el 21-ago V52 · **6** el 24-ago X18 · **9** el 31-ago).
+      Por prefijo y no por `codigo`: `HIS-2026-NNNN-Tn` deriva del id de la historia y difiere
+      local↔prod
+- [x] `TK-2026-000180` ABIERTO → CERRADO, con la constancia de las 3 cosas no entregadas
+- [x] Las **6** `SR-DEF-*` BLOQUEADA → LISTO
+- [x] Idempotencia probada corriendo el `Up()` **dos veces** en una transacción revertida:
+      1ª pasada `42 tareas` + `6 definiciones`, 2ª pasada **0 y 0**, notas **4 → 4** (no duplica)
+- [x] `Down()` devuelve los estados exactos que se midieron antes: 172 ABIERTO con
+      `fecha_primera_apertura` NULL, 180 ABIERTO **conservando la suya** (24-ago, que no puso el
+      `Up`), 42 BACKLOG, 6 BLOQUEADA, historia BACKLOG sin fechas reales, 0 notas
+
+### C — Validación
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **3.525 verdes** · gate
+      `verificar-sql-llega-por-migracion.js` OK
+- [x] Post-`Up()`: **0 tickets ABIERTOS en toda la base** (eran los 2 de Santa Reyes) y **0 tareas
+      BACKLOG/BLOQUEADA en toda la base**; los 48 pasaron a LISTO
+- [x] Ninguna otra empresa tocada: los tickets no cerrados de las demás siguen en **15** antes y
+      después; `TK-2026-000174` y `-000175` (ya cerrados) intactos
+- [x] Aplicada a la BD local **solo la propia**, a mano y en una transacción (efecto + fila en
+      `__EFMigrationsHistory` juntos), para no arrastrar la pendiente `20260831044636` de otro
+      commit. `dotnet ef migrations list` la muestra aplicada. Ningún backend levantado; :5002 libre
+- [i] Quedan **15 casos no cerrados de OTRAS empresas** (11 SOLUCIONADO, 2 EN_ANALISIS,
+      1 TRANSFERIDO, 1 EN_IMPLEMENTACION). Fuera del alcance de esta tarea: los SOLUCIONADO los
+      cierra el solicitante desde la pantalla, no una migración
