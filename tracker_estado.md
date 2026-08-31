@@ -4799,6 +4799,9 @@ fase de producción.
       **400** con el mensaje accionable («no está entre los tipos que este lote produce»).
 - [i] El lote está en **semana 2 de vida** (encaset 19-ago), así que en los **indicadores semanales**
       todavía no aparece: para Santa Reyes arrancan en la 18. No es un fallo — es la regla nueva.
-- [i] Queda en la BD local un registro de prueba (id **860**, 31-ago, 1.350 huevos, mortalidad 2)
-      para que se pueda ver en pantalla. Se borra con
-      `DELETE FROM seguimiento_diario_produccion WHERE id = 860;`
+- [x] Registro de prueba **860 borrado** a pedido del usuario, por el endpoint
+      (`DELETE /api/Produccion/seguimiento/860` → **204**) y no por SQL: el service libera la
+      reserva de validación y **recalcula el espejo de huevos**, cosas que un DELETE crudo se
+      saltea. Medido antes de borrar: el registro no había movido el maestro (3.000 = inicial),
+      no tenía fila en `lote_registro_historico_unificado` ni movimientos de inventario. Después:
+      0 registros en el lote, maestro en 3.000, y los **2 tipos de huevo siguen declarados**.
