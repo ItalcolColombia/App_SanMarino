@@ -4941,3 +4941,46 @@ solicitante (unica via a CERRADO) y 2 estaban resueltos sin que nadie moviera la
 - [x] `dotnet build` 0/0 · `dotnet test` **3.525 verdes**
 - [x] Aplicada a la BD local (solo la propia, en transaccion). **Toda la base queda en 183 CERRADO**
       y solo esos 2 fuera; ningun backend levantado
+
+---
+
+## Validar un seguimiento descuenta el alimento DOS veces (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/validar_seguimiento_doble_descuento_plan.md`](fase_de_desarrollo/validar_seguimiento_doble_descuento_plan.md)
+
+Sale de la auditoria adversarial de los 13 casos que se habian dado por resueltos: **dos auditores
+independientes**, mirando `TK-2026-000164` y `TK-2026-000166`, encontraron el MISMO defecto con los
+mismos 8 ids. Verificado despues contra la BD y el codigo.
+
+**19.677,24 kg descontados de mas en 7 galpones de ItalcolPanama**, todos DESPUES de que el caso se
+marcara SOLUCIONADO (18-ago) — el ultimo el 27-ago, cuatro dias antes de que yo lo cerrara.
+
+### A — Backend: cerrar la carrera (causa raiz)
+- [ ] `ValidarAsync` lee estado y reservas FUERA de la transaccion; dos requests solapadas leen las
+      dos `Validado=false` y la MISMA reserva activa, y las dos aplican el consumo
+- [ ] Patron «tomar primero, aplicar despues»: transaccion primero + `ExecuteUpdateAsync` condicional
+      (`SET validado=true WHERE id=@id AND validado=false`); 0 filas afectadas ⇒ otra instancia gano
+      ⇒ devolver `YaEstabaValidado` sin aplicar
+- [ ] Reproductora usa `confirmado`, no `validado` — el UPDATE condicional respeta la columna de cada modulo
+- [ ] `ValidarEnBloque` llama a `ValidarAsync` ⇒ hereda el arreglo sin tocarlo
+
+### B — Frontend: el disparador
+- [ ] El boton ✓ no se deshabilita mientras su peticion esta en vuelo (`[disabled]` mira el input de
+      «lote cerrado», no el estado de carga)
+
+### C — Test: `DuplicadosValidacionCalculos` (puro, xUnit)
+- [ ] De N movimientos con la misma firma se conserva el de menor id y se revierten los demas,
+      acumulando los kg a devolver por ubicacion. Es lo que ejecuta la migracion
+
+### D — Datos: revertir los 8 duplicados por migracion
+- [ ] Medido en transaccion revertida: el `DELETE` SI anula la fila del historico (trigger `_del`)
+      pero **NO devuelve el stock** ⇒ la migracion hace las dos cosas juntas
+- [ ] Se identifican por FIRMA (reference + item + ubicacion + cantidad, `count(*)>1`), no por ids
+      literales: local y produccion no tienen por que coincidir
+- [ ] NO se usa un Ingreso compensatorio: mentiria al cuadre del galpon con una entrada que no existio
+
+### E — Validacion
+- [ ] `dotnet build` + `dotnet test` verdes
+- [ ] `Up()` dos veces en transaccion revertida: la 2a no encuentra duplicados
+- [ ] Post-`Up()`: 0 duplicados, 8 filas del historico en `anulado=true`, stock +19.677,24 kg
+- [ ] Ninguna otra empresa tocada · `yarn build` OK
