@@ -4781,3 +4781,24 @@ fase de producción.
 - [x] Backend de smoke apagado; **:5002 y :5501 libres**. Datos del smoke revertidos
       (`lote_huevo_items` 0 filas, sesión de prueba borrada) y la BD local **sin la migración
       aplicada** a propósito: `database update` arrastraría las pendientes de otras sesiones.
+
+### Validación en vivo del flujo de huevos (31-ago-2026, pedido del usuario)
+- [x] **Migración aplicada a la BD local** — sólo la propia (`20260831044636`), a mano y en una
+      transacción (efecto + fila en `__EFMigrationsHistory` juntos), para no arrastrar las **4
+      pendientes de commits del 28-ago**. Verificado: Santa Reyes **18**, las otras cuatro **25**.
+- [x] **Declarar los tipos**: `PUT /api/LoteHuevoItem/152` con 2 ítems coherentes con la raza del
+      lote (Criolla) → `HUEVO SIN CLASIFICAR CRIOLLO` (Primera) y `HUEVO CRIOLLO PICADO` (Pnc).
+- [x] **Guardar producción con esos tipos**: `POST /api/Produccion/seguimiento` → **201, id 860**.
+      En BD: `huevo_tot = 1350` (1.200 + 150), las **11 columnas legacy en 0** y
+      `metadata->'huevoItems'` con los **2 ítems** — exactamente el contrato de F7.3.
+- [x] **La tabla de registros los muestra**: el listado devuelve el desglose en `metadata.huevoItems`
+      y `tabs-principal` pinta las columnas **Primera** / **Pnc** desde ahí (`getHuevoPrimera` /
+      `getHuevoPnc`). La tabla semanal por ítem (`POST /clasificacion-huevo-items`) devuelve las 2
+      filas con nombre, código y cantidad.
+- [x] **Fail-closed verificado**: guardar un ítem NO declarado (`HUEVO SIN CLASIFICAR BLANCO`) →
+      **400** con el mensaje accionable («no está entre los tipos que este lote produce»).
+- [i] El lote está en **semana 2 de vida** (encaset 19-ago), así que en los **indicadores semanales**
+      todavía no aparece: para Santa Reyes arrancan en la 18. No es un fallo — es la regla nueva.
+- [i] Queda en la BD local un registro de prueba (id **860**, 31-ago, 1.350 huevos, mortalidad 2)
+      para que se pueda ver en pantalla. Se borra con
+      `DELETE FROM seguimiento_diario_produccion WHERE id = 860;`
