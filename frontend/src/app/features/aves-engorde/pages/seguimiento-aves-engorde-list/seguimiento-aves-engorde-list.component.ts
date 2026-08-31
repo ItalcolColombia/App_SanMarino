@@ -283,16 +283,29 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
    * Valida un registro: aplica el consumo de alimento y el descuento de aves que estaban separados.
    * Se recarga el lote entero porque el descuento mueve saldos que la tabla ya está mostrando.
    */
+  /**
+   * Ids con una validación en vuelo. El botón ✓ no se deshabilita solo (su `[disabled]` mira si el
+   * lote está cerrado, no el estado de carga), así que un doble clic salía como dos requests
+   * solapadas. Eso descontó el alimento DOS veces en 7 galpones de Panamá — 19.677,24 kg — hasta que
+   * se cerró la carrera en el backend. Con el backend arreglado la segunda ya no duplica nada, pero
+   * dispararla sigue sin tener sentido: son dos toasts y dos recargas por la misma acción.
+   */
+  private readonly validandoIds = new Set<number>();
+
   onValidarSeguimiento(seguimientoId: number): void {
+    if (this.validandoIds.has(seguimientoId)) return;
+    this.validandoIds.add(seguimientoId);
     this.loading = true;
     this.validacionSvc.validar('ENGORDE', seguimientoId).subscribe({
       next: r => {
+        this.validandoIds.delete(seguimientoId);
         this.toast.success(
           `Registro validado. Se aplicaron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
           'Validado', 5000);
         this.onLoteChange(this.selectedLoteId);
       },
       error: err => {
+        this.validandoIds.delete(seguimientoId);
         this.loading = false;
         void this.aviso.error(err, 'No se pudo validar el registro.', 'No se pudo validar');
       }

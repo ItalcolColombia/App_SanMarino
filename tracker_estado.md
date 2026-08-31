@@ -4956,31 +4956,47 @@ mismos 8 ids. Verificado despues contra la BD y el codigo.
 marcara SOLUCIONADO (18-ago) — el ultimo el 27-ago, cuatro dias antes de que yo lo cerrara.
 
 ### A — Backend: cerrar la carrera (causa raiz)
-- [ ] `ValidarAsync` lee estado y reservas FUERA de la transaccion; dos requests solapadas leen las
-      dos `Validado=false` y la MISMA reserva activa, y las dos aplican el consumo
-- [ ] Patron «tomar primero, aplicar despues»: transaccion primero + `ExecuteUpdateAsync` condicional
-      (`SET validado=true WHERE id=@id AND validado=false`); 0 filas afectadas ⇒ otra instancia gano
-      ⇒ devolver `YaEstabaValidado` sin aplicar
-- [ ] Reproductora usa `confirmado`, no `validado` — el UPDATE condicional respeta la columna de cada modulo
-- [ ] `ValidarEnBloque` llama a `ValidarAsync` ⇒ hereda el arreglo sin tocarlo
+- [x] `ValidarAsync` leia estado y reservas FUERA de la transaccion; dos requests solapadas leian las
+      dos `Validado=false` y la MISMA reserva activa, y las dos aplicaban el consumo
+- [x] Patron «tomar primero, aplicar despues»: `TomarValidacionAsync` nuevo, con `ExecuteUpdateAsync`
+      condicional (`SET validado=true WHERE id=@id AND validado=false`) DENTRO de la transaccion, que
+      se abre antes de decidir. 0 filas afectadas ⇒ otra instancia gano ⇒ `YaEstabaValidado` sin
+      aplicar nada. Las reservas se leen DESPUES de ganar la carrera
+- [x] Reproductora usa `confirmado`, no `validado` — el UPDATE condicional respeta la columna de cada
+      modulo (y ahi ademas es lo que dispara `trg_cruce_reproductora_engorde`: tambien tiene que pasar
+      una sola vez)
+- [x] `ValidarEnBloque` llama a `ValidarAsync` ⇒ hereda el arreglo sin tocarlo
+- [x] El doc-comment decia «Idempotente: validar dos veces no descuenta dos veces» y era **falso para
+      llamadas concurrentes**. Ahora dice donde vive la exclusion y por que
 
 ### B — Frontend: el disparador
-- [ ] El boton ✓ no se deshabilita mientras su peticion esta en vuelo (`[disabled]` mira el input de
-      «lote cerrado», no el estado de carga)
+- [x] Guarda de reentrada por id en los **3** listados que validan (engorde, levante, produccion):
+      `validandoIds` se marca antes de emitir y se limpia en `next` y en `error`. Los tres tenian el
+      mismo handler calcado
 
 ### C — Test: `DuplicadosValidacionCalculos` (puro, xUnit)
-- [ ] De N movimientos con la misma firma se conserva el de menor id y se revierten los demas,
-      acumulando los kg a devolver por ubicacion. Es lo que ejecuta la migracion
+- [x] Regla fijada con **9 casos**: conserva el de menor id; 3 copias ⇒ revierte 2; mismo dia en dos
+      galpones NO es duplicado; misma referencia con cantidad distinta tampoco; `null` y cadena vacia
+      son la misma ubicacion; los 8 pares reales dan **19.677,24 kg**; y `KgPorUbicacion` suma los DOS
+      pares de G0471 en una sola devolucion de 4.536 kg
 
 ### D — Datos: revertir los 8 duplicados por migracion
-- [ ] Medido en transaccion revertida: el `DELETE` SI anula la fila del historico (trigger `_del`)
+- [x] `20260831140000_RevertirConsumosDuplicadosPorValidacion`
+- [x] Medido en transaccion revertida: el `DELETE` SI anula la fila del historico (trigger `_del`)
       pero **NO devuelve el stock** ⇒ la migracion hace las dos cosas juntas
-- [ ] Se identifican por FIRMA (reference + item + ubicacion + cantidad, `count(*)>1`), no por ids
-      literales: local y produccion no tienen por que coincidir
-- [ ] NO se usa un Ingreso compensatorio: mentiria al cuadre del galpon con una entrada que no existio
+- [x] Se identifican por FIRMA (reference + item + granja + nucleo + galpon + **silo** + cantidad,
+      `count(*)>1`), no por ids literales
+- [x] NO se usa un Ingreso compensatorio: mentiria al cuadre del galpon con una entrada que no existio
+- [x] Respaldo integro en `_backup_consumos_duplicados_validacion_20260831` antes de borrar
+- [x] 🔴 El `Down()` fallaba con `duplicate key uq_lote_hist_origen`: la fila anulada del historico
+      **sigue ocupando** `(origen_tabla, origen_id)`, asi que el trigger de alta no podia crear la
+      suya. Se borra la fila ANTES de reinsertar el movimiento y el trigger la recrea limpia
 
 ### E — Validacion
-- [ ] `dotnet build` + `dotnet test` verdes
-- [ ] `Up()` dos veces en transaccion revertida: la 2a no encuentra duplicados
-- [ ] Post-`Up()`: 0 duplicados, 8 filas del historico en `anulado=true`, stock +19.677,24 kg
-- [ ] Ninguna otra empresa tocada · `yarn build` OK
+- [x] `dotnet build` 0/0 · `dotnet test` **3.533 verdes** (3.524 + 9 nuevos) · `yarn build` OK
+- [x] `Up()` dos veces en transaccion revertida: 1a **8 revertidos / 19.677,240 kg**, 2a **0 y 0**
+- [x] Simetria exacta medida: stock de los 7 galpones **24.519,224 → 44.196,464 → 24.519,224**;
+      pares **8 → 0 → 8**; historico anulado **0 → 8 → 0**
+- [x] Ninguna otra empresa tocada: el respaldo tiene **solo `company_id = 5`**
+- [x] Aplicada a la BD local: 0 duplicados, 8 filas del historico anuladas, 8 respaldadas, y
+      **0 filas de stock en negativo** en toda la base
