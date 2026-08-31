@@ -4900,24 +4900,44 @@ Continua el bloque anterior (Santa Reyes). De los 15 casos no cerrados de las ot
 solicitante (unica via a CERRADO) y 2 estaban resueltos sin que nadie moviera la tarjeta.
 
 ### A — Validacion caso por caso (contra el codigo y `origin/main-produccion`)
-- [ ] Los 13 con su evidencia (commit o dato) y confirmados como ancestros de `main-produccion`
-- [ ] Los 2 que quedan FUERA, con su motivo: `TK-000183` (CAROLINA) tiene trabajo real pendiente y
-      `TK-000001` es un caso de prueba de junio
-- [ ] Hallazgo: 3 casos (`20`, `164`, `165`) se marcaron SOLUCIONADO por migracion y quedaron sin
-      nota ni correo ⇒ el solicitante nunca supo que estaba resuelto
+- [x] Los 13 con su evidencia (commit o dato) y **confirmados como ancestros de `main-produccion`**:
+      `00ff4b5`+`8eea14a` (12) · migraciones `20260806063157`/`20260806074016`, medido en BD:
+      `tipo_alimento` en **500** (13, 14) · `7339c61` (15) · no-bug con la medicion en prod dentro de
+      la migracion `20260814130000` (20) · **0 grupos** de ingresos duplicados hoy en Panama (163) ·
+      `b355f71` (164) · `ValidacionSeguimientoCalculos.Canonico` vivo y **0 referencias** a la tabla
+      inexistente (165) · `InventarioGestionService.Consulta.cs:276-324` (166) · `299c816` (176) ·
+      `a9fd721`+`3988183` (177) · `c13b9ef` (185) · `1191b39`, en prod via PR #89 (187)
+- [x] Los 2 que quedan FUERA, con su motivo: `TK-000183` (CAROLINA) tiene trabajo real pendiente
+      —diagnostico completo, datos sin corregir a proposito y el mecanismo vivo en
+      `InventarioGestionService.StockMutacion.cs:118-145`— y `TK-000001` es un caso de prueba de junio
+- [x] Hallazgo: 3 casos (`20`, `164`, `165`) se marcaron SOLUCIONADO por migracion y quedaron sin
+      nota ni correo ⇒ el solicitante nunca supo que estaba resuelto. `TK-000020` es el unico con
+      dano real: su solicitante es de Sanmarino y esperaba hace 17 dias
 
 ### B — Migracion `20260831130000_CerrarTicketsResueltosOtrasEmpresas` (data-only)
-- [ ] Localiza por `codigo` + empresa (no por titulo: varios los tipeo el usuario)
-- [ ] Fail-safe por estado: si en prod ya esta CERRADO o lo reabrieron, lo saltea con NOTICE
-- [ ] Los 2 de EN_ANALISIS reciben solucion + fecha_solucion + las 2 notas
-- [ ] Los 11 de SOLUCIONADO conservan su solucion y fecha originales; se les agrega la nota de cierre
-- [ ] A los 3 sin nota de SOLUCIONADO se les siembra, fechada en su `fecha_solucion` real
-- [ ] La nota dice que el cierre lo hizo la GESTION, cuantos dias espero y que se reabre si vuelve
-- [ ] `Down()` devuelve cada uno a su estado previo y borra solo lo que sembro
+- [x] Localiza por `codigo` + empresa (no por titulo: varios los tipeo el usuario, p. ej.
+      «ERROR EN LA FEHCA»). Los 13 en una tabla `VALUES` recorrida por un loop: el fail-safe, la
+      nota y el cierre se escriben **una sola vez**
+- [x] Fail-safe por estado: si ya esta CERRADO o lo reabrieron, lo saltea con NOTICE
+- [x] Los 2 de EN_ANALISIS reciben solucion + fecha_solucion + las 2 notas
+- [x] Los 11 de SOLUCIONADO conservan su solucion y fecha originales; se les agrega la nota de cierre
+- [x] A los 3 sin nota de SOLUCIONADO se les siembra, fechada en su `fecha_solucion` real
+      (20→14-ago, 164/165→18-ago), con prefijo **propio** `Solucionado (registro retroactivo):` —
+      el servicio escribe `Solucionado: `, asi el `Down` distingue la suya de una legitima y el
+      lector ve que se anoto despues
+- [x] La nota dice que el cierre lo hizo la GESTION, cuantos dias espero, la evidencia verificada y
+      que se reabre si vuelve; a los 3 sin correo les agrega esa constancia
+- [x] `Down()` devuelve cada uno a su estado previo y borra solo lo que sembro
 
 ### C — Validacion
-- [ ] `Up()` dos veces en transaccion revertida: 2a pasada sin movimiento ni notas duplicadas
-- [ ] `Down()` restaura los 13, con la `fecha_solucion` original de los 11 intacta
-- [ ] Fail-safe probado forzando un caso a CERRADO antes del `Up()`
-- [ ] `TK-000183`, `TK-000001` y los de Santa Reyes intactos
-- [ ] `dotnet build` + `dotnet test` verdes
+- [x] `Up()` dos veces en transaccion revertida: 1a pasada **13 cerrados / 0 saltados**, notas
+      **43 → 61** (13 de cierre + 5 retroactivas); 2a pasada **0 cerrados / 13 saltados** y notas
+      **61 → 61**
+- [x] `Down()` restaura los 13: 11 en SOLUCIONADO con su `fecha_solucion` original intacta
+      (12→06-ago, 20→14-ago, 164→18-ago), 2 en EN_ANALISIS sin solucion, notas de vuelta en **43**
+- [x] Fail-safe probado de verdad: forzando el 12 a EN_ANALISIS (reabierto) y el 185 a CERRADO ⇒
+      **11 cerrados, 2 saltados**, los dos sin nota ni `cerrado_por_user_id`
+- [x] `TK-000183`, `TK-000001` y los 4 de Santa Reyes intactos
+- [x] `dotnet build` 0/0 · `dotnet test` **3.525 verdes**
+- [x] Aplicada a la BD local (solo la propia, en transaccion). **Toda la base queda en 183 CERRADO**
+      y solo esos 2 fuera; ningun backend levantado
