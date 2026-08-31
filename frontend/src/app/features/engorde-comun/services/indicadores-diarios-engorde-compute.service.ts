@@ -9,6 +9,7 @@ import {
 } from '../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
 import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engorde.models';
 import { ymdSinTz } from '../../../shared/utils/format';
+import { desplazamientoPrimerDia, diaDeNegocioDesdeEdad } from '../funciones/dia-negocio-engorde.funcion';
 
 interface MetadataItem {
   unidad?: string;
@@ -33,7 +34,8 @@ export class IndicadoresDiariosEngordeComputeService {
 
   async compute(
     seguimientos: SeguimientoLoteLevanteDto[],
-    selectedLote: LoteDto | LotePosturaLevanteDto | null
+    selectedLote: LoteDto | LotePosturaLevanteDto | null,
+    horaEncasetamiento: string | null = null
   ): Promise<IndicadoresDiariosEngordeComputeResult> {
     const empty: IndicadoresDiariosEngordeComputeResult = {
       filas: [],
@@ -88,16 +90,23 @@ export class IndicadoresDiariosEngordeComputeService {
 
     const pesoIni = this.pesoInicialMixtoLote(selectedLote);
 
+    // Numeración de negocio de la columna «Día»: el primer día con registro es el día 1 (no hay
+    // día 0); en un lote que llegó a las 13:00 o después ese primer día es el siguiente al encaset.
+    // La EDAD (0 el día del encaset) se conserva para el cruce con la guía genética y para la
+    // aritmética de ganancia, que no cambian.
+    const desplazamiento = desplazamientoPrimerDia(horaEncasetamiento);
+
     let acumMix = 0;
     let ultimoPesoMedido = pesoIni;
-    let ultimoPesoDia = 0;
+    let ultimoPesoEdad = 0;
 
     const out: IndicadorDiarioFilaEngorde[] = [];
 
     for (const { ymd, regs } of diasOrdenados) {
       const fechaRef = regs[0]?.fechaRegistro ?? ymd;
-      const dia = this.calcularDiaVida(selectedLote, fechaRef);
-      const g = this.guiaParaDia(guiaPorDia, dia);
+      const edad = this.calcularEdadDias(selectedLote, fechaRef);
+      const dia = diaDeNegocioDesdeEdad(edad, desplazamiento);
+      const g = this.guiaParaDia(guiaPorDia, edad);
 
       const mort = regs.reduce((s, r) => s + (r.mortalidadHembras ?? 0) + (r.mortalidadMachos ?? 0), 0);
       const sel = regs.reduce((s, r) => s + (r.selH ?? 0) + (r.selM ?? 0), 0);
@@ -129,7 +138,7 @@ export class IndicadoresDiariosEngordeComputeService {
       // delta acumulado de 4 dias se mostraba como si fuera de uno solo (TK ganancia diaria).
       let gananciaReal: number | null = null;
       if (pesoReal > 0) {
-        const diasTranscurridos = Math.max(1, dia - ultimoPesoDia);
+        const diasTranscurridos = Math.max(1, edad - ultimoPesoEdad);
         gananciaReal = (pesoReal - ultimoPesoMedido) / diasTranscurridos;
       }
 
@@ -189,7 +198,7 @@ export class IndicadoresDiariosEngordeComputeService {
 
       if (pesoReal > 0) {
         ultimoPesoMedido = pesoReal;
-        ultimoPesoDia = dia;
+        ultimoPesoEdad = edad;
       }
     }
 
@@ -274,7 +283,8 @@ export class IndicadoresDiariosEngordeComputeService {
     return best >= 0 ? map.get(best) : undefined;
   }
 
-  private calcularDiaVida(
+  /** Edad en días de calendario desde el encaset (0 el día del encaset) — eje de la guía genética. */
+  private calcularEdadDias(
     selectedLote: LoteDto | LotePosturaLevanteDto,
     fechaRegistro: string | Date
   ): number {

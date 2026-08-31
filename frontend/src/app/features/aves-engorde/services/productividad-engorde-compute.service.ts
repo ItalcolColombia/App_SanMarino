@@ -5,6 +5,11 @@ import {
   ProductividadSemanalFila,
   ProductividadEngordeResult
 } from './productividad-engorde.models';
+import {
+  desplazamientoPrimerDia,
+  diaDeNegocioDesdeEdad,
+  semanaDeNegocio
+} from '../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 
 /** Factor de conversión kilogramos → libras. */
 const LB_POR_KG = 2.20462;
@@ -16,20 +21,24 @@ const LB_POR_KG = 2.20462;
  */
 @Injectable({ providedIn: 'root' })
 export class ProductividadEngordeComputeService {
-  compute(tablaFilas: SeguimientoDiarioTablaFilaDto[]): ProductividadEngordeResult {
+  compute(tablaFilas: SeguimientoDiarioTablaFilaDto[], horaEncasetamiento: string | null = null): ProductividadEngordeResult {
     const filas = this.ordenar(tablaFilas);
     if (!filas.length) {
       return { diaria: [], semanal: [] };
     }
 
-    const diaria = this.computeDiaria(filas);
-    const semanal = this.computeSemanal(filas);
+    // Numeración de negocio (día 1 = primer día con registro; sin día 0). Con desplazamiento 0 la
+    // semana de negocio coincide exactamente con la `semana` de fn_seguimiento_diario_engorde.
+    const desplazamiento = desplazamientoPrimerDia(horaEncasetamiento);
+
+    const diaria = this.computeDiaria(filas, desplazamiento);
+    const semanal = this.computeSemanal(filas, desplazamiento);
     return { diaria, semanal };
   }
 
   // ─── Diaria ────────────────────────────────────────────────────────────────
 
-  private computeDiaria(filas: SeguimientoDiarioTablaFilaDto[]): ProductividadDiariaFila[] {
+  private computeDiaria(filas: SeguimientoDiarioTablaFilaDto[], desplazamiento: number): ProductividadDiariaFila[] {
     const out: ProductividadDiariaFila[] = [];
     let mortAcum = 0;
     let selAcum = 0;
@@ -44,7 +53,7 @@ export class ProductividadEngordeComputeService {
       const pesoKg = this.pesoMixtoKg(f);
 
       out.push({
-        edadDia: f.edadDia,
+        dia: diaDeNegocioDesdeEdad(f.edadDia ?? 0, desplazamiento),
         gramos: pesoKg > 0 ? pesoKg * 1000 : 0,
         qq: pesoKg > 0 ? (f.saldoAves * pesoKg * LB_POR_KG) / 100 : 0,
         pctMortalidad: saldoInicio > 0 ? (mortDia / saldoInicio) * 100 : 0,
@@ -59,13 +68,16 @@ export class ProductividadEngordeComputeService {
 
   // ─── Semanal ───────────────────────────────────────────────────────────────
 
-  private computeSemanal(filas: SeguimientoDiarioTablaFilaDto[]): ProductividadSemanalFila[] {
-    // Agrupar por semana preservando el orden cronológico.
+  private computeSemanal(filas: SeguimientoDiarioTablaFilaDto[], desplazamiento: number): ProductividadSemanalFila[] {
+    // Agrupar por SEMANA DE NEGOCIO preservando el orden cronológico. Con desplazamiento 0 es
+    // idéntica a `f.semana` (ceil((edad+1)/7) de la fn); con lote tardío queda alineada con la
+    // numeración de la tabla de seguimiento (días 1..7 = semana 1).
     const grupos = new Map<number, SeguimientoDiarioTablaFilaDto[]>();
     for (const f of filas) {
-      const arr = grupos.get(f.semana);
+      const semanaNegocio = semanaDeNegocio(diaDeNegocioDesdeEdad(f.edadDia ?? 0, desplazamiento));
+      const arr = grupos.get(semanaNegocio);
       if (arr) arr.push(f);
-      else grupos.set(f.semana, [f]);
+      else grupos.set(semanaNegocio, [f]);
     }
 
     const out: ProductividadSemanalFila[] = [];

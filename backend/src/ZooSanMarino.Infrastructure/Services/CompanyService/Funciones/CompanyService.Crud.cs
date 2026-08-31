@@ -88,6 +88,8 @@ public partial class CompanyService
             ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras,
             OcultaMachosEnPostura = dto.OcultaMachosEnPostura,
             HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana,
+            // null ⇒ 25: el número que estuvo hardcodeado en fn_indicadores_produccion_postura.
+            SemanaInicioIndicadoresProduccion = dto.SemanaInicioIndicadoresProduccion ?? 25,
             SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza,
             LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves,
             SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa,
@@ -158,6 +160,8 @@ public partial class CompanyService
         c.ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras ?? c.ConsumoAlimentoSoloHembras;
         c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
         c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
+        c.SemanaInicioIndicadoresProduccion =
+            dto.SemanaInicioIndicadoresProduccion ?? c.SemanaInicioIndicadoresProduccion;
         c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
         c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
         c.SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa ?? c.SeparaLotesPosturaPorEtapa;

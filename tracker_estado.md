@@ -4695,3 +4695,146 @@ aparte, con su propia verificación y su propio OK». Esto es esa operación.
       anular** (ids 19321-19326 → seguimientos 12817-12822, que ya no existen), creadas **hoy 28-ago
       06:03**. Son **142 aves** (75 H + 67 M) descontadas del maestro sin registro que las respalde.
       Es el mismo invariante, roto por otro camino; no lo toca esta tarea.
+
+---
+
+## Santa Reyes — la guía genética en el camino SQL + los tipos de huevo al ALTA del lote (30-ago-2026)
+
+Plan: [`fase_de_desarrollo/santa_reyes_guia_sql_alias_y_huevo_items_alta_plan.md`](fase_de_desarrollo/santa_reyes_guia_sql_alias_y_huevo_items_alta_plan.md)
+
+**Pedido:** verificar que producción, levante y gestión de lotes estén conectados con la guía de
+Santa Reyes, y que los tipos de huevo declarados **al crear el lote** sean los que aparecen en la
+fase de producción.
+
+### Auditoría (cerrada) — medida en `sanmarinoapplocal:5433`, company 6
+
+- [x] **Funciona:** guía propia (5 razas × 123 sem., edad 18→140) → `vw_guia_genetica_postura` →
+      indicadores de **producción** (smoke lote 152 sem. 30: prod guía **72,87 %** / consumo
+      **113,00** / retiro **1,10**) y de **levante** (sem. 20: consumo **107,00**, peso/unif/mort
+      vacíos = correcto, la guía reducida no los trae).
+- [x] **Funciona:** el selector de raza/año del alta de lote une propia + compartida
+      (`ObtenerRazasCrudoAsync`) y `LoteService.Crud` valida con `GuiaGeneticaLookup` (con alias ERP).
+- [x] **Funciona:** ítems de huevo por lote en backend (`lote_huevo_items`, empresa por
+      `farms.company_id`, gate `ValidarHuevoItemsAsync` fail-closed) y el diario los pide con
+      `lotes.lote_id` (el maestro, no el espejo `lpp`).
+- [i] **G1** — el alias de grafía del ERP vive **sólo en C#**: `BABCOK BROWN` / `HY LINE` →
+      producción **vacío**, levante **0,00**, mientras el reporte técnico (C#) sí muestra la guía.
+- [i] **G2** — levante compara la raza **case-sensitive**: `CRIOLLA` cruza en producción y no en levante.
+- [i] **G3** — en levante, no cruzar se pinta **`0,00`** (objetivo falso), no vacío.
+- [i] **G4** — `fn_indicadores_produccion_postura` descarta toda semana de vida **< 25**; Santa Reyes
+      tiene guía desde la **18** y `huevo_primera_postura_hasta_semana = 22` ⇒ sus semanas 18–24 no salen.
+- [i] **H1** — los tipos de huevo sólo se declaran **después** de crear el lote (botón 🥚 de la lista);
+      el formulario de alta no los ofrece. Hoy el lote 152 tiene **0 declarados** ⇒ fail-closed en el diario.
+
+### A — el alias de raza en SQL (G1 + G2 + G3)
+- [x] El alias se resuelve en `vw_guia_genetica_postura` (3a rama), NO con una fn por join: los 4
+      objetos que leen la guia lo heredan sin tocar un solo criterio. Medido: `BABCOK BROWN` →
+      **95,80 %** (el valor de `Babcock Brown`), `HY LINE` → **96,50 %**; `LOHMANN BROWN` sigue
+      vacio a proposito.
+- [x] `fn_indicadores_produccion_postura`: hereda el alias de la vista, sin tocar su `WHERE`
+- [x] `fn_indicadores_levante_postura`: rama propia con `btrim(lower())`; la rama compartida
+      queda **exacta como hoy** (no se unifican criterios, divergen a propósito). Medido:
+      `CRIOLLA` pasa de **0,00** a **107,00**; `BABCOK BROWN` idem vía el alias de la vista.
+- [x] `fn_resumen_semanal_ra_pesadas_*`: heredan el alias de la vista (ya comparaban `lower(trim())`).
+      `vw_guia_genetica_por_lote_postura` queda **fuera**: ningún service la consulta (sólo el backup
+      de DB Studio), así que recrearla sería superficie sin lector.
+- [x] G3: el `COALESCE(...,0)` de levante no corre si la empresa **tiene guía propia**. Medido:
+      la semana 10 (fuera de la curva propia, que arranca en la 18) pasa de **0,00** a vacío.
+- [x] Migración `20260831044636_AliasRazaGuiaSqlYSemanaInicioProduccion` idempotente (+ `.Designer.cs`
+      y `.Sql.cs` con las 6 constantes). `Down()` restaura los 3 objetos verbatim de HEAD.
+- [x] **Gate multipaís PASA**: Sanmarino, Demo, Ecuador y Panamá en **0 en todas las columnas** de
+      los 6 objetos (88 y 158 filas de indicadores incluidas). Único cambio: `Santa Reyes |
+      fn_indicadores_levante_postura | 152|1 | CAMBIO LA GUIA` — el 0 falso corregido.
+
+### B — semana de arranque de producción por empresa (G4)
+- [x] `companies.semana_inicio_indicadores_produccion int NOT NULL DEFAULT 25` + seed SR = **18**
+- [x] `fn_indicadores_produccion_postura` la resuelve una vez y la usa en el `DELETE` y en el `FOR`.
+      Medido: el lote en **semana 22** pasa de **0 filas** a su fila con guia (13,82 %)
+- [x] El parametro viaja en `CompanyDto` / `Create` / `Update` y en las 4 proyecciones
+      (`CompanyService.ToDto`, `CompanyService.Crud` x2, `CompanyResolver` x2, `CompanyPaisService`)
+- [x] En vez de un cálculo C# sin llamador (el número lo resuelve la fn, no el backend), el test
+      que sí protege es `RazaGuiaAliasParidadSqlTests`: lee `backend/sql/vw_guia_genetica_postura.sql`
+      y falla si el alias del SQL y el de `RazaGuiaAliasCalculos` dejan de decir lo mismo. Era
+      exactamente el defecto original: tenerlo de un solo lado.
+
+### C — los tipos de huevo en el ALTA del lote (H1)
+- [x] `GET /api/LoteHuevoItem/por-granja/{granjaId}/disponibles` (empresa por `farms.company_id`,
+      fail-closed y exigiendo `deleted_at IS NULL`). Smoke real contra el backend local: **28 ítems**
+      para la granja 109 (Santa Reyes), ordenados Primera → Pnc, `activo:false`, `loteId:0`.
+- [x] Sección en el modal de crear/editar de `lote-list`, gateada por `clasificacionHuevoPorItems`,
+      con tildar por grupo, aviso fail-closed si no se elige ninguno, y recarga al cambiar de granja
+      (el catálogo es por empresa: se descarta lo tildado antes de pedir el nuevo).
+- [x] Al guardar: POST/PUT del lote → `PUT /LoteHuevoItem/{loteId}` con el id de la respuesta; si
+      esa segunda llamada falla, el toast dice que el lote SÍ quedó guardado y apunta al botón 🥚.
+      Ciclo probado contra el backend: PUT con 2 ítems → GET devuelve esos 2 (los que el diario
+      convierte en filas fijas). Revertido después: `lote_huevo_items` volvió a 0 filas.
+- [x] `agruparHuevoItemsPorTipo` + `seleccionInicialHuevoItems` en `funciones/` (+ `models/`),
+      **reusadas por el modal 🥚**, que dejó de tener su copia privada. 5 specs verdes. El botón 🥚
+      de la lista se conserva.
+
+### Validación
+- [x] `dotnet build` 0/0 · `dotnet test` **3.521 verdes** · `yarn build` OK · el gate
+      `verificar-sql-llega-por-migracion.js` pasa.
+- [x] Flag **OFF**: el gate de paridad da **0 en todo** para Sanmarino, Demo, Ecuador y Panamá, y
+      la sección 🥚 no se renderiza sin `clasificacionHuevoPorItems`. Flag **ON** (Santa Reyes):
+      medido arriba, punto por punto.
+- [x] Backend de smoke apagado; **:5002 y :5501 libres**. Datos del smoke revertidos
+      (`lote_huevo_items` 0 filas, sesión de prueba borrada) y la BD local **sin la migración
+      aplicada** a propósito: `database update` arrastraría las pendientes de otras sesiones.
+
+### Validación en vivo del flujo de huevos (31-ago-2026, pedido del usuario)
+- [x] **Migración aplicada a la BD local** — sólo la propia (`20260831044636`), a mano y en una
+      transacción (efecto + fila en `__EFMigrationsHistory` juntos), para no arrastrar las **4
+      pendientes de commits del 28-ago**. Verificado: Santa Reyes **18**, las otras cuatro **25**.
+- [x] **Declarar los tipos**: `PUT /api/LoteHuevoItem/152` con 2 ítems coherentes con la raza del
+      lote (Criolla) → `HUEVO SIN CLASIFICAR CRIOLLO` (Primera) y `HUEVO CRIOLLO PICADO` (Pnc).
+- [x] **Guardar producción con esos tipos**: `POST /api/Produccion/seguimiento` → **201, id 860**.
+      En BD: `huevo_tot = 1350` (1.200 + 150), las **11 columnas legacy en 0** y
+      `metadata->'huevoItems'` con los **2 ítems** — exactamente el contrato de F7.3.
+- [x] **La tabla de registros los muestra**: el listado devuelve el desglose en `metadata.huevoItems`
+      y `tabs-principal` pinta las columnas **Primera** / **Pnc** desde ahí (`getHuevoPrimera` /
+      `getHuevoPnc`). La tabla semanal por ítem (`POST /clasificacion-huevo-items`) devuelve las 2
+      filas con nombre, código y cantidad.
+- [x] **Fail-closed verificado**: guardar un ítem NO declarado (`HUEVO SIN CLASIFICAR BLANCO`) →
+      **400** con el mensaje accionable («no está entre los tipos que este lote produce»).
+- [i] El lote está en **semana 2 de vida** (encaset 19-ago), así que en los **indicadores semanales**
+      todavía no aparece: para Santa Reyes arrancan en la 18. No es un fallo — es la regla nueva.
+- [x] Registro de prueba **860 borrado** a pedido del usuario, por el endpoint
+      (`DELETE /api/Produccion/seguimiento/860` → **204**) y no por SQL: el service libera la
+      reserva de validación y **recalcula el espejo de huevos**, cosas que un DELETE crudo se
+      saltea. Medido antes de borrar: el registro no había movido el maestro (3.000 = inicial),
+      no tenía fila en `lote_registro_historico_unificado` ni movimientos de inventario. Después:
+      0 registros en el lote, maestro en 3.000, y los **2 tipos de huevo siguen declarados**.
+
+---
+
+# Día de encasetamiento: sin día 0 en indicadores + herencia de hora en reproductora (31-ago-2026)
+
+Plan: [fase_de_desarrollo/dia_encaset_reproductora_indicadores_engorde_plan.md](fase_de_desarrollo/dia_encaset_reproductora_indicadores_engorde_plan.md)
+
+Ticket Panamá: encaset 27-ago con hora 21:33 → el 28-ago salía como «día 2» en seguimiento
+reproductora, y los indicadores diarios de engorde arrancaban en «día 0». No hay día cero.
+
+### A — Backend: hora efectiva de la reproductora (hereda del lote pollo engorde)
+- [x] `EncasetamientoCalculos.HoraEfectivaReproductora(horaRepro, horaEngorde)` + tests xUnit
+- [x] `LoteReproductoraAveEngordeDto.HoraEncasetamientoEfectiva` (campo nuevo, no rompe contrato)
+- [x] `LoteReproductoraAveEngordeService`: proyección de la hora del engorde en TODAS las salidas
+      (GetAll/GetById/Create/CreateBulk/Update/Reabrir) + diagnóstico retroactivo con la efectiva
+- [x] `SeguimientoDiarioLoteReproductoraService`: guardas Create/Update con hora efectiva
+- [x] Carga masiva (`MigracionService.SeguimientoReproductora`): validación con hora efectiva
+
+### B — Frontend: numeración día 1 y fecha sugerida
+- [x] DTO TS `horaEncasetamientoEfectiva` + lista reproductora: desplazamiento por hora efectiva,
+      acotado a la menor edad registrada (131/132 conservan 1..7; 146/147 arrancan en día 1)
+- [x] `nextSuggestedFecha` (primer registro) = encaset + desplazamiento; modal con hora efectiva
+- [x] Indicadores engorde: `row.dia` = día de negocio 1-based (guía y ganancia siguen por edad);
+      hora pasada desde `tabs-principal-engorde` a tabla y gráficas
+- [x] Specs Karma del compute actualizados + caso tardío + caso «encaset = día 1»
+
+### C — Datos y validación
+- [x] Verificación en BD: engorde sin registros en edad 0 de lotes tardíos (nada que mover);
+      reproductora 131/132 quedan numerados 1..7 por la acotación — sin UPDATEs (el cruce ya está bien)
+- [x] `dotnet build` + `dotnet test` verdes
+- [x] `yarn build` OK + spec compute verde
+- [x] Smoke HTTP local: detail 146 con efectiva 21:33; POST 27-ago rechazado con mensaje del 28-ago;
+      empresa sin hora idéntica a antes. Backend apagado y :5002 libre al terminar

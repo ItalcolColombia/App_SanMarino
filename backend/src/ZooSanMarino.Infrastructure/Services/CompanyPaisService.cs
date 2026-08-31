@@ -134,7 +134,8 @@ public class CompanyPaisService : ICompanyPaisService
             LimitaTiposInventarioAlimentoYAves: cp.Company.LimitaTiposInventarioAlimentoYAves,
             SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa,
             DescuentaInventarioDesdeMovil: cp.Company.DescuentaInventarioDesdeMovil,
-            GuiaGeneticaPerfil: cp.Company.GuiaGeneticaPerfil
+            GuiaGeneticaPerfil: cp.Company.GuiaGeneticaPerfil,
+            SemanaInicioIndicadoresProduccion: cp.Company.SemanaInicioIndicadoresProduccion
         )).ToList();
     }
 

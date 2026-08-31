@@ -20,8 +20,10 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class MigracionService
 {
-    /// <summary>Datos mínimos de un lote reproductora para resolver la columna "Reproductora" y validar fechas.</summary>
-    private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento, TimeOnly? HoraEncasetamiento);
+    /// <summary>Datos mínimos de un lote reproductora para resolver la columna "Reproductora" y validar fechas.
+    /// <paramref name="HoraLoteEngorde"/> es la hora del lote de engorde al que pertenece: la regla del
+    /// primer día usa la hora EFECTIVA (propia ?? engorde), porque la captura vive en el form del engorde.</summary>
+    private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento, TimeOnly? HoraEncasetamiento, TimeOnly? HoraLoteEngorde);
 
     /// <summary>Claves de lectura (título + alias) de una columna del esquema de reproductora engorde.</summary>
     private static string[] ClavesReproductora(string titulo) =>
@@ -51,16 +53,17 @@ public partial class MigracionService
     /// </summary>
     private async Task<Dictionary<int, (List<ReproductoraInfo> Repros, Dictionary<string, List<ReproductoraInfo>> PorClave)>> CargarReproductorasDeLotesAsync(IReadOnlyCollection<int> loteIds, CancellationToken ct)
     {
-        var filas = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
-            .Where(r => loteIds.Contains(r.LoteAveEngordeId))
-            .OrderBy(r => r.NombreLote)
-            .Select(r => new { r.LoteAveEngordeId, r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento, r.HoraEncasetamiento })
+        var filas = await (from r in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                           join lae in _ctx.LoteAveEngorde.AsNoTracking() on r.LoteAveEngordeId equals lae.LoteAveEngordeId
+                           where loteIds.Contains(r.LoteAveEngordeId)
+                           orderby r.NombreLote
+                           select new { r.LoteAveEngordeId, r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento, r.HoraEncasetamiento, HoraLoteEngorde = lae.HoraEncasetamiento })
             .ToListAsync(ct);
 
         var resultado = new Dictionary<int, (List<ReproductoraInfo>, Dictionary<string, List<ReproductoraInfo>>)>();
         foreach (var grupo in filas.GroupBy(f => f.LoteAveEngordeId))
         {
-            var repros = grupo.Select(f => new ReproductoraInfo(f.Id, f.ReproductoraId, f.CodigoReproductora, f.NombreLote, f.FechaEncasetamiento, f.HoraEncasetamiento)).ToList();
+            var repros = grupo.Select(f => new ReproductoraInfo(f.Id, f.ReproductoraId, f.CodigoReproductora, f.NombreLote, f.FechaEncasetamiento, f.HoraEncasetamiento, f.HoraLoteEngorde)).ToList();
             var porClave = new Dictionary<string, List<ReproductoraInfo>>();
             void Indexar(string? clave, ReproductoraInfo repro)
             {
@@ -254,7 +257,8 @@ public partial class MigracionService
             // al primer día con registro, que se corre un día si las aves llegaron a las 13:00 o después.
             if (repro.FechaEncasetamiento.HasValue)
             {
-                var horaRegla = repro.HoraEncasetamiento;
+                // Hora efectiva: la propia o la del lote de engorde (misma regla que el servicio).
+                var horaRegla = EncasetamientoCalculos.HoraEfectivaReproductora(repro.HoraEncasetamiento, repro.HoraLoteEngorde);
                 var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
                 var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(repro.FechaEncasetamiento.Value, fecha);
                 if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias, edadMinima))

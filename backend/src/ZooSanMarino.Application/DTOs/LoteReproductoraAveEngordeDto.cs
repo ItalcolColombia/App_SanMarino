@@ -45,7 +45,12 @@ public record LoteReproductoraAveEngordeDto(
     string? NovedadApertura = null,
     /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de la semana de
     /// recogida pasa al día siguiente del encasetamiento (ver EncasetamientoCalculos).</summary>
-    TimeOnly? HoraEncasetamiento = null
+    TimeOnly? HoraEncasetamiento = null,
+    /// <summary>Hora de llegada EFECTIVA: la propia o, si es null (el caso real: la hora se captura
+    /// en el formulario del lote pollo engorde), la del lote de engorde al que pertenece. Es la que
+    /// usan la numeración de días y la fecha del primer registro; el formulario de edición sigue
+    /// mostrando <see cref="HoraEncasetamiento"/> para no materializar la heredada.</summary>
+    TimeOnly? HoraEncasetamientoEfectiva = null
 );
 
 /// <summary>Request para reabrir un lote reproductora cerrado. La novedad es obligatoria.</summary>

@@ -71,5 +71,8 @@ public record UpdateCompanyDto(
     /// <summary>Perfil de guía genética: <c>"sanmarino"</c> | <c>"reducida"</c>. <c>null</c>/vacío =
     /// el cliente no lo mandó ⇒ se conserva el valor actual (mismo criterio que los flags de arriba).
     /// Un valor desconocido se rechaza (no cae al default).</summary>
-    string?  GuiaGeneticaPerfil                 = null
+    string?  GuiaGeneticaPerfil                 = null,
+    /// <summary>Semana de vida desde la que arrancan los indicadores de producción.
+    /// <c>null</c> = el cliente no lo mandó ⇒ se conserva el valor actual.</summary>
+    int?     SemanaInicioIndicadoresProduccion  = null
 );

@@ -25,6 +25,15 @@ public interface ILoteHuevoItemService
     /// </summary>
     Task<IEnumerable<LoteHuevoItemDto>> GetDisponiblesAsync(int loteId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Los mismos ítems elegibles, pero para un lote que TODAVÍA NO EXISTE: el alta necesita
+    /// ofrecer los tipos de huevo antes del POST, y ahí no hay <c>loteId</c> con el que resolver la
+    /// empresa. Se resuelve por la granja que el usuario acaba de elegir en el formulario, que es
+    /// el mismo dato del que después colgará el lote — y el mismo con el que valida el guardado del
+    /// diario. Ninguno viene marcado (<c>Activo = false</c>): no hay declaración previa que marcar.
+    /// </summary>
+    Task<IEnumerable<LoteHuevoItemDto>> GetDisponiblesPorGranjaAsync(int granjaId, CancellationToken ct = default);
+
     /// <summary>Reemplaza el conjunto de tipos de huevo del lote. Lista vacía = ninguno.</summary>
     Task<IEnumerable<LoteHuevoItemDto>> AsignarAsync(int loteId, AsignarHuevoItemsDto dto, CancellationToken ct = default);
 }

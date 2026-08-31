@@ -56,6 +56,15 @@ export class LoteHuevoItemsService {
     return this.http.get<LoteHuevoItemDto[]>(`${this.baseUrl}/${loteId}/disponibles`);
   }
 
+  /**
+   * El mismo catálogo elegible, pero para un lote que TODAVÍA NO EXISTE: el formulario de alta
+   * necesita ofrecer los tipos antes del POST. La empresa se resuelve por la granja elegida —el
+   * mismo dato del que colgará el lote—, y ninguno viene marcado porque no hay declaración previa.
+   */
+  getDisponiblesPorGranja(granjaId: number): Observable<LoteHuevoItemDto[]> {
+    return this.http.get<LoteHuevoItemDto[]>(`${this.baseUrl}/por-granja/${granjaId}/disponibles`);
+  }
+
   /** Reemplaza el conjunto de tipos de huevo del lote. */
   asignar(loteId: number, dto: AsignarHuevoItemsDto): Observable<LoteHuevoItemDto[]> {
     return this.http.put<LoteHuevoItemDto[]>(`${this.baseUrl}/${loteId}`, dto);

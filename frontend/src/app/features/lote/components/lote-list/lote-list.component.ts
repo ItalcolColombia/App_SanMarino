@@ -33,6 +33,9 @@ import { ActiveCompanyConfigService } from '../../../../core/services/company-co
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
 import { ModalAsignarHuevoItemsComponent } from '../modal-asignar-huevo-items/modal-asignar-huevo-items.component';
+import { LoteHuevoItemsService } from '../../services/lote-huevo-items.service';
+import { GrupoHuevoItems } from '../../models/huevo-items.model';
+import { agruparHuevoItemsPorTipo, seleccionInicialHuevoItems } from '../../funciones/agrupar-huevo-items.funcion';
 import {
   calcularEdadDias as calcularEdadDiasFn,
   calcularEdadSemanas as calcularEdadSemanasFn,
@@ -366,7 +369,8 @@ export class LoteListComponent implements OnInit {
     private guiaGeneticaSvc: GuiaGeneticaService,
     private toastService: ToastService,
     private companyConfig: ActiveCompanyConfigService,
-    private permSvc: UserPermissionService
+    private permSvc: UserPermissionService,
+    private huevoItemsSvc: LoteHuevoItemsService
   ) {}
 
   // Método de prueba para diagnosticar problemas
@@ -400,6 +404,10 @@ export class LoteListComponent implements OnInit {
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
       const granjaId = granjaIdVal != null && granjaIdVal !== '' ? Number(granjaIdVal) : null;
       const granjaIdNum = granjaId ?? 0;
+
+      // El catálogo de tipos de huevo es POR EMPRESA y la empresa sale de la granja: al cambiarla
+      // hay que releerlo (y descartar lo tildado, que puede ser de otra empresa).
+      this.onGranjaCambioParaHuevoItems(granjaId);
 
       this.nucleosFiltrados = this.nucleos.filter(n => Number(n.granjaId) === granjaIdNum);
       this.filteredNucleos = this.nucleosFiltrados;
@@ -1079,6 +1087,20 @@ export class LoteListComponent implements OnInit {
     this.form.get('lotePosturaBaseId')?.enable({ emitEvent: false }); // asegurar habilitado al abrir
     this.loadBaseLotesOptions();
     this.loadModalData();
+
+    // F7.3 — los tipos de huevo del lote se declaran acá, en el alta. En edición se piden por lote
+    // (vienen marcados los ya declarados); en alta, por la granja que traiga el formulario —si
+    // todavía no hay, la cascada de granjaId dispara la carga cuando el usuario la elija.
+    this.huevoItemsGrupos = [];
+    this.huevoItemsSeleccion = new Set<number>();
+    this.huevoItemsGranjaCargada = null;
+    this.errorHuevoItemsForm = false;
+    if (this.clasificacionHuevoPorItems) {
+      const granjaId = l?.granjaId ?? (this.form.get('granjaId')?.value != null
+        ? Number(this.form.get('granjaId')?.value)
+        : null);
+      this.cargarHuevoItemsDelFormulario(Number.isFinite(granjaId as number) ? (granjaId as number) : null);
+    }
   }
 
   private loadBaseLotesOptions(): void {
@@ -1478,15 +1500,20 @@ export class LoteListComponent implements OnInit {
       ? this.loteSvc.update(dto as UpdateLoteDto)
       : this.loteSvc.create(dto as CreateLoteDto);
 
+    // Se captura ANTES del subscribe: `this.editing` se limpia al cerrar el modal y el callback
+    // necesita saber si esto fue un alta o una edición.
+    const eraEdicion = !!this.editing;
+    const loteIdEditado = eraEdicion ? Number(raw.loteId) : null;
+
     this.loading = true;
     op$.pipe(finalize(() => { this.loading = false; })).subscribe({
-      next: () => {
+      next: (guardado) => {
         this.modalOpen = false;
-        this.toastService.success(
-          this.editing ? 'Lote actualizado correctamente.' : 'Lote registrado correctamente.',
-          'Listo'
-        );
-        this.loadData();
+        const mensaje = eraEdicion ? 'Lote actualizado correctamente.' : 'Lote registrado correctamente.';
+        // El id del lote nuevo lo trae la respuesta del POST: los tipos de huevo cuelgan del lote
+        // MAESTRO, así que no hay nada que declarar hasta que el backend lo crea.
+        const loteId = loteIdEditado ?? Number((guardado as LoteDto | null)?.loteId ?? 0) ?? null;
+        this.guardarHuevoItemsDelFormulario(loteId, mensaje);
       },
       error: (err) => {
         // El controller responde `BadRequest(ex.Message)`, o sea un string plano — no `{ message }`.
@@ -1738,6 +1765,144 @@ export class LoteListComponent implements OnInit {
 
   cerrarHuevoItems(): void {
     this.huevoItemsLote = null;
+  }
+
+  // ── Los tipos de huevo, dentro del formulario de alta/edición ────────────────────────
+  // El modal 🥚 de arriba sigue existiendo (editar los tipos sin abrir el lote entero), pero el
+  // cliente los declara AL CREAR el lote: «cuando yo creo un lote puedo seleccionar los tipos de
+  // huevos que me dará el lote». Antes había que crear el lote, buscarlo en la lista y recién ahí
+  // declararlos — y hasta que eso pasaba, el diario de producción no le dejaba clasificar nada.
+
+  /** Catálogo de huevo elegible, agrupado Primera → Pnc → resto. Vacío = la empresa no tiene. */
+  huevoItemsGrupos: GrupoHuevoItems[] = [];
+  /** Ítems tildados en el formulario. Es el SET que se manda al guardar. */
+  huevoItemsSeleccion = new Set<number>();
+  cargandoHuevoItemsForm = false;
+  /** El GET falló: distinto de «la empresa no tiene catálogo», y se dice distinto en pantalla. */
+  errorHuevoItemsForm = false;
+  /** Descarta respuestas viejas si el usuario cambia de granja mientras viaja el GET. */
+  private huevoItemsFormLoadId = 0;
+  /** Granja para la que está cargado el catálogo actual, para no repetir el GET al reabrir. */
+  private huevoItemsGranjaCargada: number | null = null;
+
+  /**
+   * Carga el catálogo del selector. En EDICIÓN se pide por lote (así vienen marcados los que ya
+   * declaró); en ALTA se pide por la granja elegida, porque el lote todavía no existe y la empresa
+   * se resuelve por `farms.company_id` — el mismo dato con el que valida el guardado del diario.
+   */
+  private cargarHuevoItemsDelFormulario(granjaId: number | null): void {
+    if (!this.clasificacionHuevoPorItems) return;
+
+    const loteId = this.editing?.loteId ?? null;
+    if (!loteId && !granjaId) {
+      this.huevoItemsGrupos = [];
+      this.huevoItemsSeleccion = new Set<number>();
+      this.huevoItemsGranjaCargada = null;
+      this.errorHuevoItemsForm = false;
+      return;
+    }
+
+    const loadId = ++this.huevoItemsFormLoadId;
+    this.cargandoHuevoItemsForm = true;
+    this.errorHuevoItemsForm = false;
+
+    const req$ = loteId
+      ? this.huevoItemsSvc.getDisponibles(loteId)
+      : this.huevoItemsSvc.getDisponiblesPorGranja(granjaId!);
+
+    req$.pipe(finalize(() => {
+      if (loadId === this.huevoItemsFormLoadId) this.cargandoHuevoItemsForm = false;
+    })).subscribe({
+      next: items => {
+        if (loadId !== this.huevoItemsFormLoadId) return;
+        this.huevoItemsGrupos = agruparHuevoItemsPorTipo(items ?? []);
+        this.huevoItemsSeleccion = seleccionInicialHuevoItems(items ?? []);
+        this.huevoItemsGranjaCargada = granjaId;
+      },
+      error: () => {
+        if (loadId !== this.huevoItemsFormLoadId) return;
+        // Un error de red no se puede pintar como «catálogo vacío»: el usuario creería que la
+        // empresa no tiene ítems y se iría a crearlos.
+        this.huevoItemsGrupos = [];
+        this.huevoItemsSeleccion = new Set<number>();
+        this.huevoItemsGranjaCargada = null;
+        this.errorHuevoItemsForm = true;
+      }
+    });
+  }
+
+  /** La granja cambió en el alta: el catálogo es por empresa, así que puede ser otro. */
+  private onGranjaCambioParaHuevoItems(granjaId: number | null): void {
+    if (!this.clasificacionHuevoPorItems || this.editing) return;
+    if (granjaId === this.huevoItemsGranjaCargada) return;
+    // La selección previa era de otra empresa: se descarta antes de pedir la nueva.
+    this.huevoItemsSeleccion = new Set<number>();
+    this.cargarHuevoItemsDelFormulario(granjaId);
+  }
+
+  alternarHuevoItemForm(catalogItemId: number): void {
+    if (this.huevoItemsSeleccion.has(catalogItemId)) this.huevoItemsSeleccion.delete(catalogItemId);
+    else this.huevoItemsSeleccion.add(catalogItemId);
+  }
+
+  huevoItemFormSeleccionado(catalogItemId: number): boolean {
+    return this.huevoItemsSeleccion.has(catalogItemId);
+  }
+
+  /** Tilda o destilda un grupo entero: con 28 ítems, hacerlo de a uno es tedioso. */
+  alternarGrupoHuevoItemForm(grupo: GrupoHuevoItems): void {
+    const todos = grupo.items.every(i => this.huevoItemsSeleccion.has(i.catalogItemId));
+    for (const item of grupo.items) {
+      if (todos) this.huevoItemsSeleccion.delete(item.catalogItemId);
+      else this.huevoItemsSeleccion.add(item.catalogItemId);
+    }
+  }
+
+  grupoHuevoItemFormCompleto(grupo: GrupoHuevoItems): boolean {
+    return grupo.items.length > 0 && grupo.items.every(i => this.huevoItemsSeleccion.has(i.catalogItemId));
+  }
+
+  get totalHuevoItemsSeleccionados(): number {
+    return this.huevoItemsSeleccion.size;
+  }
+
+  /**
+   * Guarda los tipos de huevo del lote recién creado/editado. Corre DESPUÉS del guardado del lote,
+   * nunca antes: hasta que el POST no responde no hay `loteId` del que colgarlos.
+   *
+   * <p>
+   * Si esta segunda llamada falla, el lote YA quedó guardado: el mensaje lo dice explícitamente y
+   * apunta al botón 🥚, en vez de un «error al guardar» que haría pensar que no se creó nada.
+   * </p>
+   */
+  private guardarHuevoItemsDelFormulario(loteId: number | null, mensajeExito: string): void {
+    const ids = [...this.huevoItemsSeleccion];
+
+    if (!this.clasificacionHuevoPorItems || !loteId || loteId <= 0) {
+      this.toastService.success(mensajeExito, 'Listo');
+      this.loadData();
+      return;
+    }
+
+    this.huevoItemsSvc.asignar(loteId, { catalogItemIds: ids }).subscribe({
+      next: () => {
+        this.toastService.success(
+          ids.length > 0
+            ? `${mensajeExito} Tipos de huevo declarados: ${ids.length}.`
+            : `${mensajeExito} Quedó sin tipos de huevo: no podrá registrar clasificación en el seguimiento diario.`,
+          'Listo'
+        );
+        this.loadData();
+      },
+      error: (err) => {
+        this.toastService.warning(
+          (err?.error?.message ?? 'No se pudieron guardar los tipos de huevo.') +
+          ' El lote sí quedó guardado: podés declararlos con el botón 🥚 de la lista.',
+          'Revisá los tipos de huevo'
+        );
+        this.loadData();
+      }
+    });
   }
 
   openMoverUbicacion(lote: LoteDto): void {

@@ -143,6 +143,14 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.HuevoPrimeraPosturaHastaSemana)
             .HasColumnName("huevo_primera_postura_hasta_semana");
 
+        // Parámetro operativo: semana de vida desde la que arrancan los indicadores de producción.
+        // El DEFAULT 25 es el número que estuvo hardcodeado en fn_indicadores_produccion_postura,
+        // así que una empresa que no lo toque se comporta igual que antes.
+        builder.Property(x => x.SemanaInicioIndicadoresProduccion)
+            .HasColumnName("semana_inicio_indicadores_produccion")
+            .HasDefaultValue(25)
+            .IsRequired();
+
         // Flag tipado por comportamiento: la etapa del ciclo de vida (alistamiento/levante/levante
         // en producción/postura) se calcula por semana y por raza en vez de los cortes fijos.
         builder.Property(x => x.SemanasCicloPosturaPorRaza)

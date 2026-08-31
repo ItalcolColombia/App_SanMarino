@@ -26,6 +26,7 @@ import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesi
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
+import { desplazamientoPrimerDia } from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LoteReproductoraAveEngordeService, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
@@ -150,15 +151,15 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   /**
    * Fecha sugerida para el próximo registro:
-   * - Sin registros → fecha de encasetamiento del lote reproductora (día 1 de la semana).
+   * - Sin registros → primer día con registro del lote: el encasetamiento, o el día siguiente si
+   *   las aves llegaron a las 13:00 o después (hora efectiva, heredada del lote de engorde).
    * - Con registros → último registro + 1 día.
    * Si no hay fecha de encasetamiento disponible se usa hoy.
    */
   get nextSuggestedFecha(): string {
     if (this.seguimientos.length === 0) {
-      // Primer registro: el MISMO día del encasetamiento (el negocio lo cuenta como día 1)
       const enc = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
-      if (enc) return enc;
+      if (enc) return this.addDaysToYmd(enc, this.desplazamientoPrimerDia);
       return this.todayYmd();
     }
     // Registro N: último registrado + 1 día
@@ -658,17 +659,45 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
   trackByIdx = (i: number) => i;
 
-  /** Hora de corte: desde las 13:00 el primer registro del lote es el día siguiente al encaset. */
-  private static readonly HORA_CORTE = '13:00';
+  /**
+   * Hora que rige la numeración y el primer registro: la EFECTIVA que resuelve el backend (la
+   * propia del lote reproductora o, si es null —el caso real: la hora se captura en el formulario
+   * del lote POLLO ENGORDE—, la del lote de engorde al que pertenece).
+   */
+  private get horaEncasetamientoEfectiva(): string | null {
+    return this.selectedReproductoraDetail?.horaEncasetamientoEfectiva
+        ?? this.selectedReproductoraDetail?.horaEncasetamiento
+        ?? null;
+  }
 
   /**
    * Días que se corre el PRIMER día con registro respecto del encasetamiento: 0 o 1.
-   * Lo decide la HORA DEL LOTE (13:00 inclusive), sin gate de empresa: el campo se ofrece a todas.
+   * Lo decide la HORA EFECTIVA DEL LOTE (13:00 inclusive), sin gate de empresa.
    * Espejo de `EncasetamientoCalculos.DiasDesplazamiento` en el backend.
+   * <p>Para la NUMERACIÓN el desplazamiento se acota a la menor edad CON registro: los lotes que
+   * capturaron el día del encasetamiento antes de que existiera el guarda de la hora (históricos)
+   * conservan su semana 1..7 y ninguna fila queda sin número de día.</p>
    */
   private get desplazamientoPrimerDia(): number {
-    const h = (this.selectedReproductoraDetail?.horaEncasetamiento ?? '').toString().trim();
-    return h.length >= 5 && h.slice(0, 5) >= SeguimientoDiarioLoteReproductoraListComponent.HORA_CORTE ? 1 : 0;
+    const teorico = desplazamientoPrimerDia(this.horaEncasetamientoEfectiva);
+    if (teorico === 0) return 0;
+    const edadMin = this.menorEdadRegistrada();
+    return edadMin == null ? teorico : Math.min(teorico, Math.max(0, edadMin));
+  }
+
+  /** Menor edad (días desde el encaset) entre los registros cargados; null si no hay ninguno. */
+  private menorEdadRegistrada(): number | null {
+    const baseYmd = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
+    if (!baseYmd) return null;
+    const inicio = new Date(baseYmd + 'T00:00:00').getTime();
+    let min: number | null = null;
+    for (const s of this.seguimientos) {
+      const regYmd = ymdSinTz(s.fechaRegistro);
+      if (!regYmd) continue;
+      const dias = Math.round((new Date(regYmd + 'T00:00:00').getTime() - inicio) / (1000 * 60 * 60 * 24));
+      if (min == null || dias < min) min = dias;
+    }
+    return min;
   }
 
   /**

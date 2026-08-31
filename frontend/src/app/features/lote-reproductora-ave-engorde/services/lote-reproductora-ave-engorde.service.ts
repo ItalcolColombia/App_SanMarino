@@ -47,6 +47,10 @@ export interface LoteReproductoraAveEngordeDto {
   readonly fechaEncasetamiento: string | null;
   /** Hora de llegada de las aves (HH:mm). Desde las 13:00 el primer registro pasa al día siguiente. */
   readonly horaEncasetamiento?: string | null;
+  /** Hora de llegada EFECTIVA: la propia o, si es null (el caso real: la hora se captura en el
+   *  formulario del lote pollo engorde), la del lote de engorde. Es la que usan la numeración de
+   *  días y la fecha del primer registro; el form de edición sigue mostrando `horaEncasetamiento`. */
+  readonly horaEncasetamientoEfectiva?: string | null;
   readonly m: number | null;
   readonly h: number | null;
   readonly mixtas: number | null;

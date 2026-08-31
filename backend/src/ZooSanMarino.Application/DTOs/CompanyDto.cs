@@ -91,5 +91,11 @@ public record CompanyDto(
     /// <c>ActiveCompanyConfigService</c> para decidir qué pantalla de guía ofrecer.
     /// Valores válidos y resolución: <c>GuiaGeneticaPerfilCalculos</c>.
     /// </summary>
-    string GuiaGeneticaPerfil = "sanmarino"
+    string GuiaGeneticaPerfil = "sanmarino",
+    /// <summary>
+    /// Semana de vida desde la que arrancan los indicadores de producción. <c>25</c> (default) = el
+    /// valor que estuvo hardcodeado en <c>fn_indicadores_produccion_postura</c>. Santa Reyes usa
+    /// <c>18</c> (postura comercial: pone mucho antes que una reproductora).
+    /// </summary>
+    int SemanaInicioIndicadoresProduccion = 25
 );

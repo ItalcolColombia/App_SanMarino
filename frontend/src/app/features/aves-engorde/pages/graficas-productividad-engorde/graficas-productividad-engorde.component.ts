@@ -25,6 +25,8 @@ import {
 export class GraficasProductividadEngordeComponent implements OnChanges {
   @Input() tablaFilas: SeguimientoDiarioTablaFilaDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  /** Hora de llegada del lote (HH:mm) — misma numeración «Día 1..N» que la tabla de seguimiento. */
+  @Input() horaEncasetamiento: string | null = null;
   @Input() loading = false;
 
   modo: 'diaria' | 'semanal' = 'diaria';
@@ -63,7 +65,7 @@ export class GraficasProductividadEngordeComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['tablaFilas']) {
+    if (changes['tablaFilas'] || changes['horaEncasetamiento']) {
       this.rebuild();
     }
   }
@@ -73,7 +75,7 @@ export class GraficasProductividadEngordeComponent implements OnChanges {
   }
 
   private rebuild(): void {
-    const res = this.compute.compute(this.tablaFilas ?? []);
+    const res = this.compute.compute(this.tablaFilas ?? [], this.horaEncasetamiento);
     this.diaria = res.diaria;
     this.semanal = res.semanal;
     this.chartsSemana = [];
@@ -88,7 +90,7 @@ export class GraficasProductividadEngordeComponent implements OnChanges {
   // ─── Diaria ──────────────────────────────────────────────────────────────────
 
   private buildDiaria(filas: ProductividadDiariaFila[]): void {
-    const labels = filas.map(f => `${f.edadDia}`);
+    const labels = filas.map(f => `${f.dia}`);
 
     this.chartDesempenoDiarioData = {
       labels,

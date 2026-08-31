@@ -88,7 +88,8 @@ public class CompanyResolver : ICompanyResolver
                 c.LimitaTiposInventarioAlimentoYAves,
                 c.SeparaLotesPosturaPorEtapa,
                 c.DescuentaInventarioDesdeMovil,
-                c.GuiaGeneticaPerfil
+                c.GuiaGeneticaPerfil,
+                c.SemanaInicioIndicadoresProduccion
             ))
             .FirstOrDefaultAsync();
 
@@ -149,7 +150,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.LimitaTiposInventarioAlimentoYAves,
                 uc.Company.SeparaLotesPosturaPorEtapa,
                 uc.Company.DescuentaInventarioDesdeMovil,
-                uc.Company.GuiaGeneticaPerfil
+                uc.Company.GuiaGeneticaPerfil,
+                uc.Company.SemanaInicioIndicadoresProduccion
             ))
             .ToListAsync();
 

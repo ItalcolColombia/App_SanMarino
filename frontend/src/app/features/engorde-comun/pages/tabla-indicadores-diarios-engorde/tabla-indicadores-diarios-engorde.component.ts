@@ -20,6 +20,9 @@ import { formatDecimalTrim } from '../../../../shared/utils/format-decimal';
 export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  /** Hora de llegada del lote (HH:mm): desde las 13:00 el primer día con registro —y el «Día 1» de
+   *  la numeración— es el siguiente al encasetamiento. Sin hora, día 1 = día del encaset. */
+  @Input() horaEncasetamiento: string | null = null;
   @Input() loading = false;
 
   filas: IndicadorDiarioFilaEngorde[] = [];
@@ -31,7 +34,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
   constructor(private compute: IndicadoresDiariosEngordeComputeService) {}
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['seguimientos'] || changes['selectedLote']) {
+    if (changes['seguimientos'] || changes['selectedLote'] || changes['horaEncasetamiento']) {
       void this.rebuild();
     }
   }
@@ -47,7 +50,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
 
     this.cargandoGuia = true;
     try {
-      const res = await this.compute.compute(this.seguimientos, this.selectedLote);
+      const res = await this.compute.compute(this.seguimientos, this.selectedLote, this.horaEncasetamiento);
       this.errorGuia = res.errorGuia;
       this.guiaOk = res.guiaOk;
       this.etiquetaGuiaCargada = res.etiquetaGuiaCargada;

@@ -270,6 +270,20 @@
         public int? HuevoPrimeraPosturaHastaSemana { get; set; }
 
         /// <summary>
+        /// Semana de VIDA desde la que los indicadores de producción muestran datos.
+        /// <c>25</c> (default) = el valor que estuvo hardcodeado en
+        /// <c>fn_indicadores_produccion_postura</c> hasta el 30-ago-2026, o sea el comportamiento
+        /// de siempre para toda empresa que no lo cambie.
+        /// <para>
+        /// Nace de Santa Reyes con valor <b>18</b>: es postura comercial y empieza a poner mucho
+        /// antes que una reproductora. Con el 25 fijo, sus semanas 18-24 —que su guía propia SÍ
+        /// cubre, y donde vive el huevo de primera postura (hasta la 22)— no aparecían en ningún
+        /// indicador de producción, sin error ni aviso.
+        /// </para>
+        /// </summary>
+        public int SemanaInicioIndicadoresProduccion { get; set; } = 25;
+
+        /// <summary>
         /// <c>true</c> = la etapa del ciclo de vida del ave (alistamiento/levante/levante en granja
         /// de producción/postura) se calcula por semana de vida y por raza, en vez de los cortes
         /// fijos 26-33/34-50/&gt;50. Alcanza el campo «Etapa» del seguimiento diario de producción

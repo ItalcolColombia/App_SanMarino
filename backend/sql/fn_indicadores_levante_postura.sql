@@ -226,6 +226,11 @@ DECLARE
     -- >40 columnas) o 'propia' (guia_genetica_santa_reyes, 3 metricas y solo hembras).
     -- Ver el bloque de la guia mas abajo: gobierna si se coalescea a 0 o se deja NULL.
     v_origen_guia  text;
+    -- ¿La EMPRESA del lote tiene guia propia (tabla reducida)? Distinto de v_origen_guia, que
+    -- dice de donde salio LA FILA de esta semana y queda NULL cuando no hubo ninguna. Se necesita
+    -- separado para el caso «empresa con guia propia + semana sin fila»: ahi un 0 seria un
+    -- objetivo inventado (su guia arranca en la semana 18 y no cubre todo el levante).
+    v_guia_propia_empresa boolean := false;
     r_mort_pct_h   double precision;
     r_mort_pct_m   double precision;
     r_retiro_pct_h double precision;
@@ -266,6 +271,13 @@ BEGIN
      WHERE l.lote_id = p_lote_id AND l.deleted_at IS NULL;
 
     IF NOT FOUND THEN RETURN; END IF;
+
+    -- Una sola vez por lote: ¿esta empresa tiene guia propia? Gobierna el COALESCE a 0 de mas
+    -- abajo. Para las cuatro empresas que leen la guia compartida da FALSE, y la expresion que
+    -- se ejecuta queda identica a la de siempre.
+    SELECT EXISTS (SELECT 1 FROM guia_genetica_santa_reyes gp
+                    WHERE gp.company_id = v_company AND gp.deleted_at IS NULL)
+      INTO v_guia_propia_empresa;
 
     -- Aves entradas por traslado en filas que el armado de la serie DESCARTA (puro traslado
     -- > sem 25): fallback de base cuando el lote se pobló por traslado y no trae
@@ -502,7 +514,17 @@ BEGIN
           INTO r_cons_tabla, r_peso_tabla, r_unif_tabla, r_mort_tabla, r_cons_tabla_h, r_cons_tabla_m,
                r_peso_tabla_h, r_peso_tabla_m, r_mort_tabla_h, r_mort_tabla_m, v_origen_guia
           FROM vw_guia_genetica_postura g
-         WHERE g.raza = v_raza AND g.anio_guia = v_anio AND g.company_id = v_company
+         WHERE g.company_id = v_company
+           -- ⚠️ La comparacion de raza de la rama COMPARTIDA queda EXACTA y case-sensitive, como
+           -- siempre: aflojarla haria matchear filas que hoy no matchean para Sanmarino, Demo,
+           -- Ecuador y Panama, o sea el refactor cambiaria resultados por si solo. La rama PROPIA
+           -- —inalcanzable para esas cuatro— si compara normalizado, porque produccion ya lo hace
+           -- y tenerlo de un solo lado era la causa medida de que `CRIOLLA` cruzara en produccion
+           -- y no en levante (30-ago-2026). La grafia del ERP la resuelve la vista, con su alias.
+           AND (CASE WHEN g.origen = 'propia'
+                     THEN btrim(lower(g.raza)) = btrim(lower(v_raza))
+                     ELSE g.raza = v_raza END)
+           AND g.anio_guia = v_anio
            AND btrim(g.edad) = s::text
          LIMIT 1;
         -- El COALESCE a 0 también es exclusivo de la guía compartida: ahí la columna existe en
@@ -510,7 +532,13 @@ BEGIN
         -- (no trae peso, ni uniformidad, ni mortalidad semanal — su retiro_ac_h es ACUMULADO),
         -- y un 0 ahí se leería como un objetivo real. NULL es la única lectura honesta, y el
         -- front ya lo sabe pintar: las series por sexo llegan NULL desde siempre.
-        IF v_origen_guia IS DISTINCT FROM 'propia' THEN
+        -- `AND NOT v_guia_propia_empresa`: sin eso, una semana SIN fila de guia (v_origen_guia
+        -- NULL) caia igual en el COALESCE. Para una empresa con guia propia eso pinta 0,00 en las
+        -- cuatro columnas de guia —un objetivo inventado— justo donde su guia no llega: la de
+        -- Santa Reyes arranca en la semana 18 y el levante empieza en la 1. Medido el 30-ago-2026.
+        -- Para las cuatro empresas sin guia propia la condicion nueva es siempre TRUE ⇒ la misma
+        -- expresion de hoy, incluido el 0 legitimo cuando la guia compartida trae la columna vacia.
+        IF v_origen_guia IS DISTINCT FROM 'propia' AND NOT v_guia_propia_empresa THEN
             r_cons_tabla := COALESCE(r_cons_tabla,0);
             r_peso_tabla := COALESCE(r_peso_tabla,0);
             r_unif_tabla := COALESCE(r_unif_tabla,0);
