@@ -289,7 +289,15 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add(fecha)) { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "Fecha repetida en el archivo.")); continue; }
 
-            int e0 = errores.Count;
+            // 🔴 Solo los de severidad "Error" cuentan para descartar la fila. Las advertencias viven
+            // en la MISMA lista —`MigracionErrorDto` nace con Severidad = "Error" y las informativas
+            // la pasan explícita—, así que contar `errores.Count` a secas hacía que una simple
+            // Advertencia tirara el DÍA COMPLETO, y el resumen igual decía «Procesado» porque el badge
+            // mira los errores de fila. Ese es el mecanismo genérico detrás de «la carga llegó hasta la
+            // semana N»: una fila que trae a la vez consumo directo y alimentos del inventario emite
+            // «se ignora el consumo directo» y se perdía entera. Engorde ya ordena sus advertencias
+            // fuera de esta ventana; levante y producción no, y por eso perdían filas en silencio.
+            int e0 = MigracionSeveridadCalculos.CuentaQueDescartan(errores);
             if (!ValidarFechaContraLote(fila, fecha, loteCtx, hoyUtc, errores)) continue;
 
             var mortH = EnteroNoNeg(fila, errores, "Mort H", ClavesPostura(tipo, "Mort H"));
@@ -327,7 +335,7 @@ public partial class MigracionService
             (consH, consM) = ResolverConsumoPostura(tipo, fila, errores, itemsH, itemsM, consH, consM, unidad);
 
             var (huevos, pesoHuevo) = LeerHuevosPostura(tipo, fila, errores);
-            if (errores.Count > e0) continue;
+            if (MigracionSeveridadCalculos.CuentaQueDescartan(errores) > e0) continue;
 
             // Levante captura huevos si la empresa lo tiene habilitado (misma regla del modal,
             // HuevosLevanteCalculos: el tab es fijo, sin gate de semana; una fecha anterior al
@@ -426,7 +434,15 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add(fecha)) { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "Fecha repetida en el archivo.")); continue; }
 
-            int e0 = errores.Count;
+            // 🔴 Solo los de severidad "Error" cuentan para descartar la fila. Las advertencias viven
+            // en la MISMA lista —`MigracionErrorDto` nace con Severidad = "Error" y las informativas
+            // la pasan explícita—, así que contar `errores.Count` a secas hacía que una simple
+            // Advertencia tirara el DÍA COMPLETO, y el resumen igual decía «Procesado» porque el badge
+            // mira los errores de fila. Ese es el mecanismo genérico detrás de «la carga llegó hasta la
+            // semana N»: una fila que trae a la vez consumo directo y alimentos del inventario emite
+            // «se ignora el consumo directo» y se perdía entera. Engorde ya ordena sus advertencias
+            // fuera de esta ventana; levante y producción no, y por eso perdían filas en silencio.
+            int e0 = MigracionSeveridadCalculos.CuentaQueDescartan(errores);
             if (!ValidarFechaContraLote(fila, fecha, loteCtx, hoyUtc, errores)) continue;
 
             var mortH = EnteroNoNeg(fila, errores, "Mort H", ClavesPostura(tipo, "Mort H"));
@@ -479,7 +495,7 @@ public partial class MigracionService
                 errores.Add(new(fila.Numero, "Huevo Total", huevoTot?.ToString(),
                     $"'Huevo Total' ({huevoTot}) no coincide con la suma de las categorías ({categorias.Totales}); manda el desglose.", "Advertencia"));
 
-            if (errores.Count > e0) continue;
+            if (MigracionSeveridadCalculos.CuentaQueDescartan(errores) > e0) continue;
 
             // Día del cierre del levante: los huevos del Excel se SUMAN a los arrastrados y los totales
             // se derivan del resultado (mismo criterio que AplicarRequestSobreFilaArrastre).

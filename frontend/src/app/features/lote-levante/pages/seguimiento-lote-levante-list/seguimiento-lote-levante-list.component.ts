@@ -1137,11 +1137,26 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
           if (r && (r.avesHembrasDisponibles > 0 || r.avesMachosDisponibles > 0)) {
             const req: TrasladoCierreLevanteRequest = {
               lotePosturaLevanteId: id,
-              fecha: new Date().toISOString(),
+              // 🔴 La fecha del traslado es la que el usuario YA eligió para el inicio de producción
+              // (obligatoria, se valida arriba), no la del equipo. Con `new Date()` este movimiento
+              // quedaba fechado el día en que alguien cerró el lote y no el día en que las aves se
+              // movieron, y esa fecha viaja aguas abajo: el upsert de la fila diaria acumula la
+              // salida de aves en el día equivocado. Era exactamente el síntoma de TK-2026-000012,
+              // vivo en este camino: el fix de aquel ticket tocó el modal de movimientos y no el
+              // cierre de levante. `ymdToIsoAtNoon` es el mismo helper de la línea de arriba — el
+              // mediodía evita que la conversión a UTC corra el día.
+              fecha: this.ymdToIsoAtNoon(this.fechaInicioProduccionYmd),
               hembrasTraslado: r.avesHembrasDisponibles,
               machosTraslado: r.avesMachosDisponibles,
             };
-            this.movimientosAvesSvc.ejecutarTrasladoCierreLevante(req).subscribe();
+            // El traslado es best-effort, pero fallando en silencio el usuario se queda creyendo que
+            // las aves pasaron a producción. Avisar no cambia el camino feliz.
+            this.movimientosAvesSvc.ejecutarTrasladoCierreLevante(req).subscribe({
+              error: err => void this.aviso.error(
+                err,
+                'El lote se cerró, pero no se pudo registrar el traslado de aves a producción. Regístrelo desde Movimientos de aves.',
+                'Traslado no registrado')
+            });
           }
 
           this.closeCerrarLoteModal();

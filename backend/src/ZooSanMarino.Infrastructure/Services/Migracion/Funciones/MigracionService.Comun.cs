@@ -218,7 +218,12 @@ public partial class MigracionService
                 dryRun ? "Validado" : "Procesado", dryRun, capados, 0, 0, totalReal);
         }
 
-        var filasError = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
+        // Misma regla que usa el descarte por fila, en un solo lugar. Ojo con lo que NO cuenta:
+        // los errores de `Fila = 0` son del ARCHIVO entero (p. ej. que el consumo no alcanza contra
+        // el stock de la granja) y no aparecen acá, así que `filasError` puede ser 0 con el archivo
+        // rechazado completo. El front no puede deducir «se puede importar parcial» solo de este
+        // número — ver MigracionSeveridadCalculos.HayErroresDelArchivo.
+        var filasError = MigracionSeveridadCalculos.FilasConError(errores);
         return new(tipo.ToString(), false, total, 0, filasError, "ConErrores", dryRun, capados, 0, 0, totalReal);
     }
 

@@ -5012,11 +5012,12 @@ siguen fallando por algun lado**. El primero (doble descuento de alimento) ya se
 Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo quedo atras**.
 
 ### Tanda A — dos cambios chicos de alto impacto
-- [ ] #4 `TK-012/A` — el traslado por cierre de levante se sella con `new Date()` del navegador,
+- [x] #4 `TK-012/A` — el traslado por cierre de levante se sella con `new Date()` del navegador,
       12 lineas despues de que la misma pantalla mande la fecha que el usuario eligio
-- [ ] #7 `TK-020/A` — la carga masiva de levante y produccion descarta el DIA COMPLETO ante una
+- [x] #7 `TK-020/A` — la carga masiva de levante y produccion descarta el DIA COMPLETO ante una
       simple Advertencia y aun asi reporta «Procesado»: es el mecanismo generico de «la carga llega
       hasta la semana N»
+- [i] Ambos validados: `dotnet build` 0/0 · `dotnet test` **3.542 verdes** (+9 de `MigracionSeveridadCalculos`) · `yarn build` OK. La regla de severidad quedo centralizada en `Application/Calculos/MigracionSeveridadCalculos.cs` y la usan los 4 guards de levante/produccion **y** el conteo de `filasError` de `Comun.cs`, en vez de repetida en 5 sitios
 
 ### Tanda B — el critico con datos perdidos
 - [ ] #1 `TK-164` — borrar un seguimiento de reproductora YA CONFIRMADO no devuelve el alimento
