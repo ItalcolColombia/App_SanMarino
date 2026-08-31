@@ -292,6 +292,44 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
    */
   private readonly validandoIds = new Set<number>();
 
+  /**
+   * Quita la validación: devuelve el alimento y las aves y vuelve a dejar el registro editable.
+   *
+   * 🔴 Es la vía de corrección que el backend ofrece desde el primer día y que NINGUNA pantalla
+   * llamaba, aunque todos los mensajes de rechazo mandan a usarla. Sin ella, la única salida que
+   * encontraba la gente era borrar y recrear — y en reproductora eso hacía desaparecer el alimento
+   * sin devolverlo. Pide confirmación porque mueve unidades ya descontadas.
+   */
+  async onQuitarValidacionSeguimiento(seguimientoId: number): Promise<void> {
+    if (this.validandoIds.has(seguimientoId)) return;
+
+    const ok = await this.confirmDialog.ask({
+      title: 'Quitar la validación',
+      message: 'Se devolverá al inventario el alimento consumido y se repondrán las aves descontadas '
+             + 'de este registro, que volverá a quedar editable. ¿Continuar?',
+      type: 'warning',
+      confirmText: 'Quitar validación'
+    });
+    if (!ok) return;
+
+    this.validandoIds.add(seguimientoId);
+    this.loading = true;
+    this.validacionSvc.desvalidar('ENGORDE', seguimientoId).subscribe({
+      next: r => {
+        this.validandoIds.delete(seguimientoId);
+        this.toast.success(
+          `Validación retirada. Se devolvieron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
+          'Registro editable', 5000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.validandoIds.delete(seguimientoId);
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudo quitar la validación del registro.', 'No se pudo quitar');
+      }
+    });
+  }
+
   onValidarSeguimiento(seguimientoId: number): void {
     if (this.validandoIds.has(seguimientoId)) return;
     this.validandoIds.add(seguimientoId);

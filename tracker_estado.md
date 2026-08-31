@@ -5020,8 +5020,20 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
 - [i] Ambos validados: `dotnet build` 0/0 · `dotnet test` **3.542 verdes** (+9 de `MigracionSeveridadCalculos`) · `yarn build` OK. La regla de severidad quedo centralizada en `Application/Calculos/MigracionSeveridadCalculos.cs` y la usan los 4 guards de levante/produccion **y** el conteo de `filasError` de `Comun.cs`, en vez de repetida en 5 sitios
 
 ### Tanda B — el critico con datos perdidos
-- [ ] #1 `TK-164` — borrar un seguimiento de reproductora YA CONFIRMADO no devuelve el alimento
+- [x] #1 `TK-164` — borrar un seguimiento de reproductora YA CONFIRMADO no devuelve el alimento
       (952,560 kg perdidos) y la UI empuja a hacer exactamente eso
+- [i] Guarda calcada de engorde, DENTRO del `if (separaDel)` ⇒ flag OFF byte a byte identico. El mensaje
+      de edicion decia «Eliminelo (se retornan aves y consumo)» —promesa que el codigo NO cumplia—; ahora
+      manda a quitar la validacion
+- [i] 🔴 **Hallazgo propio: `desvalidar()` existia en el servicio del front y NINGUN componente lo
+      llamaba.** Con el flag ON un registro validado no tenia vuelta atras desde la pantalla, y la unica
+      salida que encontraba la gente —borrar y recrear— era justo la que perdia el alimento. Agregado el
+      boton ↩ en la grilla de engorde, con `ConfirmDialogService`
+- [i] Datos: migracion `20260831150000`. Ingreso de devolucion fechado en el DIA DEL SEGUIMIENTO (criterio
+      de `DesvalidarAsync`), stock **1.542,240 → 2.494,800** (+952,560), reservas a LIBERADA. Las de AVES
+      solo se marcan LIBERADA: en reproductora las bajas las escribe el cruce, que se rehace solo al
+      borrar; reponerlas descuadraria el maestro por partida doble
+- [i] Probado: `Up()` x2 en transaccion revertida (2a pasada 0 y 0) y `Down()` exacto. `dotnet test` **3.542**
 
 ### Tanda C — el critico latente
 - [ ] #2 `TK-166` — con el flag ON el backend no valida stock en ningun seguimiento

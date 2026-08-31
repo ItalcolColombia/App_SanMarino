@@ -360,6 +360,11 @@
                                         [disabled]="disableEditDelete"
                                         title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura.">✓</button>
                                     }
+                                    @if (puedeQuitarValidacionFila(f.segId)) {
+                                      <button type="button" (click)="onQuitarValidacion(f.segId)" class="icon-btn"
+                                        [disabled]="disableEditDelete"
+                                        title="Quitar la validación: devuelve el alimento y las aves y vuelve a dejar el registro editable.">↩</button>
+                                    }
                                     <ng-container *appHasPermission="'editar_registro'">
                                       <button type="button" (click)="onEditById(f.segId)" class="icon-btn"
                                         [disabled]="disableEditDelete || esSoloLecturaPorValidacion(f.segId)"

@@ -258,6 +258,7 @@
       [puedeValidar]="puedeValidar"
       [estadoValidacionPorId]="estadoValidacionPorId"
       (validar)="onValidarSeguimiento($event)"
+      (quitarValidacion)="onQuitarValidacionSeguimiento($event)"
       (create)="create()"
       (edit)="edit($event)"
       (delete)="delete($event)"
