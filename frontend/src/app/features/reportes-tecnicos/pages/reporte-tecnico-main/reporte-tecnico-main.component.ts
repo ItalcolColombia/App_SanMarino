@@ -28,6 +28,8 @@ import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-leva
 import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
 import { ReportesTabsComponent } from '../../components/reportes-tabs/reportes-tabs.component';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { GuiaMetricasDisponibles, GUIA_TODAS_DISPONIBLES } from '../../models/reporte-tecnico-guia.model';
+import { normalizarGuiaDisponibilidad } from '../../funciones/normalizar-guia-disponibilidad.funcion';
 
 @Component({
   selector: 'app-reporte-tecnico-main',
@@ -59,6 +61,24 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   /** Empresas sin machos en postura: se retira la pestana y las columnas (SR-DEF-1). */
   ocultaMachosEnPostura = false;
+
+  /**
+   * Qué columnas de comparación contra la guía tienen dato. Lo informa el BACKEND en el reporte
+   * (no se vuelve a preguntar por ningún flag): con guía compartida llega "todas" y la pantalla
+   * queda igual que siempre; con una guía propia de pocas métricas, las columnas que esa guía no
+   * puede llenar no se pintan, en vez de quedar como una pared de celdas vacías.
+   *
+   * Campo y no getter: `normalizarGuiaDisponibilidad` devuelve un objeto nuevo, y un getter lo
+   * recrearía en cada ciclo de detección de cambios (CLAUDE.md §🧩).
+   */
+  guiaDisponible: GuiaMetricasDisponibles = GUIA_TODAS_DISPONIBLES;
+
+  /**
+   * Semana MÍNIMA con guía cargada para la línea del lote. Cuando la guía de la empresa arranca en
+   * producción, el levante muestra sus primeras semanas sin nada contra qué comparar: el aviso lo
+   * explica en vez de dejar que parezca un error del reporte.
+   */
+  semanaGuiaDesde: number | null = null;
 
   loading               = signal(false);
   reporteLevante        = signal<ReporteTecnicoLevanteCompletoDto | null>(null);
@@ -160,6 +180,42 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ── Ancho de los grupos de la tabla Real vs Guía ────────────────────────────────────────────
+  // Cada grupo pierde sus columnas de Guía/Dif cuando la guía de la empresa no trae esa métrica.
+
+  /** POBLACIÓN HEMBRAS: Saldo + Mort + %Mort Real + AcMort, más [Guía + Dif]. */
+  get colspanPoblacionH(): number { return 4 + (this.guiaDisponible.mortSemH ? 2 : 0); }
+
+  /** PESO HEMBRAS: Real, más [Guía + %Dif]. */
+  get colspanPesoHembras(): number { return 1 + (this.guiaDisponible.pesoH ? 2 : 0); }
+
+  /** CONSUMO HEMBRAS: ConsAc + gr/ave/día, más [Guía + %Dif]. */
+  get colspanConsumoH(): number { return 2 + (this.guiaDisponible.consAcH ? 2 : 0); }
+
+  /** POBLACIÓN MACHOS: Saldo + Mort + %Mort Real, más [Guía + Dif]. */
+  get colspanPoblacionM(): number { return 3 + (this.guiaDisponible.mortSemM ? 2 : 0); }
+
+  /** PESO MACHOS: Real, más [Guía + %Dif]. */
+  get colspanPesoMachos(): number { return 1 + (this.guiaDisponible.pesoM ? 2 : 0); }
+
+  /** CONSUMO MACHOS: ConsAc + gr/ave/día, más [Guía + DifAc]. */
+  get colspanConsumoM(): number { return 2 + (this.guiaDisponible.consAcM ? 2 : 0); }
+
+  /**
+   * ¿Hay semanas del reporte por DEBAJO de la primera semana con guía? Sólo entonces vale la pena
+   * avisar: si la guía cubre todo el rango mostrado, el aviso sería ruido.
+   */
+  get hayTramoSinGuia(): boolean {
+    const desde = this.semanaGuiaDesde;
+    if (desde == null || desde <= 1) return false;
+    return (this.reporteLevante()?.datosSemanales ?? []).some(d => (d.semana ?? 0) < desde);
+  }
+
+  /** Última semana del reporte que queda sin comparación posible (para redactar el aviso). */
+  get ultimaSemanaSinGuia(): number {
+    return (this.semanaGuiaDesde ?? 1) - 1;
+  }
+
   private _generarReporteLevante(): void {
     this.loading.set(true);
     this.error = null;
@@ -179,6 +235,8 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (reporte) => {
           this.reporteLevante.set(reporte);
+          this.guiaDisponible = normalizarGuiaDisponibilidad(reporte?.guiaMetricasDisponibles);
+          this.semanaGuiaDesde = reporte?.semanaGuiaDesde ?? null;
           this.error = null;
           this.tabLevanteActivo = this.filterSvc.selectedPeriodicidad() === 'Semanal'
             ? 'reporte-guia'

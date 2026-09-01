@@ -1,5 +1,6 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoProduccionService.cs
+// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoProduccionService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -56,6 +57,71 @@ public partial class ReporteTecnicoProduccionService : IReporteTecnicoProduccion
             .Where(c => c.Id == _currentUser.CompanyId)
             .Select(c => c.ClasificacionHuevoPorItems)
             .FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Flag `companies.semanas_ciclo_postura_por_raza`: la empresa corta las etapas del ave por
+    /// raza (8 alistamiento / 16 levante / 4 levante-en-producción / 74 u 84 de postura) en vez de
+    /// los cortes fijos históricos. Ver <see cref="SemanasCicloPosturaCalculos"/>.
+    /// </summary>
+    private async Task<bool> ResolverSemanasCicloPorRazaAsync(CancellationToken ct) =>
+        await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => c.SemanasCicloPosturaPorRaza)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Proyecta filas de guía a la forma que consume <see cref="GuiaMetricasDisponiblesCalculos"/>.
+    /// Vive acá (helper cross-concern del ancla) porque lo usan Tabs y Cuadro.
+    /// </summary>
+    private static List<FilaGuiaMetricas> AFilasGuiaMetricas(
+        IEnumerable<Domain.Entities.ProduccionAvicolaRaw> guias) =>
+        guias.Select(g => new FilaGuiaMetricas(
+            ProdPorcentaje: g.ProdPorcentaje,
+            PesoHuevo:      g.PesoHuevo,
+            HTotalAa:       g.HTotalAa,
+            Uniformidad:    g.Uniformidad,
+            PesoH:          g.PesoH,
+            PesoM:          g.PesoM,
+            MortSemH:       g.MortSemH,
+            MortSemM:       g.MortSemM,
+            RetiroAcH:      g.RetiroAcH,
+            RetiroAcM:      g.RetiroAcM,
+            ConsAcH:        g.ConsAcH,
+            ConsAcM:        g.ConsAcM,
+            GrAveDiaH:      g.GrAveDiaH,
+            GrAveDiaM:      g.GrAveDiaM)).ToList();
+
+    /// <summary>
+    /// Semana MÍNIMA con guía cargada, o <c>null</c> si no hay guía. Es lo que deja al reporte
+    /// avisar "la guía de esta línea arranca en la semana N" en vez de mostrar una columna vacía
+    /// sin explicación.
+    /// </summary>
+    private static int? SemanaMinimaConGuia(IEnumerable<Domain.Entities.ProduccionAvicolaRaw> guias)
+    {
+        int? minima = null;
+        foreach (var g in guias)
+        {
+            var edad = ParsearEdadGuia(g.Edad);
+            if (edad.HasValue && (!minima.HasValue || edad.Value < minima.Value))
+                minima = edad.Value;
+        }
+        return minima;
+    }
+
+    /// <summary>
+    /// Edad (semana) de una fila de guía. La guía compartida la guarda como texto y admite comas y
+    /// sufijos, por eso el fallback por regex -- misma tolerancia que ya tenían Cuadro y Tabs inline.
+    /// </summary>
+    private static int? ParsearEdadGuia(string? val)
+    {
+        if (string.IsNullOrWhiteSpace(val)) return null;
+        var s = val.Trim().Replace(",", ".");
+        if (int.TryParse(s, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var n)) return n;
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)");
+        return m.Success && int.TryParse(m.Groups[1].Value, out var n2) ? n2 : null;
+    }
 
 
 

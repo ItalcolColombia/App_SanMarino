@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/ReporteTecnicoProduccionDto.cs
+using ZooSanMarino.Application.Calculos;
+
 namespace ZooSanMarino.Application.DTOs;
 
 /// <summary>
@@ -168,7 +170,17 @@ public record ReporteTecnicoProduccionLoteInfoDto(
     // Huevo Comercio") salen de columnas legacy que quedan siempre en 0 -- el desglose real vive
     // en metadata.huevoItems, que estos reportes no leen. Default false: no rompe ningun
     // constructor posicional existente.
-    bool ClasificacionHuevoPorItems = false
+    bool ClasificacionHuevoPorItems = false,
+    // Qué columnas de comparación contra la GUÍA tienen dato real. Con guía compartida llega
+    // `Todas` (el reporte pinta lo de siempre); con guía propia -que es un modelo simple de 3
+    // métricas- llega sólo lo que esa guía puede llenar, para no pintar una pared de celdas vacías
+    // que parecen un error del reporte. Ver `GuiaMetricasDisponiblesCalculos`.
+    // `null` = el servicio no la resolvió ⇒ el front asume todas (fail-open al comportamiento previo).
+    GuiaMetricasDisponibles? GuiaMetricasDisponibles = null,
+    // Semana MÍNIMA con guía cargada para esta raza/año. Con guía propia arranca en producción
+    // (medido: 18), así que el levante muestra sus primeras semanas sin comparación posible y la
+    // pantalla lo avisa en vez de dejar que parezca un fallo. `null` = sin guía o sin restricción.
+    int? SemanaGuiaDesde = null
 );
 
 /// <summary>

@@ -1,4 +1,4 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs
+// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -170,6 +170,55 @@ public partial class ReporteTecnicoService : IReporteTecnicoService
         // Semana 2 = días 8-14
         // etc.
         return (int)Math.Ceiling(edadDias / 7.0);
+    }
+
+    /// <summary>
+    /// Proyecta filas de guía a la forma que consume <see cref="GuiaMetricasDisponiblesCalculos"/>.
+    /// Espeja el helper del reporte de producción; vive por separado porque los dos servicios son
+    /// clases distintas y unificarlo obligaría a un tipo compartido sin ganancia real.
+    /// </summary>
+    private static List<FilaGuiaMetricas> AFilasGuiaMetricasLevante(
+        IEnumerable<Domain.Entities.ProduccionAvicolaRaw> guias) =>
+        guias.Select(g => new FilaGuiaMetricas(
+            ProdPorcentaje: g.ProdPorcentaje,
+            PesoHuevo:      g.PesoHuevo,
+            HTotalAa:       g.HTotalAa,
+            Uniformidad:    g.Uniformidad,
+            PesoH:          g.PesoH,
+            PesoM:          g.PesoM,
+            MortSemH:       g.MortSemH,
+            MortSemM:       g.MortSemM,
+            RetiroAcH:      g.RetiroAcH,
+            RetiroAcM:      g.RetiroAcM,
+            ConsAcH:        g.ConsAcH,
+            ConsAcM:        g.ConsAcM,
+            GrAveDiaH:      g.GrAveDiaH,
+            GrAveDiaM:      g.GrAveDiaM)).ToList();
+
+    /// <summary>
+    /// Semana MÍNIMA con guía cargada, o <c>null</c> si no hay ninguna. Es lo que deja avisar en
+    /// pantalla "la guía de esta línea arranca en la semana N" en vez de mostrar columnas vacías
+    /// sin explicación. Sale de las filas CARGADAS: si el cliente completa el levante, el aviso
+    /// desaparece solo.
+    /// </summary>
+    private static int? SemanaMinimaConGuiaLevante(
+        IEnumerable<Domain.Entities.ProduccionAvicolaRaw> guias)
+    {
+        int? minima = null;
+        foreach (var g in guias)
+        {
+            if (string.IsNullOrWhiteSpace(g.Edad)) continue;
+            var txt = g.Edad.Trim().Replace(",", ".");
+            int edad;
+            if (!int.TryParse(txt, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out edad))
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(txt, @"(\d+)");
+                if (!m.Success || !int.TryParse(m.Groups[1].Value, out edad)) continue;
+            }
+            if (!minima.HasValue || edad < minima.Value) minima = edad;
+        }
+        return minima;
     }
 
     private int GetSemanaAno(DateTime fecha)

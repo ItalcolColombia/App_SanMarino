@@ -67,13 +67,17 @@
         @if (tabPeriodo() === 'diario') {
           <app-reporte-diario-galpon
             [datos]="datosDiario"
-            [galponNombre]="subloteSeleccionado">
+            [galponNombre]="subloteSeleccionado"
+            [clasificacionHuevoPorItems]="clasificacionHuevoPorItems"
+            [guiaDisponible]="guiaDisponible">
           </app-reporte-diario-galpon>
         }
         @if (tabPeriodo() === 'semanal') {
           <app-reporte-semanal-galpon
             [datos]="datosSemanal"
-            [galponNombre]="subloteSeleccionado">
+            [galponNombre]="subloteSeleccionado"
+            [clasificacionHuevoPorItems]="clasificacionHuevoPorItems"
+            [guiaDisponible]="guiaDisponible">
           </app-reporte-semanal-galpon>
         }
       </div>
@@ -105,7 +109,9 @@
           <p class="empty-state">Sin datos consolidados para el período seleccionado.</p>
         } @else {
           <app-reporte-general-diario
-            [datos]="reporte.diariosGeneral">
+            [datos]="reporte.diariosGeneral"
+            [clasificacionHuevoPorItems]="clasificacionHuevoPorItems"
+            [guiaDisponible]="guiaDisponible">
           </app-reporte-general-diario>
         }
       }
@@ -114,7 +120,9 @@
           <p class="empty-state">Sin datos consolidados para el período seleccionado.</p>
         } @else {
           <app-reporte-general-semanal
-            [datos]="reporte.semanalesGeneral">
+            [datos]="reporte.semanalesGeneral"
+            [clasificacionHuevoPorItems]="clasificacionHuevoPorItems"
+            [guiaDisponible]="guiaDisponible">
           </app-reporte-general-semanal>
         }
       }

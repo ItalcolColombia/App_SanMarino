@@ -369,7 +369,8 @@
                 <h3>REGISTRO SEMANA HEMBRAS</h3>
                 <app-tabla-levante-semanal-hembras
                   [datos]="reporteLevante()!.datosSemanales"
-                  [informacionLote]="reporteLevante()!.informacionLote">
+                  [informacionLote]="reporteLevante()!.informacionLote"
+                  [guiaDisponible]="guiaDisponible">
                 </app-tabla-levante-semanal-hembras>
               </div>
             } @else {
@@ -386,7 +387,8 @@
                 <h3>REGISTRO SEMANA MACHOS</h3>
                 <app-tabla-levante-semanal-machos
                   [datos]="reporteLevante()!.datosSemanales"
-                  [informacionLote]="reporteLevante()!.informacionLote">
+                  [informacionLote]="reporteLevante()!.informacionLote"
+                  [guiaDisponible]="guiaDisponible">
                 </app-tabla-levante-semanal-machos>
               </div>
             } @else {
@@ -404,6 +406,14 @@
                 <h3 style="margin:0">REPORTE TÉCNICO — REAL vs GUÍA (Semanas 1-25)</h3>
                 <span class="chip chip--muted" style="font-size:11px">{{ semanalData.length }} semana(s)</span>
               </div>
+              @if (hayTramoSinGuia) {
+                <div class="aviso-sin-guia">
+                  <strong>Semanas 1 a {{ ultimaSemanaSinGuia }}: sin comparación contra la guía.</strong>
+                  La guía genética de esta línea arranca en la semana {{ semanaGuiaDesde }}, así que
+                  hasta ahí se muestran los datos reales del lote sin columnas de Guía ni de
+                  diferencia. No es un fallo del reporte: es el alcance de la guía cargada.
+                </div>
+              }
               <div style="display:flex;gap:16px;margin-bottom:10px;font-size:11px;flex-wrap:wrap;">
                 <span><span class="cell-success" style="padding:2px 8px;border-radius:3px">▲ Verde</span> Mejor que guía</span>
                 <span><span class="cell-danger"  style="padding:2px 8px;border-radius:3px">▼ Rojo</span>  Peor que guía</span>
@@ -421,17 +431,17 @@
                       @if (!ocultaMachosEnPostura) {
                         <th rowspan="2" class="rth-id">M.Ini</th>
                       }
-                      <th colspan="6" class="rth-hembras">POBLACIÓN HEMBRAS</th>
-                      <th colspan="3" class="rth-hembras">PESO HEMBRAS</th>
-                      <th colspan="4" class="rth-hembras">CONSUMO HEMBRAS</th>
+                      <th [attr.colspan]="colspanPoblacionH" class="rth-hembras">POBLACIÓN HEMBRAS</th>
+                      <th [attr.colspan]="colspanPesoHembras" class="rth-hembras">PESO HEMBRAS</th>
+                      <th [attr.colspan]="colspanConsumoH" class="rth-hembras">CONSUMO HEMBRAS</th>
                       @if (!ocultaMachosEnPostura) {
-                        <th colspan="5" class="rth-machos">POBLACIÓN MACHOS</th>
+                        <th [attr.colspan]="colspanPoblacionM" class="rth-machos">POBLACIÓN MACHOS</th>
                       }
                       @if (!ocultaMachosEnPostura) {
-                        <th colspan="3" class="rth-machos">PESO MACHOS</th>
+                        <th [attr.colspan]="colspanPesoMachos" class="rth-machos">PESO MACHOS</th>
                       }
                       @if (!ocultaMachosEnPostura) {
-                        <th colspan="4" class="rth-machos">CONSUMO MACHOS</th>
+                        <th [attr.colspan]="colspanConsumoM" class="rth-machos">CONSUMO MACHOS</th>
                       }
                       @if (!ocultaMachosEnPostura) {
                         <th rowspan="2" class="rth-extra">%Rel<br>M/H</th>
@@ -441,15 +451,21 @@
                       <th class="rth-hembras">Saldo H</th>
                       <th class="rth-hembras">Mort.H</th>
                       <th class="rth-hembras">%MortH<br><small>Real</small></th>
-                      <th class="rth-hembras rth-guia">%MortH<br><small>Guía</small></th>
-                      <th class="rth-hembras rth-dif">Dif<br><small>Mort H</small></th>
+                      @if (guiaDisponible.mortSemH) {
+                        <th class="rth-hembras rth-guia">%MortH<br><small>Guía</small></th>
+                        <th class="rth-hembras rth-dif">Dif<br><small>Mort H</small></th>
+                      }
                       <th class="rth-hembras">AcMortH</th>
                       <th class="rth-hembras">Peso H<br><small>kg Real</small></th>
-                      <th class="rth-hembras rth-guia">Peso H<br><small>Guía kg</small></th>
-                      <th class="rth-hembras rth-dif">%Dif<br><small>Peso H</small></th>
+                      @if (guiaDisponible.pesoH) {
+                        <th class="rth-hembras rth-guia">Peso H<br><small>Guía kg</small></th>
+                        <th class="rth-hembras rth-dif">%Dif<br><small>Peso H</small></th>
+                      }
                       <th class="rth-hembras">ConsAc<br><small>gr/ave</small></th>
-                      <th class="rth-hembras rth-guia">ConsAc<br><small>Guía</small></th>
-                      <th class="rth-hembras rth-dif">%Dif<br><small>Cons H</small></th>
+                      @if (guiaDisponible.consAcH) {
+                        <th class="rth-hembras rth-guia">ConsAc<br><small>Guía</small></th>
+                        <th class="rth-hembras rth-dif">%Dif<br><small>Cons H</small></th>
+                      }
                       <th class="rth-hembras">gr/ave<br><small>/día</small></th>
                       @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos">Saldo M</th>
@@ -460,28 +476,22 @@
                       @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos">%MortM<br><small>Real</small></th>
                       }
-                      @if (!ocultaMachosEnPostura) {
+                      @if (!ocultaMachosEnPostura && guiaDisponible.mortSemM) {
                         <th class="rth-machos rth-guia">%MortM<br><small>Guía</small></th>
-                      }
-                      @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos rth-dif">Dif<br><small>Mort M</small></th>
                       }
                       @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos">Peso M<br><small>kg Real</small></th>
                       }
-                      @if (!ocultaMachosEnPostura) {
+                      @if (!ocultaMachosEnPostura && guiaDisponible.pesoM) {
                         <th class="rth-machos rth-guia">Peso M<br><small>Guía kg</small></th>
-                      }
-                      @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos rth-dif">%Dif<br><small>Peso M</small></th>
                       }
                       @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos">ConsAc<br><small>gr/ave</small></th>
                       }
-                      @if (!ocultaMachosEnPostura) {
+                      @if (!ocultaMachosEnPostura && guiaDisponible.consAcM) {
                         <th class="rth-machos rth-guia">ConsAc<br><small>Guía</small></th>
-                      }
-                      @if (!ocultaMachosEnPostura) {
                         <th class="rth-machos rth-dif">DifAc<br><small>Cons M</small></th>
                       }
                       @if (!ocultaMachosEnPostura) {
@@ -502,15 +512,21 @@
                         <td class="cell-num cell-h">{{ row.hembra | number }}</td>
                         <td class="cell-num cell-h">{{ row.mortH }}</td>
                         <td class="cell-num cell-h">{{ row.porcMortH != null ? (row.porcMortH | number:'1.2-2') + '%' : '—' }}</td>
-                        <td class="cell-num cell-h cell-guia">{{ row.porcMortHGUIA != null ? (row.porcMortHGUIA | number:'1.2-2') + '%' : '—' }}</td>
-                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.difMortH, 'mort')">{{ row.difMortH != null ? (row.difMortH | number:'1.2-2') : '—' }}</td>
+                        @if (guiaDisponible.mortSemH) {
+                          <td class="cell-num cell-h cell-guia">{{ row.porcMortHGUIA != null ? (row.porcMortHGUIA | number:'1.2-2') + '%' : '—' }}</td>
+                          <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.difMortH, 'mort')">{{ row.difMortH != null ? (row.difMortH | number:'1.2-2') : '—' }}</td>
+                        }
                         <td class="cell-num cell-h">{{ row.acMortH ?? '—' }}</td>
                         <td class="cell-num cell-h">{{ row.pesoH != null ? (row.pesoH | number:'1.3-3') : '—' }}</td>
-                        <td class="cell-num cell-h cell-guia">{{ row.pesoHGUIA != null ? (row.pesoHGUIA | number:'1.3-3') : '—' }}</td>
-                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifPesoH, 'peso')">{{ row.porcDifPesoH != null ? (row.porcDifPesoH | number:'1.1-1') + '%' : '—' }}</td>
+                        @if (guiaDisponible.pesoH) {
+                          <td class="cell-num cell-h cell-guia">{{ row.pesoHGUIA != null ? (row.pesoHGUIA | number:'1.3-3') : '—' }}</td>
+                          <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifPesoH, 'peso')">{{ row.porcDifPesoH != null ? (row.porcDifPesoH | number:'1.1-1') + '%' : '—' }}</td>
+                        }
                         <td class="cell-num cell-h">{{ row.consAcGrH != null ? (row.consAcGrH | number:'1.1-1') : '—' }}</td>
-                        <td class="cell-num cell-h cell-guia">{{ row.consAcGrHGUIA != null ? (row.consAcGrHGUIA | number:'1.1-1') : '—' }}</td>
-                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifConsH, 'cons')">{{ row.porcDifConsH != null ? (row.porcDifConsH | number:'1.1-1') + '%' : '—' }}</td>
+                        @if (guiaDisponible.consAcH) {
+                          <td class="cell-num cell-h cell-guia">{{ row.consAcGrHGUIA != null ? (row.consAcGrHGUIA | number:'1.1-1') : '—' }}</td>
+                          <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifConsH, 'cons')">{{ row.porcDifConsH != null ? (row.porcDifConsH | number:'1.1-1') + '%' : '—' }}</td>
+                        }
                         <td class="cell-num cell-h">{{ row.grAveDiaH != null ? (row.grAveDiaH | number:'1.1-1') : '—' }}</td>
                         @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m">{{ row.saldoMacho | number }}</td>
@@ -521,25 +537,21 @@
                         @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m">{{ row.porcMortM != null ? (row.porcMortM | number:'1.2-2') + '%' : '—' }}</td>
                         }
-                        @if (!ocultaMachosEnPostura) {
+                        @if (!ocultaMachosEnPostura && guiaDisponible.mortSemM) {
                           <td class="cell-num cell-m cell-guia">{{ row.porcMortMGUIA != null ? (row.porcMortMGUIA | number:'1.2-2') + '%' : '—' }}</td>
-                        }
-                        @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m cell-dif" [ngClass]="semaforo(row.difMortM, 'mort')">{{ row.difMortM != null ? (row.difMortM | number:'1.2-2') : '—' }}</td>
                         }
                         @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m">{{ row.pesoM != null ? (row.pesoM | number:'1.3-3') : '—' }}</td>
                         }
-                        @if (!ocultaMachosEnPostura) {
+                        @if (!ocultaMachosEnPostura && guiaDisponible.pesoM) {
                           <td class="cell-num cell-m cell-guia">{{ row.pesoMGUIA != null ? (row.pesoMGUIA | number:'1.3-3') : '—' }}</td>
-                        }
-                        @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m cell-dif" [ngClass]="semaforo(row.porcDifPesoM, 'peso')">{{ row.porcDifPesoM != null ? (row.porcDifPesoM | number:'1.1-1') + '%' : '—' }}</td>
                         }
                         @if (!ocultaMachosEnPostura) {
                           <td class="cell-num cell-m">{{ row.consAcGrM != null ? (row.consAcGrM | number:'1.1-1') : '—' }}</td>
                         }
-                        @if (!ocultaMachosEnPostura) {
+                        @if (!ocultaMachosEnPostura && guiaDisponible.consAcM) {
                           <td class="cell-num cell-m cell-guia">{{ row.consAcGrMGUIA != null ? (row.consAcGrMGUIA | number:'1.1-1') : '—' }}</td>
                         }
                         @if (!ocultaMachosEnPostura) {

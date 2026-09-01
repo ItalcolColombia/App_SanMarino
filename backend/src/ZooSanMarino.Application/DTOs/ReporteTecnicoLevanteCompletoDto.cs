@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/ReporteTecnicoLevanteCompletoDto.cs
+using ZooSanMarino.Application.Calculos;
+
 namespace ZooSanMarino.Application.DTOs;
 
 /// <summary>
@@ -16,6 +18,22 @@ public class ReporteTecnicoLevanteCompletoDto
     public List<ReporteTecnicoDiarioLevanteDto> DatosDiarios { get; set; } = new();
     public bool EsConsolidado { get; set; }
     public List<string> SublotesIncluidos { get; set; } = new();
+
+    /// <summary>
+    /// Qué columnas de comparación contra la GUÍA tienen dato real. Con guía compartida llega
+    /// <c>Todas</c> y el reporte pinta lo de siempre; con guía propia -un modelo simple de 3
+    /// métricas- llega sólo lo que esa guía puede llenar, para no mostrar una pared de columnas
+    /// vacías que parecen un fallo del reporte. <c>null</c> ⇒ el front asume todas (fail-open).
+    /// </summary>
+    public GuiaMetricasDisponibles? GuiaMetricasDisponibles { get; set; }
+
+    /// <summary>
+    /// Semana MÍNIMA con guía cargada para la raza/año del lote. Cuando la guía de la empresa
+    /// arranca en producción (medido: la semana 18) el levante muestra sus primeras semanas sin
+    /// comparación posible, y la pantalla lo avisa en vez de dejar que parezca un error.
+    /// <c>null</c> = hay guía desde la primera semana, o no hay guía.
+    /// </summary>
+    public int? SemanaGuiaDesde { get; set; }
 }
 
 /// <summary>

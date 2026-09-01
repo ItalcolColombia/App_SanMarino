@@ -43,5 +43,21 @@ public record ReporteDiarioGalponDto(
     // Diferencias Real − Guía
     double? DifPostura,
     double? DifPesoHuevo,
-    string? Observaciones
+    string? Observaciones,
+    // ── Clasificación de huevo POR ÍTEMS ────────────────────────────────────────────────────────
+    // Empresas con `companies.clasificacion_huevo_por_items`: el desglose real vive en
+    // `metadata.huevoItems` y `huevo_inc` se escribe en 0 A PROPÓSITO (postura comercial, no
+    // incuba). Estos tres reemplazan a Incubable/%Incubables en la vista. Default 0 ⇒ ningún
+    // constructor posicional existente se rompe y la empresa sin el flag no ve diferencia.
+    int HuevoPrimera = 0,
+    int HuevoPnc = 0,
+    int HuevoOtros = 0,
+    // Semana con la que se cruzó la GUÍA. Con guía compartida es la misma `Semana`/`SemanaRelativa`
+    // de siempre; con guía propia (indexada por semana de vida) es la edad del ave. Ver
+    // `SemanaGuiaProduccionCalculos`.
+    int SemanaGuia = 0,
+    // Etapa del ciclo de vida (`SemanasCicloPosturaCalculos`) para empresas con
+    // `semanas_ciclo_postura_por_raza`. `null` = la empresa no usa cortes por raza, o la raza no se
+    // reconoce: no se adivina.
+    string? EtapaCiclo = null
 );
