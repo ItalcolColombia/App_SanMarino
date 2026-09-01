@@ -280,6 +280,22 @@
                   </select>
                 </div>
 
+                <!-- ═════════ Manejo de alimento (todos los países) ═════════ -->
+                <div class="col-span-2">
+                  <hr class="my-2 border-gray-200" />
+                  <p class="text-xs font-semibold text-ital-green uppercase tracking-wide mb-1">Manejo de alimento</p>
+                </div>
+
+                <div class="col-span-2">
+                  <label class="ux-label" for="farm-nivel-alimento">Nivel de manejo de alimento</label>
+                  <select id="farm-nivel-alimento" formControlName="manejaAlimentoPorGalpon" class="ux-input">
+                    <option [ngValue]="null">Heredar de la empresa</option>
+                    <option [ngValue]="true">Sobre galpón (exige núcleo/galpón)</option>
+                    <option [ngValue]="false">Sobre granja</option>
+                  </select>
+                  <p class="ux-help">“Heredar” usa el valor configurado en la empresa. Los otros dos aplican sólo a esta granja.</p>
+                </div>
+
                 <!-- ══════════ Sección Códigos ERP (Santa Reyes) ══════════ -->
                 <!-- Visible solo si la empresa activa maneja códigos ERP avícolas -->
                 @if (manejaCodigosErp) {
@@ -376,6 +392,24 @@
                       <option [ngValue]="false">No</option>
                       <option [ngValue]="true">Sí</option>
                     </select>
+                  </div>
+
+                  <!-- Código ERP engorde (los lotes lo capturan; avanza al cerrar el ciclo) -->
+                  <div>
+                    <label class="ux-label" for="farm-codigo-erp-engorde">Código ERP engorde</label>
+                    <input
+                      id="farm-codigo-erp-engorde"
+                      formControlName="codigoErpEngorde"
+                      type="text"
+                      inputmode="numeric"
+                      maxlength="18"
+                      class="ux-input"
+                      placeholder="Ej. 4001017"
+                    />
+                    @if (form.get('codigoErpEngorde')?.invalid && form.get('codigoErpEngorde')?.touched) {
+                      <small class="text-red-600 text-xs">Sólo dígitos (máx. 18).</small>
+                    }
+                    <p class="ux-help">Los lotes de engorde nuevos capturan este código. Al cerrar todos los lotes del lote base en la granja avanza +1 (ej. 4001017 → 4001018).</p>
                   </div>
 
                   <!-- Capturar ubicación -->

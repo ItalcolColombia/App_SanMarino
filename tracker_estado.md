@@ -5368,3 +5368,32 @@ Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](
       `Up()` 2a = **0** y respaldo sin duplicar · de las **144** filas de Ecuador cambian **solo esas
       2** · eliminados y el `2604 - 2` intactos · `Down()` deja **0 filas distintas del inicio**
 - [x] `dotnet build` Infrastructure **0/0** · `dotnet test` **3.590 verdes**
+
+---
+
+## Granjas — editar una granja borraba 2 campos que la pantalla no muestra (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/farm_list_no_borrar_flags_granja_plan.md`](fase_de_desarrollo/farm_list_no_borrar_flags_granja_plan.md)
+
+`farm-list.component.ts` armaba el PUT campo por campo y omitia `codigoErpEngorde` (correlativo ERP
+de engorde de Panama) y `manejaAlimentoPorGalpon` (override `farm ?? company` del nivel de alimento).
+El backend los asigna sin condicional ⇒ cada edicion los dejaba en `NULL`, sin error ni aviso.
+
+- [x] Funcion pura `funciones/construir-payload-granja.funcion.ts` + README de la carpeta
+- [x] `buildForm()`: controles `codigoErpEngorde` (`^\d*$`, max 18) y `manejaAlimentoPorGalpon` (tri-estado)
+- [x] `openModal()`: hidratar los 2 desde `getById` en la rama de EDICION y con los defaults de hoy en la de CREACION
+- [x] `save()` delega en la funcion pura (payload identico al de hoy en todo lo demas)
+- [x] HTML: select de manejo de alimento (siempre) + input de codigo ERP engorde (`@if (isPanama)`)
+- [x] Test de regresion `frontend/src/tests/construir-payload-granja.funcion.spec.ts` (6 casos)
+- [x] `yarn build` **0 errores, 0 warnings** (778 s) - karma sobre el spec nuevo **11/11 SUCCESS**
+- [x] Test de alambre backend `UpdateFarmDtoBindingTests` (6 casos): el JSON que manda la pantalla
+      llena los 2 campos del `UpdateFarmDto`, y un payload sin esas claves deserializa sin error y
+      las deja en `null` -la foto del defecto-. `dotnet test` **3.615 verdes**, 0 warnings
+- [x] Smoke end-to-end contra la BD local (backend aislado en :5501, `RunMigrations=false`, granja
+      105 TROFARELLO de ItalcolPanama sembrada con `4001017` + `true`). Los 3 PUT, en orden:
+      **payload VIEJO** -el de antes del fix, sin las 2 claves- responde **200** y deja los dos en
+      `NULL` (defecto reproducido) · **payload NUEVO** los restaura · **editar solo el nombre**
+      (hidratado como hace ahora el modal) los deja intactos: `4001017` / `t`. BD devuelta a su
+      estado inicial: valores en NULL, nombre TROFARELLO, sesion de smoke borrada, :5501 libre
+- [i] El :5002 que quedo escuchando NO es mio: es el backend del worktree `reverent-saha-d10a85`
+      (otra ventana). No se toco
