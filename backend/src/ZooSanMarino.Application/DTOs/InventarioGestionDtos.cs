@@ -186,7 +186,31 @@ public sealed record InventarioGestionTrasladoRequest(
     /// <summary>Silo/bodega ORIGEN (empresas con inventario por silo). Admite bodega→silo y silo→silo.</summary>
     int? FromSiloId = null,
     /// <summary>Silo/bodega DESTINO (empresas con inventario por silo).</summary>
-    int? ToSiloId = null
+    int? ToSiloId = null,
+    /// <summary>
+    /// El usuario ya vio el aviso de «esta salida deja un día en rojo» y confirmó que igual quiere
+    /// registrarla. Sin esto, un traslado que dejaría la tabla diaria del galpón origen en negativo
+    /// se devuelve con <c>409</c> en vez de romper el invariante en silencio.
+    /// <para>
+    /// Es un aviso <b>confirmable</b>, no un bloqueo: el ingreso que respalda esos kilos puede
+    /// entrar después, o la fecha corregirse a continuación. Default <c>false</c> ⇒ el llamador que
+    /// no sabe de esto recibe el aviso, que es lo que se busca.
+    /// </para>
+    /// </summary>
+    bool ConfirmarDiaEnRojo = false
+);
+
+/// <summary>
+/// Peor día de la tabla diaria del galpón desde una fecha en adelante, para avisar antes de que una
+/// salida lo deje en rojo. Lo llena <c>fn_seguimiento_diario_engorde</c>, que es la dueña del saldo.
+/// </summary>
+public sealed record InventarioGestionSaldoMinimoDto(
+    int LoteAveEngordeId,
+    string? LoteNombre,
+    /// <summary>Día con el saldo más bajo desde la fecha del movimiento.</summary>
+    DateOnly Fecha,
+    /// <summary>Kilos de ese día, ANTES de descontar la salida que se está registrando.</summary>
+    decimal SaldoKg
 );
 
 /// <summary>Registro del histórico de movimientos (entradas, salidas, traslados).</summary>

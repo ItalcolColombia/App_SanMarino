@@ -1040,4 +1040,70 @@ public partial class InventarioGestionService
                      .Distinct())
             await RefrescarSaldoAlimentoEngordeAsync(ubic.CompanyId, ubic.FarmId, ubic.NucleoId, ubic.GalponId, ubic.MovementType, ct);
     }
+
+    /// <summary>Proyección cruda de la consulta. snake_case, como exige EF con SqlQueryRaw.</summary>
+    private sealed class PeorDiaCrudo
+    {
+        public int      lote_ave_engorde_id { get; set; }
+        public string   lote_nombre         { get; set; } = "";
+        public DateTime fecha_min           { get; set; }
+        public double   saldo_min           { get; set; }
+    }
+
+    /// <inheritdoc />
+    public async Task<InventarioGestionSaldoMinimoDto?> BuscarPeorDiaDelGalponAsync(
+        InventarioGestionTrasladoRequest req, CancellationToken ct = default)
+    {
+        var galpon = (req.FromGalponId ?? "").Trim();
+        if (galpon.Length == 0) return null;
+
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId is null or <= 0) return null;
+
+        // La MISMA fecha con la que se va a escribir el movimiento, pasada por el mismo resolvedor:
+        // si acá se usara `DateTime.Today` el aviso miraría un día distinto del que termina en el
+        // histórico. El histórico fecha con `(created_at AT TIME ZONE 'UTC')::DATE`, así que el
+        // corte va en UTC.
+        var fecha = DateOnly.FromDateTime(ResolveMovimientoCreatedAt(req.FechaMovimiento).UtcDateTime);
+        var nucleo = (req.FromNucleoId ?? "").Trim();
+
+        // Se resuelve en la BD, con la fn como única dueña del saldo. El LATERAL corre solo para los
+        // lotes de ESE galpón (1 a 4), no para el país entero: traer las tablas diarias a memoria
+        // para buscarles el mínimo es justo lo que cuelga los endpoints multipaís.
+        var crudo = await _db.Database.SqlQueryRaw<PeorDiaCrudo>(@"
+WITH lotes AS (
+    SELECT l.lote_ave_engorde_id, COALESCE(l.lote_nombre, '') AS lote_nombre
+      FROM lote_ave_engorde l
+     WHERE l.deleted_at IS NULL
+       AND l.lote_ave_engorde_id IS NOT NULL
+       AND l.company_id = {0}
+       AND l.granja_id  = {1}
+       AND COALESCE(TRIM(l.nucleo_id), '') = {2}
+       AND COALESCE(TRIM(l.galpon_id), '') = {3}
+)
+SELECT lo.lote_ave_engorde_id AS lote_ave_engorde_id,
+       lo.lote_nombre         AS lote_nombre,
+       x.fecha_min            AS fecha_min,
+       x.saldo_min            AS saldo_min
+  FROM lotes lo
+  CROSS JOIN LATERAL (
+       SELECT MIN(f.saldo_alimento_kg) AS saldo_min,
+              (ARRAY_AGG(f.fecha ORDER BY f.saldo_alimento_kg, f.fecha))[1] AS fecha_min
+         FROM fn_seguimiento_diario_engorde(lo.lote_ave_engorde_id) f
+        WHERE f.fecha >= CAST({4} AS date)
+  ) x
+ WHERE x.saldo_min IS NOT NULL
+ ORDER BY x.saldo_min
+ LIMIT 1",
+                companyId.Value, req.FromFarmId, nucleo, galpon, fecha)
+            .FirstOrDefaultAsync(ct);
+
+        return crudo is null
+            ? null
+            : new InventarioGestionSaldoMinimoDto(
+                crudo.lote_ave_engorde_id,
+                string.IsNullOrWhiteSpace(crudo.lote_nombre) ? null : crudo.lote_nombre,
+                DateOnly.FromDateTime(crudo.fecha_min),
+                (decimal)crudo.saldo_min);
+    }
 }

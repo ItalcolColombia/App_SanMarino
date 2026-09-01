@@ -185,6 +185,14 @@ export interface InventarioGestionTrasladoRequest {
   fromSiloId?: number | null;
   /** Silo/bodega DESTINO (inventario por silo). En inter-granja lo elige quien recibe. */
   toSiloId?: number | null;
+  /**
+   * El usuario ya vio el aviso de «esta salida deja un día en rojo» y confirmó. Sin esto, un traslado
+   * que dejaría la tabla diaria del galpón origen en negativo vuelve con **409**.
+   * Es un aviso confirmable: el stock se valida atómicamente porque es físico, pero la tabla se
+   * ordena por fecha declarada, así que una salida fechada hacia atrás pasa el control de stock y
+   * deja el día en rojo igual.
+   */
+  confirmarDiaEnRojo?: boolean;
 }
 
 /** Registro del histórico de movimientos. */

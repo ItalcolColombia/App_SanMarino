@@ -5292,10 +5292,29 @@ registro de stock» — el stock bajo y la tabla diaria no.
 - [i] **Panama tiene uno peor**: lote 161 (G0472, «94 - 3») con **29 dias en rojo** y hasta
       **-24.191,1 kg**, aunque **cierra en 0** — ahi el total esta bien y el orden esta mal casi
       todo el ciclo. Sin revisar
-- [i] Lo accionable del lado del codigo: **nada avisa cuando una salida deja el dia en rojo**. El
-      stock se valida atomico porque es fisico, pero la tabla diaria se declara **por fecha**, asi
-      que un ingreso registrado «hoy» financia una salida fechada tres dias atras. Un aviso ahi —del
-      mismo tipo que el de remision repetida (`22e8af5`)— lo habria frenado en el momento
+### F · El aviso: «esta salida deja el dia en rojo» (1-sep-2026)
+
+- [x] `SalidaEnRojoCalculos` (puro) + **17 tests xUnit**: a quien se le pregunta, la comparacion con
+      la tolerancia de 1 kg del cuadre, y el mensaje con los tres numeros que hacen falta para
+      decidir (lo que hay, lo que sale, con cuanto queda)
+- [x] El aviso va en el **CONTROLLER** de `POST /traslado`, igual que la ventana de fechas y el de
+      remision repetida (`22e8af5`): ningun llamador interno del service cambia. **409** con
+      `diaEnRojo`, el lote, el dia y el saldo; `ConfirmarDiaEnRojo` lo reenvia
+- [x] **El saldo lo da la fn, no el C#**: `BuscarPeorDiaDelGalponAsync` resuelve en la BD, con un
+      LATERAL sobre `fn_seguimiento_diario_engorde` de los lotes de ESE galpon (1 a 4). Pide el
+      **minimo desde la fecha**, no el saldo del dia: la salida baja por igual todos los siguientes
+- [x] Sin galpon origen no se pregunta nada (la tabla diaria se arma por galpon; mismo criterio que
+      `SaldoAlimentoEngordeAplicador`)
+- [x] Front: `enviarTraslado` + `confirmarYReenviarTraslado` con `ConfirmDialogService`, calcado del
+      camino del ingreso duplicado
+- [x] `dotnet build` 0/0 · `dotnet test` **3.607** (+17) · `yarn build` OK
+- [x] **La consulta probada de verdad contra la copia de produccion**, no solo en psql: un ejecutable
+      minimo con el `ZooSanMarinoContext` real (mismas opciones Npgsql + snake_case) devolvio
+      `lote=193 nombre=2604 fecha=2026-08-28 saldo=4970`, identico al psql. Era lo unico que los
+      tests puros no podian ver: que EF materialice `SqlQueryRaw<PeorDiaCrudo>`
+- [!] Lo que NO se probo: el **409 por HTTP**. Pegarle al endpoint local exige una fila viva en
+      `sesiones_activas` y hoy no hay ninguna (las 512 estan vencidas); ese INSERT se pide, no se
+      hace por las mias. Con tu OK lo corro y pego la respuesta
 
 ### D · Lo que queda fuera de esta sesion
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora

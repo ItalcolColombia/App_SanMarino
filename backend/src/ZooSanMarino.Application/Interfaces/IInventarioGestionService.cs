@@ -47,6 +47,20 @@ public interface IInventarioGestionService
     /// </summary>
     Task<int?> BuscarIngresoConMismaRemisionAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default);
 
+    /// <summary>
+    /// Peor día de la tabla diaria del galpón <b>origen</b> desde la fecha del traslado en adelante, o
+    /// <c>null</c> si ese galpón no tiene ningún día cargado. Solo lee.
+    ///
+    /// <para>
+    /// Lo consulta el controller para avisar cuando una salida dejaría ese día en rojo. El saldo lo
+    /// devuelve <c>fn_seguimiento_diario_engorde</c> —la dueña del número—: recalcularlo en C# sería
+    /// una segunda fórmula para el mismo dato. Se pide el <b>mínimo</b> y no el saldo del día del
+    /// movimiento porque la salida baja por igual todos los días siguientes.
+    /// </para>
+    /// </summary>
+    Task<InventarioGestionSaldoMinimoDto?> BuscarPeorDiaDelGalponAsync(
+        InventarioGestionTrasladoRequest req, CancellationToken ct = default);
+
     Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoAsync(InventarioGestionTrasladoRequest req, CancellationToken ct = default);
 
     /// <summary>Registra consumo (reduce stock). Para devolución usar RegistrarIngresoAsync.</summary>

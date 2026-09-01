@@ -275,6 +275,30 @@ public class InventarioGestionController : ControllerBase
     public async Task<IActionResult> RegistrarTraslado([FromBody] InventarioGestionTrasladoRequest req, CancellationToken ct = default)
     {
         if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+
+        // Aviso de «esta salida deja un día en rojo». Va en el CONTROLLER, igual que la ventana de
+        // fechas y el aviso de remisión repetida: así ningún llamador interno del service cambia de
+        // comportamiento y el aviso queda solo en la puerta del usuario.
+        //
+        // El stock ya se valida atómicamente más abajo, pero eso es OTRA cosa: el stock es físico y
+        // vive en el instante del guardado; la tabla diaria se ordena por FECHA DECLARADA. Una salida
+        // fechada hacia atrás pasa el control de stock y deja el día negativo igual.
+        if (SalidaEnRojoCalculos.AmeritaChequeo(req.FromGalponId, req.Quantity, req.ConfirmarDiaEnRojo))
+        {
+            var peorDia = await _service.BuscarPeorDiaDelGalponAsync(req, ct);
+            if (peorDia is not null && SalidaEnRojoCalculos.DejaDiaEnRojo(peorDia.SaldoKg, req.Quantity))
+                return Conflict(new
+                {
+                    diaEnRojo = true,
+                    loteAveEngordeId = peorDia.LoteAveEngordeId,
+                    loteNombre = peorDia.LoteNombre,
+                    fecha = peorDia.Fecha,
+                    saldoDisponibleKg = peorDia.SaldoKg,
+                    message = SalidaEnRojoCalculos.Mensaje(
+                        peorDia.LoteNombre, peorDia.Fecha, peorDia.SaldoKg, req.Quantity, req.Unit)
+                });
+        }
+
         try
         {
             var (origen, destino) = await _service.RegistrarTrasladoAsync(req, ct);
