@@ -101,9 +101,32 @@ public class SalidaEnRojoCalculosTests
 
         Assert.Contains("16/05/2026", msg);
         Assert.Contains("2602", msg);
-        Assert.Contains("4.200", msg.Replace(",", "."));      // lo que hay
-        Assert.Contains("8.120", msg.Replace(",", "."));      // lo que sale
-        Assert.Contains("-3.920", msg.Replace(",", "."));     // con cuánto queda
+        Assert.Contains("4200", msg);      // lo que hay
+        Assert.Contains("8120", msg);      // lo que sale
+        Assert.Contains("-3920", msg);     // con cuánto queda
+    }
+
+    [Fact]
+    public void ElMensajeNoDependeDeLaCulturaDelServidor()
+    {
+        // El servidor no fija cultura: un `N1` sale «4,970.0» (en-US) y el `/` de un patrón de fecha
+        // se reemplaza por el separador de la cultura activa. Lo destapó el smoke real del 409, así
+        // que el formato va sin separador de miles y con las barras entrecomilladas.
+        var previa = Thread.CurrentThread.CurrentCulture;
+        try
+        {
+            Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            var msg = SalidaEnRojoCalculos.Mensaje("2602", new DateOnly(2026, 5, 16), 4200m, 8120m, "kg");
+
+            Assert.Contains("16/05/2026", msg);
+            Assert.Contains("4200", msg);
+            Assert.DoesNotContain("4.200", msg);   // el separador de miles alemán
+            Assert.DoesNotContain("16.05.2026", msg);
+        }
+        finally
+        {
+            Thread.CurrentThread.CurrentCulture = previa;
+        }
     }
 
     [Fact]
