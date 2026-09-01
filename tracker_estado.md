@@ -5166,3 +5166,62 @@ Lo que esta mal es el manejo de errores, y en dos formas que costaron dias de di
 - [x] `dotnet build` 0/0 · `dotnet test` **3.584** (+21): el test que importa es que el mensaje
       textual del id 164, CON su `StatusCode = MustIssueStartTlsFirst`, clasifique como
       `CuentaBloqueada` y no como `RequiereStartTls`
+
+---
+
+## Ecuador: el nombre del lote volvia a llevar `- 1` en la primera corrida (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md)
+
+Ticket de operacion por el `2604 - 02` de CAROLINA / GALPON 6. Medido en la copia de prod: son **dos
+sintomas de causa distinta** y solo uno es defecto.
+
+- [x] El `- 2` **no se toca**: el lote 236 se creo el 27-ago 08:57, se elimino 13:54 y se recreo 13:55;
+      `MAX(corrida)+1` cuenta los eliminados a proposito para no reusar un nombre. Los 4 casos de
+      Ecuador con corrida > 1 son el mismo patron (crear → borrar → recrear)
+- [x] El `- 1` SI es defecto: `nombre_lote_incluye_corrida = true` en `ItalcolEcuador`, cuando la
+      migracion que creo la columna solo lo prende para `ItalcolPanama`. Lo prendio alguien desde la
+      administracion de empresas entre el 21 y el 26 de agosto (se ve en los datos: hasta el 21-ago
+      los lotes nacian `2604`; desde el 26-ago, `2604 - 1`)
+- [x] Migracion data-only `20260901120000_ApagarNombreLoteIncluyeCorridaEcuador`, idempotente por
+      `IS DISTINCT FROM`, `Down()` inverso exacto (el estado previo esta medido, no supuesto)
+- [x] Probada por transaccion: `Up()` x2 (la 2a = 0 filas) + `Down()`, y Panama sigue en `true`
+- [x] `dotnet build` + `dotnet test` (el calculo ya tiene sus xUnit para los dos valores del flag)
+- [x] `dotnet build` Infrastructure **0 errores / 0 advertencias**; `dotnet test` **3.584 verdes**
+      (mismo conteo que antes: es un cambio de datos, la logica no se movio)
+- [i] Alcance: solo lotes NUEVOS. Los dos ya nacidos con sufijo -`2604 - 1` en CAROLINA GALPON 7 y
+      `2605 - 1` en Kilometro 86- se dejan como estan; renombrarlos es backfill sobre datos vivos y
+      `lote_nombre` lo leen reportes que agrupan por nombre
+
+---
+
+## TK-2026-000183 — eliminar un registro de stock dejaba la tabla diaria alta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/eliminar_stock_no_bajaba_la_tabla_diaria_plan.md`](fase_de_desarrollo/eliminar_stock_no_bajaba_la_tabla_diaria_plan.md)
+
+CAROLINA / GALPON 1 / lote 2602: dia 1 con **saldo 5.600 kg contra un ingreso de 2.880**. Medido en
+la copia de produccion: un `Ingreso` duplicado de la remision 56114 al que le aplicaron «Eliminar
+registro de stock» — el stock bajo y la tabla diaria no.
+
+### A · El parche del defecto (que no vuelva a pasar)
+- [ ] `EliminarStockAsync` escribe, ademas del `EliminacionStock` (auditoria), un
+      `AjusteCuadreTablaSalida` por los mismos kilos y con el MISMO timestamp: no toca stock y la fn
+      v17 si lo lee, asi que la tabla baja lo mismo que bajo el stock
+- [ ] `TipoEventoInventarioCalculos` conoce los dos `AjusteCuadreTabla*` (el espejo C# quedo
+      desalineado de `fn_tipo_evento_inventario` desde el 25-ago) ⇒ `AfectaSaldoAlimentoEngorde` da
+      `true` y la columna persistida SI se refresca. Sin esto el ajuste de §A1 no refrescaria nada
+- [ ] Etiquetas de los dos tipos en `MapTipoOperacionLabel` + su inversa (hoy se ven crudos)
+- [ ] xUnit: los 2 tipos nuevos mapean y afectan el saldo; regresion de que `AjusteStock`,
+      `EliminacionStock` y `Consumo` siguen sin afectarlo
+
+### B · La correccion del dato (migracion `20260901140000`, data-only)
+- [ ] Las TRES superficies: histórico (`anulado`), `seguimiento_diario_aves_engorde.saldo_alimento_kg`
+      (52 dias, −2.880) y la copia congelada (52 filas + header). La fn devuelve la congelada
+      mientras exista, asi que corregir solo el histórico no cambia lo que ve la granja
+- [ ] Localiza por atributos (galpon+item+cantidad+fecha+sin referencia+su pareja), NO por ids;
+      idempotente por marca en `metadata`; `Down()` inverso exacto
+- [ ] NO se tocan los otros 12 pares con la misma firma: **G0058 cerraria en −2.880** (ahi el
+      ingreso es real) y los 6 de G0036 pueden ser carga historica legitima (remision 54159)
+- [ ] Probada por transaccion: `Up()` deja dia 1 en 2.720 / ingreso 0 y cierre en 0; `Up()` x2 no
+      toca filas; `Down()` devuelve 5.600 / 2.880; el gemelo lote 62 no se mueve
+- [ ] `dotnet build` + `dotnet test` + `verificar_cuadre_alimento_engorde.sql` antes/despues
