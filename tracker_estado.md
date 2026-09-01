@@ -5326,8 +5326,21 @@ registro de stock» — el stock bajo y la tabla diaria no.
       criterio que el aviso hermano de remision repetida) + **test que lo fija bajo `de-DE`**
 - [x] Sesion del smoke borrada; puertos 5501 y 5002 libres
 
-### D · Lo que queda fuera de esta sesion
-- [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
+### D · Cierre del caso
+- [x] **`20260901160000_SolucionarTicketCarolinaSaldoAlimento`**: TK-2026-000183 pasa de
+      `EN_IMPLEMENTACION` a **SOLUCIONADO** con su descripcion y su nota (mismo prefijo
+      `Solucionado: ` que escribe el service, para que el historial se lea igual que desde el
+      tablero). **Se ordena solo**: las migraciones corren al arrancar, y esta va DESPUES de la
+      `...140000` (dato de CAROLINA) y la `...150000` (G0483), asi que el caso nunca dice
+      «solucionado» sobre algo que todavia no llego a produccion
+- [x] Fail-safe por estado (si alguien ya lo movio, NOTICE y no toca nada) e idempotente: la 2a
+      corrida no encuentra el estado de partida y la nota se siembra con `WHERE NOT EXISTS`.
+      Probada por transaccion `Up` x2 + `Down`, y aplicada de verdad en local
+- [i] **El correo al solicitante no sale, y tampoco saldria desde el tablero**: el caso tiene
+      `solicitante_user_guid` y `solicitante_user_id` en NULL, y su `created_by_user_id`
+      (968091594) es el **hash** del id de usuario, no una cedula — ningun usuario la tiene, asi que
+      `ResolveSolicitanteEmailAsync` devuelve vacio. Se deja `notificado_correo = false`, que es la
+      verdad. Si hay que avisarle a la granja, es por fuera de la app
 - [i] G0483 quedo por **migracion** y no por la pantalla: «Cuadrar galpon» habria dejado vivo el
       ingreso duplicado compensandolo con otro movimiento, y la grilla seguiria mostrando 25.000 kg
       ingresados de la remision 190755
