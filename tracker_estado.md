@@ -5036,7 +5036,19 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
 - [i] Probado: `Up()` x2 en transaccion revertida (2a pasada 0 y 0) y `Down()` exacto. `dotnet test` **3.542**
 
 ### Tanda C — el critico latente
-- [ ] #2 `TK-166` — con el flag ON el backend no valida stock en ningun seguimiento
+- [x] #2 `TK-166` — con el flag ON el backend no valida stock en ningun seguimiento
+- [i] Resuelto en UN punto, no en cinco: los 5 services gatean su validacion con `!separa`, pero los 5
+      pasan por `SepararAsync`. La validacion va ahi, **despues de `LiberarAsync`** — al editar, la
+      reserva vieja del propio registro ya se solto, asi que el disponible no se cuenta a si mismo
+- [i] `ValidarStockConsumoAsync` mide ahora `DisponibleNeto = max(0, existencia − reservado ACTIVO)`,
+      agrupando por granja/nucleo/galpon/**silo**/item. Con el flag OFF no hay filas ACTIVA ⇒ reservado
+      es 0 ⇒ mensajes byte a byte identicos para las otras 4 empresas, **por construccion**
+- [i] `dotnet test` **3.547** (+5 casos de `DisponibleNeto`, incluido que 1.500 fisicos con 1.200
+      separados rechazan un pedido de 500 y aceptan uno de 300)
+- [ ] Pendiente menor del mismo hallazgo: los topes del FRONT siguen apagados al editar
+      (`if (this.editing) return false;` en el modal de engorde y en el de levante) y el modal de
+      reproductora no tiene tope. Con el backend blindado eso solo cambia *cuando* se entera el
+      usuario, no si el dato entra; tocarlo sin cuidado introduce falsos rechazos
 
 ### Tanda D — fechas y presentacion
 - [ ] #5 `TK-014` · #6 `TK-012/C` · #9 `TK-176` · #10 `TK-177`

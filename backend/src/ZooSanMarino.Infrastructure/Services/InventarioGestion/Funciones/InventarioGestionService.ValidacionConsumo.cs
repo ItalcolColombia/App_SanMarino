@@ -114,6 +114,28 @@ public partial class InventarioGestionService
         var disponible = new Dictionary<int, decimal>();
         var lineas = new List<StockConsumoValidacionCalculos.ItemPedido>(pedidos.Length);
 
+        // 🔴 Lo que ya está SEPARADO no está disponible, aunque siga físicamente en el galpón.
+        //
+        // Con la doble validación encendida, un seguimiento guardado reserva el alimento y no lo
+        // descuenta hasta validarse. Medir el disponible como `stock.Quantity` a secas hacía que dos
+        // lotes del mismo galpón vieran los mismos kilos y los comprometieran los dos: el segundo se
+        // enteraba recién al validar, cuando el decremento atómico ya no alcanzaba. Era justo el
+        // escenario que motivó la separación.
+        //
+        // Con el flag apagado no hay ninguna fila ACTIVA, así que `reservado` es 0 y el mensaje sale
+        // idéntico al de siempre para las empresas que no usan doble validación.
+        var reservadoPorClave = (await _db.SeguimientoReservaAlimento.AsNoTracking()
+                .Where(r => r.FarmId == farmId
+                         && ids.Contains(r.ItemInventarioEcuadorId)
+                         && r.Estado == EstadoReservaSeguimiento.Activa)
+                .Select(r => new { r.ItemInventarioEcuadorId, r.NucleoId, r.GalponId, r.SiloId, r.CantidadKg })
+                .ToListAsync(ct))
+            .GroupBy(r => (r.ItemInventarioEcuadorId,
+                           Nucleo: (r.NucleoId ?? "").Trim(),
+                           Galpon: (r.GalponId ?? "").Trim(),
+                           Silo: r.SiloId ?? 0))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.CantidadKg));
+
         foreach (var kv in pedidos)
         {
             // Se resuelve la ubicación ítem por ítem con el MISMO camino que el descuento: un ítem
@@ -126,7 +148,13 @@ public partial class InventarioGestionService
             var (_, nuc, gal, sil) = await ResolverUbicacionConsumoAsync(sonda, ct);
             var stock = await BuscarStockSinRastreoAsync(farmId, kv.Key, nuc, gal, sil, ct);
 
-            if (stock != null) disponible[kv.Key] = stock.Quantity;
+            if (stock != null)
+            {
+                var reservado = reservadoPorClave.TryGetValue(
+                    (kv.Key, (nuc ?? "").Trim(), (gal ?? "").Trim(), sil ?? 0), out var kg) ? kg : 0m;
+
+                disponible[kv.Key] = StockConsumoValidacionCalculos.DisponibleNeto(stock.Quantity, reservado);
+            }
             lineas.Add(new StockConsumoValidacionCalculos.ItemPedido(
                 kv.Key, nombres.TryGetValue(kv.Key, out var n) ? n : null, kv.Value));
         }
