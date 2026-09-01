@@ -5139,22 +5139,30 @@ El envio **ya estaba activo** en prod (`Email:Queue:Enabled = true`) y funciona 
 Lo que esta mal es el manejo de errores, y en dos formas que costaron dias de diagnostico.
 
 ### A — El diagnostico miente (orden de evaluacion)
-- [ ] `MustIssueStartTlsFirst` se evalua PRIMERO y .NET mapea ahi el `530` posterior a un AUTH
+- [x] `MustIssueStartTlsFirst` se evaluaba PRIMERO y .NET mapea ahi el `530` posterior a un AUTH
       fallido ⇒ **todo fallo de autenticacion cae en esa rama** y la del `535` -la correcta- es
       inalcanzable. Mismo defecto que `LOHMANN BROWN` con el token `LOHMANN`
-- [ ] Medido en `email_queue` id 164: el texto dice «verificar que EnableSsl=true» y a la linea
+- [x] Medido en `email_queue` id 164: el texto dice «verificar que EnableSsl=true» y a la linea
       siguiente informa que **ya es true**; esconde el `535 account locked`, que es lo que importa
-- [ ] Falta la rama de `account locked`: es un caso distinto de «el tenant rechaza por origen»
+- [x] Agregada la rama de `account locked`: es un caso distinto de «el tenant rechaza por origen»
 
 ### B — Los reintentos sostienen el bloqueo
-- [ ] 3 intentos sin espera y sin distinguir permanente de transitorio. Con la cuenta bloqueada,
+- [x] 3 intentos sin espera y sin distinguir permanente de transitorio. Con la cuenta bloqueada,
       cada intento es una autenticacion fallida mas: 26-28 ago fueron **10 correos x 3 = 30**
 
 ### C — Que se hace
-- [ ] `EmailErrorCalculos` puro: clasifica por el MENSAJE REAL del servidor, no por el `StatusCode`
+- [x] `EmailErrorCalculos` puro: clasifica por el MENSAJE REAL del servidor, no por el `StatusCode`
       que mapeo .NET. Orden de evaluacion fijado por tests con los mensajes textuales de produccion
-- [ ] Permanente ⇒ `failed` en el PRIMER intento (no gasta 3 ni sigue golpeando al tenant)
-- [ ] Transitorio ⇒ backoff 1/5/15 min con columna `next_retry_at`
-- [ ] `error_type` pasa a ser la CAUSA (`cuenta_bloqueada`, …) en vez de `max_retries_exceeded`
+- [x] Permanente ⇒ `failed` en el PRIMER intento (no gasta 3 ni sigue golpeando al tenant)
+- [x] Transitorio ⇒ backoff 1/5/15 min con columna `next_retry_at`
+- [x] `error_type` pasa a ser la CAUSA (`cuenta_bloqueada`, …) en vez de `max_retries_exceeded`
 - [i] Nada de esto arregla el correo: si la cuenta vuelve a bloquearse sigue siendo del admin de M365.
       Lo que cambia es que el sistema lo DIGA bien y deje de empeorarlo
+- [x] El MISMO if/else equivocado estaba **duplicado** en el log del emisor: log y cola podian
+      contradecirse entre si. Los dos usan ahora el calculo
+- [x] Migracion `20260901100000_EmailQueueNextRetryAt`: columna nullable -`null` = ya mismo, asi que
+      lo ya encolado no cambia- + indice parcial sobre los pendientes, que es la consulta que corre
+      cada 30 s. Probada `Up()` x2 y `Down()` en transaccion revertida
+- [x] `dotnet build` 0/0 · `dotnet test` **3.584** (+21): el test que importa es que el mensaje
+      textual del id 164, CON su `StatusCode = MustIssueStartTlsFirst`, clasifique como
+      `CuentaBloqueada` y no como `RequiereStartTls`

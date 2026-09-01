@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -62,9 +63,16 @@ public class EmailQueueProcessorService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ZooSanMarinoContext>();
 
-        // Obtener correos pendientes (máximo 10 por ciclo para no sobrecargar)
+        // Obtener correos pendientes (máximo 10 por ciclo para no sobrecargar).
+        //
+        // `NextRetryAt` respeta la espera entre reintentos: un correo que acaba de fallar no se vuelve
+        // a intentar en el ciclo siguiente. Los nuevos y los anteriores a esa columna la tienen en
+        // null, que significa «ya mismo».
+        var ahora = DateTime.UtcNow;
         var pendingEmails = await context.EmailQueue
-            .Where(e => e.Status == "pending" && e.RetryCount < e.MaxRetries)
+            .Where(e => e.Status == "pending"
+                     && e.RetryCount < e.MaxRetries
+                     && (e.NextRetryAt == null || e.NextRetryAt <= ahora))
             .OrderBy(e => e.CreatedAt)
             .Take(10)
             .ToListAsync(cancellationToken);
@@ -102,10 +110,37 @@ public class EmailQueueProcessorService : BackgroundService
                 {
                     // Incrementar contador de reintentos
                     emailQueue.RetryCount++;
-                    
+
                     // Obtener detalles del último error de SendEmailAsync
                     var lastErrorDetails = await GetLastEmailErrorDetailsAsync(emailQueue.ToEmail, emailQueue.Subject);
-                    
+
+                    // 🔴 Un error PERMANENTE se cierra en el primer intento.
+                    //
+                    // Antes todos los fallos gastaban los 3 reintentos. Con el buzón bloqueado en el
+                    // proveedor eso no puede funcionar —y encima cada intento es otra autenticación
+                    // fallida, que es lo que sostiene el bloqueo: entre el 26 y el 28-ago fueron 30—.
+                    // Lo mismo vale para un destinatario inexistente: reintentar no lo va a crear.
+                    var clase = EmailErrorCalculos.Clasificar(lastErrorDetails, _lastEmailErrorType);
+                    if (!EmailErrorCalculos.ValeLaPenaReintentar(clase))
+                    {
+                        emailQueue.Status = "failed";
+                        emailQueue.FailedAt = DateTime.UtcNow;
+                        emailQueue.ErrorType = EmailErrorCalculos.TipoParaLaCola(clase);
+                        emailQueue.ErrorMessage =
+                            $"No se reintenta: {EmailErrorCalculos.Diagnostico(clase, emailQueue.ToEmail)}" +
+                            $"{Environment.NewLine}{Environment.NewLine}Detalle del servidor:{Environment.NewLine}{lastErrorDetails}";
+                        emailQueue.Metadata = UpdateMetadataWithErrorDetails(
+                            emailQueue.Metadata, lastErrorDetails, emailQueue.RetryCount);
+
+                        _logger.LogError(
+                            "⛔ Correo NO reintentable [{Clase}]: ID={EmailQueueId}, To={ToEmail}, Type={EmailType}. {Diagnostico}",
+                            emailQueue.ErrorType, emailQueue.Id, emailQueue.ToEmail, emailQueue.EmailType,
+                            EmailErrorCalculos.Diagnostico(clase, emailQueue.ToEmail));
+
+                        await context.SaveChangesAsync(cancellationToken);
+                        continue;
+                    }
+
                     if (emailQueue.RetryCount >= emailQueue.MaxRetries)
                     {
                         // Marcar como fallido después de agotar reintentos
@@ -132,20 +167,25 @@ public class EmailQueueProcessorService : BackgroundService
                     }
                     else
                     {
-                        // Volver a estado pending para reintento
+                        // Volver a estado pending para reintento, pero NO en el próximo ciclo: la
+                        // espera crece (1, 5, 15 min) para no golpear al proveedor en ráfaga, que es
+                        // lo que convierte una falla pasajera en un bloqueo de la cuenta.
+                        var espera = EmailErrorCalculos.EsperaAntesDelProximoIntento(emailQueue.RetryCount);
                         emailQueue.Status = "pending";
                         emailQueue.ProcessedAt = null;
-                        
+                        emailQueue.NextRetryAt = DateTime.UtcNow.Add(espera);
+
                         // Guardar información del error actual para referencia
                         if (!string.IsNullOrEmpty(lastErrorDetails))
                         {
                             emailQueue.ErrorMessage = $"Intento {emailQueue.RetryCount} fallido: {lastErrorDetails}";
-                            emailQueue.ErrorType = _lastEmailErrorType ?? "unknown";
+                            emailQueue.ErrorType = EmailErrorCalculos.TipoParaLaCola(clase);
                         }
-                        
+
                         _logger.LogWarning(
-                            "⚠️ Correo falló, reintentando ({RetryCount}/{MaxRetries}): ID={EmailQueueId}, To={ToEmail}, Error={ErrorDetails}",
-                            emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail, lastErrorDetails ?? "Unknown");
+                            "⚠️ Correo falló [{Clase}], reintenta en {Espera} min ({RetryCount}/{MaxRetries}): ID={EmailQueueId}, To={ToEmail}",
+                            emailQueue.ErrorType, espera.TotalMinutes,
+                            emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail);
                     }
                 }
 

@@ -51,6 +51,20 @@ public class EmailQueue
     [Column("max_retries")]
     public int MaxRetries { get; set; } = 3;
 
+    /// <summary>
+    /// A partir de cuándo se puede volver a intentar. <c>null</c> ⇒ ya mismo (es lo que vale para
+    /// todo correo nuevo y para las filas anteriores a esta columna).
+    ///
+    /// <para>
+    /// Existe para que los reintentos esperen: antes salían en el siguiente ciclo de polling, uno
+    /// detrás de otro. Con el buzón bloqueado en el proveedor eso son tres autenticaciones fallidas
+    /// seguidas por cada correo —30 en tres días de agosto—, que es justamente lo que dispara y
+    /// sostiene el bloqueo de la cuenta.
+    /// </para>
+    /// </summary>
+    [Column("next_retry_at")]
+    public DateTime? NextRetryAt { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
