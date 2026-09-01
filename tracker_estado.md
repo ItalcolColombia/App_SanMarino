@@ -5397,3 +5397,54 @@ El backend los asigna sin condicional ⇒ cada edicion los dejaba en `NULL`, sin
       estado inicial: valores en NULL, nombre TROFARELLO, sesion de smoke borrada, :5501 libre
 - [i] El :5002 que quedo escuchando NO es mio: es el backend del worktree `reverent-saha-d10a85`
       (otra ventana). No se toco
+
+---
+
+## Historial de traslados de lote: Fecha y Usuario siempre en «—» (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/historial_traslado_lote_fecha_y_usuario_plan.md`](fase_de_desarrollo/historial_traslado_lote_fecha_y_usuario_plan.md)
+
+### A · Backend — exponer la fecha real y resolver el usuario
+- [x] `HistorialTrasladoLoteDto` expone `FechaTraslado` (`DateOnly?`) y `CreatedByUserName` pasa a
+      `string?` — nullable porque el id **no siempre** corresponde a una cedula
+- [x] `Application/Calculos/HistorialTrasladoLoteCalculos.cs`: mapeo puro cedula↔int + nombre
+- [x] `LoteService.Traslado.cs`: se va el literal `$"Usuario ID: {...}"` y su TODO. El puente ya
+      estaba resuelto en el repo (`LoteBaseEngordeService`, ItalJira): `created_by_user_id` **es la
+      cedula**; `users.id` es Guid y por eso no hay FK. Resuelto en **una** query batch, sin agregar
+      N+1 al bucle
+- [x] `HistorialTrasladoLoteCalculosTests` (xUnit) — 8 casos verdes
+
+### B · Frontend — alinear al wire y pintar las columnas
+- [x] Interfaz `HistorialTrasladoLoteDto` alineada al JSON real (`createdByUserName`, `createdAt`,
+      `fechaTraslado`, nombres de nucleo/galpon, que tampoco estaban)
+- [x] Funcion pura `fechaTrasladoHistorialLote` + spec. Usa `fechaCortaSinTz`, **no**
+      `formatearFecha`: `new Date("2026-09-01")` es medianoche **UTC** y en Colombia se pintaria
+      **31/08**. Fila legacy sin `fecha_traslado` ⇒ cae a `createdAt`, no al guion
+- [x] Las columnas eran **4 tablas**, no 1: 2 en `inventario-dashboard` + `movimientos-list` +
+      `registros-traslados` (comparten la misma interfaz)
+
+### C · El modal del dashboard tiraba la fecha
+- [x] `TrasladoLoteRequest` de `traslados-aves.service.ts` declara `fechaTraslado`
+- [x] `procesarTrasladoLote` la acepta y la reenvia (mismo contrato que ya cumplia `lote-list`)
+
+### D · Validacion
+- [x] `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **3.616 verdes** (8 nuevos)
+- [x] `yarn build` OK · `ng test` **712 verdes** (4 nuevos)
+- [x] **Smoke contra el backend real** (:5002, BD local, 2 filas sembradas y **borradas** al
+      terminar): `GET /api/Lote/151/historial-traslados` → `"createdByUserName":"Cesar Eduardo
+      Hurtado Riascos"` (resuelto de la BD, **no** es el usuario logueado) y
+      `"fechaTraslado":"2026-08-25"` distinta de `"createdAt":"2026-09-01T14:30:00"`. La fila legacy
+      devuelve los dos en `null`, como se espera
+- [x] **Render real en Chrome**: `registros-traslados.component.spec.ts` monta la tabla de verdad con
+      esa misma respuesta y fija las celdas — `25/8/2026` y el nombre; la fila legacy da `14/7/2026`
+      y `—`. Es la prueba de pantalla y ademas queda como regresion en el CI
+- [i] 🔴 **El test nuevo tumbaba `offline-db.spec.ts`** con un timeout que Karma atribuia a
+      `NucleoService`: montar el componente real abre IndexedDB y la conexion viva **bloquea el
+      upgrade de esquema**. Se cierra en `afterEach` con `cerrarConexion()` (la API existe justo
+      para esto y su doc describe el sintoma). Sin eso: 2 FAILED; con eso: 712 SUCCESS
+- [i] **No hay migracion**: la columna `fecha_traslado`, su indice y el backfill ya los trajo
+      `20260831170000_FechaTrasladoLote`. Esto es solo lectura
+- [i] **Fuera de alcance, anotado**: `getHistorialTrasladosLotesPorGranja` pega a
+      `GET /Lote/historial-traslados/granja/{id}`, **ruta que no existe** en el backend (el unico
+      endpoint es `{loteId}/historial-traslados`) ⇒ la solapa de lotes de `registros-traslados`
+      siempre cae al `catch`. Falta un endpoint, no es un rename

@@ -390,6 +390,11 @@ export interface TrasladoLoteRequest {
   nucleoDestinoId?: string | null;
   galponDestinoId?: string | null;
   observaciones?: string | null;
+  /**
+   * Dia real en que el lote se movio (`yyyy-MM-dd`), que no es el instante en que se registra. Si
+   * se omite, el backend usa hoy. Misma semantica que en `lote.service.ts`.
+   */
+  fechaTraslado?: string | null;
 }
 
 export interface TrasladoLoteResponse {
@@ -402,6 +407,14 @@ export interface TrasladoLoteResponse {
   granjaDestino?: string;
 }
 
+/**
+ * Una fila del historial de traslados de lote, tal como la devuelve
+ * `GET /Lote/{loteId}/historial-traslados`.
+ *
+ * Los nombres son los del wire: hasta el 1-sep-2026 esta interfaz declaraba `fechaTraslado: Date` y
+ * `usuarioNombre`, dos campos que el backend nunca emitio, asi que las columnas Fecha y Usuario de
+ * las 4 tablas que la consumen mostraban siempre `—`.
+ */
 export interface HistorialTrasladoLoteDto {
   id: number;
   loteOriginalId: number;
@@ -410,12 +423,21 @@ export interface HistorialTrasladoLoteDto {
   granjaOrigenNombre?: string;
   granjaDestinoId: number;
   granjaDestinoNombre?: string;
-  nucleoDestinoId?: string;
-  galponDestinoId?: string;
-  observaciones?: string;
-  fechaTraslado: Date;
-  usuarioNombre?: string;
-  createdAt: Date;
+  nucleoDestinoId?: string | null;
+  nucleoDestinoNombre?: string | null;
+  galponDestinoId?: string | null;
+  galponDestinoNombre?: string | null;
+  observaciones?: string | null;
+  createdByUserId: number;
+  /** `firstName + surName` de quien lo registro; null si su id no corresponde a ninguna cedula. */
+  createdByUserName?: string | null;
+  /** Instante en que se DIGITO el registro (ISO con hora). No es el dia del traslado. */
+  createdAt: string;
+  /**
+   * Dia REAL en que el lote se movio (`yyyy-MM-dd`, `DateOnly` del backend), que es el que eligio
+   * quien registro en el modal. Null solo en filas previas a la migracion que agrego la columna.
+   */
+  fechaTraslado?: string | null;
 }
 
 @Injectable({

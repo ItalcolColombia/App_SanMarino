@@ -497,12 +497,12 @@
                         <tbody>
                           @for (historial of historialTrasladosLote(); track historial) {
                             <tr class="ux-row">
-                              <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                              <td>{{ fechaTrasladoLote(historial) }}</td>
                               <td><strong>#{{ historial.loteOriginalId }}</strong></td>
                               <td><strong>#{{ historial.loteNuevoId }}</strong></td>
                               <td>{{ historial.granjaOrigenNombre || '—' }}</td>
                               <td>{{ historial.granjaDestinoNombre || '—' }}</td>
-                              <td>{{ historial.usuarioNombre || '—' }}</td>
+                              <td>{{ historial.createdByUserName || '—' }}</td>
                               <td class="text-sm">{{ historial.observaciones || '—' }}</td>
                             </tr>
                           }
@@ -701,12 +701,12 @@
                             <tbody>
                               @for (traslado of historialTrasladosLote(); track traslado) {
                                 <tr>
-                                  <td class="date-cell">{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                                  <td class="date-cell">{{ fechaTrasladoLote(traslado) }}</td>
                                   <td><strong>#{{ traslado.loteOriginalId }}</strong></td>
                                   <td><strong>#{{ traslado.loteNuevoId }}</strong></td>
                                   <td>{{ traslado.granjaOrigenNombre || 'N/A' }}</td>
                                   <td>{{ traslado.granjaDestinoNombre || 'N/A' }}</td>
-                                  <td>{{ traslado.usuarioNombre || 'N/A' }}</td>
+                                  <td>{{ traslado.createdByUserName || 'N/A' }}</td>
                                   <td class="motivo-cell">{{ traslado.observaciones || '—' }}</td>
                                 </tr>
                               }
