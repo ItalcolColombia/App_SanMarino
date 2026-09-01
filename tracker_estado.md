@@ -5268,9 +5268,34 @@ registro de stock» — el stock bajo y la tabla diaria no.
       59 que ya estaban desfasadas** (dos del 31-jul por +12.500, cinco entre +1.905 y −499). Es lo
       que haria el aplicador con el proximo movimiento del galpon; se deja dicho para que no
       sorprenda
-- [i] Hallazgo aparte, **no es este defecto**: el lote 16 (G0055 2602, cerrado) cierra su **ultimo
-      dia en -3.920 kg** — 1 dia en rojo de 57. Anular su ingreso no lo arregla (queda en -1.800):
-      a ese lote le FALTA alimento, no le sobra
+### E · Lote 16 de G0055, revisado (1-sep-2026) — **NO se toca: hay que preguntarle a operacion**
+
+- [x] El mecanismo: el ultimo dia tiene **traslados de salida por 11.720 kg contra un saldo de
+      7.800** (3.600 el 15-may y 8.120 el 16-may, remisiones 144 y 145) ⇒ cierra en **-3.920**.
+      **No es el defecto de `EliminacionStock`**: es el «Patron B», orden/fecha de los movimientos
+- [x] **Los 3 casos de Ecuador son la MISMA operacion**, el 18-may entre las 14:51 y las 15:19:
+      primero tres `Ingreso` **SIN REMISION fechados ese mismo dia** (G0051 2.640 · G0052 600 ·
+      G0055 3.920) y **despues** las salidas con remision 144/145 **fechadas hacia atras** (15 y
+      16-may), con su contraparte en G0036. El ingreso llega despues de la salida que lo gasta
+- [x] En **2 de 3 el ingreso tapa exactamente el faltante** (G0052 600 = 600 · G0055 3.920 = 3.920);
+      en G0051 el ingreso es 2.640 contra un faltante de 3.220, o sea **quedan 580 kg sin explicar**
+- [x] Las dos hipotesis cierran en 0 (medido): re-fechar el ingreso al 15-may, o mover las salidas
+      al 18-may. **El total esta bien; lo unico mal es la fecha.** Por eso mismo el dato no alcanza
+      para decidir
+- [!] 🔴 **Por que NO se corrige.** Ingresos sin remision, creados 3 minutos antes de las salidas y
+      por el monto exacto del faltante, parecen **tapones para que el stock alcanzara** (el stock se
+      valida atomico y rechaza si no da). Si lo son, **el negativo esta diciendo la verdad**: del
+      galpon salieron mas kilos de los que habia, y re-fechar **taparia la senal**. Si en cambio el
+      alimento entro de verdad y se cargo tarde, re-fechar es lo correcto. **Solo operacion sabe
+      cual**: la pregunta concreta es si esos 2.640 / 600 / 3.920 kg entraron y con que documento
+- [i] Lote 14 (G0042) tiene -1,0 kg: ruido de punto flotante, no es un caso
+- [i] **Panama tiene uno peor**: lote 161 (G0472, «94 - 3») con **29 dias en rojo** y hasta
+      **-24.191,1 kg**, aunque **cierra en 0** — ahi el total esta bien y el orden esta mal casi
+      todo el ciclo. Sin revisar
+- [i] Lo accionable del lado del codigo: **nada avisa cuando una salida deja el dia en rojo**. El
+      stock se valida atomico porque es fisico, pero la tabla diaria se declara **por fecha**, asi
+      que un ingreso registrado «hoy» financia una salida fechada tres dias atras. Un aviso ahi —del
+      mismo tipo que el de remision repetida (`22e8af5`)— lo habria frenado en el momento
 
 ### D · Lo que queda fuera de esta sesion
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
