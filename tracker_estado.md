@@ -5114,10 +5114,17 @@ Ultimo pendiente de la auditoria (#8), y el unico SIN cambio de codigo: lo que e
 le dijo al usuario. La instruccion decia «se puede volver a subir el archivo completo» y omitia que la
 importacion **rechaza el archivo entero** si el stock de la granja no alcanza.
 
-- [ ] Reabrir el caso a `EN_ANALISIS` por migracion, con la instruccion correcta y completa
-- [ ] Fail-safe: si alguien ya lo movio de CERRADO, no se toca
-- [ ] `CERRADO` es terminal en la maquina de estados y hay tests que lo blindan. Se reabre igual
+- [x] Reabrir el caso a `EN_ANALISIS` por migracion, con la instruccion correcta y completa
+      (`20260901090000_ReabrirTicketS369InstruccionCorrecta`)
+- [x] Fail-safe probado: la 2a pasada lo encuentra en EN_ANALISIS y lo saltea con NOTICE
+- [x] `CERRADO` es terminal en la maquina de estados y hay tests que lo blindan. Se reabre igual
       porque el cierre lo hizo la GESTION -mi migracion de ayer-, el solicitante nunca confirmo y ni
       siquiera se le envio el aviso (`notificado_correo = false`): no hubo cierre por ambas partes,
       que es lo que justifica la terminalidad. La maquina de estados de la app NO se toca
-- [ ] NO se corrige ningun dato: la carga es del usuario y el guard de stock es un invariante correcto
+- [x] NO se corrige ningun dato: la carga es del usuario y el guard de stock es un invariante correcto
+- [x] `Down()` exacto: restaura CERRADO con `cerrado_por_user_id = 496236603` **identico** — el primer
+      intento lo restauraba con el creador del caso (la persona que reporto) en vez del admin que lo
+      cerro; se resuelve por email, igual que la migracion que lo habia cerrado
+- [i] Quedan 3 casos sin cerrar en toda la base, los tres con motivo: **TK-000020** (reabierto, espera
+      que el usuario cargue el alimento), **TK-000183** (CAROLINA: trabajo real pendiente) y
+      **TK-000001** (caso de prueba de junio)
