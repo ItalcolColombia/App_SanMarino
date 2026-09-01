@@ -21,6 +21,7 @@ public class HistorialTrasladoLoteConfiguration : IEntityTypeConfiguration<Histo
         b.Property(x => x.NucleoDestinoId).HasColumnName("nucleo_destino_id").HasMaxLength(50);
         b.Property(x => x.GalponDestinoId).HasColumnName("galpon_destino_id").HasMaxLength(50);
         b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(1000);
+        b.Property(x => x.FechaTraslado).HasColumnName("fecha_traslado");
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();

@@ -15,6 +15,7 @@ import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { NucleoService } from '../../../nucleo/services/nucleo.service';
 
+import { aYmd } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
 export interface TrasladoLoteData {
   loteId: number;
   loteNombre: string;
@@ -44,6 +45,7 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
     nucleoDestinoId?: string | null;
     galponDestinoId?: string | null;
     observaciones?: string | null;
+    fechaTraslado?: string | null;
   }>();
 
   // Iconos
@@ -61,6 +63,15 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
   nucleoDestinoId: string | null = null;
   galponDestinoId: string | null = null;
   observaciones: string = '';
+
+  /**
+   * Día REAL en que el lote se movió, que no es el día en que alguien lo registra. El Reporte Diario
+   * de Costos de POSTURA usa esta fecha como la efectiva del traslado: sin ella, un lote movido la
+   * semana pasada y cargado hoy le atribuía los costos de esos días a la granja equivocada.
+   * Arranca en hoy, así que quien no la toque se comporta igual que antes de que el campo existiera.
+   */
+  fechaTraslado: string = aYmd(new Date());
+  readonly fechaTrasladoMax: string = aYmd(new Date());
 
   // Datos filtrados
   granjasDisponibles: FarmDto[] = [];
@@ -95,6 +106,7 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
     this.nucleoDestinoId = null;
     this.galponDestinoId = null;
     this.observaciones = '';
+    this.fechaTraslado = aYmd(new Date());
     this.nucleosFiltrados = [];
     this.galponesFiltrados = [];
     this.showConfirmacion = false;
@@ -239,7 +251,8 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
       granjaDestinoId: this.granjaDestinoId,
       nucleoDestinoId: this.nucleoDestinoId || null,
       galponDestinoId: this.galponDestinoId || null,
-      observaciones: this.observaciones.trim() || null
+      observaciones: this.observaciones.trim() || null,
+      fechaTraslado: this.fechaTraslado || null
     });
   }
 

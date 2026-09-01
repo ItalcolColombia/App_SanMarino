@@ -25,6 +25,12 @@ public class TrasladoLoteRequestDto
     /// <summary>Observaciones del traslado (opcional)</summary>
     [MaxLength(500, ErrorMessage = "Las observaciones no pueden exceder 500 caracteres")]
     public string? Observaciones { get; set; }
+
+    /// <summary>
+    /// Día real en que el lote se movió. Si no viene, se usa hoy — así un cliente que no lo mande se
+    /// comporta exactamente como antes de que este campo existiera.
+    /// </summary>
+    public DateOnly? FechaTraslado { get; set; }
 }
 
 /// <summary>

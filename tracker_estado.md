@@ -5080,9 +5080,24 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
       en 3 empresas** — y **no todos son duplicados** (`INVENTARIO`, `LLEG-06` son etiquetas, no
       remisiones; un mismo remito puede repartirse en dos galpones). **Datos NO tocados**: decidir cual
       fila sobra es criterio de operacion, no de ingenieria. Quedan listados para que los revisen
-- [ ] #11 `TK-012/B` (traslado de LOTE sin fecha en ningun lado) · #12 `TK-015` (la vista Power BI
-      `vw_seguimiento_pollo_engorde` nunca recibio el corte v14). Los dos con diseno cerrado en la
-      sintesis; son los mas grandes (migracion + fn SQL + front)
+- [x] #12 `TK-015` — `vw_seguimiento_pollo_engorde` nunca recibio el corte v14 que la fn tiene desde
+      junio, aunque la vista se declara su espejo set-based. Medido: `position(...)` daba **0** en la
+      vista y **6573** en la fn. Portado el CTE `corte_ciclo_siguiente` set-based + `LEAST` en
+      `rango_final`, por migracion con `CREATE OR REPLACE VIEW` (conserva owner y GRANT, y exige la
+      misma lista de columnas)
+- [i] Verificado desplegando la nueva en PARALELO con otro nombre: **0 filas** de diferencia en los dos
+      sentidos, mismas 6.784 filas y 67 columnas. La prueba real es el **contrafactual**, porque el
+      corte no muerde hoy: reabiertos los lotes 20 y 86 en una transaccion revertida, la vieja se
+      desbordaba al **28-ago** (96 filas en el lote 20) y la nueva corta en el **12-abr** (62)
+- [x] #11 `TK-012/B` — trasladar o mover un lote no tenia fecha en NINGUN lado (ni DTO, ni interfaces
+      del front, ni tabla; `fn_mover_lote` escribia `CURRENT_TIMESTAMP`), y el Reporte Diario de
+      Costos de POSTURA usa esa fecha como la efectiva del traslado. Columna `fecha_traslado` +
+      backfill, `fn_mover_lote` con `p_fecha_traslado DEFAULT NULL` (la firma vieja se ELIMINA: con
+      default quedarian dos y una llamada de 5 args seria ambigua), DTOs y las 2 interfaces del front,
+      input `type=date` en el modal y el reporte con `COALESCE(fecha_traslado, created_at::date)`
+- [i] `Up()` x2 en transaccion revertida (la 2a no duplica la fn) y `Down()` que restaura la firma de
+      5 argumentos y dropea la columna. Backfill de riesgo cero: la tabla tiene **0 filas**. Humo del
+      reporte tras aplicar: 26 filas
 
 ### Sin codigo
 - [!] #8 `TK-020/B` — S369 sigue en 168 dias; el remedio indicado al usuario esta BLOQUEADO por

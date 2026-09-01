@@ -170,7 +170,9 @@ public partial class LoteService
             Observaciones = dto.Observaciones,
             CompanyId = companyId,
             CreatedByUserId = _current.UserId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            // El día del hecho lo elige quien registra; sin dato, hoy.
+            FechaTraslado = dto.FechaTraslado ?? DateOnly.FromDateTime(DateTime.UtcNow)
         };
         _ctx.HistorialTrasladoLote.Add(historial);
         await _ctx.SaveChangesAsync();
