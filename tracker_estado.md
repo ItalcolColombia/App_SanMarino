@@ -5261,10 +5261,27 @@ registro de stock» — el stock bajo y la tabla diaria no.
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
 - [!] G0483 (Panama): decidir pantalla o migracion. Es dato de produccion de otra empresa y esta
       fuera del alcance del ticket
-- [ ] **Anexo (pedido del usuario):** renombrar los 2 lotes que ya nacieron con sufijo —
-      `2605 - 1` → `2605` (Kilometro 86, id 229) y `2604 - 1` → `2604` (CAROLINA GALPON 7, id 241)
-- [ ] Verificado antes de tocar: 0 colisiones, sin indice unico sobre `lote_nombre`, sin liquidacion
-      congelada -que si copia el nombre-, sin seguimientos y sin filas en el historico unificado
-- [ ] `UPDATE` acotado por REGLA y con ventana temporal **cerrada** (22-ago a 1-sep), que es lo que
-      hace exacto al `Down()`: sin tope superior le pondria ` - 1` a los lotes limpios futuros
-- [ ] Los 2 eliminados (235, 236) se dejan con su sufijo: no se ven en ninguna pantalla
+
+---
+
+## Ecuador — anexo: renombrar los 2 lotes que ya nacieron con sufijo (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md)
+(anexo). Continua el bloque «Ecuador: el nombre del lote volvia a llevar `- 1`», ya commiteado en
+`82bfa9a`. Pedido del usuario: deja de ser «solo lotes nuevos».
+
+- [x] `2605 - 1` → `2605` (Kilometro 86, id 229) y `2604 - 1` → `2604` (CAROLINA GALPON 7, id 241)
+- [x] Verificado antes de tocar: 0 colisiones, sin indice unico sobre `lote_nombre`, sin liquidacion
+      congelada -que si copia el nombre y lo congela-, sin seguimientos y sin filas en el historico
+      unificado. Las `vw_*` leen el nombre de la tabla ⇒ se actualizan solas
+- [x] `UPDATE` acotado por REGLA -no por id- y SIN tope superior, para que alcance tambien a los que
+      nazcan con el defecto entre hoy y el deploy; despues no puede haber mas porque la migracion que
+      apaga el flag corre antes en el mismo arranque
+- [x] El `Down()` es exacto por CONSTRUCCION: el `Up()` respalda el nombre anterior en
+      `_backup_rename_lote_engorde_ecuador_20260901` y restaura desde ahi, fila por fila
+- [x] Los 2 eliminados (235, 236) se dejan con su sufijo: no se ven en ninguna pantalla
+- [x] `numero_corrida` NO se toca: sigue en 1, y la proxima apertura se calcula por `MAX(numero_corrida)`
+- [x] Gate en transaccion revertida, 6 casos: `Up()` **UPDATE 2** · respaldo con el nombre anterior ·
+      `Up()` 2a = **0** y respaldo sin duplicar · de las **144** filas de Ecuador cambian **solo esas
+      2** · eliminados y el `2604 - 2` intactos · `Down()` deja **0 filas distintas del inicio**
+- [x] `dotnet build` Infrastructure **0/0** · `dotnet test` **3.590 verdes**
