@@ -5128,3 +5128,33 @@ importacion **rechaza el archivo entero** si el stock de la granja no alcanza.
 - [i] Quedan 3 casos sin cerrar en toda la base, los tres con motivo: **TK-000020** (reabierto, espera
       que el usuario cargue el alimento), **TK-000183** (CAROLINA: trabajo real pendiente) y
       **TK-000001** (caso de prueba de junio)
+
+---
+
+## Cola de correo: reintentos que no agraven y un diagnostico que no mienta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/correo_reintentos_y_diagnostico_plan.md`](fase_de_desarrollo/correo_reintentos_y_diagnostico_plan.md)
+
+El envio **ya estaba activo** en prod (`Email:Queue:Enabled = true`) y funciona -2 `sent` el 29-ago-.
+Lo que esta mal es el manejo de errores, y en dos formas que costaron dias de diagnostico.
+
+### A — El diagnostico miente (orden de evaluacion)
+- [ ] `MustIssueStartTlsFirst` se evalua PRIMERO y .NET mapea ahi el `530` posterior a un AUTH
+      fallido ⇒ **todo fallo de autenticacion cae en esa rama** y la del `535` -la correcta- es
+      inalcanzable. Mismo defecto que `LOHMANN BROWN` con el token `LOHMANN`
+- [ ] Medido en `email_queue` id 164: el texto dice «verificar que EnableSsl=true» y a la linea
+      siguiente informa que **ya es true**; esconde el `535 account locked`, que es lo que importa
+- [ ] Falta la rama de `account locked`: es un caso distinto de «el tenant rechaza por origen»
+
+### B — Los reintentos sostienen el bloqueo
+- [ ] 3 intentos sin espera y sin distinguir permanente de transitorio. Con la cuenta bloqueada,
+      cada intento es una autenticacion fallida mas: 26-28 ago fueron **10 correos x 3 = 30**
+
+### C — Que se hace
+- [ ] `EmailErrorCalculos` puro: clasifica por el MENSAJE REAL del servidor, no por el `StatusCode`
+      que mapeo .NET. Orden de evaluacion fijado por tests con los mensajes textuales de produccion
+- [ ] Permanente ⇒ `failed` en el PRIMER intento (no gasta 3 ni sigue golpeando al tenant)
+- [ ] Transitorio ⇒ backoff 1/5/15 min con columna `next_retry_at`
+- [ ] `error_type` pasa a ser la CAUSA (`cuenta_bloqueada`, …) en vez de `max_retries_exceeded`
+- [i] Nada de esto arregla el correo: si la cuenta vuelve a bloquearse sigue siendo del admin de M365.
+      Lo que cambia es que el sistema lo DIGA bien y deje de empeorarlo
