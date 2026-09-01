@@ -5250,17 +5250,33 @@ registro de stock» — el stock bajo y la tabla diaria no.
       galpon, item y cantidad** (12.500 kg el 28-jul y el 01-ago) con su `EliminacionStock` el mismo
       dia. El cuadre lo dice solo: `saldo_tabla 23.636,5` contra `stock 11.136,5`, **descuadre
       12.500 exacto**; sacando el fantasma el invariante **cierra clavado** en 11.136,5
-- [i] Los dos lotes de G0483 estan **Abiertos** ⇒ no hay copia congelada que parchear y el galpon
-      **si** entra en «Cuadrar galpon». Dos caminos posibles y **ninguno se ejecuta sin OK**: la
-      pantalla (el operador declara 11.136,5 kg reales) o una migracion como la de CAROLINA
+- [x] **Migracion `20260901150000_CorreccionRemisionDuplicadaG0483Panama`** (data-only). Anula el
+      ingreso duplicado y reescribe el saldo persistido **desde la fn** (el SQL de
+      `SaldoAlimentoEngordeAplicador`, una sola formula por numero). Sin copia congelada que
+      parchear: los dos lotes estan Abiertos; si alguno estuviera congelado al correr, lo **avisa y
+      no lo toca** (hay que reabrirlo)
+- [x] Elige el duplicado por su **`EliminacionStock` pegado** (id consecutivo), no por id fijo, y
+      exige que exista el gemelo con la misma remision. El orden real de creacion lo confirma:
+      `11:15:05` ingreso fechado 01-ago → `11:15:55` eliminacion → `11:17:20` el mismo ingreso
+      fechado 28-jul (el bueno)
+- [x] Probada por transaccion: `Up()` deja el cuadre en **0** (11.136,5 == 11.136,5), sin dias en
+      rojo (el minimo del galpon baja de 10.502 a 1.691, positivo); `Up()` x2 no toca nada; `Down()`
+      restituye el descuadre de 12.500. Aplicada de verdad en local con el script que emite EF
+- [x] **Gate multipais**: Panama pasa de **17 a 16** galpones descuadrados y de **146.485,4 a
+      133.985,4 kg** (−12.500 exactos); **Ecuador 0 y 0**; **un solo galpon movido**, G0483
+- [i] Medido y declarado en la migracion: reescribir desde la fn tambien **resincroniza 7 filas de
+      59 que ya estaban desfasadas** (dos del 31-jul por +12.500, cinco entre +1.905 y −499). Es lo
+      que haria el aplicador con el proximo movimiento del galpon; se deja dicho para que no
+      sorprenda
 - [i] Hallazgo aparte, **no es este defecto**: el lote 16 (G0055 2602, cerrado) cierra su **ultimo
       dia en -3.920 kg** — 1 dia en rojo de 57. Anular su ingreso no lo arregla (queda en -1.800):
       a ese lote le FALTA alimento, no le sobra
 
 ### D · Lo que queda fuera de esta sesion
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
-- [!] G0483 (Panama): decidir pantalla o migracion. Es dato de produccion de otra empresa y esta
-      fuera del alcance del ticket
+- [i] G0483 quedo por **migracion** y no por la pantalla: «Cuadrar galpon» habria dejado vivo el
+      ingreso duplicado compensandolo con otro movimiento, y la grilla seguiria mostrando 25.000 kg
+      ingresados de la remision 190755
 
 ---
 
