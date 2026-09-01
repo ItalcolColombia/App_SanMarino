@@ -12,10 +12,12 @@ import { CountryFilterService } from '../../../../core/services/country/country-
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import {
+  aYmd,
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
   PERMISO_FECHA_RETROACTIVA
 } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
+import { ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 
 @Component({
   selector: 'app-modal-movimiento-aves',
@@ -193,7 +195,10 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   private initForm(): void {
-    const hoy = new Date().toISOString().split('T')[0];
+    // Hoy en LOCAL, el MISMO criterio con que se calcula `fechaMovimientoMax`. Con toISOString()
+    // se tomaba el dia UTC: entre las 19:00 y medianoche en UTC-5 el formulario nacia con la fecha
+    // de MANANA, que el propio [max] rechaza y el backend responde 400.
+    const hoy = aYmd(new Date());
     
     this.formMovimiento = this.fb.group({
       fechaMovimiento: [hoy, [Validators.required]],
@@ -495,7 +500,10 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   private resetForm(): void {
-    const hoy = new Date().toISOString().split('T')[0];
+    // Hoy en LOCAL, el MISMO criterio con que se calcula `fechaMovimientoMax`. Con toISOString()
+    // se tomaba el dia UTC: entre las 19:00 y medianoche en UTC-5 el formulario nacia con la fecha
+    // de MANANA, que el propio [max] rechaza y el backend responde 400.
+    const hoy = aYmd(new Date());
     
     // Habilitar temporalmente los campos disabled para poder resetearlos
     const razaControl = this.formMovimiento.get('raza');
@@ -765,8 +773,17 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
     const formValue = this.formMovimiento.getRawValue(); // Usar getRawValue() para obtener valores de campos disabled
     
-    const fechaMovimiento = typeof formValue.fechaMovimiento === 'string'
-      ? new Date(formValue.fechaMovimiento)
+    // 🔴 El input entrega 'yyyy-MM-dd' y `new Date('2026-08-20')` es MEDIANOCHE UTC: en UTC-5 la
+    // lista, que pinta con pipe local, mostraba el día ANTERIOR al que el usuario eligió. Es la
+    // misma trampa que ya se corrigió en el modal gemelo de engorde, que ancla al mediodía UTC para
+    // el MISMO campo. Anclado ahí, el día no se mueve en ninguna zona de América.
+    const ymdElegido = typeof formValue.fechaMovimiento === 'string'
+      ? formValue.fechaMovimiento
+      : null;
+    const isoAnclado = ymdToIsoUtcNoon(ymdElegido);
+
+    const fechaMovimiento = isoAnclado
+      ? new Date(isoAnclado)
       : (formValue.fechaMovimiento instanceof Date ? formValue.fechaMovimiento : new Date());
 
     if (this.editingMovimiento && this.isEditMode()) {

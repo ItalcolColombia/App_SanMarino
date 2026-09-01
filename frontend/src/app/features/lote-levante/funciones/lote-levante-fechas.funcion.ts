@@ -53,7 +53,23 @@ export function toYMD(input: string | Date | null | undefined): string | null {
     return `${yyyy}-${mmS}-${ddS}`;
   }
 
-  // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
+  // ISO (con T). Sin zona → literal (la API guarda la fecha digitada tal cual);
+  // con Z/offset → fecha UTC del instante.
+  //
+  // 🔴 El comentario que estaba acá decía «extrae la fecha en LOCAL sin cambiar el día», y era
+  // falso para un ISO con Z en UTC-5: el regex de arriba está ANCLADO (`$`), así que un ISO con 'T'
+  // no matchea y caía a `new Date(s)` + getters LOCALES, restando un día. Las 368 filas de levante
+  // cargadas por migración masiva viven a 00:00 UTC, que es su convención legítima, y el modal las
+  // abría en el día anterior: la grilla —que usa el regex SIN `$`— y el modal mostraban días
+  // distintos del MISMO registro, y al guardar el backend rechazaba con «ya existe otro seguimiento
+  // para esa fecha». Es la copia vieja de esta misma función; engorde ya tenía la rama correcta.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) return s.slice(0, 10);
+    const dIso = new Date(s);
+    if (!isNaN(dIso.getTime())) return dIso.toISOString().slice(0, 10);
+  }
+
+  // Otros formatos parseables → extracción LOCAL (comportamiento previo)
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();

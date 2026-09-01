@@ -563,9 +563,19 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                     AjusteEncasetamientoCalculos.MensajeIncompatible(diagnostico, inicialNuevo.Total));
         }
 
-        var maestro = AjusteEncasetamientoCalculos.AplicarDelta(
-            new RetiroAvesEngordeCalculos.MaestroAves(ent.HembrasL ?? 0, ent.MachosL ?? 0, ent.Mixtas ?? 0),
-            delta);
+        var maestroVigente = new RetiroAvesEngordeCalculos.MaestroAves(
+            ent.HembrasL ?? 0, ent.MachosL ?? 0, ent.Mixtas ?? 0);
+
+        // 🔴 El gate de arriba mira el TOTAL y el clamp de AplicarDelta es POR SEXO. Un ajuste de
+        // sexaje a total constante (−500 hembras, +500 machos) da total 0, pasaba el gate y el
+        // Math.Max(0, …) se comía las hembras que faltaban: 200 OK y el maestro con menos aves de las
+        // que el lote tiene vivas. Se rechaza acá, antes de escribir nada.
+        var sobregiro = AjusteEncasetamientoCalculos.SobregiroPorSexo(maestroVigente, delta);
+        if (!sobregiro.Cabe)
+            throw new InvalidOperationException(
+                AjusteEncasetamientoCalculos.MensajeSobregiroSexo(maestroVigente, sobregiro));
+
+        var maestro = AjusteEncasetamientoCalculos.AplicarDelta(maestroVigente, delta);
 
         ent.HembrasL = maestro.Hembras;
         ent.MachosL = maestro.Machos;

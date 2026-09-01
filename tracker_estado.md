@@ -5051,7 +5051,24 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
       usuario, no si el dato entra; tocarlo sin cuidado introduce falsos rechazos
 
 ### Tanda D — fechas y presentacion
-- [ ] #5 `TK-014` · #6 `TK-012/C` · #9 `TK-176` · #10 `TK-177`
+- [x] #5 `TK-014` — la copia de `toYMD` de levante Y la de produccion tenian el regex ANCLADO: un ISO
+      con «T» caia a `new Date(s)` + getters LOCALES y restaba un dia en UTC-5. Portada la rama
+      tz-aware que engorde ya tenia. Spec nuevo que corre las **3 copias** contra los mismos casos
+      (22/22 verdes): la grilla y el modal ya no muestran dias distintos del mismo registro
+- [x] #6 `TK-012/C` — el modal de movimientos mandaba `new Date(yyyy-MM-dd)` = **medianoche UTC** ⇒ la
+      lista pintaba el dia anterior. Anclado con `ymdToIsoUtcNoon`, igual que el modal gemelo de
+      engorde. Y el default del datepicker se calculaba con `toISOString()` (dia **UTC**) mientras el
+      `[max]` se calcula en LOCAL: entre las 19:00 y medianoche en Bogota el form nacia con fecha de
+      MANANA y el backend respondia 400. Los dos usan ahora `aYmd(new Date())`
+- [x] #9 `TK-176` — la tarjeta de Lote Reproductora Engorde bindeaba `hembrasL`/`machosL`, que en
+      engorde son el **saldo vivo**, bajo el rotulo «(inicial)». Delegan en `avesInicialesDelLote`
+      (getters que devuelven NUMEROS, referencia estable) y se agrego la fila «Mixtas encaset.», sin la
+      cual Panama —donde toda la poblacion vive en ese bucket— veia 0 / 0 en un lote lleno
+- [x] #10 `TK-177` — el gate del ajuste mira `delta.Total` y el clamp es **por sexo**: un ajuste de
+      sexaje a total constante (−500 H, +500 M) pasaba y borraba hembras vivas en silencio, con 200 OK.
+      `SobregiroPorSexo` + `MensajeSobregiroSexo` (puros, 6 tests) rechazan antes de escribir; el clamp
+      queda como red inalcanzable y su doc-comment, que afirmaba que «el gate ya lo rechazo», corregido.
+      Medido despues: `fn_cuadre_aves_engorde` sigue devolviendo **2** lotes, ni uno mas
 
 ### Tanda E — lo mas grande
 - [ ] #3 `TK-163` · #11 `TK-012/B` · #12 `TK-015`

@@ -96,7 +96,19 @@ export function toYMD(input: string | Date | null | undefined): string | null {
     return `${yyyy}-${mmS}-${ddS}`;
   }
 
-  // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
+  // ISO (con T). Sin zona → literal; con Z/offset → fecha UTC del instante.
+  //
+  // 🔴 Misma corrección que en levante y engorde: el regex de arriba está ANCLADO, así que un ISO
+  // con 'T' caía a `new Date(s)` + getters LOCALES y restaba un día en UTC-5. Las filas cargadas por
+  // migración masiva viven a 00:00 UTC —su convención legítima— y el modal las abría en el día
+  // anterior, en desacuerdo con la grilla y provocando un rechazo del backend al guardar.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) return s.slice(0, 10);
+    const dIso = new Date(s);
+    if (!isNaN(dIso.getTime())) return dIso.toISOString().slice(0, 10);
+  }
+
+  // Otros formatos parseables → extracción LOCAL (comportamiento previo)
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();
