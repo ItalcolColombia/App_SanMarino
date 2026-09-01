@@ -93,8 +93,12 @@ public static class SalidaEnRojoCalculos
         var lote = string.IsNullOrWhiteSpace(loteNombre) ? "" : $" del lote {loteNombre.Trim()}";
         var queda = saldoMinimo - cantidad;
 
-        return $"El {fechaDelMinimo:dd/MM/yyyy}{lote} la tabla diaria tiene {saldoMinimo:N1} {u} y esta " +
-               $"salida retira {cantidad:N1} {u}: ese día quedaría en {queda:N1} {u}. " +
+        // Sin separador de miles y con las barras de la fecha entrecomilladas: el servidor no fija
+        // cultura, así que un `N1` sale en formato en-US («4,970.0») y el `/` de un patrón de fecha
+        // se reemplaza por el separador de la cultura activa. Es el mismo criterio del aviso hermano
+        // de remisión repetida, que ya formatea con `0.###`. Medido en el smoke del 409.
+        return $"El {fechaDelMinimo:dd'/'MM'/'yyyy}{lote} la tabla diaria tiene {saldoMinimo:0.###} {u} y esta " +
+               $"salida retira {cantidad:0.###} {u}: ese día quedaría en {queda:0.###} {u}. " +
                "Suele significar que el ingreso que respalda estos kilos todavía no está cargado, o que " +
                "quedó con una fecha posterior a la de la salida. Revise la fecha antes de continuar.";
     }

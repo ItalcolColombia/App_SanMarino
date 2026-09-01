@@ -5312,9 +5312,19 @@ registro de stock» — el stock bajo y la tabla diaria no.
       minimo con el `ZooSanMarinoContext` real (mismas opciones Npgsql + snake_case) devolvio
       `lote=193 nombre=2604 fecha=2026-08-28 saldo=4970`, identico al psql. Era lo unico que los
       tests puros no podian ver: que EF materialice `SqlQueryRaw<PeorDiaCrudo>`
-- [!] Lo que NO se probo: el **409 por HTTP**. Pegarle al endpoint local exige una fila viva en
-      `sesiones_activas` y hoy no hay ninguna (las 512 estan vencidas); ese INSERT se pide, no se
-      hace por las mias. Con tu OK lo corro y pego la respuesta
+- [x] **Smoke HTTP del 409 corrido** (backend aislado en :5501, `RunMigrations=false`, con OK del
+      usuario para la fila de sesion). Tres casos, y **ninguno escribio nada** (0 movimientos y 0
+      filas de histórico con la referencia del smoke):
+      1. 9.000 kg contra un minimo de 4.970 ⇒ **409** con `diaEnRojo`, lote 193, dia 28-ago,
+         `saldoDisponibleKg 4970` y el mensaje completo
+      2. los MISMOS 9.000 kg con `confirmarDiaEnRojo` ⇒ el aviso **no se dispara** y la peticion
+         llega al service (400 del item, que es la validacion siguiente)
+      3. 100 kg sin confirmar ⇒ tampoco avisa: no deja el dia en rojo
+- [x] 🔴 **Lo que solo se ve corriendolo:** el mensaje salia **«4,970.0 kg»** — el servidor no fija
+      cultura, asi que `N1` formatea en-US y el `/` de un patron de fecha se reemplaza por el
+      separador de la cultura activa. Corregido a `0.###` con las barras entrecomilladas (mismo
+      criterio que el aviso hermano de remision repetida) + **test que lo fija bajo `de-DE`**
+- [x] Sesion del smoke borrada; puertos 5501 y 5002 libres
 
 ### D · Lo que queda fuera de esta sesion
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
