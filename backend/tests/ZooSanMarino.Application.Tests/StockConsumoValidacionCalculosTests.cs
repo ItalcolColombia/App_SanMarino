@@ -120,4 +120,52 @@ public class StockConsumoValidacionCalculosTests
             System.Threading.Thread.CurrentThread.CurrentCulture = anterior;
         }
     }
+
+    // ─── Disponible neto: la existencia menos lo que otro seguimiento ya separó ───────────────
+
+    [Fact]
+    public void DisponibleNeto_SinReservas_EsLaExistenciaTalCual()
+    {
+        // Es el caso de las empresas SIN doble validación: no hay filas activas ⇒ reservado = 0 ⇒
+        // el disponible no cambia y sus mensajes quedan idénticos a los de siempre.
+        Assert.Equal(1500m, DisponibleNeto(1500m, 0m));
+    }
+
+    [Fact]
+    public void DisponibleNeto_RestaLoSeparadoAunqueSigaEnElGalpon()
+    {
+        // Dos lotes en el mismo galpón: el primero ya separó 900 kg sin validar todavía.
+        Assert.Equal(600m, DisponibleNeto(1500m, 900m));
+    }
+
+    [Fact]
+    public void DisponibleNeto_NuncaEsNegativo()
+    {
+        // Un descuadre previo puede dejar más separado que existencia: el disponible es 0, no -400.
+        Assert.Equal(0m, DisponibleNeto(500m, 900m));
+    }
+
+    [Fact]
+    public void DisponibleNeto_ElRechazoUsaElNetoYNoLaExistencia()
+    {
+        // 1.500 kg físicos, 1.200 ya separados por otro lote, se piden 500: tiene que rechazar.
+        // Antes de este cambio el pedido pasaba porque se comparaba contra los 1.500.
+        var motivo = MotivoStockInsuficiente(
+            new[] { new ItemPedido(213, "Alimento", 500m) },
+            Stock((213, DisponibleNeto(1500m, 1200m))));
+
+        Assert.NotNull(motivo);
+        Assert.Contains("Alimento", motivo);
+    }
+
+    [Fact]
+    public void DisponibleNeto_LoQueEntraEnElNetoSigueAceptandose()
+    {
+        // Mismo caso, pidiendo 300: entra en los 300 netos y no debe rechazarse.
+        var motivo = MotivoStockInsuficiente(
+            new[] { new ItemPedido(213, "Alimento", 300m) },
+            Stock((213, DisponibleNeto(1500m, 1200m))));
+
+        Assert.Null(motivo);
+    }
 }

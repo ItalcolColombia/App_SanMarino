@@ -289,4 +289,82 @@ public class AjusteEncasetamientoCalculosTests
         Assert.Equal(0, d.SaldoFinal);
         Assert.Equal(1_000, d.ConsumoTotal);
     }
+
+    // ─── Sobregiro POR SEXO: el gate del total no lo veía y el clamp lo tapaba ────────────────
+
+    [Fact]
+    public void SobregiroPorSexo_UnAjusteDeSexajeATotalConstante_SeRechaza()
+    {
+        // El caso que se colaba: total 0 ⇒ pasaba el gate; y el clamp dejaba las hembras en 0
+        // borrando 370 aves vivas, con 200 OK.
+        var maestro = new RetiroAvesEngordeCalculos.MaestroAves(130, 270, 0);
+        var delta = new AjusteEncasetamientoCalculos.Delta(-500, 500, 0);
+
+        Assert.Equal(0, delta.Total);
+
+        var sobregiro = AjusteEncasetamientoCalculos.SobregiroPorSexo(maestro, delta);
+
+        Assert.False(sobregiro.Cabe);
+        Assert.Equal(370, sobregiro.Hembras);
+        Assert.Equal(0, sobregiro.Machos);
+        Assert.Equal(370, sobregiro.Total);
+    }
+
+    [Fact]
+    public void SobregiroPorSexo_LoQueCabeEnElSaldo_SeAcepta()
+    {
+        var maestro = new RetiroAvesEngordeCalculos.MaestroAves(130, 270, 0);
+        var delta = new AjusteEncasetamientoCalculos.Delta(-100, 100, 0);
+
+        Assert.True(AjusteEncasetamientoCalculos.SobregiroPorSexo(maestro, delta).Cabe);
+    }
+
+    [Fact]
+    public void SobregiroPorSexo_DeltaPositivo_SiempreCabe()
+    {
+        var maestro = new RetiroAvesEngordeCalculos.MaestroAves(10, 10, 10);
+        var delta = new AjusteEncasetamientoCalculos.Delta(500, 500, 500);
+
+        Assert.True(AjusteEncasetamientoCalculos.SobregiroPorSexo(maestro, delta).Cabe);
+    }
+
+    [Fact]
+    public void SobregiroPorSexo_TambienMiraMixtas()
+    {
+        // Panamá vive en el bucket mixtas: el sobregiro tiene que verse ahí igual que en los sexos.
+        var maestro = new RetiroAvesEngordeCalculos.MaestroAves(0, 0, 40);
+        var delta = new AjusteEncasetamientoCalculos.Delta(0, 0, -100);
+
+        var sobregiro = AjusteEncasetamientoCalculos.SobregiroPorSexo(maestro, delta);
+
+        Assert.False(sobregiro.Cabe);
+        Assert.Equal(60, sobregiro.Mixtas);
+    }
+
+    [Fact]
+    public void MensajeSobregiroSexo_DiceElBucketYCuantasFaltan()
+    {
+        var maestro = new RetiroAvesEngordeCalculos.MaestroAves(130, 270, 0);
+        var sobregiro = AjusteEncasetamientoCalculos.SobregiroPorSexo(
+            maestro, new AjusteEncasetamientoCalculos.Delta(-500, 500, 0));
+
+        var msg = AjusteEncasetamientoCalculos.MensajeSobregiroSexo(maestro, sobregiro);
+
+        Assert.Contains("hembras", msg);
+        Assert.Contains("370", msg);
+        Assert.Contains("130", msg);
+        Assert.DoesNotContain("machos", msg);
+    }
+
+    [Fact]
+    public void AplicarDelta_SigueClampeando_ComoRedDeSeguridad()
+    {
+        // El clamp no cambia: deja de ser la única defensa, pero sigue impidiendo un maestro negativo.
+        var r = AjusteEncasetamientoCalculos.AplicarDelta(
+            new RetiroAvesEngordeCalculos.MaestroAves(130, 270, 0),
+            new AjusteEncasetamientoCalculos.Delta(-500, 500, 0));
+
+        Assert.Equal(0, r.Hembras);
+        Assert.Equal(770, r.Machos);
+    }
 }

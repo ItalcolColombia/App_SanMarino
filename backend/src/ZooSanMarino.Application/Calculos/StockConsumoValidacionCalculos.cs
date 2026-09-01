@@ -44,6 +44,26 @@ public static class StockConsumoValidacionCalculos
     /// <param name="pedidos">Ítems y kilos que el registro quiere consumir.</param>
     /// <param name="disponiblePorItem">Saldo por ítem en la ubicación. La ausencia de la clave es «sin fila de stock».</param>
     /// <param name="ubicacion">Galpón o granja, para que el mensaje diga DÓNDE falta. Opcional.</param>
+    /// <summary>
+    /// Lo que realmente se puede comprometer en una ubicación: la existencia física <b>menos</b> lo
+    /// que otros seguimientos ya separaron y todavía no validaron.
+    ///
+    /// <para>
+    /// 🔴 Medir el disponible como la existencia a secas hacía que dos lotes del mismo galpón vieran
+    /// los mismos kilos y los comprometieran los dos; el segundo se enteraba recién al validar,
+    /// cuando el decremento atómico ya no alcanzaba — el escenario exacto que la separación venía a
+    /// evitar. Con la doble validación apagada no hay reservas activas, así que <c>reservado</c> es 0
+    /// y esto devuelve la existencia tal cual: mismo comportamiento de siempre.
+    /// </para>
+    ///
+    /// <para>
+    /// Nunca negativo: si lo separado supera la existencia —un descuadre previo—, el disponible es 0
+    /// y el mensaje dice que no hay, en vez de un número con signo que nadie sabría leer.
+    /// </para>
+    /// </summary>
+    public static decimal DisponibleNeto(decimal existenciaFisica, decimal reservadoActivo) =>
+        Math.Max(0m, existenciaFisica - reservadoActivo);
+
     public static string? MotivoStockInsuficiente(
         IEnumerable<ItemPedido> pedidos,
         IReadOnlyDictionary<int, decimal> disponiblePorItem,

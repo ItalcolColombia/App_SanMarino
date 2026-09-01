@@ -29,6 +29,33 @@ public partial class ValidacionSeguimientoService
 
         await LiberarAsync(modulo, contexto.SeguimientoId, ct);
 
+        // 🔴 El stock se valida ACÁ, que es por donde pasan los cinco módulos.
+        //
+        // Los services gatean su validación previa con `!separa`, así que en la única empresa que
+        // separa (la que tiene el flag encendido) NO se validaba stock ni al alta ni a la edición: el
+        // único freno quedaba en el front, que además se apaga al editar. Un lote podía comprometer
+        // alimento que otro ya tenía separado y enterarse recién al validar, cuando el decremento
+        // atómico falla — el escenario exacto que la separación venía a evitar.
+        //
+        // Va DESPUÉS de `LiberarAsync` a propósito: al editar, la reserva vieja de este mismo registro
+        // ya se soltó, así que el disponible no se cuenta a sí mismo. Y solo corre en el camino que
+        // separa: con el flag apagado nadie llama a este método, de modo que las demás empresas quedan
+        // exactamente como estaban.
+        if (_inventarioGestion is not null &&
+            InventarioConsumoGate.ResolverModelo(contexto.PaisId) == ModeloInventarioConsumo.ModeloB)
+        {
+            foreach (var grupo in ReservaSeguimientoCalculos.LineasDeAlimento(contexto.ConsumoPorItem)
+                                    .Where(l => l.Kg > 0)
+                                    .GroupBy(l => l.Item.SiloId))
+            {
+                await _inventarioGestion.ValidarStockConsumoAsync(
+                    contexto.FarmId, contexto.NucleoId?.Trim(), contexto.GalponId?.Trim(),
+                    grupo.ToDictionary(l => l.Item.Id, l => l.Kg),
+                    siloId: grupo.Key,
+                    ct: ct);
+            }
+        }
+
         var ahora = DateTimeOffset.UtcNow;
         var quien = _current.UserId > 0 ? _current.UserId.ToString() : null;
         var companyId = _current.CompanyId;

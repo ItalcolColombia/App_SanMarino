@@ -4941,3 +4941,407 @@ solicitante (unica via a CERRADO) y 2 estaban resueltos sin que nadie moviera la
 - [x] `dotnet build` 0/0 · `dotnet test` **3.525 verdes**
 - [x] Aplicada a la BD local (solo la propia, en transaccion). **Toda la base queda en 183 CERRADO**
       y solo esos 2 fuera; ningun backend levantado
+
+---
+
+## Validar un seguimiento descuenta el alimento DOS veces (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/validar_seguimiento_doble_descuento_plan.md`](fase_de_desarrollo/validar_seguimiento_doble_descuento_plan.md)
+
+Sale de la auditoria adversarial de los 13 casos que se habian dado por resueltos: **dos auditores
+independientes**, mirando `TK-2026-000164` y `TK-2026-000166`, encontraron el MISMO defecto con los
+mismos 8 ids. Verificado despues contra la BD y el codigo.
+
+**19.677,24 kg descontados de mas en 7 galpones de ItalcolPanama**, todos DESPUES de que el caso se
+marcara SOLUCIONADO (18-ago) — el ultimo el 27-ago, cuatro dias antes de que yo lo cerrara.
+
+### A — Backend: cerrar la carrera (causa raiz)
+- [x] `ValidarAsync` leia estado y reservas FUERA de la transaccion; dos requests solapadas leian las
+      dos `Validado=false` y la MISMA reserva activa, y las dos aplicaban el consumo
+- [x] Patron «tomar primero, aplicar despues»: `TomarValidacionAsync` nuevo, con `ExecuteUpdateAsync`
+      condicional (`SET validado=true WHERE id=@id AND validado=false`) DENTRO de la transaccion, que
+      se abre antes de decidir. 0 filas afectadas ⇒ otra instancia gano ⇒ `YaEstabaValidado` sin
+      aplicar nada. Las reservas se leen DESPUES de ganar la carrera
+- [x] Reproductora usa `confirmado`, no `validado` — el UPDATE condicional respeta la columna de cada
+      modulo (y ahi ademas es lo que dispara `trg_cruce_reproductora_engorde`: tambien tiene que pasar
+      una sola vez)
+- [x] `ValidarEnBloque` llama a `ValidarAsync` ⇒ hereda el arreglo sin tocarlo
+- [x] El doc-comment decia «Idempotente: validar dos veces no descuenta dos veces» y era **falso para
+      llamadas concurrentes**. Ahora dice donde vive la exclusion y por que
+
+### B — Frontend: el disparador
+- [x] Guarda de reentrada por id en los **3** listados que validan (engorde, levante, produccion):
+      `validandoIds` se marca antes de emitir y se limpia en `next` y en `error`. Los tres tenian el
+      mismo handler calcado
+
+### C — Test: `DuplicadosValidacionCalculos` (puro, xUnit)
+- [x] Regla fijada con **9 casos**: conserva el de menor id; 3 copias ⇒ revierte 2; mismo dia en dos
+      galpones NO es duplicado; misma referencia con cantidad distinta tampoco; `null` y cadena vacia
+      son la misma ubicacion; los 8 pares reales dan **19.677,24 kg**; y `KgPorUbicacion` suma los DOS
+      pares de G0471 en una sola devolucion de 4.536 kg
+
+### D — Datos: revertir los 8 duplicados por migracion
+- [x] `20260831140000_RevertirConsumosDuplicadosPorValidacion`
+- [x] Medido en transaccion revertida: el `DELETE` SI anula la fila del historico (trigger `_del`)
+      pero **NO devuelve el stock** ⇒ la migracion hace las dos cosas juntas
+- [x] Se identifican por FIRMA (reference + item + granja + nucleo + galpon + **silo** + cantidad,
+      `count(*)>1`), no por ids literales
+- [x] NO se usa un Ingreso compensatorio: mentiria al cuadre del galpon con una entrada que no existio
+- [x] Respaldo integro en `_backup_consumos_duplicados_validacion_20260831` antes de borrar
+- [x] 🔴 El `Down()` fallaba con `duplicate key uq_lote_hist_origen`: la fila anulada del historico
+      **sigue ocupando** `(origen_tabla, origen_id)`, asi que el trigger de alta no podia crear la
+      suya. Se borra la fila ANTES de reinsertar el movimiento y el trigger la recrea limpia
+
+### E — Validacion
+- [x] `dotnet build` 0/0 · `dotnet test` **3.533 verdes** (3.524 + 9 nuevos) · `yarn build` OK
+- [x] `Up()` dos veces en transaccion revertida: 1a **8 revertidos / 19.677,240 kg**, 2a **0 y 0**
+- [x] Simetria exacta medida: stock de los 7 galpones **24.519,224 → 44.196,464 → 24.519,224**;
+      pares **8 → 0 → 8**; historico anulado **0 → 8 → 0**
+- [x] Ninguna otra empresa tocada: el respaldo tiene **solo `company_id = 5`**
+- [x] Aplicada a la BD local: 0 duplicados, 8 filas del historico anuladas, 8 respaldadas, y
+      **0 filas de stock en negativo** en toda la base
+
+---
+
+## Correccion de los 12 hallazgos de la auditoria de tickets cerrados (31-ago-2026)
+
+Plan: [`fase_de_desarrollo/correccion_hallazgos_auditoria_tickets_plan.md`](fase_de_desarrollo/correccion_hallazgos_auditoria_tickets_plan.md)
+
+La auditoria adversarial completa (36 agentes, 0 errores) confirmo que **12 de 13 casos cerrados
+siguen fallando por algun lado**. El primero (doble descuento de alimento) ya se corrigio en `9a7b3d8`.
+Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo quedo atras**.
+
+### Tanda A — dos cambios chicos de alto impacto
+- [x] #4 `TK-012/A` — el traslado por cierre de levante se sella con `new Date()` del navegador,
+      12 lineas despues de que la misma pantalla mande la fecha que el usuario eligio
+- [x] #7 `TK-020/A` — la carga masiva de levante y produccion descarta el DIA COMPLETO ante una
+      simple Advertencia y aun asi reporta «Procesado»: es el mecanismo generico de «la carga llega
+      hasta la semana N»
+- [i] Ambos validados: `dotnet build` 0/0 · `dotnet test` **3.542 verdes** (+9 de `MigracionSeveridadCalculos`) · `yarn build` OK. La regla de severidad quedo centralizada en `Application/Calculos/MigracionSeveridadCalculos.cs` y la usan los 4 guards de levante/produccion **y** el conteo de `filasError` de `Comun.cs`, en vez de repetida en 5 sitios
+
+### Tanda B — el critico con datos perdidos
+- [x] #1 `TK-164` — borrar un seguimiento de reproductora YA CONFIRMADO no devuelve el alimento
+      (952,560 kg perdidos) y la UI empuja a hacer exactamente eso
+- [i] Guarda calcada de engorde, DENTRO del `if (separaDel)` ⇒ flag OFF byte a byte identico. El mensaje
+      de edicion decia «Eliminelo (se retornan aves y consumo)» —promesa que el codigo NO cumplia—; ahora
+      manda a quitar la validacion
+- [i] 🔴 **Hallazgo propio: `desvalidar()` existia en el servicio del front y NINGUN componente lo
+      llamaba.** Con el flag ON un registro validado no tenia vuelta atras desde la pantalla, y la unica
+      salida que encontraba la gente —borrar y recrear— era justo la que perdia el alimento. Agregado el
+      boton ↩ en la grilla de engorde, con `ConfirmDialogService`
+- [i] Datos: migracion `20260831150000`. Ingreso de devolucion fechado en el DIA DEL SEGUIMIENTO (criterio
+      de `DesvalidarAsync`), stock **1.542,240 → 2.494,800** (+952,560), reservas a LIBERADA. Las de AVES
+      solo se marcan LIBERADA: en reproductora las bajas las escribe el cruce, que se rehace solo al
+      borrar; reponerlas descuadraria el maestro por partida doble
+- [i] Probado: `Up()` x2 en transaccion revertida (2a pasada 0 y 0) y `Down()` exacto. `dotnet test` **3.542**
+
+### Tanda C — el critico latente
+- [x] #2 `TK-166` — con el flag ON el backend no valida stock en ningun seguimiento
+- [i] Resuelto en UN punto, no en cinco: los 5 services gatean su validacion con `!separa`, pero los 5
+      pasan por `SepararAsync`. La validacion va ahi, **despues de `LiberarAsync`** — al editar, la
+      reserva vieja del propio registro ya se solto, asi que el disponible no se cuenta a si mismo
+- [i] `ValidarStockConsumoAsync` mide ahora `DisponibleNeto = max(0, existencia − reservado ACTIVO)`,
+      agrupando por granja/nucleo/galpon/**silo**/item. Con el flag OFF no hay filas ACTIVA ⇒ reservado
+      es 0 ⇒ mensajes byte a byte identicos para las otras 4 empresas, **por construccion**
+- [i] `dotnet test` **3.547** (+5 casos de `DisponibleNeto`, incluido que 1.500 fisicos con 1.200
+      separados rechazan un pedido de 500 y aceptan uno de 300)
+- [ ] Pendiente menor del mismo hallazgo: los topes del FRONT siguen apagados al editar
+      (`if (this.editing) return false;` en el modal de engorde y en el de levante) y el modal de
+      reproductora no tiene tope. Con el backend blindado eso solo cambia *cuando* se entera el
+      usuario, no si el dato entra; tocarlo sin cuidado introduce falsos rechazos
+
+### Tanda D — fechas y presentacion
+- [x] #5 `TK-014` — la copia de `toYMD` de levante Y la de produccion tenian el regex ANCLADO: un ISO
+      con «T» caia a `new Date(s)` + getters LOCALES y restaba un dia en UTC-5. Portada la rama
+      tz-aware que engorde ya tenia. Spec nuevo que corre las **3 copias** contra los mismos casos
+      (22/22 verdes): la grilla y el modal ya no muestran dias distintos del mismo registro
+- [x] #6 `TK-012/C` — el modal de movimientos mandaba `new Date(yyyy-MM-dd)` = **medianoche UTC** ⇒ la
+      lista pintaba el dia anterior. Anclado con `ymdToIsoUtcNoon`, igual que el modal gemelo de
+      engorde. Y el default del datepicker se calculaba con `toISOString()` (dia **UTC**) mientras el
+      `[max]` se calcula en LOCAL: entre las 19:00 y medianoche en Bogota el form nacia con fecha de
+      MANANA y el backend respondia 400. Los dos usan ahora `aYmd(new Date())`
+- [x] #9 `TK-176` — la tarjeta de Lote Reproductora Engorde bindeaba `hembrasL`/`machosL`, que en
+      engorde son el **saldo vivo**, bajo el rotulo «(inicial)». Delegan en `avesInicialesDelLote`
+      (getters que devuelven NUMEROS, referencia estable) y se agrego la fila «Mixtas encaset.», sin la
+      cual Panama —donde toda la poblacion vive en ese bucket— veia 0 / 0 en un lote lleno
+- [x] #10 `TK-177` — el gate del ajuste mira `delta.Total` y el clamp es **por sexo**: un ajuste de
+      sexaje a total constante (−500 H, +500 M) pasaba y borraba hembras vivas en silencio, con 200 OK.
+      `SobregiroPorSexo` + `MensajeSobregiroSexo` (puros, 6 tests) rechazan antes de escribir; el clamp
+      queda como red inalcanzable y su doc-comment, que afirmaba que «el gate ya lo rechazo», corregido.
+      Medido despues: `fn_cuadre_aves_engorde` sigue devolviendo **2** lotes, ni uno mas
+
+### Tanda E
+- [x] #3 `TK-163` — `RegistrarIngresoAsync` no consultaba si el ingreso ya estaba: dos cargas del mismo
+      remito suman kilos que nunca entraron. Guarda BLANDA (409 confirmable) en el CONTROLLER, no en el
+      service, para no cambiar a los llamadores internos —las devoluciones automaticas repiten clave a
+      proposito—. `IngresoDuplicadoCalculos` puro con **9 tests**; el front pide confirmacion con
+      `ConfirmDialogService` y reenvia con la bandera
+- [i] 🔴 **Correccion de alcance sobre la sintesis: NO son 3 pares, son 17 grupos con remision repetida
+      en 3 empresas** — y **no todos son duplicados** (`INVENTARIO`, `LLEG-06` son etiquetas, no
+      remisiones; un mismo remito puede repartirse en dos galpones). **Datos NO tocados**: decidir cual
+      fila sobra es criterio de operacion, no de ingenieria. Quedan listados para que los revisen
+- [x] #12 `TK-015` — `vw_seguimiento_pollo_engorde` nunca recibio el corte v14 que la fn tiene desde
+      junio, aunque la vista se declara su espejo set-based. Medido: `position(...)` daba **0** en la
+      vista y **6573** en la fn. Portado el CTE `corte_ciclo_siguiente` set-based + `LEAST` en
+      `rango_final`, por migracion con `CREATE OR REPLACE VIEW` (conserva owner y GRANT, y exige la
+      misma lista de columnas)
+- [i] Verificado desplegando la nueva en PARALELO con otro nombre: **0 filas** de diferencia en los dos
+      sentidos, mismas 6.784 filas y 67 columnas. La prueba real es el **contrafactual**, porque el
+      corte no muerde hoy: reabiertos los lotes 20 y 86 en una transaccion revertida, la vieja se
+      desbordaba al **28-ago** (96 filas en el lote 20) y la nueva corta en el **12-abr** (62)
+- [x] #11 `TK-012/B` — trasladar o mover un lote no tenia fecha en NINGUN lado (ni DTO, ni interfaces
+      del front, ni tabla; `fn_mover_lote` escribia `CURRENT_TIMESTAMP`), y el Reporte Diario de
+      Costos de POSTURA usa esa fecha como la efectiva del traslado. Columna `fecha_traslado` +
+      backfill, `fn_mover_lote` con `p_fecha_traslado DEFAULT NULL` (la firma vieja se ELIMINA: con
+      default quedarian dos y una llamada de 5 args seria ambigua), DTOs y las 2 interfaces del front,
+      input `type=date` en el modal y el reporte con `COALESCE(fecha_traslado, created_at::date)`
+- [i] `Up()` x2 en transaccion revertida (la 2a no duplica la fn) y `Down()` que restaura la firma de
+      5 argumentos y dropea la columna. Backfill de riesgo cero: la tabla tiene **0 filas**. Humo del
+      reporte tras aplicar: 26 filas
+
+### Sin codigo
+- [!] #8 `TK-020/B` — S369 sigue en 168 dias; el remedio indicado al usuario esta BLOQUEADO por
+      falta de stock. Hay que reabrir el caso con la instruccion correcta (falta cargar la entrada
+      de alimento; deficit informado por el propio sistema: 382.310 kg en la granja MANGOS)
+
+---
+
+## Reabrir `TK-2026-000020` con la instruccion correcta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/reabrir_ticket_s369_instruccion_correcta_plan.md`](fase_de_desarrollo/reabrir_ticket_s369_instruccion_correcta_plan.md)
+
+Ultimo pendiente de la auditoria (#8), y el unico SIN cambio de codigo: lo que esta mal es lo que se
+le dijo al usuario. La instruccion decia «se puede volver a subir el archivo completo» y omitia que la
+importacion **rechaza el archivo entero** si el stock de la granja no alcanza.
+
+- [x] Reabrir el caso a `EN_ANALISIS` por migracion, con la instruccion correcta y completa
+      (`20260901090000_ReabrirTicketS369InstruccionCorrecta`)
+- [x] Fail-safe probado: la 2a pasada lo encuentra en EN_ANALISIS y lo saltea con NOTICE
+- [x] `CERRADO` es terminal en la maquina de estados y hay tests que lo blindan. Se reabre igual
+      porque el cierre lo hizo la GESTION -mi migracion de ayer-, el solicitante nunca confirmo y ni
+      siquiera se le envio el aviso (`notificado_correo = false`): no hubo cierre por ambas partes,
+      que es lo que justifica la terminalidad. La maquina de estados de la app NO se toca
+- [x] NO se corrige ningun dato: la carga es del usuario y el guard de stock es un invariante correcto
+- [x] `Down()` exacto: restaura CERRADO con `cerrado_por_user_id = 496236603` **identico** — el primer
+      intento lo restauraba con el creador del caso (la persona que reporto) en vez del admin que lo
+      cerro; se resuelve por email, igual que la migracion que lo habia cerrado
+- [i] Quedan 3 casos sin cerrar en toda la base, los tres con motivo: **TK-000020** (reabierto, espera
+      que el usuario cargue el alimento), **TK-000183** (CAROLINA: trabajo real pendiente) y
+      **TK-000001** (caso de prueba de junio)
+
+---
+
+## Cola de correo: reintentos que no agraven y un diagnostico que no mienta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/correo_reintentos_y_diagnostico_plan.md`](fase_de_desarrollo/correo_reintentos_y_diagnostico_plan.md)
+
+El envio **ya estaba activo** en prod (`Email:Queue:Enabled = true`) y funciona -2 `sent` el 29-ago-.
+Lo que esta mal es el manejo de errores, y en dos formas que costaron dias de diagnostico.
+
+### A — El diagnostico miente (orden de evaluacion)
+- [x] `MustIssueStartTlsFirst` se evaluaba PRIMERO y .NET mapea ahi el `530` posterior a un AUTH
+      fallido ⇒ **todo fallo de autenticacion cae en esa rama** y la del `535` -la correcta- es
+      inalcanzable. Mismo defecto que `LOHMANN BROWN` con el token `LOHMANN`
+- [x] Medido en `email_queue` id 164: el texto dice «verificar que EnableSsl=true» y a la linea
+      siguiente informa que **ya es true**; esconde el `535 account locked`, que es lo que importa
+- [x] Agregada la rama de `account locked`: es un caso distinto de «el tenant rechaza por origen»
+
+### B — Los reintentos sostienen el bloqueo
+- [x] 3 intentos sin espera y sin distinguir permanente de transitorio. Con la cuenta bloqueada,
+      cada intento es una autenticacion fallida mas: 26-28 ago fueron **10 correos x 3 = 30**
+
+### C — Que se hace
+- [x] `EmailErrorCalculos` puro: clasifica por el MENSAJE REAL del servidor, no por el `StatusCode`
+      que mapeo .NET. Orden de evaluacion fijado por tests con los mensajes textuales de produccion
+- [x] Permanente ⇒ `failed` en el PRIMER intento (no gasta 3 ni sigue golpeando al tenant)
+- [x] Transitorio ⇒ backoff 1/5/15 min con columna `next_retry_at`
+- [x] `error_type` pasa a ser la CAUSA (`cuenta_bloqueada`, …) en vez de `max_retries_exceeded`
+- [i] Nada de esto arregla el correo: si la cuenta vuelve a bloquearse sigue siendo del admin de M365.
+      Lo que cambia es que el sistema lo DIGA bien y deje de empeorarlo
+- [x] El MISMO if/else equivocado estaba **duplicado** en el log del emisor: log y cola podian
+      contradecirse entre si. Los dos usan ahora el calculo
+- [x] Migracion `20260901100000_EmailQueueNextRetryAt`: columna nullable -`null` = ya mismo, asi que
+      lo ya encolado no cambia- + indice parcial sobre los pendientes, que es la consulta que corre
+      cada 30 s. Probada `Up()` x2 y `Down()` en transaccion revertida
+- [x] `dotnet build` 0/0 · `dotnet test` **3.584** (+21): el test que importa es que el mensaje
+      textual del id 164, CON su `StatusCode = MustIssueStartTlsFirst`, clasifique como
+      `CuentaBloqueada` y no como `RequiereStartTls`
+
+---
+
+## Ecuador: el nombre del lote volvia a llevar `- 1` en la primera corrida (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md)
+
+Ticket de operacion por el `2604 - 02` de CAROLINA / GALPON 6. Medido en la copia de prod: son **dos
+sintomas de causa distinta** y solo uno es defecto.
+
+- [x] El `- 2` **no se toca**: el lote 236 se creo el 27-ago 08:57, se elimino 13:54 y se recreo 13:55;
+      `MAX(corrida)+1` cuenta los eliminados a proposito para no reusar un nombre. Los 4 casos de
+      Ecuador con corrida > 1 son el mismo patron (crear → borrar → recrear)
+- [x] El `- 1` SI es defecto: `nombre_lote_incluye_corrida = true` en `ItalcolEcuador`, cuando la
+      migracion que creo la columna solo lo prende para `ItalcolPanama`. Lo prendio alguien desde la
+      administracion de empresas entre el 21 y el 26 de agosto (se ve en los datos: hasta el 21-ago
+      los lotes nacian `2604`; desde el 26-ago, `2604 - 1`)
+- [x] Migracion data-only `20260901120000_ApagarNombreLoteIncluyeCorridaEcuador`, idempotente por
+      `IS DISTINCT FROM`, `Down()` inverso exacto (el estado previo esta medido, no supuesto)
+- [x] Probada por transaccion: `Up()` x2 (la 2a = 0 filas) + `Down()`, y Panama sigue en `true`
+- [x] `dotnet build` + `dotnet test` (el calculo ya tiene sus xUnit para los dos valores del flag)
+- [x] `dotnet build` Infrastructure **0 errores / 0 advertencias**; `dotnet test` **3.584 verdes**
+      (mismo conteo que antes: es un cambio de datos, la logica no se movio)
+- [i] Alcance: solo lotes NUEVOS. Los dos ya nacidos con sufijo -`2604 - 1` en CAROLINA GALPON 7 y
+      `2605 - 1` en Kilometro 86- se dejan como estan; renombrarlos es backfill sobre datos vivos y
+      `lote_nombre` lo leen reportes que agrupan por nombre
+
+---
+---
+
+## TK-2026-000183 — eliminar un registro de stock dejaba la tabla diaria alta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/eliminar_stock_no_bajaba_la_tabla_diaria_plan.md`](fase_de_desarrollo/eliminar_stock_no_bajaba_la_tabla_diaria_plan.md)
+
+CAROLINA / GALPON 1 / lote 2602: dia 1 con **saldo 5.600 kg contra un ingreso de 2.880**. Medido en
+la copia de produccion: un `Ingreso` duplicado de la remision 56114 al que le aplicaron «Eliminar
+registro de stock» — el stock bajo y la tabla diaria no.
+
+### A · El parche del defecto (que no vuelva a pasar)
+- [x] `EliminarStockAsync` escribe, ademas del `EliminacionStock` (auditoria), un
+      `AjusteCuadreTablaSalida` por los mismos kilos y con el MISMO timestamp: no toca stock y la fn
+      v17 si lo lee, asi que la tabla baja lo mismo que bajo el stock
+- [x] `TipoEventoInventarioCalculos` conoce los dos `AjusteCuadreTabla*` (el espejo C# quedo
+      desalineado de `fn_tipo_evento_inventario` desde el 25-ago) ⇒ `AfectaSaldoAlimentoEngorde` da
+      `true` y la columna persistida SI se refresca. Sin esto el ajuste de §A1 no refrescaria nada
+- [x] Etiquetas de los dos tipos en `MapTipoOperacionLabel` + su inversa (hoy se ven crudos)
+- [x] xUnit: los 2 tipos nuevos mapean y afectan el saldo; regresion de que `AjusteStock`,
+      `EliminacionStock` y `Consumo` siguen sin afectarlo
+- [x] **Mecanismo probado end-to-end** (transaccion revertida, ciclo vigente de G0057): ingreso de
+      1.000 kg ⇒ saldo 9.760 → **10.760**; con el codigo VIEJO (solo `EliminacionStock`) **se queda
+      en 10.760** —el defecto reproducido—; con el parche vuelve a **9.760**. El historico espeja el
+      ajuste como `INV_AJUSTE_CUADRE_SALIDA`
+
+### B · La correccion del dato (migracion `20260901140000`, data-only)
+- [x] Las TRES superficies: histórico (`anulado`), `seguimiento_diario_aves_engorde.saldo_alimento_kg`
+      (52 dias, −2.880) y la copia congelada (52 filas + header). **La fn devuelve la congelada
+      mientras exista sin anular** (arranca con un `UNION ALL` contra la copia), asi que corregir
+      solo el histórico no cambiaba un solo numero en pantalla
+- [x] Localiza por atributos (galpon+item+cantidad+fecha+sin referencia+su pareja), NO por ids;
+      idempotente por el estado del histórico; `Down()` inverso exacto por la marca en `metadata`
+- [x] NO se tocan los otros 12 pares con la misma firma: **G0058 cerraria en −2.880** (ahi el
+      ingreso es real) y los 6 de G0036 pueden ser carga historica legitima (remision 54159)
+- [x] Probada por transaccion: `Up()` deja dia 1 en **2.720 / ingreso 0** y cierre en **0**; `Up()`
+      x2 no toca filas; `Down()` devuelve 5.600 / 2.880; el gemelo lote 62 no se movio (275.560
+      antes y despues). Aplicada de verdad en local con el script que emite EF
+- [x] `dotnet build` 0 err / 0 warn · `dotnet test` **3.590** (+6: los 2 mapeos, sus 2 variantes de capitalizacion y los 2 del saldo) · gate `verificar-sql-llega-por-migracion` OK
+- [x] **Gate multipais** (cuadre antes/despues, las dos empresas, 67 galpones): Ecuador 0
+      descuadrados y 0 dias en rojo; Panama 17/14 identicos antes y despues; **0 galpones se
+      movieron**. El ciclo vigente de G0057 y G0058 sigue en descuadre 0
+
+### C · Los otros 11 pares, revisados con las remisiones (1-sep-2026)
+- [x] **La remision sola NO alcanza**: 55169 esta repartida en 4 galpones y 54159 en dos cargas del
+      mismo galpon con cantidades DISTINTAS (7.260 y 18.510) ⇒ son reparto y particion, no copia.
+      El criterio que si decide es el **invariante**: para un lote cerrado, si cierra en 0 con el
+      ingreso contado, los kilos se consumieron; para un ciclo vigente, si `saldo_tabla == stock`
+- [x] **10 de los 11 son ingresos REALES** — medido anulando cada uno en transaccion revertida:
+      G0033 lote 46 (3.280, rem. 55169) 0 → **-3.280** · G0041 lote 13 (9.015, rem. 4168) 0 →
+      **-9.015** · G0055 lote 16 (6.000, rem. 5002) -3.920 → **-1.800** · G0036 lote 19 (**80.740**
+      en 6 mov.) 0 → **-80.740** · G0058 lote 62 (2.880) 0 → **-2.880**. Corregir cualquiera
+      inventaria un faltante. **Queda cerrada la duda de la memoria sobre la remision 54159**
+- [x] **G0483 (Panama) SI es duplicado**: la remision **190755** cargada **dos veces en el mismo
+      galpon, item y cantidad** (12.500 kg el 28-jul y el 01-ago) con su `EliminacionStock` el mismo
+      dia. El cuadre lo dice solo: `saldo_tabla 23.636,5` contra `stock 11.136,5`, **descuadre
+      12.500 exacto**; sacando el fantasma el invariante **cierra clavado** en 11.136,5
+- [x] **Migracion `20260901150000_CorreccionRemisionDuplicadaG0483Panama`** (data-only). Anula el
+      ingreso duplicado y reescribe el saldo persistido **desde la fn** (el SQL de
+      `SaldoAlimentoEngordeAplicador`, una sola formula por numero). Sin copia congelada que
+      parchear: los dos lotes estan Abiertos; si alguno estuviera congelado al correr, lo **avisa y
+      no lo toca** (hay que reabrirlo)
+- [x] Elige el duplicado por su **`EliminacionStock` pegado** (id consecutivo), no por id fijo, y
+      exige que exista el gemelo con la misma remision. El orden real de creacion lo confirma:
+      `11:15:05` ingreso fechado 01-ago → `11:15:55` eliminacion → `11:17:20` el mismo ingreso
+      fechado 28-jul (el bueno)
+- [x] Probada por transaccion: `Up()` deja el cuadre en **0** (11.136,5 == 11.136,5), sin dias en
+      rojo (el minimo del galpon baja de 10.502 a 1.691, positivo); `Up()` x2 no toca nada; `Down()`
+      restituye el descuadre de 12.500. Aplicada de verdad en local con el script que emite EF
+- [x] **Gate multipais**: Panama pasa de **17 a 16** galpones descuadrados y de **146.485,4 a
+      133.985,4 kg** (−12.500 exactos); **Ecuador 0 y 0**; **un solo galpon movido**, G0483
+- [i] Medido y declarado en la migracion: reescribir desde la fn tambien **resincroniza 7 filas de
+      59 que ya estaban desfasadas** (dos del 31-jul por +12.500, cinco entre +1.905 y −499). Es lo
+      que haria el aplicador con el proximo movimiento del galpon; se deja dicho para que no
+      sorprenda
+### E · Lote 16 de G0055, revisado (1-sep-2026) — **NO se toca: hay que preguntarle a operacion**
+
+- [x] El mecanismo: el ultimo dia tiene **traslados de salida por 11.720 kg contra un saldo de
+      7.800** (3.600 el 15-may y 8.120 el 16-may, remisiones 144 y 145) ⇒ cierra en **-3.920**.
+      **No es el defecto de `EliminacionStock`**: es el «Patron B», orden/fecha de los movimientos
+- [x] **Los 3 casos de Ecuador son la MISMA operacion**, el 18-may entre las 14:51 y las 15:19:
+      primero tres `Ingreso` **SIN REMISION fechados ese mismo dia** (G0051 2.640 · G0052 600 ·
+      G0055 3.920) y **despues** las salidas con remision 144/145 **fechadas hacia atras** (15 y
+      16-may), con su contraparte en G0036. El ingreso llega despues de la salida que lo gasta
+- [x] En **2 de 3 el ingreso tapa exactamente el faltante** (G0052 600 = 600 · G0055 3.920 = 3.920);
+      en G0051 el ingreso es 2.640 contra un faltante de 3.220, o sea **quedan 580 kg sin explicar**
+- [x] Las dos hipotesis cierran en 0 (medido): re-fechar el ingreso al 15-may, o mover las salidas
+      al 18-may. **El total esta bien; lo unico mal es la fecha.** Por eso mismo el dato no alcanza
+      para decidir
+- [!] 🔴 **Por que NO se corrige.** Ingresos sin remision, creados 3 minutos antes de las salidas y
+      por el monto exacto del faltante, parecen **tapones para que el stock alcanzara** (el stock se
+      valida atomico y rechaza si no da). Si lo son, **el negativo esta diciendo la verdad**: del
+      galpon salieron mas kilos de los que habia, y re-fechar **taparia la senal**. Si en cambio el
+      alimento entro de verdad y se cargo tarde, re-fechar es lo correcto. **Solo operacion sabe
+      cual**: la pregunta concreta es si esos 2.640 / 600 / 3.920 kg entraron y con que documento
+- [i] Lote 14 (G0042) tiene -1,0 kg: ruido de punto flotante, no es un caso
+- [i] **Panama tiene uno peor**: lote 161 (G0472, «94 - 3») con **29 dias en rojo** y hasta
+      **-24.191,1 kg**, aunque **cierra en 0** — ahi el total esta bien y el orden esta mal casi
+      todo el ciclo. Sin revisar
+### F · El aviso: «esta salida deja el dia en rojo» (1-sep-2026)
+
+- [x] `SalidaEnRojoCalculos` (puro) + **17 tests xUnit**: a quien se le pregunta, la comparacion con
+      la tolerancia de 1 kg del cuadre, y el mensaje con los tres numeros que hacen falta para
+      decidir (lo que hay, lo que sale, con cuanto queda)
+- [x] El aviso va en el **CONTROLLER** de `POST /traslado`, igual que la ventana de fechas y el de
+      remision repetida (`22e8af5`): ningun llamador interno del service cambia. **409** con
+      `diaEnRojo`, el lote, el dia y el saldo; `ConfirmarDiaEnRojo` lo reenvia
+- [x] **El saldo lo da la fn, no el C#**: `BuscarPeorDiaDelGalponAsync` resuelve en la BD, con un
+      LATERAL sobre `fn_seguimiento_diario_engorde` de los lotes de ESE galpon (1 a 4). Pide el
+      **minimo desde la fecha**, no el saldo del dia: la salida baja por igual todos los siguientes
+- [x] Sin galpon origen no se pregunta nada (la tabla diaria se arma por galpon; mismo criterio que
+      `SaldoAlimentoEngordeAplicador`)
+- [x] Front: `enviarTraslado` + `confirmarYReenviarTraslado` con `ConfirmDialogService`, calcado del
+      camino del ingreso duplicado
+- [x] `dotnet build` 0/0 · `dotnet test` **3.607** (+17) · `yarn build` OK
+- [x] **La consulta probada de verdad contra la copia de produccion**, no solo en psql: un ejecutable
+      minimo con el `ZooSanMarinoContext` real (mismas opciones Npgsql + snake_case) devolvio
+      `lote=193 nombre=2604 fecha=2026-08-28 saldo=4970`, identico al psql. Era lo unico que los
+      tests puros no podian ver: que EF materialice `SqlQueryRaw<PeorDiaCrudo>`
+- [!] Lo que NO se probo: el **409 por HTTP**. Pegarle al endpoint local exige una fila viva en
+      `sesiones_activas` y hoy no hay ninguna (las 512 estan vencidas); ese INSERT se pide, no se
+      hace por las mias. Con tu OK lo corro y pego la respuesta
+
+### D · Lo que queda fuera de esta sesion
+- [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
+- [i] G0483 quedo por **migracion** y no por la pantalla: «Cuadrar galpon» habria dejado vivo el
+      ingreso duplicado compensandolo con otro movimiento, y la grilla seguiria mostrando 25.000 kg
+      ingresados de la remision 190755
+
+---
+
+## Ecuador — anexo: renombrar los 2 lotes que ya nacieron con sufijo (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md)
+(anexo). Continua el bloque «Ecuador: el nombre del lote volvia a llevar `- 1`», ya commiteado en
+`82bfa9a`. Pedido del usuario: deja de ser «solo lotes nuevos».
+
+- [x] `2605 - 1` → `2605` (Kilometro 86, id 229) y `2604 - 1` → `2604` (CAROLINA GALPON 7, id 241)
+- [x] Verificado antes de tocar: 0 colisiones, sin indice unico sobre `lote_nombre`, sin liquidacion
+      congelada -que si copia el nombre y lo congela-, sin seguimientos y sin filas en el historico
+      unificado. Las `vw_*` leen el nombre de la tabla ⇒ se actualizan solas
+- [x] `UPDATE` acotado por REGLA -no por id- y SIN tope superior, para que alcance tambien a los que
+      nazcan con el defecto entre hoy y el deploy; despues no puede haber mas porque la migracion que
+      apaga el flag corre antes en el mismo arranque
+- [x] El `Down()` es exacto por CONSTRUCCION: el `Up()` respalda el nombre anterior en
+      `_backup_rename_lote_engorde_ecuador_20260901` y restaura desde ahi, fila por fila
+- [x] Los 2 eliminados (235, 236) se dejan con su sufijo: no se ven en ninguna pantalla
+- [x] `numero_corrida` NO se toca: sigue en 1, y la proxima apertura se calcula por `MAX(numero_corrida)`
+- [x] Gate en transaccion revertida, 6 casos: `Up()` **UPDATE 2** · respaldo con el nombre anterior ·
+      `Up()` 2a = **0** y respaldo sin duplicar · de las **144** filas de Ecuador cambian **solo esas
+      2** · eliminados y el `2604 - 2` intactos · `Down()` deja **0 filas distintas del inicio**
+- [x] `dotnet build` Infrastructure **0/0** · `dotnet test` **3.590 verdes**

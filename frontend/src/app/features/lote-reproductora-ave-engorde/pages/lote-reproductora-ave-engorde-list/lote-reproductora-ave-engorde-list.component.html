@@ -199,14 +199,24 @@
                   <dd>{{ loteDetalle.linea }}</dd>
                 </div>
               }
+              <!-- Encasetadas, NO el saldo vivo: `hembrasL`/`machosL` los descuentan las bajas del
+                   seguimiento y las ventas. Ver los getters del componente. -->
               <div class="info-dl__row">
-                <dt>Hembras (inicial)</dt>
-                <dd>{{ formatNum(loteDetalle.hembrasL) }}</dd>
+                <dt>Hembras encaset.</dt>
+                <dd>{{ formatNum(encasetHembras) }}</dd>
               </div>
               <div class="info-dl__row">
-                <dt>Machos (inicial)</dt>
-                <dd>{{ formatNum(loteDetalle.machosL) }}</dd>
+                <dt>Machos encaset.</dt>
+                <dd>{{ formatNum(encasetMachos) }}</dd>
               </div>
+              @if (encasetMixtas > 0) {
+                <!-- En Panamá toda la población vive en el bucket mixtas: sin esta fila, la tarjeta
+                     mostraba 0 / 0 para un lote lleno de aves. -->
+                <div class="info-dl__row">
+                  <dt>Mixtas encaset.</dt>
+                  <dd>{{ formatNum(encasetMixtas) }}</dd>
+                </div>
+              }
               @if (avesDisponibles) {
                 <div class="info-dl__row">
                   <dt>Asignadas (H / M)</dt>

@@ -237,6 +237,8 @@ export interface MoverLoteRequest {
   granjaDestinoId: number;
   nucleoDestinoId?: string | null;
   galponDestinoId?: string | null;
+  /** Día real del movimiento (yyyy-MM-dd). Si se omite, el backend usa hoy. */
+  fechaTraslado?: string | null;
 }
 
 export interface TrasladoLoteRequest {
@@ -245,6 +247,12 @@ export interface TrasladoLoteRequest {
   nucleoDestinoId?: string | null;
   galponDestinoId?: string | null;
   observaciones?: string | null;
+  /**
+   * Día real en que el lote se movió (yyyy-MM-dd), que no es el instante en que se registra. El
+   * Reporte Diario de Costos de POSTURA usa esta fecha como la efectiva del traslado. Si se omite,
+   * el backend usa hoy.
+   */
+  fechaTraslado?: string | null;
 }
 
 export interface TrasladoLoteResponse {

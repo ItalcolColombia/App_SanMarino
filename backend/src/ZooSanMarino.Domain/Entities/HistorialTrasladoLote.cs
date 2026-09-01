@@ -15,6 +15,15 @@ public class HistorialTrasladoLote
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
 
+    /// <summary>
+    /// Día REAL en que el lote se movió, que no es lo mismo que <see cref="CreatedAt"/> —el instante
+    /// en que alguien lo registró—. El Reporte Diario de Costos de POSTURA usa esta fecha como la
+    /// efectiva del traslado; antes usaba <c>created_at</c>, así que un lote movido la semana pasada
+    /// y registrado hoy le atribuía costos a la granja equivocada durante esos días.
+    /// <para>Nullable con fallback a hoy: un cliente que no la mande se comporta como antes.</para>
+    /// </summary>
+    public DateOnly? FechaTraslado { get; set; }
+
     // Relaciones
     public Lote? LoteOriginal { get; set; }
     public Lote? LoteNuevo { get; set; }

@@ -116,9 +116,15 @@ public static class AjusteEncasetamientoCalculos
 
     /// <summary>
     /// Corre el saldo vivo por el delta, bucket a bucket, con <b>clamp a 0</b>: un delta negativo
-    /// mayor que el saldo lo deja en 0 y no genera un maestro negativo. (El gate de
-    /// <see cref="Diagnosticar"/> ya habrá rechazado ese caso antes de llegar acá; el clamp es la red
-    /// de seguridad, no el camino esperado.)
+    /// mayor que el saldo lo deja en 0 y no genera un maestro negativo.
+    /// <para>
+    /// ⚠️ <b>El clamp NO es una validación.</b> Este doc-comment decía que <see cref="Diagnosticar"/>
+    /// «ya habrá rechazado ese caso», y era falso: ese gate mira el <b>total</b> (<c>delta.Total</c>)
+    /// mientras el clamp es <b>por sexo</b>. Un ajuste de sexaje a total constante —−500 hembras,
+    /// +500 machos— da total 0, pasa el gate y acá borraba hembras vivas en silencio, con 200 OK.
+    /// El rechazo por bucket lo hace ahora <see cref="SobregiroPorSexo"/>, que el service consulta
+    /// ANTES de escribir; el clamp queda como red de seguridad inalcanzable.
+    /// </para>
     /// <para>
     /// <b>No pisa:</b> suma. Ésa es toda la diferencia con el comportamiento anterior y la razón por
     /// la que las bajas ya descontadas sobreviven al ajuste.
@@ -128,6 +134,47 @@ public static class AjusteEncasetamientoCalculos
         new(Math.Max(0, maestro.Hembras + delta.Hembras),
             Math.Max(0, maestro.Machos + delta.Machos),
             Math.Max(0, maestro.Mixtas + delta.Mixtas));
+
+    /// <summary>Aves que faltan en cada bucket para poder aplicar el delta sin dejarlo negativo.</summary>
+    public readonly record struct SobregiroSexo(int Hembras, int Machos, int Mixtas)
+    {
+        /// <summary>Total de aves que el ajuste borraría sin tener de dónde sacarlas.</summary>
+        public int Total => Hembras + Machos + Mixtas;
+
+        /// <summary>El delta cabe en el saldo de cada bucket: no hay nada que rechazar.</summary>
+        public bool Cabe => Total == 0;
+    }
+
+    /// <summary>
+    /// Cuánto se pasaría de rosca el delta <b>en cada sexo</b>, que es donde el clamp muerde.
+    ///
+    /// <para>
+    /// Existe porque el gate del total no alcanza: un ajuste que mueve aves de un bucket a otro
+    /// —típico al corregir un sexaje— tiene total 0 y llegaba a <see cref="AplicarDelta"/>, donde el
+    /// <c>Math.Max(0, …)</c> se comía las aves que faltaban. El daño era silencioso: la respuesta era
+    /// 200 y el maestro quedaba con menos aves de las que el lote tenía vivas.
+    /// </para>
+    /// </summary>
+    public static SobregiroSexo SobregiroPorSexo(MaestroAves maestro, Delta delta) =>
+        new(Math.Max(0, -(maestro.Hembras + delta.Hembras)),
+            Math.Max(0, -(maestro.Machos + delta.Machos)),
+            Math.Max(0, -(maestro.Mixtas + delta.Mixtas)));
+
+    /// <summary>
+    /// Mensaje del rechazo por sobregiro: nombra el bucket y cuántas aves faltan, para que el usuario
+    /// sepa qué número corregir en vez de ver un ajuste que «se aplicó» y dejó el saldo mal.
+    /// </summary>
+    public static string MensajeSobregiroSexo(MaestroAves maestro, SobregiroSexo sobregiro)
+    {
+        var partes = new List<string>(3);
+        if (sobregiro.Hembras > 0) partes.Add($"hembras (faltan {sobregiro.Hembras}, hay {maestro.Hembras})");
+        if (sobregiro.Machos  > 0) partes.Add($"machos (faltan {sobregiro.Machos}, hay {maestro.Machos})");
+        if (sobregiro.Mixtas  > 0) partes.Add($"mixtas (faltan {sobregiro.Mixtas}, hay {maestro.Mixtas})");
+
+        return "El ajuste dejaría el saldo del lote en negativo en " + string.Join(", ", partes) +
+               ". Corrija esas cantidades: el saldo vivo ya tiene descontadas las bajas y las ventas, " +
+               "así que no se puede restar por debajo de lo que queda.";
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Gate

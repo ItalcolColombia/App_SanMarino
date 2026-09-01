@@ -21,8 +21,22 @@ public partial class ValidacionSeguimientoService
     /// </para>
     ///
     /// <para>
-    /// <b>Idempotente:</b> validar dos veces no descuenta dos veces — el segundo intento encuentra el
-    /// registro ya validado y no tiene reservas activas que aplicar.
+    /// <b>Idempotente incluso con llamadas CONCURRENTES.</b> La exclusión no la da leer
+    /// <c>Validado</c> —eso es solo un atajo barato—, sino <see cref="TomarValidacionAsync"/>: un
+    /// <c>UPDATE … WHERE id = @id AND validado = false</c> dentro de la transacción. Postgres
+    /// serializa las dos transacciones sobre esa fila y la segunda, al reevaluar el predicado después
+    /// del lock, afecta <b>0 filas</b> y se va sin aplicar nada.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔴 <b>Por qué es así y no como estaba.</b> Antes el estado y las reservas se leían FUERA de la
+    /// transacción: dos requests solapadas leían las dos <c>Validado = false</c> y la MISMA reserva
+    /// activa, y cada una emitía su consumo. El doc-comment prometía idempotencia y era falso para
+    /// llamadas concurrentes. Costó <b>19.677,24 kg descontados de más</b> en 7 galpones de
+    /// ItalcolPanama (8 pares de movimientos, ago-2026), que ni siquiera des-validar reparaba —
+    /// devuelve una vez sobre un consumo aplicado dos—. El disparador era el botón ✓, que no se
+    /// deshabilitaba mientras su petición estaba en vuelo. Es el mismo patrón de «marcar primero,
+    /// aplicar después» que ya se usó para el stock atómico.
     /// </para>
     /// </summary>
     public async Task<ResultadoValidacionDto> ValidarAsync(string modulo, long seguimientoId, CancellationToken ct = default)
@@ -41,12 +55,32 @@ public partial class ValidacionSeguimientoService
         if (!estado.Existe || !EsDeLaEmpresaActiva(estado.CompanyId))
             throw new InvalidOperationException("El registro de seguimiento no existe o no pertenece a la compañía.");
 
+        // Atajo barato para el caso normal (ya validado hace rato): evita abrir una transacción para
+        // nada. NO es lo que garantiza la exclusión — de eso se encarga TomarValidacionAsync.
         // `YaEstabaValidado: true` distingue este caso del registro que se valida ahora y no aplica
         // nada (un día sin consumo ni bajas). Los dos devuelven ceros; el bloque necesita saber cuál
         // es cuál para no contar como «validado ahora» algo que ya estaba.
         if (estado.Validado)
             return new ResultadoValidacionDto(modulo, seguimientoId, 0, 0m, 0, YaEstabaValidado: true);
 
+        // Transacción CONDICIONAL: `null` cuando ya hay una ambiente (push offline de la PWA), porque
+        // EF lanza si se abre una segunda sobre el mismo contexto. Mismo patrón que los Crud.
+        //
+        // Se abre ANTES de decidir y de leer las reservas: el lock de fila que toma el UPDATE
+        // condicional de abajo solo excluye a la otra request si vive dentro de esta transacción.
+        await using var tx = _ctx.Database.CurrentTransaction is null
+            ? await _ctx.Database.BeginTransactionAsync(ct)
+            : null;
+
+        // El que afecta la fila es el que aplica. El que llega segundo se va con las manos vacías.
+        if (!await TomarValidacionAsync(modulo, seguimientoId, ct))
+        {
+            if (tx is not null) await tx.CommitAsync(ct);
+            return new ResultadoValidacionDto(modulo, seguimientoId, 0, 0m, 0, YaEstabaValidado: true);
+        }
+
+        // Las reservas se leen DESPUÉS de ganar la carrera y dentro de la transacción: leerlas antes
+        // era la otra mitad del defecto — las dos requests se llevaban la misma fila activa.
         var reservasAlimento = await _ctx.SeguimientoReservaAlimento
             .Where(r => r.OrigenModulo == modulo && r.OrigenSeguimientoId == seguimientoId
                      && r.Estado == EstadoReservaSeguimiento.Activa)
@@ -57,12 +91,6 @@ public partial class ValidacionSeguimientoService
                      && r.Estado == EstadoReservaSeguimiento.Activa)
             .ToListAsync(ct);
 
-        // Transacción CONDICIONAL: `null` cuando ya hay una ambiente (push offline de la PWA), porque
-        // EF lanza si se abre una segunda sobre el mismo contexto. Mismo patrón que los Crud.
-        await using var tx = _ctx.Database.CurrentTransaction is null
-            ? await _ctx.Database.BeginTransactionAsync(ct)
-            : null;
-
         var kg = await AplicarAlimentoAsync(modulo, seguimientoId, reservasAlimento, devolver: false, ct);
         var aves = await AplicarAvesAsync(modulo, seguimientoId, estado.Fecha, reservasAves, devolver: false, ct);
 
@@ -70,8 +98,6 @@ public partial class ValidacionSeguimientoService
         foreach (var r in reservasAlimento) { r.Estado = EstadoReservaSeguimiento.Aplicada; r.AplicadaAt = ahora; }
         foreach (var r in reservasAves) { r.Estado = EstadoReservaSeguimiento.Aplicada; r.AplicadaAt = ahora; }
         await _ctx.SaveChangesAsync(ct);
-
-        await MarcarValidadoAsync(modulo, seguimientoId, validado: true, ct);
 
         // Reproductora: escribir `confirmado` acaba de disparar el cruce, que rehízo por SQL los días
         // 1-7 del lote de engorde. Sus bajas tienen que llegar al maestro DENTRO de esta transacción;

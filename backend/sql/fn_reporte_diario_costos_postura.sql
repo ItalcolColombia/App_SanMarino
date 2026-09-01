@@ -478,12 +478,17 @@ LEFT JOIN mov_huevo mh
        ON mh.lote_txt = b.lote_id::text AND mh.d = b.d
 -- Granja vigente el día `b.d`: origen del PRIMER traslado posterior a esa fecha.
 -- Sin traslados registrados no devuelve nada y todo cae al COALESCE con la granja actual.
+--
+-- Manda `fecha_traslado` (el DÍA REAL en que el lote se movió) y no `created_at` (el instante en que
+-- alguien lo registró): un lote movido la semana pasada y registrado hoy le atribuía los costos de
+-- esos días a la granja equivocada. El COALESCE conserva el criterio anterior para las filas viejas,
+-- así que la salida no cambia para nada de lo ya escrito.
 LEFT JOIN LATERAL (
     SELECT h.granja_origen_id
     FROM historial_traslado_lote h
     WHERE h.lote_original_id = b.lote_id
-      AND h.created_at::date > b.d
-    ORDER BY h.created_at
+      AND COALESCE(h.fecha_traslado, h.created_at::date) > b.d
+    ORDER BY COALESCE(h.fecha_traslado, h.created_at::date), h.created_at
     LIMIT 1
 ) htl ON TRUE
 LEFT JOIN farms fe

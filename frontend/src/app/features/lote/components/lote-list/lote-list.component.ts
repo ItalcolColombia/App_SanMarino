@@ -1703,13 +1703,16 @@ export class LoteListComponent implements OnInit {
     nucleoDestinoId?: string | null;
     galponDestinoId?: string | null;
     observaciones?: string | null;
+    fechaTraslado?: string | null;
   }): void {
     const request: TrasladoLoteRequest = {
       loteId: data.loteId,
       granjaDestinoId: data.granjaDestinoId,
       nucleoDestinoId: data.nucleoDestinoId || null,
       galponDestinoId: data.galponDestinoId || null,
-      observaciones: data.observaciones || null
+      observaciones: data.observaciones || null,
+      // Día real del movimiento. Null ⇒ el backend usa hoy, como antes de que el campo existiera.
+      fechaTraslado: data.fechaTraslado || null
     };
 
     this.loadingTraslado = true;

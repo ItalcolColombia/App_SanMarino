@@ -8,7 +8,9 @@ public sealed record MoverLoteDto(
     int     LoteId,
     int     GranjaDestinoId,
     string? NucleoDestinoId,
-    string? GalponDestinoId
+    string? GalponDestinoId,
+    /// <summary>Día real del movimiento. Null ⇒ hoy (comportamiento previo).</summary>
+    DateOnly? FechaTraslado = null
 );
 
 /// <summary>Mueve un galpón (y todo su contenido) a otro núcleo/granja. El GalponId no cambia.</summary>

@@ -204,6 +204,79 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
     private bool EsDeLaEmpresaActiva(int companyIdDelRegistro) =>
         companyIdDelRegistro > 0 && companyIdDelRegistro == _current.CompanyId;
 
+    /// <summary>
+    /// Toma la validación del registro de forma <b>atómica</b>: marca la fila como validada
+    /// <i>solo si todavía no lo estaba</i>, y devuelve si esta llamada fue la que la marcó.
+    ///
+    /// <para>
+    /// Es un <c>UPDATE … SET validado = true WHERE id = @id AND validado = false</c> (en reproductora
+    /// la columna es <c>confirmado</c>). Postgres toma el lock de la fila: de dos transacciones
+    /// concurrentes, la segunda espera al commit de la primera, reevalúa el predicado, encuentra la
+    /// fila ya en <c>true</c> y afecta <b>0 filas</b>. Ese cero es la señal de que otra instancia ganó
+    /// la carrera y esta no debe aplicar nada.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔴 <b>Tiene que correr DENTRO de la transacción de <c>ValidarAsync</c></b>, y antes de leer las
+    /// reservas. Fuera de ella el lock se libera al instante y el defecto vuelve: dos requests leen
+    /// las dos <c>validado = false</c> y la misma reserva activa, y cada una descuenta el alimento.
+    /// Es «marcar primero, aplicar después», el mismo patrón del stock atómico.
+    /// </para>
+    ///
+    /// <para>
+    /// Usa <c>ExecuteUpdateAsync</c> a propósito: emite el UPDATE condicional en un solo viaje, sin
+    /// pasar por el change tracker — leer la entidad, decidir en memoria y guardar es exactamente el
+    /// intervalo donde se colaba la segunda request.
+    /// </para>
+    /// </summary>
+    private async Task<bool> TomarValidacionAsync(string modulo, long seguimientoId, CancellationToken ct)
+    {
+        var ahora = DateTime.UtcNow;
+        var quien = _current.UserId > 0 ? _current.UserId.ToString() : null;
+
+        var filas = modulo switch
+        {
+            ModuloSeguimiento.Levante => await _ctx.SeguimientoDiario
+                .Where(s => s.Id == seguimientoId && !s.Validado)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(s => s.Validado, true)
+                    .SetProperty(s => s.ValidadoAt, ahora)
+                    .SetProperty(s => s.ValidadoPor, quien)
+                    .SetProperty(s => s.UpdatedAt, ahora), ct),
+
+            ModuloSeguimiento.Produccion => await _ctx.SeguimientoProduccion
+                .Where(s => s.Id == seguimientoId && !s.Validado)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(s => s.Validado, true)
+                    .SetProperty(s => s.ValidadoAt, ahora)
+                    .SetProperty(s => s.ValidadoPor, quien)
+                    .SetProperty(s => s.UpdatedAt, ahora), ct),
+
+            // Ídem LeerEstadoAsync: una sola tabla para los dos módulos de engorde.
+            ModuloSeguimiento.Engorde or ModuloSeguimiento.EngordeEcuador => await _ctx.SeguimientoDiarioAvesEngorde
+                .Where(s => s.Id == seguimientoId && !s.Validado)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(s => s.Validado, true)
+                    .SetProperty(s => s.ValidadoAt, ahora)
+                    .SetProperty(s => s.ValidadoPor, quien)
+                    .SetProperty(s => s.UpdatedAt, ahora), ct),
+
+            // Reproductora marca `confirmado`, y escribirlo es lo que dispara
+            // trg_cruce_reproductora_engorde: acá también tiene que pasar una sola vez.
+            ModuloSeguimiento.Reproductora => await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                .Where(s => s.Id == seguimientoId && !s.Confirmado)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(s => s.Confirmado, true)
+                    .SetProperty(s => s.ConfirmadoAt, ahora)
+                    .SetProperty(s => s.ConfirmadoPor, quien)
+                    .SetProperty(s => s.UpdatedAt, ahora), ct),
+
+            _ => 0
+        };
+
+        return filas > 0;
+    }
+
     /// <summary>Escribe la marca de validación en la tabla del módulo. Devuelve false si no existe.</summary>
     private async Task<bool> MarcarValidadoAsync(string modulo, long seguimientoId, bool validado, CancellationToken ct)
     {

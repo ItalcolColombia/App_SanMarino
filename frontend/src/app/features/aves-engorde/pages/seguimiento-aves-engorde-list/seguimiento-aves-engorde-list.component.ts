@@ -283,16 +283,67 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
    * Valida un registro: aplica el consumo de alimento y el descuento de aves que estaban separados.
    * Se recarga el lote entero porque el descuento mueve saldos que la tabla ya está mostrando.
    */
+  /**
+   * Ids con una validación en vuelo. El botón ✓ no se deshabilita solo (su `[disabled]` mira si el
+   * lote está cerrado, no el estado de carga), así que un doble clic salía como dos requests
+   * solapadas. Eso descontó el alimento DOS veces en 7 galpones de Panamá — 19.677,24 kg — hasta que
+   * se cerró la carrera en el backend. Con el backend arreglado la segunda ya no duplica nada, pero
+   * dispararla sigue sin tener sentido: son dos toasts y dos recargas por la misma acción.
+   */
+  private readonly validandoIds = new Set<number>();
+
+  /**
+   * Quita la validación: devuelve el alimento y las aves y vuelve a dejar el registro editable.
+   *
+   * 🔴 Es la vía de corrección que el backend ofrece desde el primer día y que NINGUNA pantalla
+   * llamaba, aunque todos los mensajes de rechazo mandan a usarla. Sin ella, la única salida que
+   * encontraba la gente era borrar y recrear — y en reproductora eso hacía desaparecer el alimento
+   * sin devolverlo. Pide confirmación porque mueve unidades ya descontadas.
+   */
+  async onQuitarValidacionSeguimiento(seguimientoId: number): Promise<void> {
+    if (this.validandoIds.has(seguimientoId)) return;
+
+    const ok = await this.confirmDialog.ask({
+      title: 'Quitar la validación',
+      message: 'Se devolverá al inventario el alimento consumido y se repondrán las aves descontadas '
+             + 'de este registro, que volverá a quedar editable. ¿Continuar?',
+      type: 'warning',
+      confirmText: 'Quitar validación'
+    });
+    if (!ok) return;
+
+    this.validandoIds.add(seguimientoId);
+    this.loading = true;
+    this.validacionSvc.desvalidar('ENGORDE', seguimientoId).subscribe({
+      next: r => {
+        this.validandoIds.delete(seguimientoId);
+        this.toast.success(
+          `Validación retirada. Se devolvieron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
+          'Registro editable', 5000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.validandoIds.delete(seguimientoId);
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudo quitar la validación del registro.', 'No se pudo quitar');
+      }
+    });
+  }
+
   onValidarSeguimiento(seguimientoId: number): void {
+    if (this.validandoIds.has(seguimientoId)) return;
+    this.validandoIds.add(seguimientoId);
     this.loading = true;
     this.validacionSvc.validar('ENGORDE', seguimientoId).subscribe({
       next: r => {
+        this.validandoIds.delete(seguimientoId);
         this.toast.success(
           `Registro validado. Se aplicaron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
           'Validado', 5000);
         this.onLoteChange(this.selectedLoteId);
       },
       error: err => {
+        this.validandoIds.delete(seguimientoId);
         this.loading = false;
         void this.aviso.error(err, 'No se pudo validar el registro.', 'No se pudo validar');
       }

@@ -147,6 +147,23 @@
                   }
                 </div>
               }
+              <!-- Fecha del traslado: el DÍA REAL en que el lote se movió, no el día en que se
+                   registra. El Reporte Diario de Costos de POSTURA la usa como fecha efectiva. -->
+              <div class="form-group">
+                <label for="fechaTraslado" class="form-label">
+                  Fecha del traslado
+                </label>
+                <input
+                  type="date"
+                  id="fechaTraslado"
+                  name="fechaTraslado"
+                  [(ngModel)]="fechaTraslado"
+                  class="form-input"
+                  [max]="fechaTrasladoMax"
+                  [disabled]="loading" />
+                <p class="form-hint">Día real en que el lote se movió. Por defecto, hoy.</p>
+              </div>
+
               <!-- Observaciones -->
               <div class="form-group">
                 <label for="observaciones" class="form-label">

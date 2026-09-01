@@ -68,6 +68,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() estadoValidacionPorId = new Map<number, string>();
 
   @Output() validar = new EventEmitter<number>();
+  /** Contracara de `validar`: devuelve alimento y aves y vuelve a dejar el registro editable. */
+  @Output() quitarValidacion = new EventEmitter<number>();
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
   @Output() delete = new EventEmitter<number>();
@@ -511,8 +513,26 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return this.requiereValidacion && this.estadoValidacionFila(segId) === 'VALIDADO';
   }
 
+  /**
+   * ¿Se le puede quitar la validación a esta fila?
+   *
+   * 🔴 Es la contracara del botón ✓, y faltaba. El backend expone `desvalidar` desde el primer día y
+   * todos los mensajes de rechazo mandan a usarlo («hay que quitarle la validación primero»), pero
+   * NINGÚN componente lo llamaba: con el flag encendido, un registro validado quedaba sin ninguna
+   * vía de corrección desde la pantalla. La salida que la gente encontraba —borrar y recrear— es la
+   * que hacía desaparecer el alimento sin devolverlo.
+   */
+  puedeQuitarValidacionFila(segId: number | null | undefined): boolean {
+    return this.puedeValidar && this.estadoValidacionFila(segId) === 'VALIDADO';
+  }
+
   onValidar(segId: number | null | undefined): void {
     if (segId == null) return;
     this.validar.emit(segId);
+  }
+
+  onQuitarValidacion(segId: number | null | undefined): void {
+    if (segId == null) return;
+    this.quitarValidacion.emit(segId);
   }
 }

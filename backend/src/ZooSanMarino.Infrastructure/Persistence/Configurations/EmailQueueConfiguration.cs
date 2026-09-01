@@ -59,6 +59,9 @@ public class EmailQueueConfiguration : IEntityTypeConfiguration<EmailQueue>
             .HasColumnName("max_retries")
             .HasDefaultValue(3);
 
+        builder.Property(e => e.NextRetryAt)
+            .HasColumnName("next_retry_at");
+
         builder.Property(e => e.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired()

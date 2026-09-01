@@ -345,17 +345,49 @@ END)::double precision AS neto_kg
                                      JOIN rango_seg rs ON rs.lote_ave_engorde_id = sr.lote_ave_engorde_id
                                   WHERE rs.last_seg IS NOT NULL AND sr.fecha >= rs.last_seg AND sr.saldo <= 0.5::double precision
                                   GROUP BY sr.lote_ave_engorde_id
+                                ), corte_ciclo_siguiente AS (
+                                 -- v14 en la vista (31-ago-2026). Espejo set-based del CTE homónimo de
+                                 -- fn_seguimiento_diario_engorde, que la vista declara reproducir y que
+                                 -- nunca recibió: el galpón deja de ser mío el día que OTRO lote empieza
+                                 -- a registrar seguimiento en él. Sin esto, un lote sin cierre por saldo
+                                 -- y sin estado 'cerrado' queda con fecha_max NULL, o sea sin tope, y se
+                                 -- come el alimento del ciclo siguiente.
+                                 -- Estrictamente POSTERIOR (primer_seg > last_seg): los lotes que
+                                 -- CONVIVEN conmigo no cortan nada.
+                                 SELECT rs.lote_ave_engorde_id,
+                                    min(prim.primer_seg) - 1 AS hasta
+                                   FROM rango_seg rs
+                                     JOIN lote_info li ON li.lote_ave_engorde_id = rs.lote_ave_engorde_id
+                                     JOIN ( SELECT l2.lote_ave_engorde_id,
+                                              l2.granja_id,
+                                              COALESCE(TRIM(BOTH FROM l2.nucleo_id), ''::text) AS nucleo_id_t,
+                                              COALESCE(TRIM(BOTH FROM l2.galpon_id), ''::text) AS galpon_id_t,
+                                              min(s2.fecha::date) AS primer_seg
+                                             FROM seguimiento_diario_aves_engorde s2
+                                               JOIN lote_ave_engorde l2 ON l2.lote_ave_engorde_id = s2.lote_ave_engorde_id AND l2.deleted_at IS NULL
+                                            GROUP BY l2.lote_ave_engorde_id, l2.granja_id, COALESCE(TRIM(BOTH FROM l2.nucleo_id), ''::text), COALESCE(TRIM(BOTH FROM l2.galpon_id), ''::text)
+                                          ) prim ON prim.granja_id = li.granja_id
+                                            AND prim.nucleo_id_t = li.nucleo_id_t
+                                            AND prim.galpon_id_t = li.galpon_id_t
+                                            AND prim.lote_ave_engorde_id <> rs.lote_ave_engorde_id
+                                            AND prim.primer_seg > rs.last_seg
+                                  WHERE rs.last_seg IS NOT NULL
+                                  GROUP BY rs.lote_ave_engorde_id
                                 ), rango_final AS (
                                  SELECT rs.lote_ave_engorde_id,
                                     rs.fecha_min,
-                                    COALESCE(sc.close_date,
+                                    -- LEAST ignora los NULL: un lote SIN ciclo posterior conserva
+                                    -- exactamente el fecha_max de antes. Por eso el LEFT JOIN de abajo
+                                    -- hace que esto no sea un cambio de comportamiento.
+                                    LEAST(COALESCE(sc.close_date,
 CASE
  WHEN li.estado_operativo_lote = 'cerrado'::text THEN rs.last_seg
  ELSE NULL::date
-END) AS fecha_max
+END), cc.hasta) AS fecha_max
                                    FROM rango_seg rs
                                      JOIN lote_info li ON li.lote_ave_engorde_id = rs.lote_ave_engorde_id
                                      LEFT JOIN saldo_close sc ON sc.lote_ave_engorde_id = rs.lote_ave_engorde_id
+                                     LEFT JOIN corte_ciclo_siguiente cc ON cc.lote_ave_engorde_id = rs.lote_ave_engorde_id
                                 ), salidas_totales AS (
                                  SELECT s.lote_ave_engorde_id,
                                     COALESCE(sum(COALESCE(s.mortalidad_hembras, 0) + COALESCE(s.mortalidad_machos, 0) + COALESCE(s.sel_h, 0) + COALESCE(s.sel_m, 0) + COALESCE(s.error_sexaje_hembras, 0) + COALESCE(s.error_sexaje_machos, 0)), 0::bigint) AS bajas_seguimiento

@@ -48,11 +48,17 @@ public partial class LoteService
         }
 
         // Cascada atómica (lotes + espejos de fase). No toca nombre/numeración del lote.
+        //
+        // El 6º parámetro es el DÍA REAL del movimiento: la fn hace COALESCE con CURRENT_DATE, así
+        // que mandarlo en null deja el comportamiento previo intacto. Sin él, el historial se fechaba
+        // con el instante del registro y el Reporte Diario de Costos de POSTURA —que usa esa fecha
+        // como la efectiva del traslado— le atribuía los costos a la granja equivocada.
         await _ctx.Database.ExecuteSqlRawAsync(
-            "SELECT public.fn_mover_lote({0}, {1}, {2}::varchar, {3}::varchar, {4})",
+            "SELECT public.fn_mover_lote({0}, {1}, {2}::varchar, {3}::varchar, {4}, {5}::date)",
             dto.LoteId, dto.GranjaDestinoId,
             (object?)nucleoDest ?? DBNull.Value, (object?)galponDest ?? DBNull.Value,
-            _current.UserId);
+            _current.UserId,
+            dto.FechaTraslado.HasValue ? dto.FechaTraslado.Value.ToString("yyyy-MM-dd") : (object)DBNull.Value);
 
         return await GetByIdAsync(dto.LoteId);
     }

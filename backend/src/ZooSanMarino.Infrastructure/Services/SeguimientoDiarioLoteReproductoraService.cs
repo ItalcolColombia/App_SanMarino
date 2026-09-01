@@ -357,10 +357,16 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             filaUpd.EstadoOperativoLote, OperacionLoteEngordeLiquidado.SeguimientoReproductora);
         var ent = filaUpd.Ent;
 
-        // Un registro confirmado es de solo lectura: para corregirlo se elimina (retorna aves/consumo) y se recrea.
+        // Un registro confirmado es de solo lectura.
+        //
+        // 🔴 Este mensaje decía «Elimínelo (se retornan aves y consumo) para corregirlo» y era una
+        // promesa que el código NO cumple con la doble validación encendida: el borrado libera solo
+        // las reservas ACTIVA, y la de un confirmado está APLICADA, así que el consumo desaparecía
+        // del inventario sin devolver un gramo. La UI empujaba al usuario exactamente ahí. La salida
+        // correcta es quitarle la validación, que sí devuelve alimento y aves.
         if (ent.Confirmado)
             throw new InvalidOperationException(
-                "El registro está confirmado y no puede editarse. Elimínelo (se retornan aves y consumo) para corregirlo.");
+                ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
 
         // Regla de fecha (defensa en profundidad, espejo del Create): día 1 = día del encasetamiento
         // (edad 0); se acepta edad [0, 7] respecto al encasetamiento.
@@ -642,7 +648,22 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var separaDel = _validacion is not null
                      && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
         if (separaDel)
+        {
+            // 🔴 Reproductora era el ÚNICO de los cinco módulos sin esta guarda, y el hueco costaba
+            // alimento REAL: con el flag encendido, `ubicacionDel` de abajo se calcula con `!separaDel`
+            // ⇒ queda null ⇒ el bloque de devolución es código muerto, y `LiberarAsync` solo toca
+            // reservas ACTIVA, así que la de un registro ya confirmado (APLICADA) no se libera ni se
+            // devuelve. Borrar un confirmado hacía desaparecer el consumo del inventario sin
+            // restituir un gramo: 952,560 kg quedaron así en ItalcolPanama antes de este arreglo.
+            // Encima el mensaje de edición mandaba a eliminar como vía de corrección.
+            // Va DENTRO del `if (separaDel)`: con el flag apagado el comportamiento de las otras
+            // empresas queda byte a byte idéntico. `separaDel` YA es el flag tipado, no hace falta uno nuevo.
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, ent.Confirmado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
+
             await _validacion!.LiberarAsync(ModuloSeguimiento.Reproductora, ent.Id);
+        }
 
         // Restituir stock antes de eliminar
         var ubicacionDel = (!separaDel && _inventarioGestionService != null && ent.Metadata != null)

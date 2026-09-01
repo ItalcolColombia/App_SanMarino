@@ -19,6 +19,7 @@ import {
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
+import { avesInicialesDelLote } from '../../../lote-engorde/funciones/aves-encasetadas.funcion';
 // ShowIfCountryDirective removed — not used in this component
 
 @Component({
@@ -65,6 +66,22 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   loteSeleccionado: LoteAveEngordeFilterItemDto | null = null;
   /** Detalle completo del lote aves de engorde seleccionado (raza, aves, etc.). */
   loteDetalle: LoteAveEngordeDto | null = null;
+
+  /**
+   * Aves ENCASETADAS del lote, que es lo que dice el rótulo de la tarjeta.
+   *
+   * 🔴 La tarjeta bindeaba `hembrasL` / `machosL`, que en engorde son el **saldo vivo** —lo descuentan
+   * las bajas del seguimiento y las ventas—, no la base. Es el mismo defecto que ya se corrigió en
+   * Gestión de lotes; el barrido de entonces buscaba las SUMAS `hembrasL + machosL` y esta pantalla,
+   * que muestra los campos sueltos, quedó atrás. Delegan en el helper puro que ya usa el resto del
+   * módulo, con el mismo fallback del backend (sin desglose por sexo, todo vive en mixtas).
+   *
+   * Devuelven NÚMEROS, no objetos nuevos por ciclo: la referencia se mantiene estable para el
+   * change detection.
+   */
+  get encasetHembras(): number { return avesInicialesDelLote(this.loteDetalle).hembras; }
+  get encasetMachos(): number { return avesInicialesDelLote(this.loteDetalle).machos; }
+  get encasetMixtas(): number { return avesInicialesDelLote(this.loteDetalle).mixtas; }
 
   loading = false;
   modalOpen = false;
