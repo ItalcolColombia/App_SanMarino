@@ -5103,3 +5103,21 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
 - [!] #8 `TK-020/B` — S369 sigue en 168 dias; el remedio indicado al usuario esta BLOQUEADO por
       falta de stock. Hay que reabrir el caso con la instruccion correcta (falta cargar la entrada
       de alimento; deficit informado por el propio sistema: 382.310 kg en la granja MANGOS)
+
+---
+
+## Reabrir `TK-2026-000020` con la instruccion correcta (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/reabrir_ticket_s369_instruccion_correcta_plan.md`](fase_de_desarrollo/reabrir_ticket_s369_instruccion_correcta_plan.md)
+
+Ultimo pendiente de la auditoria (#8), y el unico SIN cambio de codigo: lo que esta mal es lo que se
+le dijo al usuario. La instruccion decia «se puede volver a subir el archivo completo» y omitia que la
+importacion **rechaza el archivo entero** si el stock de la granja no alcanza.
+
+- [ ] Reabrir el caso a `EN_ANALISIS` por migracion, con la instruccion correcta y completa
+- [ ] Fail-safe: si alguien ya lo movio de CERRADO, no se toca
+- [ ] `CERRADO` es terminal en la maquina de estados y hay tests que lo blindan. Se reabre igual
+      porque el cierre lo hizo la GESTION -mi migracion de ayer-, el solicitante nunca confirmo y ni
+      siquiera se le envio el aviso (`notificado_correo = false`): no hubo cierre por ambas partes,
+      que es lo que justifica la terminalidad. La maquina de estados de la app NO se toca
+- [ ] NO se corrige ningun dato: la carga es del usuario y el guard de stock es un invariante correcto
