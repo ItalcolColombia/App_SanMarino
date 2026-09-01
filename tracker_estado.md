@@ -5236,8 +5236,35 @@ registro de stock» — el stock bajo y la tabla diaria no.
       descuadrados y 0 dias en rojo; Panama 17/14 identicos antes y despues; **0 galpones se
       movieron**. El ciclo vigente de G0057 y G0058 sigue en descuadre 0
 
-### C · Lo que queda fuera de esta sesion
+### C · Los otros 11 pares, revisados con las remisiones (1-sep-2026)
+- [x] **La remision sola NO alcanza**: 55169 esta repartida en 4 galpones y 54159 en dos cargas del
+      mismo galpon con cantidades DISTINTAS (7.260 y 18.510) ⇒ son reparto y particion, no copia.
+      El criterio que si decide es el **invariante**: para un lote cerrado, si cierra en 0 con el
+      ingreso contado, los kilos se consumieron; para un ciclo vigente, si `saldo_tabla == stock`
+- [x] **10 de los 11 son ingresos REALES** — medido anulando cada uno en transaccion revertida:
+      G0033 lote 46 (3.280, rem. 55169) 0 → **-3.280** · G0041 lote 13 (9.015, rem. 4168) 0 →
+      **-9.015** · G0055 lote 16 (6.000, rem. 5002) -3.920 → **-1.800** · G0036 lote 19 (**80.740**
+      en 6 mov.) 0 → **-80.740** · G0058 lote 62 (2.880) 0 → **-2.880**. Corregir cualquiera
+      inventaria un faltante. **Queda cerrada la duda de la memoria sobre la remision 54159**
+- [x] **G0483 (Panama) SI es duplicado**: la remision **190755** cargada **dos veces en el mismo
+      galpon, item y cantidad** (12.500 kg el 28-jul y el 01-ago) con su `EliminacionStock` el mismo
+      dia. El cuadre lo dice solo: `saldo_tabla 23.636,5` contra `stock 11.136,5`, **descuadre
+      12.500 exacto**; sacando el fantasma el invariante **cierra clavado** en 11.136,5
+- [i] Los dos lotes de G0483 estan **Abiertos** ⇒ no hay copia congelada que parchear y el galpon
+      **si** entra en «Cuadrar galpon». Dos caminos posibles y **ninguno se ejecuta sin OK**: la
+      pantalla (el operador declara 11.136,5 kg reales) o una migracion como la de CAROLINA
+- [i] Hallazgo aparte, **no es este defecto**: el lote 16 (G0055 2602, cerrado) cierra su **ultimo
+      dia en -3.920 kg** — 1 dia en rojo de 57. Anular su ingreso no lo arregla (queda en -1.800):
+      a ese lote le FALTA alimento, no le sobra
+
+### D · Lo que queda fuera de esta sesion
 - [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
-- [i] Los otros 12 pares (Ecuador G0033, G0036 x6, G0041, G0055, G0058 · Panama G0483) siguen con su
-      histórico sin anular. Ninguno tiene el sintoma visible: solo el del ticket cayo **encima** de
-      un ingreso pre-encaset real. Corregirlos exige confirmar las remisiones con operacion
+- [!] G0483 (Panama): decidir pantalla o migracion. Es dato de produccion de otra empresa y esta
+      fuera del alcance del ticket
+- [ ] **Anexo (pedido del usuario):** renombrar los 2 lotes que ya nacieron con sufijo —
+      `2605 - 1` → `2605` (Kilometro 86, id 229) y `2604 - 1` → `2604` (CAROLINA GALPON 7, id 241)
+- [ ] Verificado antes de tocar: 0 colisiones, sin indice unico sobre `lote_nombre`, sin liquidacion
+      congelada -que si copia el nombre-, sin seguimientos y sin filas en el historico unificado
+- [ ] `UPDATE` acotado por REGLA y con ventana temporal **cerrada** (22-ago a 1-sep), que es lo que
+      hace exacto al `Down()`: sin tope superior le pondria ` - 1` a los lotes limpios futuros
+- [ ] Los 2 eliminados (235, 236) se dejan con su sufijo: no se ven en ninguna pantalla
