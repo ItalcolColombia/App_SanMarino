@@ -146,6 +146,13 @@ export interface InventarioGestionIngresoRequest {
   /** Fecha del movimiento (solo día, yyyy-MM-dd). Si se omite, el backend usa fecha/hora actual. */
   fechaMovimiento?: string | null;
   /**
+   * El usuario ya vio el aviso de «esta remisión ya se cargó» y confirmó. Sin esto, un ingreso que
+   * repite remisión + ítem + granja + cantidad vuelve con **409** en vez de duplicar el alimento.
+   * Es un aviso confirmable: repetir una remisión es raro pero legítimo (una entrega que llega en
+   * dos viajes).
+   */
+  confirmarDuplicado?: boolean;
+  /**
    * «Este alimento es para el PRÓXIMO encasetamiento de este galpón». Atribución explícita al ciclo
    * siguiente (galpones encadenados donde la fecha real no alcanza para distinguir el ciclo). Solo
    * aplica a ingresos con galpón (alimento); default false = comportamiento previo intacto.

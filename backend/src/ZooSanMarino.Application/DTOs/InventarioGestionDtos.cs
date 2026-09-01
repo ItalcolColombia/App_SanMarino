@@ -151,7 +151,19 @@ public sealed record InventarioGestionIngresoRequest(
     /// <c>NucleoId</c>/<c>GalponId</c> se persisten en <c>null</c>: el galpón viaja solo para filtrar
     /// qué silos ofrecer.
     /// </summary>
-    int? SiloId = null
+    int? SiloId = null,
+    /// <summary>
+    /// El usuario ya vio el aviso de «esta remisión ya se cargó» y confirmó que igual quiere
+    /// registrarlo. Sin esto, un ingreso que repite remisión + ítem + ubicación + cantidad se
+    /// devuelve con <c>409</c> en vez de duplicar el alimento en silencio.
+    /// <para>
+    /// Es un aviso <b>confirmable</b>, no un bloqueo: repetir una remisión es raro pero legítimo
+    /// —una entrega parcial que llega en dos viajes—, y las devoluciones automáticas por eliminación
+    /// de seguimiento repiten clave a propósito. Default <c>false</c> ⇒ el llamador que no sabe de
+    /// esto recibe el aviso, que es lo que se busca.
+    /// </para>
+    /// </summary>
+    bool ConfirmarDuplicado = false
 );
 
 /// <summary>Request para registrar un traslado.</summary>

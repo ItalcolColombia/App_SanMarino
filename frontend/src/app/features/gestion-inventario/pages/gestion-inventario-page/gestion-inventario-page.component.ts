@@ -48,6 +48,7 @@ import {
   siloOptionLabel as siloOptionLabelFn
 } from '../../funciones/gestion-inventario-page-formato.funcion';
 import { RecepcionDestinoRow } from '../../models/recepcion-destino-row.model';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -56,7 +57,8 @@ import {
   InventarioGestionMovimientoDto,
   ItemInventarioDto,
   InventarioGestionTransitoPendienteDto,
-  InventarioGestionSiloDto
+  InventarioGestionSiloDto,
+  InventarioGestionIngresoRequest
 } from '../../services/gestion-inventario.service';
 
 type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items' | 'cuadre';
@@ -306,7 +308,8 @@ export class GestionInventarioPageComponent implements OnInit {
     private svc: GestionInventarioService,
     private route: ActivatedRoute,
     private country: CountryFilterService,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private confirmDialog: ConfirmDialogService
   ) {
     this.isColombiaInventario = this.country.isColombia();
     this.puedeRetroactivar = this.userPermService.has(PERMISO_FECHA_RETROACTIVA);
@@ -1752,7 +1755,7 @@ export class GestionInventarioPageComponent implements OnInit {
         .join('. ');
     }
     this.submittingIngreso = true;
-    this.svc.registrarIngreso({
+    this.enviarIngreso({
       farmId: this.ingresoFarmId!,
       nucleoId: this.ingresoEsPorGalpon ? this.ingresoNucleoId : null,
       galponId: this.ingresoEsPorGalpon ? this.ingresoGalponId : null,
@@ -1768,7 +1771,23 @@ export class GestionInventarioPageComponent implements OnInit {
       paraProximoCiclo: this.mostrarParaProximoCicloIngreso ? this.ingresoParaProximoCiclo : false,
       // Solo se manda con el flag encendido: con el flag apagado el backend rechaza el silo.
       siloId: this.manejaPorSilo ? this.ingresoSiloId : null
-    }).subscribe({
+    });
+  }
+
+  /**
+   * Envía el ingreso y, si el backend avisa que esa remisión ya está cargada (409), pregunta antes
+   * de insistir.
+   *
+   * 🔴 Existe porque `RegistrarIngresoAsync` no consultaba si el ingreso ya estaba: dos cargas del
+   * mismo remito suman kilos que nunca entraron al galpón. Pasó en producción —y con DOS usuarios
+   * distintos cargando el mismo remito, así que ninguna guarda de front lo habría atrapado—; el caso
+   * se cerró corrigiendo los datos, sin tocar el camino que lo permite.
+   *
+   * Es un aviso confirmable y no un bloqueo: repetir una remisión es raro pero legítimo (una entrega
+   * que llega en dos viajes). El backend decide, el usuario confirma y se reenvía con la bandera.
+   */
+  private enviarIngreso(payload: InventarioGestionIngresoRequest): void {
+    this.svc.registrarIngreso(payload).subscribe({
       next: () => {
         this.submittingIngreso = false;
         this.openAlertModal('success', 'Listo', 'Ingreso registrado correctamente.');
@@ -1782,9 +1801,30 @@ export class GestionInventarioPageComponent implements OnInit {
       },
       error: (err) => {
         this.submittingIngreso = false;
+
+        if (err?.status === 409 && err?.error?.duplicado === true) {
+          void this.confirmarYReenviarIngreso(payload, err.error?.message);
+          return;
+        }
+
         this.openAlertModal('error', 'Error', err.error?.message || 'Error al registrar ingreso.');
       }
     });
+  }
+
+  private async confirmarYReenviarIngreso(
+    payload: InventarioGestionIngresoRequest, mensaje?: string
+  ): Promise<void> {
+    const ok = await this.confirmDialog.ask({
+      title: 'Esta remisión ya está cargada',
+      message: mensaje || 'Ya hay un ingreso registrado con esta remisión en la misma ubicación.',
+      type: 'warning',
+      confirmText: 'Registrarlo igual'
+    });
+    if (!ok) return;
+
+    this.submittingIngreso = true;
+    this.enviarIngreso({ ...payload, confirmarDuplicado: true });
   }
 
   loadTransitos(): void {

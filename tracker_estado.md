@@ -5070,8 +5070,19 @@ Patron que se repite en 6 de los 12: **el fix se aplico en un camino y su gemelo
       queda como red inalcanzable y su doc-comment, que afirmaba que «el gate ya lo rechazo», corregido.
       Medido despues: `fn_cuadre_aves_engorde` sigue devolviendo **2** lotes, ni uno mas
 
-### Tanda E — lo mas grande
-- [ ] #3 `TK-163` · #11 `TK-012/B` · #12 `TK-015`
+### Tanda E
+- [x] #3 `TK-163` — `RegistrarIngresoAsync` no consultaba si el ingreso ya estaba: dos cargas del mismo
+      remito suman kilos que nunca entraron. Guarda BLANDA (409 confirmable) en el CONTROLLER, no en el
+      service, para no cambiar a los llamadores internos —las devoluciones automaticas repiten clave a
+      proposito—. `IngresoDuplicadoCalculos` puro con **9 tests**; el front pide confirmacion con
+      `ConfirmDialogService` y reenvia con la bandera
+- [i] 🔴 **Correccion de alcance sobre la sintesis: NO son 3 pares, son 17 grupos con remision repetida
+      en 3 empresas** — y **no todos son duplicados** (`INVENTARIO`, `LLEG-06` son etiquetas, no
+      remisiones; un mismo remito puede repartirse en dos galpones). **Datos NO tocados**: decidir cual
+      fila sobra es criterio de operacion, no de ingenieria. Quedan listados para que los revisen
+- [ ] #11 `TK-012/B` (traslado de LOTE sin fecha en ningun lado) · #12 `TK-015` (la vista Power BI
+      `vw_seguimiento_pollo_engorde` nunca recibio el corte v14). Los dos con diseno cerrado en la
+      sintesis; son los mas grandes (migracion + fn SQL + front)
 
 ### Sin codigo
 - [!] #8 `TK-020/B` — S369 sigue en 168 dias; el remedio indicado al usuario esta BLOQUEADO por

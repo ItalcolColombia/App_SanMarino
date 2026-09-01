@@ -904,4 +904,30 @@ public partial class InventarioGestionService
             }
         }
     }
+
+    /// <inheritdoc />
+    public async Task<int?> BuscarIngresoConMismaRemisionAsync(
+        InventarioGestionIngresoRequest req, CancellationToken ct = default)
+    {
+        var referencia = (req.Reference ?? "").Trim();
+        if (referencia.Length == 0) return null;
+
+        // Firma: GRANJA + ítem + remisión + cantidad. A propósito NO baja al galpón ni al silo: la
+        // ubicación final la decide una normalización que depende del tipo de ítem y del modelo de
+        // inventario de la empresa, y replicarla acá sería una segunda fórmula para el mismo número
+        // —justo lo que este repo prohíbe—. Además, un mismo remito repartido en dos galpones de la
+        // misma granja es exactamente el caso que vale la pena avisar; el usuario confirma y sigue.
+        //
+        // Se filtra en la BD, no en memoria: el índice (farm_id, item_inventario_ecuador_id) descarta
+        // el resto ahí mismo, sin traer los movimientos de la granja para compararlos en C#.
+        return await _db.InventarioGestionMovimientos.AsNoTracking()
+            .Where(m => m.MovementType == "Ingreso"
+                     && m.FarmId == req.FarmId
+                     && m.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId
+                     && m.Quantity == req.Quantity
+                     && m.Reference != null && m.Reference.Trim() == referencia)
+            .OrderBy(m => m.Id)
+            .Select(m => (int?)m.Id)
+            .FirstOrDefaultAsync(ct);
+    }
 }

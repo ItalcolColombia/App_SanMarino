@@ -240,6 +240,23 @@ public class InventarioGestionController : ControllerBase
                 req.FarmId, req.NucleoId, req.GalponId, req.FechaMovimiento ?? DateTime.UtcNow, c),
             ct);
         if (fueraDeVentana is not null) return fueraDeVentana;
+
+        // Aviso de remisión repetida. Va en el CONTROLLER, igual que la ventana de fechas de arriba:
+        // así ningún llamador interno del service cambia de comportamiento —las devoluciones
+        // automáticas repiten clave a propósito— y el aviso queda solo en la puerta del usuario.
+        if (IngresoDuplicadoCalculos.AmeritaChequeo(req.Reference, req.Quantity, req.ConfirmarDuplicado))
+        {
+            var existente = await _service.BuscarIngresoConMismaRemisionAsync(req, ct);
+            if (existente is not null)
+                return Conflict(new
+                {
+                    duplicado = true,
+                    movimientoIdExistente = existente.Value,
+                    message = IngresoDuplicadoCalculos.MensajeDuplicado(
+                        req.Reference, req.Quantity, req.Unit, existente.Value)
+                });
+        }
+
         try
         {
             var result = await _service.RegistrarIngresoAsync(req, ct);
