@@ -2,6 +2,13 @@
 
 > Nombrado por **comportamiento**, no por tenant (regla §🏢 de `CLAUDE.md`). Hoy la única empresa
 > que enciende estos flags es Santa Reyes; el módulo no la menciona por nombre en ninguna línea.
+>
+> ⚠️ **Vocabulario, para que no se repita el malentendido de la 1ª pasada:** *todas* las empresas
+> cargan su **propia** guía genética —Sanmarino 889 filas, Demo 224, Ecuador 15, Santa Reyes 615,
+> cada una filtrada por `company_id`—. Lo que cambia es **en qué tabla vive**:
+> `guia_genetica_sanmarino_colombia` (esquema completo, ~50 columnas) o `guia_genetica_santa_reyes`
+> (esquema simple, 3 métricas). Hablar de «guía propia vs compartida» hizo creer que unas empresas
+> no tenían guía, y sobre esa premisa se dejó sin corregir un defecto que las afectaba a todas.
 
 ## Contexto
 
@@ -24,11 +31,14 @@ Lo que **no** está conectado, medido contra el código y la BD el 1-sep-2026:
    acumulado y **las 8 de machos** salen vacías. En **Producción**, de los 4 campos que pide
    `ObtenerGuiaParaSemana` (`ProdPorcentaje`, `PesoHuevo`, `HTotalAa`, `Uniformidad`) sólo el
    primero existe.
-2. **El eje de la semana en Producción no cruza con el de la guía propia.**
-   `Tabs.cs` calcula `semana = ceil((fecha − fecha_inicio_produccion + 1)/7)` → arranca en 1. La
-   guía de la empresa está indexada por **semana de vida** (medido: **18 a 140**, 123 filas × 5
-   líneas). Las primeras 17 semanas de producción no cruzan nada y de ahí en adelante cruzan contra
-   la fila equivocada.
+2. **El eje de la semana en Producción no cruza con el de la guía — EN NINGUNA EMPRESA.**
+   Los reportes calculan `semana = ceil((fecha − fecha_inicio_produccion + 1)/7)` → arranca en 1,
+   mientras las **dos** tablas de guía se indexan por **semana de vida**:
+   `guia_genetica_santa_reyes` va de la 18 a la 140, y `guia_genetica_sanmarino_colombia` de la 1 a
+   la 71-97 con su **primera edad con producción en la 25/26** —la semana en que el ave empieza a
+   poner—. Medido en P-K345B: la semana 1 de postura se comparaba contra la edad 1 (pollita de un
+   día) y la 29 de postura contra la meta de la 29 de vida, que es la 5 de postura.
+   *(Alcance ampliado en la 2ª pasada: la 1ª sólo lo corregía para la guía de esquema simple.)*
 3. **Las columnas de huevo incubable están muertas y nadie las tapa.**
    `AplicarTotalesHuevoPorItems` escribe **`huevo_inc = 0` a propósito** («postura comercial, no
    incuba») junto con las 11 legacy. Las 4 tablas de la pestaña Producción pintan `huevoInc` y
@@ -63,11 +73,15 @@ Tres flags **ya existentes** deciden todo; ninguno se crea ni se renombra:
 |---|---|---|
 | `clasificacion_huevo_por_items` | `companies` (bool) | Huevos por ítems en vez de Incubable/%Incub |
 | `semanas_ciclo_postura_por_raza` | `companies` (bool) | Cortes de fase y eje de semana de vida |
-| Guía **propia** vs compartida | `ObtenerFilasPropiasAsync().Count > 0` | Qué columnas GUÍA se pintan |
+| En qué **tabla** vive la guía de la empresa | `ObtenerFilasPropiasAsync().Count > 0` | Qué columnas GUÍA se pintan |
 
-**Invariante rector:** con los tres en OFF —Sanmarino, Demo, Ecuador, Panamá, las 4 medidas con 0
-filas en `guia_genetica_santa_reyes`— el reporte sale **byte a byte idéntico**, por construcción y
-no por revisión: cada rama nueva cuelga de un `if (flag)` y el camino viejo queda intacto.
+**Invariante rector:** con los dos flags de `companies` en OFF, todo lo que este pase AGREGA
+(columnas de huevo por ítems, etapa del ciclo) queda idéntico a antes por construcción: cada rama
+nueva cuelga de un `if (flag)`.
+
+**La excepción, deliberada y pedida:** el **eje de la guía** SÍ cambia para las cinco empresas,
+porque estaba mal para las cinco (regla 1). No es un efecto colateral: es el defecto que este pase
+corrige, y su impacto está medido fila a fila.
 
 ## Archivos
 
@@ -116,11 +130,28 @@ no por revisión: cada rama nueva cuelga de un `if (flag)` y el camino viejo que
 
 ## Reglas de negocio
 
-1. **Eje de la guía.** Si la empresa usa guía propia, la fila diaria/semanal de producción cruza
-   por **semana de vida** (`ceil((fecha − fecha_encaset + 1)/7)`); si usa la compartida, sigue
-   cruzando por semana relativa a producción, exactamente como hoy. `fecha_encaset` en
-   `lote_postura_produccion` es el encaset **original del ave** — verificado: P-K345B tiene encaset
-   2025-01-31 e inicio de producción 2025-07-19, ~24 semanas después.
+1. **Eje de la guía — CORREGIDO PARA TODAS LAS EMPRESAS (1-sep-2026, 2ª pasada).** La fila
+   diaria/semanal de producción cruza por **semana de vida** (`ceil((fecha − fecha_encaset + 1)/7)`),
+   sin importar en qué tabla viva la guía de la empresa.
+
+   La primera versión de este plan sólo cambiaba el eje para la guía dedicada y dejaba anotado como
+   «preexistente, fuera de alcance» el desfase de las demás. **El usuario señaló que cada empresa
+   carga su propia guía y pidió validarlo. Se midió y el desfase era real y grave para todas.**
+
+   La prueba de que la columna `edad` es semana de VIDA y no de postura: en
+   `guia_genetica_sanmarino_colombia` la edad va de 1 a 71-97, la **primera edad con producción es
+   la 25/26** —cuando el ave empieza a poner— y la primera con `peso_h` es la **1**. Por eso
+   `ObtenerGuiaGeneticaProduccionAsync` ya filtraba `edad >= 26`.
+
+   Efecto medido en P-K345B (encaset 2025-01-31, inicio de producción 2025-07-19, 169 días ⇒
+   semana 25): su semana 1 de postura se comparaba contra la edad 1 —producción y peso vacíos,
+   `uniformidad = 70` de levante— y su semana 29 de postura contra la meta de la semana 29 de vida,
+   que es la 5 de postura. Todo corrido ~24 semanas. Cobertura de la guía: **126/301 → 294/301**
+   filas con % Postura Guía, **133/301 → 294/301** con Peso Huevo Guía.
+
+   Alcance: los DOS reportes (`Tabs.cs` y `Cuadro.cs`, que usaba `EdadInicioSemanas`, contada
+   también desde el inicio de producción). Los lotes vivos tienen todos su `fecha_encaset`, con
+   desfases de 128 a 363 días.
 2. **Columna de guía sin ningún dato ⇒ no se pinta.** La regla se aplica **sólo** cuando la guía es
    propia. Con guía compartida el DTO informa «todas disponibles» y el front pinta lo de siempre,
    incluso si una fila puntual viene incompleta (que es el comportamiento actual y no se toca).
@@ -172,7 +203,13 @@ no por revisión: cada rama nueva cuelga de un `if (flag)` y el camino viejo que
 - **Cargar las semanas 1-17 de la guía de levante**: depende del cliente.
 - **Los otros dos reportes técnicos** (`/reporte-tecnico-produccion`, `/reporte-tecnico-semanal`)
   siguen apagados para esta empresa; su gateo de huevo ya se hizo en X18.7/X18.8 y no se toca acá.
-- **El desalineamiento del eje de semana con la guía compartida** (Sanmarino cruza la semana 1 de
-  producción contra la fila de edad 1, que es de levante) es **preexistente y afecta a las 4
-  empresas**. No se corrige en este pase: sería un cambio de comportamiento en producción sin un
-  defecto reportado que lo motive. Queda anotado para decidirlo aparte.
+- ~~El desalineamiento del eje de semana~~ → **CORREGIDO** en la 2ª pasada, a pedido del usuario.
+  Ver regla 1. La versión inicial de este plan lo daba por «fuera de alcance» apoyándose en una
+  premisa equivocada (que sólo una empresa tenía guía propia); la corrección del usuario la
+  desarmó.
+- **La colisión `25P` vs `25`** en la guía de esquema completo (una fila por raza/año: `25P` es
+  prepostura y el parseo tolerante la colapsa en 25) queda resuelta con un desempate determinista
+  —gana la grafía numérica pura—, no con una regla de negocio inventada. Antes no importaba porque
+  el eje viejo nunca alcanzaba la semana 25; ahora es justo el arranque de la postura. **Conviene
+  confirmarlo con el cliente**: las dos filas llenan campos distintos (`25P` trae `peso_huevo`,
+  `25` trae `uniformidad`).

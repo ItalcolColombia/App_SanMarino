@@ -5597,3 +5597,37 @@ un aviso**, sin cortar ni bloquear.
       datos. Lo verificado es el CONTRATO que gobierna el render (los `@if` del template cuelgan de
       `clasificacionHuevoPorItems` y de `guiaMetricasDisponibles`, ambos confirmados en la respuesta
       real). Si se quiere la captura, hay que volver a sembrar
+
+## Correccion posterior (1-sep-2026): el eje de la guia estaba mal para TODAS las empresas
+
+El usuario corrigio una premisa mia: **cada empresa carga su PROPIA guia genetica** (Sanmarino 889
+filas, Demo 224, Ecuador 15, Santa Reyes 615, todas filtradas por `company_id`); lo que cambia es en
+que TABLA vive. Hablar de «guia propia vs compartida» me hizo dejar como «preexistente, fuera de
+alcance» un defecto que afectaba a las cinco. Pidio validarlo y corregirlo.
+
+- [x] **Validado: la columna `edad` de la guia es SEMANA DE VIDA, no de postura.** La prueba esta en
+      el dato, no en el nombre: en `guia_genetica_sanmarino_colombia` la edad va de **1 a 71-97**, la
+      **primera edad con produccion es la 25/26** —cuando el ave empieza a poner— y la primera con
+      `peso_h` es la **1**. Por eso `ObtenerGuiaGeneticaProduccionAsync` ya filtraba `edad >= 26`
+- [x] **El defecto estaba en los DOS reportes**, no solo en el que Santa Reyes ve: `Tabs.cs` usaba la
+      semana relativa y `Cuadro.cs` usaba `EdadInicioSemanas`, que se cuenta desde
+      `fechaReferencia = fechaInicioProduccion`
+- [x] **Impacto medido antes de tocar**: los 7 lotes de produccion vivos tienen `fecha_encaset`
+      cargada y el eje se corre entre **128 y 363 dias** (18 a 52 semanas)
+- [x] `SemanaGuiaProduccionCalculos.Resolver` ya no depende de en que tabla vive la guia: cruza por
+      semana de vida siempre. **La semana que se PINTA no cambia** — sigue siendo la de postura
+- [x] 🔴 **Desempate `25P` vs `25`**: el fix vuelve alcanzable la semana 25, que es la unica del
+      catalogo con dos grafias (`25P` = prepostura, una fila por raza/anio; el parseo tolerante las
+      colapsa). Gana la **numerica pura**, de forma determinista. Antes daba igual porque el eje
+      viejo nunca llegaba a la 25. **Conviene confirmarlo con el cliente**: las 2 filas llenan campos
+      distintos (`25P` trae `peso_huevo`, `25` trae `uniformidad`)
+- [x] **Efecto MEDIDO en P-K345B** (encaset 2025-01-31, inicio produccion 2025-07-19 ⇒ semana 25):
+      | fecha | sem. pintada | ANTES | AHORA |
+      |---|---|---|---|
+      | 2025-07-19 | 1 | edad 1 · `uniformidad 70` (dato de LEVANTE) | edad 25 · `uniformidad 90` |
+      | 2025-07-26 | 2 | edad 2 · todo vacio | edad 26 · **31,25 %** · peso **52,30** |
+      | 2026-02-04 | 29 | edad 29 · 86,75 % (la meta de la semana **5** de postura) | edad 53 · 69,15 % |
+      Cobertura: **% Postura Guia 126/301 → 294/301** · **Peso Huevo Guia 133/301 → 294/301**
+- [x] Santa Reyes **no cambia** con esta correccion: su guia ya se cruzaba por semana de vida
+- [x] `dotnet build` 0/0 · `dotnet test` **3.671 verdes** · smoke HTTP con el lote real
+- [x] Sesion de smoke borrada (0) y puertos 5501/5002 **LIBRES**

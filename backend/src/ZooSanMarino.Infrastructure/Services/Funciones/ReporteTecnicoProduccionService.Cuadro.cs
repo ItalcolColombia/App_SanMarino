@@ -1,6 +1,7 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Cuadro.cs
+// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Cuadro.cs
 // Reporte de PRODUCCION en formato cuadro (matriz semana x indicador) para un lote/sublote.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -78,8 +79,18 @@ public partial class ReporteTecnicoProduccionService
         
         foreach (var semanal in reporteCompleto.DatosSemanales)
         {
-            // Obtener guía genética para esta semana (edad en semanas de producción)
-            var edadProduccionSemanas = semanal.EdadInicioSemanas;
+            // Semana con la que se cruza la GUÍA: la de VIDA del ave, que es el eje en el que están
+            // las dos tablas de guía (cada empresa carga la suya, en una u otra).
+            //
+            // 🔴 Antes se usaba `semanal.EdadInicioSemanas`, que se cuenta desde el INICIO DE
+            // PRODUCCIÓN (`fechaReferencia = fechaInicioProduccion` en el reporte diario). O sea:
+            // la semana 1 de postura se comparaba contra la fila de la primera semana de VIDA de
+            // la guía —producción y peso vacíos, y la uniformidad de levante—. Medido: el desfase
+            // en los lotes vivos va de 128 a 363 días. Ver SemanaGuiaProduccionCalculos.
+            var edadProduccionSemanas = SemanaGuiaProduccionCalculos.SemanaDesde(
+                semanal.FechaInicioSemana,
+                lpp.FechaEncaset ?? lpp.FechaInicioProduccion ?? semanal.FechaInicioSemana);
+
             var guiaSemana = guiasProduccion.FirstOrDefault(g => g.Edad == edadProduccionSemanas);
             
             // Helper para parsear edad en ProduccionAvicolaRaw

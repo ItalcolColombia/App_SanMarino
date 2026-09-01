@@ -214,12 +214,26 @@ public partial class ReporteTecnicoProduccionService
             return m.Success && int.TryParse(m.Groups[1].Value, out var n2) ? n2 : null;
         }
 
-        var guia = guias.FirstOrDefault(g => TryParseEdad(g.Edad) == semana);
+        // Desempate DETERMINISTA cuando dos filas caen en la misma semana. Medido: la única
+        // colisión real es `25P` (prepostura) contra `25`, una fila por raza/año en la guía de
+        // esquema completo. Antes no importaba —con el eje viejo la semana 25 no se alcanzaba
+        // nunca—; ahora sí, porque es justo el arranque de la postura. Se prefiere la grafía
+        // NUMÉRICA PURA: `25P` es un caso aparte del calendario, no la semana 25 estándar.
+        var candidatas = guias.Where(g => TryParseEdad(g.Edad) == semana).ToList();
+        var guia = candidatas.FirstOrDefault(g => EsEdadNumericaPura(g.Edad))
+                   ?? candidatas.FirstOrDefault();
         if (guia == null) return null;
 
         return (TryParse(guia.ProdPorcentaje), TryParse(guia.PesoHuevo),
                 TryParse(guia.HTotalAa),       TryParse(guia.Uniformidad));
     }
+
+    /// <summary>
+    /// ¿La edad de la guía es un número sin sufijos? Distingue <c>"25"</c> de <c>"25P"</c>
+    /// (prepostura), que el parseo tolerante colapsa en el mismo 25.
+    /// </summary>
+    private static bool EsEdadNumericaPura(string? edad) =>
+        !string.IsNullOrWhiteSpace(edad) && edad.Trim().All(char.IsDigit);
 
     public async Task<ReporteTecnicoProduccionTabsDto> ObtenerReporteProduccionTabsAsync(
         ObtenerReporteProduccionRequestDto request,
@@ -300,8 +314,9 @@ public partial class ReporteTecnicoProduccionService
             }
         }
 
-        // Con guía propia -un modelo simple de 3 métricas- el reporte pinta sólo las columnas que
-        // esa guía puede llenar; con la compartida informa todas y no cambia nada.
+        // Cada empresa carga SU guía; lo que cambia es la tabla en que vive. La dedicada es un
+        // modelo simple de 3 métricas, así que el reporte pinta sólo las columnas que esa guía
+        // puede llenar; con la de esquema completo informa todas y no cambia nada.
         var guiaDisponibles = GuiaMetricasDisponiblesCalculos.Resolver(
             guiaEsPropia, AFilasGuiaMetricas(guiasCompletas));
         var semanaGuiaDesde = SemanaMinimaConGuia(guiasCompletas);
@@ -345,15 +360,15 @@ public partial class ReporteTecnicoProduccionService
                 var semana   = (int)Math.Ceiling((edadDias + 1.0) / 7);
                 var htaa     = saldoH > 0 ? (double?)((double)cumHuevos / saldoH) : null;
 
-                // `semana` (relativa a producción) es lo que se PINTA y no cambia. La guía propia
-                // está indexada por semana de VIDA, así que el cruce usa su propio eje.
+                // `semana` (relativa a producción) es lo que se PINTA y no cambia. La guía —la de
+                // CUALQUIERA de las dos tablas: cada empresa carga la suya— está indexada por
+                // semana de VIDA, así que el cruce usa ese eje. Ver SemanaGuiaProduccionCalculos.
                 var semanaGuia = SemanaGuiaProduccionCalculos.Resolver(
-                    guiaEsPropia, s.Fecha, fechaInicioProd, lpp.FechaEncaset);
+                    s.Fecha, fechaInicioProd, lpp.FechaEncaset);
 
+                // La etapa del ciclo también se mide en semanas de vida, así que reusa el mismo eje.
                 var etapaCiclo = cicloPorRaza
-                    ? SemanasCicloPosturaCalculos.ObtenerEtapa(
-                        lpp.Raza,
-                        SemanaGuiaProduccionCalculos.Resolver(true, s.Fecha, fechaInicioProd, lpp.FechaEncaset))
+                    ? SemanasCicloPosturaCalculos.ObtenerEtapa(lpp.Raza, semanaGuia)
                     : null;
 
                 var porcPost = saldoH > 0 ? (double)s.HuevoTot / saldoH * 100d : 0d;
