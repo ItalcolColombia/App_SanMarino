@@ -10,11 +10,13 @@ namespace ZooSanMarino.Application.Calculos;
 
 public static class TipoEventoInventarioCalculos
 {
-    public const string InvIngreso         = "INV_INGRESO";
-    public const string InvTrasladoEntrada = "INV_TRASLADO_ENTRADA";
-    public const string InvTrasladoSalida  = "INV_TRASLADO_SALIDA";
-    public const string InvConsumo         = "INV_CONSUMO";
-    public const string InvOtro            = "INV_OTRO";
+    public const string InvIngreso              = "INV_INGRESO";
+    public const string InvTrasladoEntrada      = "INV_TRASLADO_ENTRADA";
+    public const string InvTrasladoSalida       = "INV_TRASLADO_SALIDA";
+    public const string InvConsumo              = "INV_CONSUMO";
+    public const string InvAjusteCuadreEntrada  = "INV_AJUSTE_CUADRE_ENTRADA";
+    public const string InvAjusteCuadreSalida   = "INV_AJUSTE_CUADRE_SALIDA";
+    public const string InvOtro                 = "INV_OTRO";
 
     /// <summary>
     /// Traduce el <c>movement_type</c> al <c>tipo_evento</c> del histórico unificado.
@@ -37,6 +39,13 @@ public static class TipoEventoInventarioCalculos
 
         if (Igual(mt, "Consumo")) return InvConsumo;
 
+        // v17 (25-ago-2026): los dos tipos que corrigen SOLO la tabla diaria, sin tocar stock.
+        // Estaban en la función SQL desde entonces y acá faltaban, así que caían en INV_OTRO y
+        // `AfectaSaldoAlimentoEngorde` los daba por inertes: el ajuste se escribía y la columna
+        // persistida no se refrescaba. Es el defecto que este espejo existe para no tener.
+        if (Igual(mt, "AjusteCuadreTablaEntrada")) return InvAjusteCuadreEntrada;
+        if (Igual(mt, "AjusteCuadreTablaSalida"))  return InvAjusteCuadreSalida;
+
         return InvOtro;
 
         static bool Igual(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -53,7 +62,14 @@ public static class TipoEventoInventarioCalculos
     /// <item><b>AjusteStock y EliminacionStock</b> (<c>INV_OTRO</c>): ningún cálculo del saldo mira ese
     /// tipo de evento, y además el ajuste guarda la cantidad en valor absoluto, sin el signo del delta.</item>
     /// </list>
+    /// <para>
+    /// Los <c>AjusteCuadreTabla*</c> SÍ entran: existen justamente para mover la tabla diaria (la fn
+    /// los lee en sus 5 CTE desde la v17) y el signo lo lleva el tipo, no la cantidad. Si no
+    /// entraran, el ajuste se escribiría y la columna persistida quedaría vieja hasta el próximo
+    /// recálculo — que es como el saldo y el stock se separan.
+    /// </para>
     /// </summary>
     public static bool AfectaSaldoAlimentoEngorde(string? movementType)
-        => TipoEvento(movementType) is InvIngreso or InvTrasladoEntrada or InvTrasladoSalida;
+        => TipoEvento(movementType) is InvIngreso or InvTrasladoEntrada or InvTrasladoSalida
+            or InvAjusteCuadreEntrada or InvAjusteCuadreSalida;
 }

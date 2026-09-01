@@ -5194,6 +5194,7 @@ sintomas de causa distinta** y solo uno es defecto.
       `lote_nombre` lo leen reportes que agrupan por nombre
 
 ---
+---
 
 ## TK-2026-000183 — eliminar un registro de stock dejaba la tabla diaria alta (1-sep-2026)
 
@@ -5204,24 +5205,39 @@ la copia de produccion: un `Ingreso` duplicado de la remision 56114 al que le ap
 registro de stock» — el stock bajo y la tabla diaria no.
 
 ### A · El parche del defecto (que no vuelva a pasar)
-- [ ] `EliminarStockAsync` escribe, ademas del `EliminacionStock` (auditoria), un
+- [x] `EliminarStockAsync` escribe, ademas del `EliminacionStock` (auditoria), un
       `AjusteCuadreTablaSalida` por los mismos kilos y con el MISMO timestamp: no toca stock y la fn
       v17 si lo lee, asi que la tabla baja lo mismo que bajo el stock
-- [ ] `TipoEventoInventarioCalculos` conoce los dos `AjusteCuadreTabla*` (el espejo C# quedo
+- [x] `TipoEventoInventarioCalculos` conoce los dos `AjusteCuadreTabla*` (el espejo C# quedo
       desalineado de `fn_tipo_evento_inventario` desde el 25-ago) ⇒ `AfectaSaldoAlimentoEngorde` da
       `true` y la columna persistida SI se refresca. Sin esto el ajuste de §A1 no refrescaria nada
-- [ ] Etiquetas de los dos tipos en `MapTipoOperacionLabel` + su inversa (hoy se ven crudos)
-- [ ] xUnit: los 2 tipos nuevos mapean y afectan el saldo; regresion de que `AjusteStock`,
+- [x] Etiquetas de los dos tipos en `MapTipoOperacionLabel` + su inversa (hoy se ven crudos)
+- [x] xUnit: los 2 tipos nuevos mapean y afectan el saldo; regresion de que `AjusteStock`,
       `EliminacionStock` y `Consumo` siguen sin afectarlo
+- [x] **Mecanismo probado end-to-end** (transaccion revertida, ciclo vigente de G0057): ingreso de
+      1.000 kg ⇒ saldo 9.760 → **10.760**; con el codigo VIEJO (solo `EliminacionStock`) **se queda
+      en 10.760** —el defecto reproducido—; con el parche vuelve a **9.760**. El historico espeja el
+      ajuste como `INV_AJUSTE_CUADRE_SALIDA`
 
 ### B · La correccion del dato (migracion `20260901140000`, data-only)
-- [ ] Las TRES superficies: histórico (`anulado`), `seguimiento_diario_aves_engorde.saldo_alimento_kg`
-      (52 dias, −2.880) y la copia congelada (52 filas + header). La fn devuelve la congelada
-      mientras exista, asi que corregir solo el histórico no cambia lo que ve la granja
-- [ ] Localiza por atributos (galpon+item+cantidad+fecha+sin referencia+su pareja), NO por ids;
-      idempotente por marca en `metadata`; `Down()` inverso exacto
-- [ ] NO se tocan los otros 12 pares con la misma firma: **G0058 cerraria en −2.880** (ahi el
+- [x] Las TRES superficies: histórico (`anulado`), `seguimiento_diario_aves_engorde.saldo_alimento_kg`
+      (52 dias, −2.880) y la copia congelada (52 filas + header). **La fn devuelve la congelada
+      mientras exista sin anular** (arranca con un `UNION ALL` contra la copia), asi que corregir
+      solo el histórico no cambiaba un solo numero en pantalla
+- [x] Localiza por atributos (galpon+item+cantidad+fecha+sin referencia+su pareja), NO por ids;
+      idempotente por el estado del histórico; `Down()` inverso exacto por la marca en `metadata`
+- [x] NO se tocan los otros 12 pares con la misma firma: **G0058 cerraria en −2.880** (ahi el
       ingreso es real) y los 6 de G0036 pueden ser carga historica legitima (remision 54159)
-- [ ] Probada por transaccion: `Up()` deja dia 1 en 2.720 / ingreso 0 y cierre en 0; `Up()` x2 no
-      toca filas; `Down()` devuelve 5.600 / 2.880; el gemelo lote 62 no se mueve
-- [ ] `dotnet build` + `dotnet test` + `verificar_cuadre_alimento_engorde.sql` antes/despues
+- [x] Probada por transaccion: `Up()` deja dia 1 en **2.720 / ingreso 0** y cierre en **0**; `Up()`
+      x2 no toca filas; `Down()` devuelve 5.600 / 2.880; el gemelo lote 62 no se movio (275.560
+      antes y despues). Aplicada de verdad en local con el script que emite EF
+- [x] `dotnet build` 0 err / 0 warn · `dotnet test` **3.590** (+6: los 2 mapeos, sus 2 variantes de capitalizacion y los 2 del saldo) · gate `verificar-sql-llega-por-migracion` OK
+- [x] **Gate multipais** (cuadre antes/despues, las dos empresas, 67 galpones): Ecuador 0
+      descuadrados y 0 dias en rojo; Panama 17/14 identicos antes y despues; **0 galpones se
+      movieron**. El ciclo vigente de G0057 y G0058 sigue en descuadre 0
+
+### C · Lo que queda fuera de esta sesion
+- [!] Pasar el ticket a SOLUCIONADO: corresponde **despues del deploy**, no ahora
+- [i] Los otros 12 pares (Ecuador G0033, G0036 x6, G0041, G0055, G0058 · Panama G0483) siguen con su
+      histórico sin anular. Ninguno tiene el sintoma visible: solo el del ticket cayo **encima** de
+      un ingreso pre-encaset real. Corregirlos exige confirmar las remisiones con operacion

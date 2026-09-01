@@ -20,10 +20,18 @@ public class TipoEventoInventarioCalculosTests
     [InlineData("TrasladoInterGranjaSalida",    "INV_TRASLADO_SALIDA")]
     [InlineData("TrasladoInterGranjaPendiente", "INV_TRASLADO_SALIDA")]
     [InlineData("Consumo",                      "INV_CONSUMO")]
+    [InlineData("AjusteCuadreTablaEntrada",     "INV_AJUSTE_CUADRE_ENTRADA")]
+    [InlineData("AjusteCuadreTablaSalida",      "INV_AJUSTE_CUADRE_SALIDA")]
     [InlineData("AjusteStock",                  "INV_OTRO")]
     [InlineData("EliminacionStock",             "INV_OTRO")]
     [InlineData("TrasladoInterGranjaRechazado", "INV_OTRO")]
     public void TipoEvento_MapeaComoLaFuncionSql(string movementType, string esperado)
+        => Assert.Equal(esperado, TipoEventoInventarioCalculos.TipoEvento(movementType));
+
+    [Theory]
+    [InlineData("ajustecuadretablasalida",  "INV_AJUSTE_CUADRE_SALIDA")]
+    [InlineData("  AjusteCuadreTablaEntrada  ", "INV_AJUSTE_CUADRE_ENTRADA")]
+    public void TipoEvento_AjusteDeCuadre_NoDistingueMayusculasNiEspacios(string movementType, string esperado)
         => Assert.Equal(esperado, TipoEventoInventarioCalculos.TipoEvento(movementType));
 
     [Theory]
@@ -52,6 +60,17 @@ public class TipoEventoInventarioCalculosTests
     [InlineData("TrasladoInterGranjaPendiente")]
     public void EntradasYSalidas_AfectanElSaldo(string movementType)
         => Assert.True(TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde(movementType));
+
+    [Theory]
+    [InlineData("AjusteCuadreTablaEntrada")]
+    [InlineData("AjusteCuadreTablaSalida")]
+    public void AjustesDeCuadre_AfectanElSaldo(string movementType)
+    {
+        // Existen para mover la tabla diaria y la fn los lee desde la v17. Si no afectaran el saldo,
+        // el ajuste se escribiría y la columna persistida quedaría vieja: exactamente el hueco por
+        // el que «Eliminar registro de stock» dejó la tabla de CAROLINA G1 alta (TK-2026-000183).
+        Assert.True(TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde(movementType));
+    }
 
     [Fact]
     public void Consumo_NO_AfectaElSaldo()

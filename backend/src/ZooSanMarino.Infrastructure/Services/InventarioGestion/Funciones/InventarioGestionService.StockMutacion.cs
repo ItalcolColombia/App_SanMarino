@@ -116,11 +116,52 @@ public partial class InventarioGestionService
                 stock.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
     }
 
+    /// <summary>Tipo que baja la TABLA DIARIA sin tocar stock (el mismo que escribe «Cuadrar galpón»).</summary>
+    private const string MovimientoAjusteTablaSalidaPorEliminacion = "AjusteCuadreTablaSalida";
+
+    /// <summary>
+    /// Elimina un registro de stock: el stock se va y la TABLA DIARIA baja los mismos kilos.
+    ///
+    /// <para>
+    /// 🔴 <b>El defecto que cierra (TK-2026-000183, CAROLINA / GALPON 1 / lote 2602).</b> Hasta el
+    /// 1-sep-2026 esto borraba la fila de stock y escribía únicamente el <c>EliminacionStock</c>, que
+    /// se espeja como <c>INV_OTRO</c> — un <c>tipo_evento</c> que <c>fn_seguimiento_diario_engorde</c>
+    /// no lee. Resultado: <b>el stock quedaba bien y la tabla diaria quedaba alta para siempre</b>.
+    /// Es el espejo exacto del defecto de <c>EliminarIngresoAsync</c> (ahí se anulaba el histórico y
+    /// no se devolvía el stock); acá el stock se descuenta y el histórico sigue contando.
+    /// Medido: un ingreso duplicado de 2.880 kg eliminado así dejó el día 1 del lote en
+    /// <c>5.600 = 2.880 (apertura) + 2.880 (duplicado) − 160 (consumo)</c>, y el lote cerró con
+    /// 2.880 kg de residuo contra los 0 de su galpón gemelo.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué un segundo movimiento y no cambiar el trato del <c>EliminacionStock</c>.</b> Hacer
+    /// que la fn leyera <c>INV_OTRO</c> cambiaría el trato de filas que YA EXISTEN —el naufragio de
+    /// v15/v16, que el gate multipaís revirtió dos veces—. Un <c>AjusteCuadreTablaSalida</c> nuevo no
+    /// mueve una sola fila vieja: el tipo ya está en producción, la fn v17 ya lo lee y no toca stock,
+    /// que es justo lo que hace falta acá (el stock ya lo descontó la eliminación).
+    /// </para>
+    ///
+    /// <para>
+    /// Los dos movimientos comparten <b>el mismo timestamp</b>, así que el histórico los fecha el
+    /// mismo día (<c>fecha_operacion = (created_at AT TIME ZONE 'UTC')::DATE</c>) y se leen como el
+    /// par que son. El invariante <c>saldo == stock − movimientos posteriores</c> cierra en los dos
+    /// casos: si la fecha cae dentro de la grilla baja el saldo, y si cae después del último
+    /// seguimiento es un «movimiento posterior» que baja el esperado en la misma cantidad.
+    /// </para>
+    /// </summary>
     public async Task EliminarStockAsync(int stockId, CancellationToken ct = default)
     {
         var stock = await GetStockForMutationAsync(stockId, ct);
-        if (stock.Quantity > 0)
+        // La unidad del catálogo (TK-2026-000019): `GetStockForMutationAsync` trae el ítem.
+        var unidad = UnidadInventarioCalculos.Resolver(stock.ItemInventario?.Unidad, stock.Unit);
+        var ahora = DateTimeOffset.UtcNow;
+        var kilos = stock.Quantity;
+
+        if (kilos > 0)
         {
+            // 1) La auditoría de la baja de stock. Se conserva tal cual: es el registro de que
+            //    alguien eliminó el registro, y sigue siendo INV_OTRO a propósito.
             _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
             {
                 CompanyId = stock.CompanyId,
@@ -129,20 +170,53 @@ public partial class InventarioGestionService
                 NucleoId = stock.NucleoId,
                 GalponId = stock.GalponId,
                 ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
-                Quantity = stock.Quantity,
-                // La unidad del catálogo (TK-2026-000019): `GetStockForMutationAsync` trae el ítem.
-                Unit = UnidadInventarioCalculos.Resolver(stock.ItemInventario?.Unidad, stock.Unit),
+                Quantity = kilos,
+                Unit = unidad,
                 MovementType = "EliminacionStock",
                 Estado = "Eliminación registro",
                 Reference = null,
                 Reason = "Eliminación del registro de stock desde gestión de inventario.",
-                CreatedAt = DateTimeOffset.UtcNow,
+                CreatedAt = ahora,
+                CreatedByUserId = _current?.UserId.ToString()
+            });
+
+            // 2) El espejo del lado de la TABLA DIARIA, que es lo que faltaba. No toca stock —ya lo
+            //    descontó la eliminación—, y la cantidad va en valor absoluto porque el signo lo
+            //    lleva el tipo, igual que en TrasladoEntrada/TrasladoSalida.
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            {
+                CompanyId = stock.CompanyId,
+                PaisId = stock.PaisId,
+                FarmId = stock.FarmId,
+                NucleoId = stock.NucleoId,
+                GalponId = stock.GalponId,
+                ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
+                Quantity = kilos,
+                Unit = unidad,
+                MovementType = MovimientoAjusteTablaSalidaPorEliminacion,
+                Estado = "Ajuste por eliminación",
+                // La referencia es lo que la tabla diaria muestra en la columna Documento del día.
+                Reference = "Eliminación de stock",
+                Reason =
+                    $"Baja de la tabla diaria por la eliminación del registro de stock ({kilos:N3} " +
+                    $"{unidad}). No toca el stock: esos kilos ya salieron con la eliminación.",
+                CreatedAt = ahora,
                 CreatedByUserId = _current?.UserId.ToString()
             });
         }
 
         _db.InventarioGestionStock.Remove(stock);
+        // Un solo SaveChanges: los dos movimientos y la baja del stock van en la misma transacción
+        // implícita de EF. Guardar el ajuste sin la baja —o al revés— dejaría el galpón MÁS
+        // descuadrado que antes.
         await _db.SaveChangesAsync(ct);
+
+        // Después del SaveChanges: la fila del histórico que lee el saldo la escribe el trigger
+        // AFTER INSERT del movimiento.
+        if (kilos > 0)
+            await RefrescarSaldoAlimentoEngordeAsync(
+                stock.CompanyId, stock.FarmId, stock.NucleoId, stock.GalponId,
+                MovimientoAjusteTablaSalidaPorEliminacion, ct);
     }
 
     public async Task AnularMovimientoHistoricoAsync(int movimientoId, string? motivo, CancellationToken ct = default)

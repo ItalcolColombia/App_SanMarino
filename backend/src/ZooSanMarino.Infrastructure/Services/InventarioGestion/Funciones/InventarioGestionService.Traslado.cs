@@ -676,6 +676,10 @@ public partial class InventarioGestionService
         "TrasladoInterGranjaRechazado" => "Traslado entre granjas (rechazado)",
         "AjusteStock" => "Ajuste manual de stock",
         "EliminacionStock" => "Eliminación de registro de stock",
+        // Los dos del cuadre (v17): mueven la tabla diaria y no el stock. Hasta ahora se veían con
+        // el nombre crudo del tipo en la grilla de movimientos.
+        "AjusteCuadreTablaEntrada" => "Ajuste de cuadre (entrada a la tabla)",
+        "AjusteCuadreTablaSalida" => "Ajuste de cuadre (salida de la tabla)",
         _ => movementType
     };
 
@@ -692,6 +696,8 @@ public partial class InventarioGestionService
         "Traslado entre granjas (rechazado)" => "TrasladoInterGranjaRechazado",
         "Ajuste manual de stock" => "AjusteStock",
         "Eliminación de registro de stock" => "EliminacionStock",
+        "Ajuste de cuadre (entrada a la tabla)" => "AjusteCuadreTablaEntrada",
+        "Ajuste de cuadre (salida de la tabla)" => "AjusteCuadreTablaSalida",
         _ => null
     };
 
