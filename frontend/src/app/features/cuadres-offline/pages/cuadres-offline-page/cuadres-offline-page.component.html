@@ -1,0 +1,84 @@
+<div class="cuadres-page">
+  <header class="cuadres-page__header" role="banner">
+    <div class="cuadres-page__header-text">
+      <div class="cuadres-page__title-row">
+        <h1 class="cuadres-page__title text-ital-orange-dark">Cuadres sin conexión</h1>
+        <span class="module-type-badge" title="Capturas offline que entraron sin descontar inventario">
+          Revisión de stock
+        </span>
+      </div>
+      <p class="cuadres-page__subtitle">
+        Capturas hechas <strong>sin red</strong> que <strong>sí se guardaron</strong>, pero entraron
+        <strong>sin descontar inventario</strong>: cuando llegaron al servidor ya no había stock de ese ítem.
+        El día de campo está registrado; lo que quedó atrasado es el número del inventario.
+      </p>
+    </div>
+    <div class="cuadres-page__header-actions">
+      <button type="button" class="btn-ghost" (click)="recargar()" [disabled]="cargando">
+        {{ cargando ? 'Actualizando…' : 'Actualizar' }}
+      </button>
+    </div>
+  </header>
+
+  <p class="cuadres-page__aviso" role="note">
+    <strong>Marcar como revisada no repone el inventario.</strong>
+    Sólo saca la fila de esta bandeja. Para corregir el faltante, cargá el ingreso en
+    <em>Gestión de inventario</em>, como cualquier otro movimiento.
+  </p>
+
+  <section class="ux-card">
+    <div class="ux-card__header ux-card__header--row">
+      <h2>Pendientes de revisar</h2>
+      @if (!cargando && !error) {
+        <span class="cuadres-page__contador">{{ filas.length }}</span>
+      }
+    </div>
+
+    <div class="ux-card__body">
+      @if (cargando) {
+        <p class="cuadres-page__estado">Cargando…</p>
+      } @else if (error) {
+        <p class="cuadres-page__estado cuadres-page__estado--error" role="alert">{{ error }}</p>
+      } @else if (filas.length === 0) {
+        <p class="cuadres-page__estado">
+          No hay cuadres pendientes. Todo lo capturado sin red entró descontando su inventario.
+        </p>
+      } @else {
+        <div class="cuadres-page__tabla-wrap">
+          <table class="cuadres-page__tabla">
+            <thead>
+              <tr>
+                <th scope="col">Origen</th>
+                <th scope="col">Qué faltó</th>
+                <th scope="col">Registro</th>
+                <th scope="col">Dispositivo</th>
+                <th scope="col">Recibido</th>
+                <th scope="col"><span class="sr-only">Acción</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fila of filas; track fila.id) {
+                <tr>
+                  <td>{{ etiqueta(fila.tipo) }}</td>
+                  <td class="cuadres-page__detalle">{{ fila.detalle || '—' }}</td>
+                  <td>{{ fila.entidadId ?? '—' }}</td>
+                  <td class="cuadres-page__device">{{ fila.deviceId || '—' }}</td>
+                  <td>{{ fechaHora(fila.recibidoAt) }}</td>
+                  <td class="cuadres-page__acciones">
+                    <button
+                      type="button"
+                      class="btn-italfoods-secondary"
+                      (click)="resolver(fila)"
+                      [disabled]="resolviendo === fila.id">
+                      {{ resolviendo === fila.id ? 'Marcando…' : 'Marcar como revisada' }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+</div>

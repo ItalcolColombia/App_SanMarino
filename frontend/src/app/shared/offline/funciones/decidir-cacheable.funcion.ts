@@ -104,9 +104,13 @@ const EXCLUIDOS: readonly string[] = [
   'liquidaciontecnicacomparacion',
   'liquidaciontecnicaecuador',
 
-  // El push de la cola offline (F3). No es una consulta: es la escritura misma. Guardar su
-  // respuesta no tendría sentido, y servirla desde caché haría creer que se sincronizó algo que
-  // nunca salió del dispositivo.
+  // Todo el recurso `Sync`, por dos motivos distintos:
+  //   · `push` (F3) no es una consulta: es la escritura misma. Guardar su respuesta no tendría
+  //     sentido, y servirla desde caché haría creer que se sincronizó algo que nunca salió del
+  //     dispositivo.
+  //   · `cuadres` (F7) es la bandeja de supervisión: se mira desde una oficina con red, y servirla
+  //     vieja mostraría como pendiente algo que otro supervisor ya resolvió — o escondería lo que
+  //     entró después. Una bandeja desactualizada es peor que una bandeja que pide conexión.
   'sync',
 
   // Doble validación: es un gate de negocio, no un dato de operación. Cachear `configuracion`

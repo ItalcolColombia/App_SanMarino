@@ -5741,3 +5741,96 @@ completo; la de esquema simple arranca directamente en produccion.
       **corte de la guia** —que es lo que el usuario pidio y lo que el dato respalda— y **no toca las
       etapas del ciclo**, que alimentan la columna «fase» del reporte. Si el corte real es 18, esa
       clase tambien habria que ajustarla: es decision del cliente, no mia
+
+---
+
+# PWA — cierre de huecos H1–H4 (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/pwa_cierre_huecos_plan.md`](fase_de_desarrollo/pwa_cierre_huecos_plan.md)
+
+Origen: auditoría del estado real de la PWA contra el código del 1-sep-2026 (7 huecos medidos, el
+usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en paralelo porque es de él.
+
+## Lo que la auditoría midió y no estaba escrito
+
+- [i] 🔴 **`GET /api/Sync/cuadres` + `POST /cuadres/{id}/resolver` no los llama nadie.**
+      `grep -rn "cuadres" frontend/src` → **0 resultados**. El backend (`6f17d44`, 22-ago) emite
+      `requiere_cuadre` con smoke de 15 pasos y la bandeja existe **sólo como endpoint**: el día se
+      guarda, la tablet dice «listo», y el supervisor nunca se entera de que entró sin descontar
+      stock. Emisor sin lector — misma familia que `borrarDispositivo()` sin llamador
+- [i] 🔴 **El mapeo de F4 se equivoca en su única fila de nivel 1.** Dice que gastos de inventario «no
+      mueve stock»; **sí lo mueve**: `InventarioGastoService.CreateAsync:568` llama
+      `RegistrarConsumoAsync`, el camino que lanza `StockInsuficienteException`. Gastos es **nivel
+      2**, y lo destraba el emisor que se construyó el 22-ago
+- [i] `InventarioGastoService.CreateAsync:527` abre **transacción incondicional** ⇒ reventaría dentro
+      de la del push. `DeleteAsync:635` también, pero no entra al push
+- [i] La ventana de fecha de gastos vive en el **controller** (`:171`), así que la rama de sync la
+      saltea. **Es correcto y se deja**: la captura offline es legítimamente retroactiva y su
+      antigüedad ya la acotan la jornada de 16 h y el `capturadoAtDispositivo`
+- [i] Lista cacheable hoy: **89 endpoints · 55 cacheables · 34 excluidos · 0 sin decidir**
+- [i] No se pudo verificar la TaskDef **viva**: las credenciales AWS de esta máquina responden
+      `UnrecognizedClientException`. El archivo del repo (`backend/ecs-taskdef-new-aws.json:38`)
+      sigue diciendo **60 minutos**
+
+## H1 · Bandeja de cuadres — la pantalla que le falta al backend
+
+- [ ] H1.1 `cuadres-offline.service.ts` (`listar` / `resolver`) + modelo espejo de `CuadrePendienteDto`
+- [ ] H1.2 `etiquetar-tipo-cuadre.funcion.ts` **pura** + spec: los 4 tipos del contrato a nombre
+      legible; un tipo desconocido muestra el identificador crudo, nunca `undefined`
+- [ ] H1.3 Pantalla `cuadres-offline` — lista con `detalle`, un solo botón «Marcar como revisada», y
+      **la frase de que resolver NO repone kilos** (el ingreso se carga por inventario, como siempre)
+- [ ] H1.4 Ruta lazy en `app.config.ts` (patrón de `inventario-gastos`) + `ToastService` +
+      `ConfirmDialogService` + `changeDetection: Eager` explícito
+- [ ] H1.5 `sync/cuadres` a **EXCLUIDOS** en `decidir-cacheable.funcion.ts` con su motivo (bandeja de
+      supervisión: servirla vieja mostraría como pendiente algo ya resuelto). Sin esto el gate corta el CI
+- [ ] H1.6 Migración data-only `SeedMenuCuadresOffline`: `INSERT … WHERE NOT EXISTS`, localizando
+      **por `route`** (los ids difieren local↔prod), icono **dentro del `ICON_MAP` de `menu.service.ts`**
+- [ ] H1.7 `yarn build` + `verificar-lista-cacheable.js` + `verificar-change-detection.js` en verde
+
+## H2 · La jornada de 16 h no existe en producción — decisión del usuario
+
+- [!] H2.1 **Subir `JwtSettings__DurationInMinutes` a 960 en la TaskDef viva.** Hoy en **60** ⇒ el
+      `authGuard` expulsa al minuto 61 sin señal y toda la caché de 16 h y el multi-slot son
+      inalcanzables en el galpón. **Va DESPUÉS de verificar B1 (`c9a7349`) desplegado**: 16 h sin
+      revocación real es una ventana de acceso irrevocable en una tablet que se puede perder (D4)
+- [ ] H2.2 Actualizar `backend/ecs-taskdef-new-aws.json:38` para que el repo deje de mentir. ⚠️ Eso
+      solo **no cambia nada en prod**: la TaskDef viva pisa el `appsettings`
+- [~] H2.3 Verificación post-cambio: `describe-task-definition` + **decodificar el `exp` del JWT
+      recién emitido** (960, no 60). Sin el segundo paso no está verificado — ECS hace rollback silencioso
+
+## H3 · La fila capturada sin red se ve (y sigue sin poder exportarse)
+
+- [ ] H3.1 `fusionar-pendientes.funcion.ts` **pura** + spec: marca `__pendiente`, ordena por fecha
+      capturada, **dedupe prefiriendo la del servidor**, ignora lo de otra partición, y con outbox
+      vacío devuelve el array del servidor **por referencia** (no una copia nueva)
+- [ ] H3.2 Las 4 pantallas fusionan **en un campo al cargar**, nunca en un getter del template
+- [ ] H3.3 🔴 **El Excel y los indicadores filtran `__pendiente`** — es la razón por la que esto no se
+      hizo en F3: el servidor nunca vio esa fila, un indicador calculado con ella es un número inventado
+- [ ] H3.4 La fila pendiente se pinta sin editar ni borrar (no existe la operación offline: F4.2)
+- [ ] H3.5 **La prueba que prueba la prueba**: con el filtro de `__pendiente` desactivado, el test de
+      exportación tiene que **fallar**. Receta de D6, cuesta dos minutos
+
+## H4 · Gastos de inventario se guarda sin red (nivel 2, con `requiere_cuadre`)
+
+- [ ] H4.1 Tipo `gasto_inventario_crear` en `SyncPushCalculos.Tipos` + `Tipos.Todos`
+- [ ] H4.2 `SyncPushService.Gastos.cs` — partial nuevo, **namespace plano**, que llama al **mismo**
+      `IInventarioGastoService.CreateAsync` que usa el controller (nunca reimplementar reglas)
+- [ ] H4.3 `InventarioGastoService.CreateAsync` con **transacción condicional**
+- [ ] H4.4 Sin stock ⇒ **se registra el gasto sin descontar**, `requiere_cuadre` + `detalle`. En un
+      seguimiento el reintento guarda «el día sin los ítems»; en un gasto **no hay tal separación**:
+      el gasto *es* el consumo. ⛔ Nunca descontar «hasta donde alcance» (inventa un número)
+- [ ] H4.5 Ruta en `decidir-encolable.funcion.ts` con `$` para no capturar sub-recursos + spec
+- [ ] H4.6 Toast con `esRespuestaPendiente` en la pantalla de gastos
+- [ ] H4.7 xUnit: stock suficiente ⇒ `aplicada` y descontado · insuficiente ⇒ `requiere_cuadre`, gasto
+      creado, stock **sin cambio** · mismo `clientOpId` dos veces ⇒ una fila y `replay`
+- [ ] H4.8 `dotnet build` + `dotnet test` + `verificar-cuadre-solo-en-sync.js` en verde
+- [ ] H4.9 Smoke HTTP local (JWT minteado + `X-Secret-Up` cifrado) y **limpieza al terminar**, con el
+      puerto libre
+
+## Fuera de alcance (elegido), queda anotado
+
+- [i] Editar/borrar offline y el grafo `client_entity_id` siguen siendo **F4.2**
+- [i] **Background Sync no existe** (`SyncManager` = 0 apariciones): la cola drena con la app abierta,
+      al recuperar red o con «Enviar ahora». Si el operario captura, cierra y se va, nada sale
+- [i] Los smokes **C9–C13** (Android real, dos operarios) siguen sin correrse; C12 falla hoy **por
+      construcción** mientras H2 no se haga

@@ -618,6 +618,16 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.GestionInventarioModule)
       },
 
+      // Bandeja de cuadre de las capturas offline (PWA F7): capturas que se guardaron SIN descontar
+      // inventario porque al llegar al servidor no había stock. Es de supervisión y se mira con red.
+      {
+        path: 'cuadres-offline',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/cuadres-offline/pages/cuadres-offline-page/cuadres-offline-page.component')
+            .then(m => m.CuadresOfflinePageComponent)
+      },
+
       // Gastos de Inventario (Ecuador): consumos por concepto (no alimentos), stock por granja
       {
         path: 'inventario-gastos',
