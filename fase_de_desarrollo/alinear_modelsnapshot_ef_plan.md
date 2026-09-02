@@ -156,3 +156,56 @@ silencio.
 3. `dotnet build` 0 errores; `has-pending-model-changes` sin cambios; `migrations list` muestra las
    tres.
 4. BD local intacta: `__EFMigrationsHistory` y los tipos de columna, iguales antes y después.
+
+---
+
+# Fase 3 — alinear el tipo de `peso_bruto_real` / `peso_tara_real`
+
+Pedido explícito del usuario tras la Fase 2, donde la divergencia quedó anotada.
+
+## La dirección: la BD se alinea al modelo, no al revés
+
+`numeric(12,3)` (BD) → **`double precision`** (modelo). Tres razones, medidas:
+
+1. **El código manda** (regla de `CLAUDE.md` §🔍). La entidad dice `double?` y la config no fija tipo.
+2. **Las otras 6 columnas `peso_*` de la misma tabla ya son `double precision`** — `peso_bruto`,
+   `peso_tara`, `peso_neto` y sus `_global`. Estas dos eran las únicas distintas, y por accidente: la
+   migración que las crea nunca fue visible para EF y el schema salió de
+   `apply_pesos_reales_movimiento_engorde.sql`, que eligió `NUMERIC(12,3)`.
+3. **Alinear al revés cuesta muchísimo más y gana nada**: habría que pasar el CLR a `decimal` en la
+   entidad, 4 lugares de los DTOs y 6 services, y dejaría estas dos columnas siendo las raras de su
+   propia tabla.
+
+## El redondeo a 3 decimales no se pierde — nunca vivió en la columna
+
+Lo hace `MovimientoPolloEngordeCalculos.ProrratearPesoPorLinea` con `Math.Round(…, 3)` sobre bruto,
+tara, neto **y el residuo**. El otro camino que escribe estas columnas (`OrganizarPeso`, que copia
+`PesoBruto`/`PesoTara` tal cual) tampoco depende del recorte: medido, **0 filas** de `peso_bruto` y
+`peso_tara` tienen más de 3 decimales.
+
+## Lo que obliga a tocar el trigger
+
+`trg_movimiento_pollo_engorde_lote_hist` es `AFTER INSERT OR UPDATE OF … peso_tara_real …`. Una lista
+de columnas explícita **fija** la columna: Postgres rechaza el `ALTER TYPE` con *«cannot alter type of
+a column used in a trigger definition»*. Se saca y se vuelve a poner **desde `pg_get_triggerdef`** —la
+versión realmente desplegada, no un literal del repo (lección de la Fase C)— y todo va en la misma
+transacción, así que el histórico unificado no deja de llenarse ni un instante.
+
+## Gate multipaís
+
+`fn_seguimiento_diario_engorde` nombra `peso_tara_real`, así que aplica el gate de `CLAUDE.md`. Corrido
+en transacción con `ROLLBACK`, para los **184** lotes del histórico: **6.789 filas, 0 diferencias fila
+a fila**. Era esperable y quedó medido: la fn lee la columna de
+`lote_registro_historico_unificado`, que sigue siendo `numeric(18,3)` — el recorte a 3 decimales del
+histórico esta migración no lo toca.
+
+## Casos de prueba (todos corridos)
+
+1. `Up` dos veces: la 2ª avisa `NOTICE: … ya no son numeric` ⇒ idempotente. Igual el `Down`.
+2. Tipos tras `Up`: los dos `double precision`. Tras `Down`: los dos `numeric(12,3)`.
+3. Valores de los 2 pesos, fila a fila: **0 diferencias exactas** (no redondeadas) tras `Up`, y
+   **0** en el round-trip `Up`→`Down`.
+4. Triggers: **idénticos** a los de antes, después del `Up` y después del `Down`.
+5. `fn_seguimiento_diario_engorde` ×184 lotes: 0 diferencias.
+6. El modelo **no cambia** ⇒ el `ModelSnapshot` no se toca; el Designer clona el snapshot actual.
+7. BD local intacta tras el `ROLLBACK`.

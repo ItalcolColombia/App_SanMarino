@@ -6337,3 +6337,44 @@ después visibles.
       `lote_registro_historico_unificado`— depende de `peso_tara_real`. Los dos fallan con «other
       objects depend on it», igual que el `DropColumn` original. **Sin `CASCADE`**: borraría una
       vista y un trigger del histórico en silencio
+
+---
+
+# Fase 3 — alinear el tipo de `peso_bruto_real` / `peso_tara_real`
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md) (sección «Fase 3»)
+
+Cierra la divergencia anotada en la Fase 2. **La BD se alinea al modelo** (`numeric(12,3)` →
+`double precision`), no al revés: el código manda, las otras 6 columnas `peso_*` de la misma tabla ya
+son `double precision`, y el camino inverso obligaría a pasar el CLR a `decimal` en la entidad, 4
+lugares de DTOs y 6 services.
+
+- [x] P1 Medir la dirección correcta: 6 de 8 columnas `peso_*` ya son `double precision`; el CLR es
+      `double?` en 6 archivos; el redondeo a 3 decimales lo hace `MovimientoPolloEngordeCalculos.
+      ProrratearPesoPorLinea` con `Math.Round(…, 3)`, **no la columna**
+- [x] P2 Medir que no se pierde precisión: **0 filas** de `peso_bruto`/`peso_tara` con más de 3
+      decimales ⇒ el camino de `OrganizarPeso` (que los copia tal cual) tampoco dependía del recorte
+- [x] P3 🔴 Descubrir qué bloquea el `ALTER TYPE`: `trg_movimiento_pollo_engorde_lote_hist` es
+      `UPDATE OF … peso_tara_real …` y una lista de columnas explícita **fija** la columna. Se saca y
+      se repone desde `pg_get_triggerdef` —la versión desplegada, no un literal del repo— en la
+      MISMA transacción, para no dejar el histórico unificado sin llenarse
+- [x] P4 Migración `20260902160000_AlineaTipoPesoRealMovimientoEngorde`, idempotente en los dos
+      sentidos (el bloque entero solo corre si el tipo actual todavía es el de partida)
+- [x] P5 🔴 **Gate multipaís**: `fn_seguimiento_diario_engorde` nombra `peso_tara_real`. Corrido para
+      los **184** lotes del histórico: **6.789 filas, 0 diferencias fila a fila**. La razón quedó
+      medida: la fn lee la columna de `lote_registro_historico_unificado`, que sigue siendo
+      `numeric(18,3)`
+- [x] P6 Idempotencia + round-trip por transacción con `ROLLBACK`: `Up`×2 (la 2ª avisa «ya no son
+      numeric»), `Down`×2, tipos correctos en cada paso, **0 diferencias de valor** exactas tras el
+      `Up` y tras el round-trip, y triggers **idénticos** las dos veces
+- [x] P7 El modelo no cambia ⇒ el `ModelSnapshot` no se toca; el Designer clona el snapshot actual
+- [ ] P8 `dotnet build` + `has-pending-model-changes` + `migrations list`
+- [ ] P9 Commit y fast-forward de `main`
+
+### Queda pendiente de decisión del usuario
+
+- [ ] ⏸️ **Esta migración cambia el schema de producción y todavía no se desplegó.** El `Up` reescribe
+      la tabla (2.114 filas, instantáneo) y recrea un trigger; va con el deploy normal
+      (`Database__RunMigrations=true`). CLAUDE.md pide OK explícito para DDL en prod
+- [ ] ⏸️ **`lote_registro_historico_unificado.peso_tara_real` sigue `numeric(18,3)`** — a propósito.
+      Ahí el recorte a 3 decimales sí es del histórico y tocarlo es otra entrega
