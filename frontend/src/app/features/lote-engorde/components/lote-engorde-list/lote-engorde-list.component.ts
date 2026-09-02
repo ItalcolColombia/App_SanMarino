@@ -939,7 +939,7 @@ export class LoteEngordeListComponent implements OnInit {
     loteNombre: 'Nombre del lote',
     granjaId: 'Granja',
     fechaEncaset: 'Fecha de encasetamiento',
-    raza: 'Raza (guía Ecuador)',
+    raza: 'Raza (guía genética)',
     anoTablaGenetica: 'Año Tabla Genética',
     loteBaseEngordeId: 'Lote base',
   };

@@ -113,6 +113,6 @@ describe('LoteEngordeListComponent', () => {
     abrirModalEditando(loteLegado, [2019, 2020, 2021, 2022]);
 
     expect(component.form.invalid).toBeTrue();
-    expect(component.camposQueFaltan).toEqual(['Raza (guía Ecuador)', 'Año Tabla Genética']);
+    expect(component.camposQueFaltan).toEqual(['Raza (guía genética)', 'Año Tabla Genética']);
   });
 });

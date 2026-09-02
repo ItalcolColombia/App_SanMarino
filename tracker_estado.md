@@ -6060,3 +6060,91 @@ Back en `:5002` + front en `:4200`, sesión real. Para entrar se guardó el hash
       empresa; calcularlos acá sería una segunda fórmula para el mismo número
 - [i] El panel de inventario **excluye del stock las granjas con alcance restringido**, a propósito:
       el stock vive a nivel de GRANJA y no hay forma de recortarlo a un galpón concedido
+
+---
+
+# 🌎 Rename neutro de módulos transversales — quitarle el país al código que no es de un país (2-sep-2026)
+
+Plan: [`fase_de_desarrollo/rename_neutro_modulos_transversales_plan.md`](fase_de_desarrollo/rename_neutro_modulos_transversales_plan.md)
+Alcance elegido: **máximo** — rótulos + símbolos CLR/TS + **rename físico de BD** (cierra la «Fase C» diferida
+en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde, guía genética e indicador.
+
+## Auditoría previa (medida contra `sanmarinoapplocal`, no asumida)
+
+- [x] **El módulo de la captura ya tenía el backend neutro.** `ItemInventarioController` + entidad
+      `ItemInventario`, con `[Route("api/inventario/items")]` y la ruta vieja como alias. Lo que decía
+      «Ecuador» era el `<h1>`, la tarjeta de Gestión de Inventario, la ruta SPA y la BD
+- [x] **3 tablas a renombrar** (`item_inventario_ecuador`, `guia_genetica_ecuador_header/_detalle`) y
+      **6 columnas** en 6 tablas. 13 índices/constraints con el nombre viejo
+- [x] 🔴 **13 funciones se rompen con el rename** (Postgres guarda el *texto*): 10 `sql` + 3 triggers
+      `plpgsql`, dos de ellos los que llenan `lote_registro_historico_unificado`. Se recrean en la MISMA
+      migración
+- [x] ✅ **La vista de Power BI sobrevive sola** (se liga por OID) — pero su columna de salida
+      `guia_genetica_ecuador_header_id` viene de un alias explícito (`gh.id AS …`, línea 183) que **NO se
+      toca**: si cambia, Power BI se rompe en silencio. Único nombre viejo conservado a propósito
+- [x] 🔎 **Hallazgo: el «módulo Ecuador» de seguimiento es un fantasma.** La entidad
+      `SeguimientoDiarioAvesEngordeEcuador` + Configuration + `DbSet` no los usa **nadie** (el service vivo
+      va a `_ctx.SeguimientoDiarioAvesEngorde`, 9 usos) y la tabla que mapean **no existe**
+      (`to_regclass` → NULL) pese a figurar aplicada la migración del split. ⇒ acá no hay rename: hay
+      **eliminación**. Es la pieza de mayor valor y menor riesgo
+- [x] **Qué NO se toca, con motivo:** `PuentePanama`, `MovimientoPolloEngordePanama`,
+      `ColombiaInventarioConsumo`, `ReporteIndicadorPanama` (el país es real); `isEcuador`/
+      `ShowIfEcuadorPanama` (decisión cerrada en julio); `ENGORDE_EC` (es **dato** persistido en
+      `OrigenModulo`, no símbolo); la clave wire `itemInventarioEcuadorId` y las claves jsonb (§3 del plan)
+
+## Fase A · Rótulos visibles (riesgo cero)
+
+- [x] A1 `item-inventario-list.component.html:5` — «Ítems de inventario (Ecuador)» → sin país
+- [x] A2 `gestion-inventario-page.component.html:1353` + comentario `:1321`
+- [x] A3 «Raza (guía Ecuador)» / «Año Tabla Genética (guía Ecuador)» en el alta de lote engorde.
+      ⚠️ `lote-engorde-list.component.ts:942` y su **spec `:116`** comparan el string exacto: van juntos
+- [x] A4 Migración data-only de `menus`: «Guía genética Ecuador» → «Guía genética», «Indicador Ecuador» →
+      «Indicador de engorde», descripción del catálogo sin «(Ecuador/Panama)». Por `route`, idempotente
+- [x] A5 `yarn build` + `ng test` verdes
+
+- [x] 🔎 **Corrección salida de medir la BD, no del plan:** los `label` de esos 4 menús **ya estaban
+      neutros** en local (`Guía Genética Pollo Engorde`, `Liquidacion tecnica`, `Ítems inventario`,
+      `Gastos de inventario`). Lo que lleva el país es el `route` y el `key`, que mueven el enrutado del
+      front ⇒ pasan a Fase B. La migración va igual porque **producción no se puede medir desde acá** y
+      cuesta cero si sobra: recorta el país con `regexp_replace` en vez de asignar un rótulo fijo, así
+      no pisa «Guía Genética Pollo Engorde», que es un rótulo mejor y deliberado
+- [x] **Validada por transacción con `ROLLBACK`** (no se aplicó en la BD local): simulando un entorno
+      con el país puesto, «Guía genética Ecuador» → «Guía genética» e «Indicador Ecuador» → «Indicador»;
+      los rótulos ya neutros quedaron intactos; **2ª corrida = `UPDATE 0`** (idempotente)
+- [x] **Suites:** `dotnet build` **0 errores / 0 advertencias** · `yarn build` limpio (sin warning de
+      bundle budget) · `ng test` **807/807**, incluido el spec que compara el rótulo palabra por palabra
+
+## Fase B · Símbolos CLR/TS (sin DDL, wire estable)
+
+- [ ] B1 Borrar el fantasma: entidad + Configuration + `DbSet` de `SeguimientoDiarioAvesEngordeEcuador`
+- [ ] B2 Service/interfaz/carpeta del seguimiento vivo → nombre neutro. ⚠️ **choca con el
+      `SeguimientoAvesEngordeService` que ya existe**: decidir y documentar el nombre antes de tocar
+- [ ] B3 Controller con `[Route]` doble (neutra + vieja de alias); el front pasa a la neutra
+- [ ] B4 `GuiaGeneticaEcuador*` → `GuiaGenetica*` (negative lookahead para no tocar el escalar FK todavía)
+- [ ] B5 `IndicadorEcuador*` → `IndicadorEngorde*`
+- [ ] B6 Front: carpetas `indicador-ecuador/` y `config/guia-genetica-ecuador/` neutras, rutas SPA nuevas
+      **+ redirect** de las viejas, menú apuntado por migración data-only
+- [ ] B7 `dotnet build` + `dotnet test` + `yarn build` + `ng test` + gate de change detection
+
+## Fase C · BD (DDL — requiere OK y deploy propio)
+
+- [ ] C1 Migración EF idempotente: 3 `RENAME TO` + 6 `RENAME COLUMN` + 13 `RENAME` de índices/constraints
+- [ ] C2 **`CREATE OR REPLACE` de las 13 funciones** en la misma migración
+- [ ] C3 Espejos en `backend/sql/` en el MISMO commit + gate `verificar-sql-llega-por-migracion.js`.
+      ⛔ Los `.sql` operativos de una sola vez (`migracion_*`/`backfill_*`/`fix_*`/`fase*`/`verificar_*`)
+      **no se reescriben**: son el registro de lo que se hizo
+- [ ] C4 `ToTable`/`HasColumnName` a los nombres nuevos + escalares CLR neutros con
+      `[JsonPropertyName("itemInventarioEcuadorId")]` para no mover el wire
+- [ ] C5 🔴 **Gate multipaís**: congelar la salida de las 13 funciones ANTES, comparar fila a fila DESPUÉS,
+      en las 3 empresas. Cualquier diferencia se justifica por escrito o no se mergea
+- [ ] C6 `verificar_cuadre_alimento_engorde.sql` antes/después ⇒ las 2 señales sin moverse
+- [ ] C7 Idempotencia: correr la migración dos veces sobre la misma BD sin error
+- [ ] C8 Smoke: rutas HTTP viejas en 200, ruta SPA vieja redirige, cola offline de la PWA sincroniza
+- [ ] C9 **Migración inversa escrita ANTES de desplegar** (ver riesgo de rollback silencioso, §7 del plan)
+
+## Fuera de alcance (explícito)
+
+- [ ] ⏸️ **La clave de wire `itemInventarioEcuadorId` NO se renombra.** Es contrato con el front y con la
+      **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan adentro. Entrega propia
+- [ ] ⏸️ **Deploy de la Fase C: no se hace acá.** Deploy propio, horario de baja operación, verificación
+      post-deploy de CLAUDE.md §🚀 y OK explícito
