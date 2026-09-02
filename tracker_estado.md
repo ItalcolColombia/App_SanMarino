@@ -6230,3 +6230,24 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
       **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan adentro. Entrega propia
 - [ ] ⏸️ **Deploy de la Fase C: no se hace acá.** Deploy propio, horario de baja operación, verificación
       post-deploy de CLAUDE.md §🚀 y OK explícito
+
+---
+
+# Alinear el ModelSnapshot con el modelo (dos columnas huérfanas) + la migración que EF no ve
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md)
+
+Cierra el hallazgo de paso anotado por la sesión de la Fase C: `migrations has-pending-model-changes`
+acusa dos `AddColumn` (`historial_traslado_lote.fecha_traslado`, `email_queue.next_retry_at`) de
+columnas que **ya existen** ⇒ la próxima migración que alguien genere revienta al aplicarse.
+
+- [x] S1 Auditar de dónde salen las dos columnas y si hay DDL faltante en algún ambiente
+- [x] S2 Snapshot: agregar `HistorialTrasladoLote.FechaTraslado` (`DateOnly?` → `date`)
+- [x] S3 Snapshot: agregar `EmailQueue.NextRetryAt` (`DateTime?` → `timestamp with time zone`)
+- [x] S4 🔴 `20260902140000_RenombraTablasYColumnasSinPais` no tiene `.Designer.cs` ni
+      `[Migration]` ⇒ **EF no la ve y nunca se aplica**. Escribir el Designer que falta
+- [x] S5 `dotnet build` sin errores nuevos
+- [x] S6 `migrations has-pending-model-changes` ⇒ sin cambios pendientes
+- [x] S7 `migrations list` ⇒ la migración de la Fase C aparece y figura como pendiente
+- [x] S8 Verificar que la BD local no se tocó (ningún DDL, `__EFMigrationsHistory` igual)
+- [ ] S9 Commit y merge a `main`
