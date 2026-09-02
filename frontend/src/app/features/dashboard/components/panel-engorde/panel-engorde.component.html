@@ -1,0 +1,76 @@
+<section class="panel" aria-labelledby="panel-engorde-titulo">
+  <header class="panel__cabecera">
+    <h2 id="panel-engorde-titulo" class="panel__titulo">Pollo engorde</h2>
+    <p class="panel__descripcion">
+      Mortalidad, consumo de alimento y peso capturados en el seguimiento diario.
+    </p>
+    <button type="button" class="panel__accion" (click)="cargar()" [disabled]="cargando">
+      {{ cargando ? 'Cargando…' : 'Actualizar' }}
+    </button>
+  </header>
+
+  @if (error) {
+    <p class="panel__mensaje panel__mensaje--error">{{ error }}</p>
+  } @else if (cargando && !datos) {
+    <p class="panel__mensaje">Cargando datos de engorde…</p>
+  } @else if (datos) {
+    @if (ve('engorde.kpis')) {
+      <div class="panel__kpis">
+        @for (kpi of kpis; track kpi.etiqueta) {
+          <app-tarjeta-kpi [kpi]="kpi" />
+        }
+      </div>
+    }
+
+    @if (sinDatos) {
+      <p class="panel__mensaje">No hay seguimientos de engorde cargados en este período.</p>
+    } @else {
+      <div class="panel__graficas">
+        @if (ve('engorde.conversion')) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Mortalidad diaria</h3>
+            <p class="panel__grafica-nota">Un día sin registro se dibuja como hueco, no como cero.</p>
+            <div class="panel__lienzo">
+              <canvas baseChart [data]="serieMortalidad" [options]="opcionesMortalidad"
+                      type="line" role="img" aria-label="Mortalidad diaria de engorde"></canvas>
+            </div>
+          </div>
+
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Consumo de alimento</h3>
+            <p class="panel__grafica-nota">Kilos consumidos por día, sumando hembras y machos.</p>
+            <div class="panel__lienzo">
+              <canvas baseChart [data]="serieConsumo" [options]="opcionesConsumo"
+                      type="line" role="img" aria-label="Consumo diario de alimento"></canvas>
+            </div>
+          </div>
+        }
+
+        @if (ve('engorde.peso-vs-guia')) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Peso promedio</h3>
+            <p class="panel__grafica-nota">
+              Promedio simple de los pesos cargados cada día, <strong>no ponderado por aves</strong>:
+              ponderarlo exige el saldo de aves, que lo calcula el seguimiento diario.
+            </p>
+            <div class="panel__lienzo">
+              <canvas baseChart [data]="seriePeso" [options]="opcionesPeso"
+                      type="line" role="img" aria-label="Peso promedio diario"></canvas>
+            </div>
+          </div>
+        }
+
+        @if (ve('engorde.kpis') && datos.lotesPorGranja.length) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Lotes activos por granja</h3>
+            <p class="panel__grafica-nota">Lotes de engorde cuyo estado operativo no es Cerrado.</p>
+            <div class="panel__lienzo">
+              <canvas baseChart [data]="lotesPorGranja" [options]="opcionesTorta"
+                      type="doughnut" role="img" aria-label="Lotes de engorde por granja"></canvas>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</section>

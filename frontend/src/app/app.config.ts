@@ -140,12 +140,14 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ProfileComponent)
       },
       {
+        // Los paneles de adentro cargan solos con @defer (on viewport): el que no se scrollea
+        // no dispara su request. No lleva `permissionGuard`: quien entra ve los paneles de los
+        // modulos que tiene en su menu, y si no tiene ninguno la pagina se lo dice.
         path: 'dashboard',
         canActivate: [authGuard],
-        // 👇 LAZY LOAD del componente standalone
         loadComponent: () =>
-          import('./features/dashboard/dashboard.component')
-            .then(m => m.DashboardComponent)
+          import('./features/dashboard/pages/dashboard-page/dashboard-page.component')
+            .then(m => m.DashboardPageComponent)
       },
 
 

@@ -212,6 +212,7 @@ builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<ICompanyPermissionService, CompanyPermissionService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>(); // dashboard: alcance por empresa + ubicación
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();
 builder.Services.AddScoped<ILoteService, LoteService>();

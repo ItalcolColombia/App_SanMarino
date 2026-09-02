@@ -1,0 +1,106 @@
+<div class="dash">
+  <header class="dash__cabecera">
+    <div>
+      <h1 class="dash__titulo">Panel de control</h1>
+      <p class="dash__subtitulo">
+        Lo que ves depende de los módulos que tenés asignados, de tus permisos y de tu empresa activa.
+      </p>
+    </div>
+
+    <div class="dash__filtros">
+      <label class="dash__campo">
+        <span>Desde</span>
+        <input type="date" [(ngModel)]="filtros.periodo.desde" (change)="onPeriodoChange()" />
+      </label>
+      <label class="dash__campo">
+        <span>Hasta</span>
+        <input type="date" [(ngModel)]="filtros.periodo.hasta" (change)="onPeriodoChange()" />
+      </label>
+      <button type="button" class="dash__refrescar" (click)="refrescar()" [disabled]="cargandoResumen">
+        {{ cargandoResumen ? 'Actualizando…' : 'Actualizar' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- ───────────────────────────── Resumen (siempre visible) ───────────────────────────── -->
+  @if (errorResumen) {
+    <p class="dash__mensaje dash__mensaje--error">{{ errorResumen }}</p>
+  } @else if (cargandoResumen && !resumen) {
+    <app-panel-esqueleto titulo="resumen" [alto]="120" [celdas]="[1, 2, 3]" />
+  } @else if (resumen) {
+    <div class="dash__kpis">
+      @for (kpi of kpis; track kpi.etiqueta) {
+        <app-tarjeta-kpi [kpi]="kpi" />
+      }
+    </div>
+
+    @if (resumen.alcanceRestringido) {
+      <p class="dash__aviso">
+        Tu acceso está limitado a ubicaciones concretas dentro de alguna granja: los números de abajo
+        son <strong>tu alcance</strong>, no el total de la empresa.
+      </p>
+    }
+  }
+
+  <!-- ───────────────────────────── Paneles (carga perezosa) ─────────────────────────────
+       Cada panel va en su propio `@defer (on viewport)`: su código Y su request salen recién
+       cuando el panel entra en pantalla. El panel que el usuario no scrollea no se pide.        -->
+  @if (!panelesResueltos) {
+    <app-panel-esqueleto titulo="paneles" [alto]="200" />
+  } @else if (paneles.length === 0) {
+    <p class="dash__mensaje">
+      Todavía no tenés módulos con panel asignados en esta empresa. El panel de un módulo aparece
+      cuando el módulo está en tu menú.
+    </p>
+  } @else {
+    <div class="dash__paneles">
+      @if (ve('postura')) {
+        @defer (on viewport) {
+          <app-panel-postura [filtros]="filtros" [bloques]="panel('postura')!.bloques" />
+        } @placeholder {
+          <app-panel-esqueleto titulo="postura" [alto]="260" />
+        } @loading (minimum 200ms) {
+          <app-panel-esqueleto titulo="postura" [alto]="260" />
+        } @error {
+          <p class="dash__mensaje dash__mensaje--error">No se pudo cargar el panel de postura.</p>
+        }
+      }
+
+      @if (ve('engorde')) {
+        @defer (on viewport) {
+          <app-panel-engorde [filtros]="filtros" [bloques]="panel('engorde')!.bloques" />
+        } @placeholder {
+          <app-panel-esqueleto titulo="engorde" [alto]="260" />
+        } @loading (minimum 200ms) {
+          <app-panel-esqueleto titulo="engorde" [alto]="260" />
+        } @error {
+          <p class="dash__mensaje dash__mensaje--error">No se pudo cargar el panel de engorde.</p>
+        }
+      }
+
+      @if (ve('alimento-inventario')) {
+        @defer (on viewport) {
+          <app-panel-alimento [bloques]="panel('alimento-inventario')!.bloques" />
+        } @placeholder {
+          <app-panel-esqueleto titulo="inventario" [alto]="260" />
+        } @loading (minimum 200ms) {
+          <app-panel-esqueleto titulo="inventario" [alto]="260" />
+        } @error {
+          <p class="dash__mensaje dash__mensaje--error">No se pudo cargar el panel de inventario.</p>
+        }
+      }
+
+      @if (ve('cumplimiento')) {
+        @defer (on viewport) {
+          <app-panel-cumplimiento [bloques]="panel('cumplimiento')!.bloques" />
+        } @placeholder {
+          <app-panel-esqueleto titulo="cumplimiento" [alto]="220" />
+        } @loading (minimum 200ms) {
+          <app-panel-esqueleto titulo="cumplimiento" [alto]="220" />
+        } @error {
+          <p class="dash__mensaje dash__mensaje--error">No se pudo cargar el panel de cumplimiento.</p>
+        }
+      }
+    </div>
+  }
+</div>

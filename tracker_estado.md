@@ -5910,3 +5910,153 @@ Back en `:5002` + front en `:4200`, sesión real. Para entrar se guardó el hash
 - [x] **Limpieza verificada**: 0 gastos del smoke, 0 `sync_operaciones`, 0 sesiones minteadas, stock
       devuelto a 4250, contraseña restaurada, outbox del navegador vacío, y la fila del histórico
       unificado en **`anulado = true`**. Puertos **5002 y 4200 libres**
+
+---
+
+# 📊 Dashboard por perfil, con datos reales y carga perezosa
+
+> Plan: [`fase_de_desarrollo/dashboard_por_perfil_lazy_plan.md`](fase_de_desarrollo/dashboard_por_perfil_lazy_plan.md)
+> Abierto el **1-sep-2026**. Pedido: organizar el dashboard para que muestre información y gráficas
+> de todo lo que tenemos, con **carga perezosa por panel**, y que lo que se ve dependa del perfil
+> (admin / técnico / administrativo), los **permisos**, el **usuario** y la **empresa**.
+>
+> **Decisión del usuario, tomada antes de planear:** (1) **sin permisos nuevos** — se reusa el modelo
+> de acceso existente; (2) los **4 paneles**: Postura, Engorde, Alimento e inventario, Cumplimiento.
+
+## D0 · Lo que se midió antes de escribir una línea
+
+- [i] 🔴 **Los 8 endpoints del dashboard devuelven datos inventados.** `new Random()` en
+      `produccion-por-granja` (`DashboardController.cs:90`) y `registros-diarios` (`:127`);
+      constantes en `estadisticas-generales` (`:56`: 25 usuarios, 8 granjas, 45 lotes, 12.500 aves),
+      `estadisticas-inventario` y `metricas-rendimiento`; 6 actividades fijas con nombres inventados
+      («Juan Pérez», «María García»); 1 fila fija de mortalidad (`LOTE001`); y `distribucion-lotes`
+      con **todos los conteos en 0** y `// TODO: Implementar cuando esté disponible`. ⇒ Reorganizar
+      la visual sin backend real sólo hace la mentira más linda
+- [i] 🔴 **Los filtros no filtran.** El front arma `companyId`/`userId`/`farmIds`
+      (`dashboard.component.ts:288`) y **ninguna acción del controller declara esos parámetros**;
+      `ICurrentUser` **no está inyectado**. Hoy no fuga porque no consulta; el primer `SELECT` real
+      sin scope fuga entre empresas
+- [i] 🔴 **Nadie ve el dashboard.** El menú id 3 (`/dashboard`) tiene **0 filas en `role_menus` y 0 en
+      `company_menus`** (medido en la BD local). Se llega sólo tecleando la URL
+- [i] **`@defer` = 0 usos en todo el front.** Lo que el dashboard llama «lazy loading»
+      (`:392-420`) es una cola con `setTimeout` que igual carga todo, más un `interval(30000)` que
+      **repite las 8 llamadas cada 30 s**
+- [i] ✅ Se reusa todo lo que ya existe: `ICurrentUser`, `ILocationScopeResolver` +
+      `UserLocationScopeCalculos` (fail-closed), `VacunacionScopeSqlParams` (patrón para bajar el
+      cierre a SQL), `permissionGuard`, `HasPermissionDirective` (55 usos), `chart.js`+`ng2-charts`,
+      y **`session.menu` + `session.user.permisos` ya viajan en la sesión** ⇒ el gating no cuesta un request
+- [i] 💡 **Cómo se cumple «sin permisos nuevos» sin dejar a nadie sin paneles.** Hay 68 menús y sólo
+      45 permisos: gatear sólo por permisos dejaría los 4 paneles invisibles para casi todos. Se usan
+      las **dos** señales que ya existen y que ya son por rol Y por empresa: `role_menus ∩
+      company_menus` (a qué módulos accede ⇒ *perfil*) + `role_permissions` (qué acciones ⇒ *nivel*).
+      Los 3 perfiles **no se codifican como enum**: emergen del cruce. Mapeo **por `route`**, jamás por
+      id de menú (los ids difieren local↔prod)
+
+## F1 · Cimientos — gating puro, scope real y muerte de los `Random()`
+
+- [x] F1.1 `models/dashboard-panel.model.ts` + `models/dashboard-metricas.model.ts`
+- [x] F1.2 `funciones/resolver-paneles-visibles.funcion.ts` **PURA** (menú + permisos + flags →
+      `PanelId[]`) + spec con los 12 casos del plan §5.1 (incluye menú vacío ⇒ 0 paneles, y route
+      con barra final / mayúsculas)
+- [x] F1.3 `funciones/construir-serie-tiempo.funcion.ts` y `construir-distribucion.funcion.ts` puras + specs
+- [x] F1.4 `Application/Calculos/DashboardCalculos.cs` (mismo cierre, lado backend) + xUnit
+- [x] F1.5 `pages/dashboard-page/` orquestador delgado con **`@defer (on viewport)`** +
+      `@placeholder`/`@loading`/`@error` por panel. **Primer uso de `@defer` del repo**
+- [x] F1.6 `components/tarjeta-kpi/` y `components/panel-esqueleto/`, con tokens de
+      `theme-italfoods.scss` (⛔ se borra el `CORPORATE_COLORS` hardcodeado de `:100-110`, que además
+      usa amarillo/rojo/gris contra la regla de marca)
+- [x] F1.7 `DashboardController` reescrito: `ICurrentUser` + `ILocationScopeResolver`, un endpoint por
+      panel, **corte en el backend** además del ocultamiento en el front (ocultar no es proteger)
+- [x] F1.8 🔴 **Se borran los `new Random()` y las constantes.** Un panel sin fuente real no se dibuja
+- [x] F1.9 Se elimina el `interval(30000)` y el `showNotification` que fabrica un `div` a mano
+      (`:846`) → `ToastService`
+- [x] F1.10 `changeDetection: Eager` explícito en todos los componentes nuevos
+- [x] F1.11 `yarn build` + `ng test` + `dotnet build` + `dotnet test` + gates (change detection, lista
+      cacheable, `verificar-sql-llega-por-migracion.js`)
+
+## F2 · Panel Postura (levante + producción)
+
+- [ ] F2.1 `fn_dashboard_resumen_postura` en `backend/sql/` + **migración en el MISMO commit**
+- [x] F2.2 `DashboardService.Postura.cs` (partial, namespace plano) + endpoint
+- [x] F2.3 `components/panel-postura/`: KPIs, % producción vs guía, huevos por tipo, mortalidad diaria
+- [x] F2.4 Respeta `ocultaMachosEnPostura` y `clasificacionHuevoPorItems` sin cambiar su comportamiento actual
+- [ ] F2.5 Cruce contra Reporte Técnico Producción del mismo lote/día (mismo número o no se mergea)
+
+## F3 · Panel Pollo engorde
+
+- [ ] F3.1 `fn_dashboard_resumen_engorde(p_company_id, …)` + migración. ⚠️ `fn_indicadores_pollo_engorde`
+      es **por lote**: llamarla en bucle desde C# es el anti-patrón que cuelga los endpoints multipaís
+- [x] F3.2 Service + endpoint + `components/panel-engorde/` (peso vs guía, conversión, mortalidad, ventas)
+- [ ] F3.3 Cruce contra Informe Semanal Pollo Engorde
+
+## F4 · Panel Alimento e inventario
+
+- [ ] F4.1 `fn_dashboard_resumen_inventario` + migración
+- [x] F4.2 Service + endpoint + panel (stock por granja, ítems bajo mínimo, consumo vs ingreso, gastos)
+- [x] F4.3 🔴 **Descuadre con las DOS señales separadas**: `descuadre_kg` (kilos) y `filas_negativas`
+      (días en rojo) en columnas distintas. Mezclarlas es el error documentado en CLAUDE.md §🛡️
+      (daba 23 galpones cuando los que tenían kilos eran 8)
+- [ ] F4.4 Cruce contra `backend/sql/verificar_cuadre_alimento_engorde.sql`
+
+## F5 · Panel Cumplimiento y pendientes
+
+- [x] F5.1 Reusa `fn_vacunacion_pendientes` **tal cual** (ya trae el alcance granular) y
+      `fn_vacunacion_cumplimiento_lote`. Una sola fórmula por número: no se reimplementa
+- [x] F5.2 Bloques de cuadres offline sin resolver y firmas/tareas de implementación pendientes
+- [x] F5.3 Cada bloque aparece sólo si su módulo está en el menú del usuario
+- [ ] F5.4 Cruce contra la bandeja de vacunación
+
+## F6 · Que se vea (hoy no lo ve nadie)
+
+- [!] F6.1 **A qué roles se le asigna el menú Dashboard — decisión del usuario.** Propuesta: todos los
+      roles que ya tengan al menos un módulo de los 4 paneles. **Requiere OK explícito antes de la migración**
+- [ ] F6.2 Migración data-only: `role_menus` + `company_menus`, localizando **por `route`**,
+      `INSERT … WHERE NOT EXISTS`
+- [ ] F6.3 Smoke: login con 2 roles distintos ⇒ menú visible y paneles distintos según módulos
+
+## Notas de sesión
+
+- [i] Al abrir esta sesión había un **backend vivo en `:5002`** (PID 25236) y front en `:4200`,
+      probablemente de otra ventana. **No se mata** (CLAUDE.md §🔌.4): si hay que compilar va
+      `dotnet build --artifacts-path <dir>` para no pelear por el `bin/`
+- [i] El dashboard viejo **queda vivo** hasta que F1 lo reemplace. No se borra a mitad de camino
+
+## Verificacion corrida (1-sep-2026) — medida, no asumida
+
+- [x] **Smoke HTTP de los 5 endpoints en 2 empresas.** Backend aislado (content root propio,
+      `RunMigrations=false`, JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
+      Sanmarino (company 1): `29 granjas / 12 de 16 lotes postura`; Ecuador (company 3):
+      `8 granjas / 0 postura / 32 de 130 engorde`. **Los dos coinciden fila a fila con SQL directo.**
+      Aislamiento por empresa verificado: el admin de Ecuador NO ve los 16 lotes de Sanmarino
+- [x] **La rama de alcance restringido, probada en las dos direcciones** (es donde un error es fuga):
+      granja 20 restringida SIN grants ⇒ postura `16→12` total y `12→8` activos (fail-closed exacto);
+      con un grant de lote ⇒ `12→13` y `8→9`, o sea entró **ese** lote y ninguno más. Estado
+      restaurado y verificado (`user_farm_scopes` 0, `restrict_locations` 0)
+- [x] **Series con datos reales.** Postura 15abr–15may: 31 puntos, `713` mortalidad y `263.711`
+      huevos — **idéntico al SQL directo**. Engorde Ecuador, últimos 30 días: 28 puntos de mortalidad
+      y consumo, y **27 de peso** — el día sin peso cargado no entra en la serie: sale como hueco
+- [x] **Smoke en el navegador** con sesión real (menú de `fn_menu_usuario` + 37 permisos):
+      el usuario tiene postura, inventario y cumplimiento pero **no** engorde ⇒ se dibujan 3 paneles
+      y `/api/Dashboard/engorde` **no se pide ni una vez**. Todos los `/api/Dashboard/*` en 200
+- [x] **`@defer` probado en la Network tab:** recarga limpia ⇒ sólo sale `resumen`; los paneles
+      salen recién al scrollear. 4 chunks separados en `dist` (postura, engorde, alimento, cumplimiento)
+- [x] **Suites y gates:** `dotnet build` 0/0 · `dotnet test` **3.747** (de 3.717) ·
+      `yarn build` 0 errores y **sin** el warning de bundle budget · `ng test` **807** (de 746) ·
+      change-detection 242/0 · lista cacheable 89/55/34/0 · gate del `.sql` en verde
+- [i] ⚠️ `dotnet test --artifacts-path <fuera del repo>` hace fallar 2 tests
+      (`RazaGuiaAliasParidadSqlTests`) que suben desde el binario hasta `backend/sql/`. **No es una
+      regresión**: con el build normal pasan los 3.747. Anotado porque cuesta 10 minutos redescubrirlo
+- [i] Se borraron **1.780 líneas** del dashboard viejo (904 TS + 511 HTML + 106 SCSS + 259 del service)
+- [i] Puertos liberados y sin procesos huérfanos al terminar; datos del smoke borrados y verificados
+
+## Lo que queda — dicho explícito
+
+- [!] **F6.1 sigue pendiente y es tuya:** hoy el menú Dashboard **no lo tiene ningún rol ni empresa**,
+      así que la pantalla existe pero nadie llega salvo tecleando `/dashboard`. La migración que
+      siembra `role_menus`/`company_menus` necesita tu OK sobre a qué roles
+- [i] **Comparación contra la guía genética, pendiente.** Los paneles muestran lo CAPTURADO
+      (mortalidad, huevo, consumo, peso), no los derivados (% producción vs guía, conversión
+      alimenticia). Esos tienen dueño —las `fn_indicadores_*`— y traerlos exige agregarlas por
+      empresa; calcularlos acá sería una segunda fórmula para el mismo número
+- [i] El panel de inventario **excluye del stock las granjas con alcance restringido**, a propósito:
+      el stock vive a nivel de GRANJA y no hay forma de recortarlo a un galpón concedido

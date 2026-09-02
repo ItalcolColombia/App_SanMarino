@@ -74,6 +74,20 @@ export function fechaCortaSinTz(iso: string | null | undefined): string {
 }
 
 /**
+ * Etiqueta corta `dd/mm` para EJES de gráficas, sin corrimiento de zona.
+ *
+ * Variante propia (no toca `fechaCorta` ni `fechaCortaSinTz`): en una serie de 30 días,
+ * `21/7/2026` repetido treinta veces no entra en el eje y el año no aporta nada.
+ * Devuelve `''` si no hay fecha — una etiqueta de eje vacía es correcta; un `—` es ruido.
+ */
+export function etiquetaDiaMes(iso: string | null | undefined): string {
+  const ymd = ymdSinTz(iso);
+  if (!ymd) return '';
+  const [, mm, dd] = ymd.split('-');
+  return `${dd}/${mm}`;
+}
+
+/**
  * Sello de fecha compacto para nombres de archivo: `YYYYMMDD` (fecha local).
  * Es el patrón repetido en ~44 exports (`new Date()` + `padStart(2,'0')`).
  */

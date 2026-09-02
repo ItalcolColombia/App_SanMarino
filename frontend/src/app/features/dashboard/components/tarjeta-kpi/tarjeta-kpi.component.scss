@@ -1,0 +1,39 @@
+// Tarjeta de indicador. Los colores salen de los tokens de `styles/theme-italfoods.scss`:
+// naranja = marca/estructura, verde SOLO éxito, rojo SOLO alerta.
+.kpi {
+  background: var(--ital-cream-50, #fff);
+  border: 1px solid var(--ital-green-100, rgba(28, 25, 23, 0.1));
+  border-left: 4px solid var(--ital-orange, #f5821f);
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+
+  &--alerta { border-left-color: var(--danger, #dc2626); }
+  &--exito  { border-left-color: var(--success, #16a34a); }
+
+  &__etiqueta {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ital-muted, #6b7280);
+    margin: 0;
+  }
+
+  &__valor {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--ital-text, #1c1917);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__detalle {
+    font-size: 0.78rem;
+    color: var(--ital-muted, #6b7280);
+    margin: 0;
+  }
+}

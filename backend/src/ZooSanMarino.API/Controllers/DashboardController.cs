@@ -1,352 +1,108 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.Application.DTOs.Dashboard;
 using ZooSanMarino.Application.Interfaces;
-using ZooSanMarino.Application.DTOs;
 
-namespace ZooSanMarino.API.Controllers
+namespace ZooSanMarino.API.Controllers;
+
+/// <summary>
+/// Datos del dashboard.
+///
+/// <para><b>Reescrito el 1-sep-2026.</b> Hasta esa fecha los 8 endpoints de este controller
+/// devolvían datos INVENTADOS: <c>new Random()</c> en producción por granja y registros diarios,
+/// constantes en estadísticas generales (25 usuarios, 8 granjas, 12.500 aves), seis actividades fijas
+/// con nombres de personas inventados, y <c>distribucion-lotes</c> con todos los conteos en 0 y un
+/// <c>// TODO: Implementar cuando esté disponible</c>. Además <b>ninguna acción recibía la empresa
+/// ni el usuario</b> —el front mandaba <c>companyId</c>, <c>userId</c> y <c>farmIds</c> y se
+/// perdían—, así que no había recorte de ningún tipo.</para>
+///
+/// <para>Ahora hay <b>un endpoint por panel</b> (lo que hace posible la carga perezosa real: el panel
+/// que no se dibuja no se pide) y cada uno resuelve su alcance del lado del servidor:
+/// <c>ICurrentUser.CompanyId</c> validado por <c>ActiveCompanyMiddleware</c> +
+/// <c>ILocationScopeResolver</c>, y corta por el módulo del menú antes de consultar nada. <b>Ninguno
+/// recibe la empresa por parámetro</b>: aceptarla del cliente sería confiar en el header crudo.</para>
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class DashboardController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize]
-    public class DashboardController : ControllerBase
+    private readonly IDashboardService _dashboard;
+    private readonly ILogger<DashboardController> _logger;
+
+    public DashboardController(IDashboardService dashboard, ILogger<DashboardController> logger)
     {
-        private readonly IUserService _userService;
-        private readonly IFarmService _farmService;
-        private readonly ILoteService _loteService;
-        private readonly ILoteReproductoraService _loteReproductoraService;
-        private readonly ISeguimientoLoteLevanteService _seguimientoLoteLevanteService;
-        private readonly IMovimientoAvesService _movimientoAvesService;
-        private readonly IInventarioAvesService _inventarioAvesService;
-        private readonly IHistorialInventarioService _historialInventarioService;
-        private readonly ILogger<DashboardController> _logger;
+        _dashboard = dashboard;
+        _logger = logger;
+    }
 
-        public DashboardController(
-            IUserService userService,
-            IFarmService farmService,
-            ILoteService loteService,
-            ILoteReproductoraService loteReproductoraService,
-            ISeguimientoLoteLevanteService seguimientoLoteLevanteService,
-            IMovimientoAvesService movimientoAvesService,
-            IInventarioAvesService inventarioAvesService,
-            IHistorialInventarioService historialInventarioService,
-            ILogger<DashboardController> logger)
+    /// <summary>
+    /// Conteos generales del alcance del usuario: granjas asignadas, y lotes de postura y de engorde
+    /// (activos y totales), recortados por empresa activa y por alcance de ubicación.
+    /// </summary>
+    /// <remarks>Un usuario sin granjas visibles recibe ceros, no la empresa entera.</remarks>
+    [HttpGet("resumen")]
+    [ProducesResponseType(typeof(DashboardResumenDto), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetResumen(CancellationToken ct)
+        => Responder(() => _dashboard.GetResumenAsync(ct), "el resumen");
+
+    /// <summary>
+    /// Panel de postura: mortalidad y huevo por día, y lotes activos por granja.
+    /// </summary>
+    /// <param name="desde">Inicio del período (inclusive). Por defecto, 30 días atrás.</param>
+    /// <param name="hasta">Fin del período (inclusive). Por defecto, hoy.</param>
+    [HttpGet("postura")]
+    [ProducesResponseType(typeof(DashboardPosturaDto), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetPostura(
+        [FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, CancellationToken ct)
+        => Responder(() => _dashboard.GetPosturaAsync(desde, hasta, ct), "el panel de postura");
+
+    /// <summary>
+    /// Panel de pollo engorde: mortalidad, consumo y peso promedio por día, y lotes activos por granja.
+    /// </summary>
+    [HttpGet("engorde")]
+    [ProducesResponseType(typeof(DashboardEngordeDto), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetEngorde(
+        [FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, CancellationToken ct)
+        => Responder(() => _dashboard.GetEngordeAsync(desde, hasta, ct), "el panel de engorde");
+
+    /// <summary>
+    /// Panel de alimento e inventario: existencias por granja y galpones con descuadre.
+    /// </summary>
+    [HttpGet("inventario")]
+    [ProducesResponseType(typeof(DashboardInventarioDto), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetInventario(CancellationToken ct)
+        => Responder(() => _dashboard.GetInventarioAsync(ct), "el panel de inventario");
+
+    /// <summary>
+    /// Panel de cumplimiento: vacunación vencida y próxima, y cuadres offline sin resolver.
+    /// </summary>
+    [HttpGet("cumplimiento")]
+    [ProducesResponseType(typeof(DashboardCumplimientoDto), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetCumplimiento(CancellationToken ct)
+        => Responder(() => _dashboard.GetCumplimientoAsync(ct), "el panel de cumplimiento");
+
+    /// <summary>
+    /// Envoltorio común: 200 con el dato, 499 si el cliente se fue, 500 con un mensaje que no filtra
+    /// el detalle interno (que sí va al log).
+    /// </summary>
+    private async Task<IActionResult> Responder<T>(Func<Task<T>> obtener, string queEs)
+    {
+        try
         {
-            _userService = userService;
-            _farmService = farmService;
-            _loteService = loteService;
-            _loteReproductoraService = loteReproductoraService;
-            _seguimientoLoteLevanteService = seguimientoLoteLevanteService;
-            _movimientoAvesService = movimientoAvesService;
-            _inventarioAvesService = inventarioAvesService;
-            _historialInventarioService = historialInventarioService;
-            _logger = logger;
+            return Ok(await obtener());
         }
-
-        /// <summary>
-        /// Obtiene estadísticas generales del dashboard
-        /// </summary>
-        [HttpGet("estadisticas-generales")]
-        [ProducesResponseType(typeof(DashboardEstadisticasGeneralesDto), StatusCodes.Status200OK)]
-        public IActionResult GetEstadisticasGenerales()
+        catch (OperationCanceledException)
         {
-            try
-            {
-                var estadisticas = new DashboardEstadisticasGeneralesDto
-                {
-                    TotalUsuarios = 25,
-                    UsuariosActivos = 18,
-                    TotalGranjas = 8,
-                    TotalLotes = 45,
-                    TotalLotesReproductora = 15,
-                    TotalLotesProduccion = 20,
-                    TotalLotesLevante = 10,
-                    TotalMovimientosPendientes = 12,
-                    TotalMovimientosCompletados = 156,
-                    TotalInventarioAves = 12500,
-                    UltimaActualizacion = DateTime.UtcNow
-                };
-
-                return Ok(estadisticas);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener estadísticas generales del dashboard");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
+            // El cliente se fue (cambió de pantalla, cerró el panel). No es un error del servidor —
+            // y con @defer en el front esto pasa seguido.
+            return new StatusCodeResult(StatusCodes.Status499ClientClosedRequest);
         }
-
-        /// <summary>
-        /// Obtiene estadísticas de producción por granja
-        /// </summary>
-        [HttpGet("produccion-por-granja")]
-        [ProducesResponseType(typeof(IEnumerable<ProduccionGranjaDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetProduccionPorGranja([FromQuery] DateTime? fechaDesde = null, [FromQuery] DateTime? fechaHasta = null)
+        catch (Exception ex)
         {
-            try
-            {
-                var granjas = await _farmService.GetAllAsync();
-                var produccionPorGranja = new List<ProduccionGranjaDto>();
-
-                var random = new Random();
-                foreach (var granja in granjas)
-                {
-                    var lotes = random.Next(3, 12);
-                    var huevos = random.Next(500, 2000);
-                    var aves = random.Next(800, 3000);
-                    
-                    produccionPorGranja.Add(new ProduccionGranjaDto
-                    {
-                        GranjaId = granja.Id,
-                        GranjaNombre = granja.Name,
-                        TotalLotes = lotes,
-                        TotalHuevos = huevos,
-                        TotalAves = aves,
-                        Eficiencia = Math.Round((double)huevos / lotes, 2)
-                    });
-                }
-
-                return Ok(produccionPorGranja);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener producción por granja");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene registros diarios de actividad
-        /// </summary>
-        [HttpGet("registros-diarios")]
-        [ProducesResponseType(typeof(IEnumerable<RegistroDiarioDto>), StatusCodes.Status200OK)]
-        public IActionResult GetRegistrosDiarios([FromQuery] int dias = 7)
-        {
-            try
-            {
-                var registros = new List<RegistroDiarioDto>();
-                var random = new Random();
-
-                for (int i = 0; i < dias; i++)
-                {
-                    var fecha = DateTime.UtcNow.AddDays(-i);
-                    var seguimiento = random.Next(10, 50);
-                    var movimientos = random.Next(5, 25);
-                    var inventario = random.Next(3, 15);
-                    var total = seguimiento + movimientos + inventario;
-                    
-                    registros.Add(new RegistroDiarioDto
-                    {
-                        Fecha = fecha,
-                        RegistrosSeguimiento = seguimiento,
-                        MovimientosAves = movimientos,
-                        CambiosInventario = inventario,
-                        TotalRegistros = total
-                    });
-                }
-
-                return Ok(registros);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener registros diarios");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene actividades recientes del sistema
-        /// </summary>
-        [HttpGet("actividades-recientes")]
-        [ProducesResponseType(typeof(IEnumerable<ActividadRecienteDto>), StatusCodes.Status200OK)]
-        public IActionResult GetActividadesRecientes([FromQuery] int limite = 20)
-        {
-            try
-            {
-                var actividades = new List<ActividadRecienteDto>
-                {
-                    new ActividadRecienteDto
-                    {
-                        Id = "1",
-                        Tipo = "Sistema",
-                        Descripcion = "Dashboard inicializado",
-                        Fecha = DateTime.UtcNow.AddMinutes(-5),
-                        Usuario = "Sistema",
-                        Icono = "🚀"
-                    },
-                    new ActividadRecienteDto
-                    {
-                        Id = "2",
-                        Tipo = "Lote",
-                        Descripcion = "Nuevo lote de reproductoras creado",
-                        Fecha = DateTime.UtcNow.AddMinutes(-12),
-                        Usuario = "Juan Pérez",
-                        Icono = "🐔"
-                    },
-                    new ActividadRecienteDto
-                    {
-                        Id = "3",
-                        Tipo = "Movimiento",
-                        Descripcion = "Traslado de aves completado",
-                        Fecha = DateTime.UtcNow.AddMinutes(-25),
-                        Usuario = "María García",
-                        Icono = "🚚"
-                    },
-                    new ActividadRecienteDto
-                    {
-                        Id = "4",
-                        Tipo = "Inventario",
-                        Descripcion = "Actualización de inventario de aves",
-                        Fecha = DateTime.UtcNow.AddMinutes(-35),
-                        Usuario = "Carlos López",
-                        Icono = "📦"
-                    },
-                    new ActividadRecienteDto
-                    {
-                        Id = "5",
-                        Tipo = "Producción",
-                        Descripcion = "Registro de producción diaria",
-                        Fecha = DateTime.UtcNow.AddMinutes(-45),
-                        Usuario = "Ana Martínez",
-                        Icono = "🥚"
-                    },
-                    new ActividadRecienteDto
-                    {
-                        Id = "6",
-                        Tipo = "Configuración",
-                        Descripcion = "Configuración del sistema actualizada",
-                        Fecha = DateTime.UtcNow.AddMinutes(-60),
-                        Usuario = "Administrador",
-                        Icono = "⚙️"
-                    }
-                };
-
-                return Ok(actividades.Take(limite));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener actividades recientes");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene estadísticas de mortalidad
-        /// </summary>
-        [HttpGet("estadisticas-mortalidad")]
-        [ProducesResponseType(typeof(IEnumerable<MortalidadDto>), StatusCodes.Status200OK)]
-        public IActionResult GetEstadisticasMortalidad([FromQuery] int dias = 30)
-        {
-            try
-            {
-                var mortalidades = new List<MortalidadDto>
-                {
-                    new MortalidadDto
-                    {
-                        Fecha = DateTime.UtcNow.AddDays(-1),
-                        CantidadMuertas = 5,
-                        LoteId = "LOTE001",
-                        GranjaNombre = "Granja Principal",
-                        CausaMuerte = "Natural"
-                    }
-                };
-
-                return Ok(mortalidades);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener estadísticas de mortalidad");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene distribución de lotes por granja
-        /// </summary>
-        [HttpGet("distribucion-lotes")]
-        [ProducesResponseType(typeof(IEnumerable<DistribucionLotesDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetDistribucionLotes()
-        {
-            try
-            {
-                var granjas = await _farmService.GetAllAsync();
-                var distribucion = new List<DistribucionLotesDto>();
-
-                foreach (var granja in granjas)
-                {
-                    distribucion.Add(new DistribucionLotesDto
-                    {
-                        GranjaId = granja.Id,
-                        GranjaNombre = granja.Name,
-                        LotesReproductora = 0, // TODO: Implementar cuando esté disponible
-                        LotesProduccion = 0, // TODO: Implementar cuando esté disponible
-                        LotesLevante = 0, // TODO: Implementar cuando esté disponible
-                        TotalLotes = 0 // TODO: Implementar cuando esté disponible
-                    });
-                }
-
-                return Ok(distribucion);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener distribución de lotes");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene estadísticas de inventario
-        /// </summary>
-        [HttpGet("estadisticas-inventario")]
-        [ProducesResponseType(typeof(InventarioEstadisticasDto), StatusCodes.Status200OK)]
-        public IActionResult GetEstadisticasInventario()
-        {
-            try
-            {
-                var estadisticas = new InventarioEstadisticasDto
-                {
-                    TotalInventarios = 45,
-                    TotalAvesHembras = 8500,
-                    TotalAvesMachos = 3200,
-                    TotalAvesMixtas = 800,
-                    InventariosBajoStock = 3,
-                    UltimaActualizacion = DateTime.UtcNow
-                };
-
-                return Ok(estadisticas);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener estadísticas de inventario");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
-        }
-
-        /// <summary>
-        /// Obtiene métricas de rendimiento del sistema
-        /// </summary>
-        [HttpGet("metricas-rendimiento")]
-        [ProducesResponseType(typeof(MetricasRendimientoDto), StatusCodes.Status200OK)]
-        public IActionResult GetMetricasRendimiento()
-        {
-            try
-            {
-                var metricas = new MetricasRendimientoDto
-                {
-                    PromedioProduccionDiaria = 1250,
-                    EficienciaPromedio = 0.85,
-                    TasaMortalidadPromedio = 0.02,
-                    MovimientosPorDia = 8,
-                    RegistrosPorDia = 45,
-                    UltimaActualizacion = DateTime.UtcNow
-                };
-
-                return Ok(metricas);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener métricas de rendimiento");
-                return StatusCode(500, new { error = "Error interno del servidor" });
-            }
+            _logger.LogError(ex, "Error al calcular {QueEs} del dashboard", queEs);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { error = $"No se pudo calcular {queEs} del dashboard." });
         }
     }
 }
