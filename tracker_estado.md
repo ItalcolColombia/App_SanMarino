@@ -5881,3 +5881,32 @@ usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en
       al recuperar red o con «Enviar ahora». Si el operario captura, cierra y se va, nada sale
 - [i] Los smokes **C9–C13** (Android real, dos operarios) siguen sin correrse; C12 falla hoy **por
       construcción** mientras H2 no se haga
+
+## Verificación EN PANTALLA (1-sep-2026) — lo que faltaba del cierre anterior
+
+Back en `:5002` + front en `:4200`, sesión real. Para entrar se guardó el hash de
+`admin.ecuador@italcol.com`, se puso uno conocido y **se restauró byte a byte al terminar**
+(verificado con `password_hash = '<original>'` ⇒ `t`).
+
+- [x] **H1 · La bandeja funciona de punta a punta.** El ítem «Cuadres sin conexión» aparece en el
+      sidebar y la ruta abre. **Vacía**: dice «No hay cuadres pendientes», no se queda en «Cargando…»
+      —era el riesgo del `changeDetection`—. **Con una fila real** (generada empujando un gasto sin
+      stock por el push): se lista con su `detalle`, el modal de confirmación repite que **NO repone
+      inventario**, confirmar la saca de la tabla, el contador baja a 0 y la BD queda con
+      `cuadre_resuelto_at` y `cuadre_resuelto_por`
+- [i] 🔴 **Defecto encontrado SÓLO al abrirla con datos (`45b2cea`)**: la columna Origen mostraba
+      `gasto_inventario_crear` crudo. No estaba roto —es el fallback que la función promete para un
+      tipo desconocido, con test— pero **H4 agregó un tipo que el mapa de etiquetas de H1 no tenía**.
+      Es exactamente la clase de cosa que ningún test iba a ver: compila, pasa, y se lee mal
+- [x] **H3 · La fila pendiente se ve y filtra bien.** Con 5 operaciones en el outbox se muestran
+      **sólo 2**: quedaron fuera la de **otro lote**, la de **otro tipo** (reproductora, que comparte
+      el cuerpo) y la de **otra partición**. Se vieron los **dos estados**: «SIN ENVIAR» en naranja
+      («Se envía sola cuando vuelva la conexión») y «RECHAZADA» en rojo (con el enlace a Diagnóstico)
+- [x] **Las fechas no se corren**: `2026-08-31` se pinta **31/8** y `2026-09-01` **1/9**. Es lo que
+      protege `fechaCortaSinTz` — con `new Date('2026-08-31')` habrían salido un día antes
+- [x] **La barra de estado y el filtro de partición coinciden con lo esperado**: de las 5 capturas,
+      el servidor rechazó las 4 de la sesión activa (payload de prueba) y la 5ª —de otra partición—
+      **no se tocó**, que es la regla R9
+- [x] **Limpieza verificada**: 0 gastos del smoke, 0 `sync_operaciones`, 0 sesiones minteadas, stock
+      devuelto a 4250, contraseña restaurada, outbox del navegador vacío, y la fila del histórico
+      unificado en **`anulado = true`**. Puertos **5002 y 4200 libres**
