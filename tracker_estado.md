@@ -6250,4 +6250,5 @@ columnas que **ya existen** ⇒ la próxima migración que alguien genere revien
 - [x] S6 `migrations has-pending-model-changes` ⇒ sin cambios pendientes
 - [x] S7 `migrations list` ⇒ la migración de la Fase C aparece y figura como pendiente
 - [x] S8 Verificar que la BD local no se tocó (ningún DDL, `__EFMigrationsHistory` igual)
-- [ ] S9 Commit y merge a `main`
+- [x] S9 Commit `4cf26b5` y fast-forward de `main` conservando el tracker de la
+      sesion vecina byte a byte (su apendice de 42 lineas y su lista de sucios, identicos)
