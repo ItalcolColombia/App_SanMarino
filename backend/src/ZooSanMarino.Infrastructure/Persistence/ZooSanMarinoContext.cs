@@ -110,7 +110,6 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteBaseEngordeGranja> LoteBaseEngordeGranja => Set<LoteBaseEngordeGranja>();
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
-        public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();

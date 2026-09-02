@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -8,15 +8,21 @@ using ZooSanMarino.Application.Interfaces;
 namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+// Ruta neutra: este controller NO es de Ecuador — es el CRUD del seguimiento diario de engorde
+// que usan Ecuador, Panamá y Colombia (es el único formulario de engorde del front).
+[Route("api/seguimiento-diario-engorde")]
+// Ruta histórica, conservada como ALIAS. No se borra: la usan el front ya desplegado y, sobre todo,
+// la cola offline de la PWA, que puede tener peticiones encoladas contra esta URL en dispositivos
+// que todavía no sincronizaron. Quitarla haría fallar lo capturado sin red.
+[Route("api/SeguimientoAvesEngordeEcuador")]
 [Authorize]
 [Produces("application/json")]
-public class SeguimientoAvesEngordeEcuadorController : ControllerBase
+public class SeguimientoDiarioEngordeController : ControllerBase
 {
-    private readonly ISeguimientoAvesEngordeEcuadorService _svc;
+    private readonly ISeguimientoDiarioEngordeService _svc;
     private readonly ICurrentUser _current;
 
-    public SeguimientoAvesEngordeEcuadorController(ISeguimientoAvesEngordeEcuadorService svc, ICurrentUser current)
+    public SeguimientoDiarioEngordeController(ISeguimientoDiarioEngordeService svc, ICurrentUser current)
     {
         _svc = svc;
         _current = current;

@@ -258,7 +258,7 @@ builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevant
 builder.Services.AddScoped<ISyncPushService, SyncPushService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
-builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
+builder.Services.AddScoped<ISeguimientoDiarioEngordeService, SeguimientoDiarioEngordeService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();

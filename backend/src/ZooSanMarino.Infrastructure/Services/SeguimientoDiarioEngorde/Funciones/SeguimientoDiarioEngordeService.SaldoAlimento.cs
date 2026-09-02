@@ -2,7 +2,7 @@
 // SeguimientoAvesEngordeService: snapshot de stock por día, histórico de consumo por ítem y
 // recálculo secuencial del saldo con piso 0. El descuento/devolución de AVES ya no vive acá:
 // lo resuelve RetiroAvesEngordeAplicador contra el maestro lote_ave_engorde.
-// Partial de SeguimientoAvesEngordeEcuadorService.
+// Partial de SeguimientoDiarioEngordeService.
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +11,7 @@ using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public partial class SeguimientoAvesEngordeEcuadorService
+public partial class SeguimientoDiarioEngordeService
 {
     private async Task<Dictionary<string, object?>> BuildStockMetadataPatchAsync(int loteId, DateTime fecha)
     {

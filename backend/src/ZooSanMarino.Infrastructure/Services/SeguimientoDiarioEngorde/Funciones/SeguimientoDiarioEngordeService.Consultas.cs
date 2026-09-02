@@ -1,13 +1,13 @@
 // Consultas de solo lectura del seguimiento diario de aves engorde Ecuador: por id, por lote,
 // filtrado, resumen de liquidación, tabla diaria (función SQL) e histórico unificado.
-// Partial de SeguimientoAvesEngordeEcuadorService.
+// Partial de SeguimientoDiarioEngordeService.
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public partial class SeguimientoAvesEngordeEcuadorService
+public partial class SeguimientoDiarioEngordeService
 {
     // ─── Consultas estándar ───────────────────────────────────────────────────
 

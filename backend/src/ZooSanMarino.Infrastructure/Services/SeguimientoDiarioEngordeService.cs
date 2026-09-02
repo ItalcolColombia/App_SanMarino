@@ -1,7 +1,7 @@
 // Partial 'ancla' del seguimiento diario de aves engorde para Ecuador: usings, campos, ctor,
 // helpers compartidos (país del lote, mappers, delegadores a la aritmética pura, hembras vivas y
 // rango de fechas del lote) y la interfaz. La implementación vive repartida por responsabilidad en
-// 'SeguimientoAvesEngordeEcuador/Funciones/' (Consultas, Crud, SaldoAlimento). Namespace plano →
+// 'SeguimientoDiarioEngorde/Funciones/' (Consultas, Crud, SaldoAlimento). Namespace plano →
 // misma DI, misma interfaz, mismo comportamiento.
 //
 // Comparte la tabla `seguimiento_diario_aves_engorde` con el servicio Colombia
@@ -21,7 +21,7 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuadorService
+public partial class SeguimientoDiarioEngordeService : ISeguimientoDiarioEngordeService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
@@ -31,11 +31,11 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
     private readonly ILocationScopeResolver _scopeResolver;
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia) — defensivo si un lote Colombia entra por este servicio
-    private readonly ILogger<SeguimientoAvesEngordeEcuadorService>? _logger;
+    private readonly ILogger<SeguimientoDiarioEngordeService>? _logger;
     /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
     private readonly IValidacionSeguimientoService? _validacion;
 
-    public SeguimientoAvesEngordeEcuadorService(
+    public SeguimientoDiarioEngordeService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         IAlimentoNutricionProvider alimentos,
@@ -44,7 +44,7 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
         ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
-        ILogger<SeguimientoAvesEngordeEcuadorService>? logger = null,
+        ILogger<SeguimientoDiarioEngordeService>? logger = null,
         IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;

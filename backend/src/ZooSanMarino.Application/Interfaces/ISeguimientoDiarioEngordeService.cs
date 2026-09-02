@@ -2,7 +2,7 @@ using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Application.Interfaces;
 
-public interface ISeguimientoAvesEngordeEcuadorService
+public interface ISeguimientoDiarioEngordeService
 {
     Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id);
     Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId);

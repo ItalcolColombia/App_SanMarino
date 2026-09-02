@@ -152,7 +152,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                 if (r is null) return (false, false, default, 0, 0);
                 return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LotePosturaProduccionId ?? 0, r.CompanyId);
             }
-            // Los DOS módulos de engorde leen la misma tabla: `SeguimientoAvesEngordeEcuadorService`
+            // Los DOS módulos de engorde leen la misma tabla: `SeguimientoDiarioEngordeService`
             // persiste en `_ctx.SeguimientoDiarioAvesEngorde` igual que el de Colombia/Panamá. La tabla
             // partida `seguimiento_diario_aves_engorde_ecuador` no es la fuente —no existe en todos los
             // entornos, y donde existe está vacía—, así que apuntar ahí devolvía "no existe" para un

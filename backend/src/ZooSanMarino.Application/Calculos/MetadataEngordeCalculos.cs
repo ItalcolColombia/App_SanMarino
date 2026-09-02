@@ -1,6 +1,6 @@
 // Helpers puros de metadata del seguimiento de engorde, compartidos multi-país.
 // Estaban duplicados (con formato distinto, misma lógica) en
-// SeguimientoAvesEngordeService (Colombia) y SeguimientoAvesEngordeEcuadorService (Ecuador).
+// SeguimientoAvesEngordeService (Colombia) y SeguimientoDiarioEngordeService (Ecuador).
 using System.Text.Json;
 
 namespace ZooSanMarino.Application.Calculos;

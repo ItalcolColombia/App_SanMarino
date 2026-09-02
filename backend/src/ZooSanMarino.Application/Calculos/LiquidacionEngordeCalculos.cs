@@ -1,6 +1,6 @@
 // Cálculo puro compartido de la liquidación de lotes de engorde.
 // Usado por SeguimientoAvesEngordeService (Colombia) y
-// SeguimientoAvesEngordeEcuadorService (Ecuador): misma aritmética en ambos países.
+// SeguimientoDiarioEngordeService (Ecuador): misma aritmética en ambos países.
 namespace ZooSanMarino.Application.Calculos;
 
 public static class LiquidacionEngordeCalculos

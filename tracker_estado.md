@@ -6116,10 +6116,21 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
 
 ## Fase B · Símbolos CLR/TS (sin DDL, wire estable)
 
-- [ ] B1 Borrar el fantasma: entidad + Configuration + `DbSet` de `SeguimientoDiarioAvesEngordeEcuador`
-- [ ] B2 Service/interfaz/carpeta del seguimiento vivo → nombre neutro. ⚠️ **choca con el
-      `SeguimientoAvesEngordeService` que ya existe**: decidir y documentar el nombre antes de tocar
-- [ ] B3 Controller con `[Route]` doble (neutra + vieja de alias); el front pasa a la neutra
+- [x] B1 Borrar el fantasma: entidad + Configuration + `DbSet` de `SeguimientoDiarioAvesEngordeEcuador`
+- [x] B2 **Decisión tomada, con la evidencia a la vista: NO hay un service muerto.** Los dos están
+      vivos con dueños distintos — el «Ecuador» es el CRUD del seguimiento diario que usan el front y
+      `SyncPushService` (la sync de la PWA); el neutro lo usan `MigracionService` (carga masiva),
+      `PuentePanamaService` y las rutas de cuadre. Robarle el nombre al otro habría sido mentir
+      igual. ⇒ el vivo pasa a **`SeguimientoDiarioEngordeService`**, que es lo que hace y encaja en
+      la familia que ya existe (`SeguimientoDiarioService`, `SeguimientoDiarioLoteReproductoraService`).
+      **Unificar los dos CRUD es otro trabajo** y no se mete acá: refactor ≠ cambio de comportamiento
+- [x] B3 Controller con `[Route]` doble (`api/seguimiento-diario-engorde` + la histórica de alias);
+      el front pasa a la neutra
+- [x] 🔴 **B3.1 — lo que casi se rompe en silencio.** La cola offline de la PWA decide qué encola
+      **matcheando la URL con un regex** (`decidir-encolable.funcion.ts:41`). Cambiar la URL del front
+      sin tocarlo habría dejado de encolar las capturas de engorde **sin un solo error visible**. El
+      regex ahora acepta **las dos** rutas, y el spec cubre las dos: un dispositivo con el bundle
+      viejo, o con capturas ya encoladas contra la URL vieja, sigue funcionando
 - [ ] B4 `GuiaGeneticaEcuador*` → `GuiaGenetica*` (negative lookahead para no tocar el escalar FK todavía)
 - [ ] B5 `IndicadorEcuador*` → `IndicadorEngorde*`
 - [ ] B6 Front: carpetas `indicador-ecuador/` y `config/guia-genetica-ecuador/` neutras, rutas SPA nuevas

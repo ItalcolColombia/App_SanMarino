@@ -167,7 +167,10 @@ export * from '../../engorde-comun/models/cuadrar-saldos-engorde.models';
 
 @Injectable({ providedIn: 'root' })
 export class SeguimientoAvesEngordeService {
-  private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngordeEcuador`;
+  // Ruta neutra. El controller la expone junto con la historica
+  // `/api/SeguimientoAvesEngordeEcuador`, que sigue viva como alias: este CRUD nunca fue de
+  // Ecuador, lo usan Ecuador, Panama y Colombia contra la misma tabla.
+  private readonly baseUrl = `${environment.apiUrl}/seguimiento-diario-engorde`;
   private readonly movUrl = `${environment.apiUrl}/MovimientoPolloEngorde`;
 
   constructor(private http: HttpClient) {}
@@ -242,7 +245,7 @@ export class SeguimientoAvesEngordeService {
 
   // Cuadrar saldos: las rutas viven SOLO en el controller SeguimientoAvesEngorde
   // (mismo esquema de datos: tabla compartida seguimiento_diario_aves_engorde).
-  // Con baseUrl (SeguimientoAvesEngordeEcuador) daban 404.
+  // Con baseUrl (seguimiento-diario-engorde) daban 404.
   private readonly cuadrarUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
 
   cuadrarSaldosValidar(

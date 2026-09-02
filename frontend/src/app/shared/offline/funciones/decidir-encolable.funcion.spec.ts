@@ -41,7 +41,14 @@ describe('decidirEncolable', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/indicadores-semanales')).toBeNull();
     });
 
-    it('reconoce el alta de POLLO ENGORDE', () => {
+    it('reconoce el alta de POLLO ENGORDE por la ruta neutra Y por la historica', () => {
+      // La ruta neutra es la que manda el bundle nuevo; la historica sigue viva como alias del
+      // controller. Un dispositivo con el bundle viejo, o con capturas ya encoladas contra la vieja,
+      // tiene que seguir encolando igual: si solo matcheara una, esas capturas se perderian.
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde'))
+        .toBe('seguimiento_engorde_crear');
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/'))
+        .toBe('seguimiento_engorde_crear');
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador'))
         .toBe('seguimiento_engorde_crear');
     });
@@ -76,6 +83,8 @@ describe('decidirEncolable', () => {
     it('NO encola la carga masiva ni los sub-recursos de engorde', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/bulk')).toBeNull();
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/cuadrar-saldos')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/bulk')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/cuadrar-saldos')).toBeNull();
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoDiarioLoteReproductora/bulk')).toBeNull();
     });
 

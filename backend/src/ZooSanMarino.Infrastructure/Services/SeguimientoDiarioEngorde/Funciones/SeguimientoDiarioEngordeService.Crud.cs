@@ -1,7 +1,7 @@
 // Alta/edición/baja del seguimiento diario de aves engorde Ecuador, con afectación de inventario
 // (gate por país: Colombia modelo B nivel granja / Ecuador-Panamá modelo B), snapshot de consumo,
 // retiro/devolución de aves y recálculo de saldo de alimento.
-// Partial de SeguimientoAvesEngordeEcuadorService.
+// Partial de SeguimientoDiarioEngordeService.
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
@@ -10,7 +10,7 @@ using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public partial class SeguimientoAvesEngordeEcuadorService
+public partial class SeguimientoDiarioEngordeService
 {
     // ─── CRUD con afectación de inventario y recálculo de saldo ──────────────
 

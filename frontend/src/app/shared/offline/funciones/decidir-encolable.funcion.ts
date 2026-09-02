@@ -38,7 +38,11 @@ const OPERACIONES_SOPORTADAS: ReadonlyArray<{
   {
     metodo: 'POST',
     // Alta de seguimiento diario de POLLO ENGORDE.
-    ruta: /\/api\/SeguimientoAvesEngordeEcuador\/?$/i,
+    // Acepta las DOS rutas a proposito: la neutra `seguimiento-diario-engorde` y la historica
+    // `SeguimientoAvesEngordeEcuador`, que el controller conserva como alias. Un dispositivo que
+    // todavia no actualizo el bundle sigue encolando contra la vieja, y lo que ya tenga encolado
+    // se reintenta con esa URL: si este regex dejara de matchearla, esas capturas se perderian.
+    ruta: /\/api\/(SeguimientoAvesEngordeEcuador|seguimiento-diario-engorde)\/?$/i,
     tipo: 'seguimiento_engorde_crear'
   },
   {
