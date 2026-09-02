@@ -1,6 +1,6 @@
 import { of } from 'rxjs';
 import { IndicadoresDiariosEngordeComputeService } from './indicadores-diarios-engorde-compute.service';
-import { GuiaGeneticaEcuadorDetalleDto, GuiaGeneticaEcuadorService } from '../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
+import { GuiaGeneticaEngordeDetalleDto, GuiaGeneticaEngordeService } from '../../config/guia-genetica-engorde/guia-genetica-engorde.service';
 import { SeguimientoLoteLevanteDto } from '../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../lote/services/lote.service';
 import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engorde.models';
@@ -21,8 +21,8 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
   const ENCASET = '2026-01-01';
   const PESO_INI = 40;
 
-  function guiaFake(): GuiaGeneticaEcuadorService {
-    const detalle: GuiaGeneticaEcuadorDetalleDto[] = [
+  function guiaFake(): GuiaGeneticaEngordeService {
+    const detalle: GuiaGeneticaEngordeDetalleDto[] = [
       {
         sexo: 'mixto',
         dia: 0,
@@ -35,11 +35,11 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
         mortalidadSeleccionDiaria: 0
       }
     ];
-    return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEcuadorService;
+    return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEngordeService;
   }
 
   /** Guia con dos dias distintos para verificar que el cruce sigue siendo por EDAD. */
-  function guiaFakeDosDias(): GuiaGeneticaEcuadorService {
+  function guiaFakeDosDias(): GuiaGeneticaEngordeService {
     const base = {
       sexo: 'mixto',
       gananciaDiariaG: 5,
@@ -49,11 +49,11 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
       ca: 0.2,
       mortalidadSeleccionDiaria: 0
     };
-    const detalle: GuiaGeneticaEcuadorDetalleDto[] = [
-      { ...base, dia: 0, pesoCorporalG: PESO_INI } as GuiaGeneticaEcuadorDetalleDto,
-      { ...base, dia: 1, pesoCorporalG: 62 } as GuiaGeneticaEcuadorDetalleDto
+    const detalle: GuiaGeneticaEngordeDetalleDto[] = [
+      { ...base, dia: 0, pesoCorporalG: PESO_INI } as GuiaGeneticaEngordeDetalleDto,
+      { ...base, dia: 1, pesoCorporalG: 62 } as GuiaGeneticaEngordeDetalleDto
     ];
-    return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEcuadorService;
+    return { getDatos: () => of(detalle) } as unknown as GuiaGeneticaEngordeService;
   }
 
   function lote(): LoteDto {

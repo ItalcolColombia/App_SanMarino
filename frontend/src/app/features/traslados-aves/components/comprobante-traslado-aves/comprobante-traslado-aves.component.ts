@@ -13,7 +13,7 @@ export interface FilaComprobante {
  * Comprobante imprimible de un traslado de aves — cierra `TK-2026-000180` / `SR-DEF-5` (F9.2c).
  *
  * <p>Es el **primer comprobante del repo**. Sigue el patrón de
- * `indicador-ecuador/components/liquidacion-reporte-panama`: componente standalone y tonto
+ * `indicador-engorde/components/liquidacion-reporte-panama`: componente standalone y tonto
  * (recibe los datos ya armados por `@Input()`), con `print()` = `window.print()` y el documento
  * maquetado en CSS con `@media print`. **No se agregó ninguna librería de PDF**: no hay ninguna en
  * el repo (solo `xlsx` en el front y ClosedXML/EPPlus en el back) y el navegador ya imprime a PDF.</p>

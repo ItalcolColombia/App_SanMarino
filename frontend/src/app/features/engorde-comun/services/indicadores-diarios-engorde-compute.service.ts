@@ -4,9 +4,9 @@ import { SeguimientoLoteLevanteDto } from '../../lote-levante/services/seguimien
 import { LoteDto } from '../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../lote/services/lote-postura-levante.service';
 import {
-  GuiaGeneticaEcuadorDetalleDto,
-  GuiaGeneticaEcuadorService
-} from '../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
+  GuiaGeneticaEngordeDetalleDto,
+  GuiaGeneticaEngordeService
+} from '../../config/guia-genetica-engorde/guia-genetica-engorde.service';
 import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engorde.models';
 import { ymdSinTz } from '../../../shared/utils/format';
 import { desplazamientoPrimerDia, diaDeNegocioDesdeEdad } from '../funciones/dia-negocio-engorde.funcion';
@@ -30,7 +30,7 @@ export interface IndicadoresDiariosEngordeComputeResult {
  */
 @Injectable({ providedIn: 'root' })
 export class IndicadoresDiariosEngordeComputeService {
-  constructor(private guiaEcuador: GuiaGeneticaEcuadorService) {}
+  constructor(private guiaEcuador: GuiaGeneticaEngordeService) {}
 
   async compute(
     seguimientos: SeguimientoLoteLevanteDto[],
@@ -60,7 +60,7 @@ export class IndicadoresDiariosEngordeComputeService {
     }
     etiquetaGuiaCargada = `Guía genética Ecuador · sexo mixto · ${raza} · año ${anio}`;
 
-    let guiaPorDia = new Map<number, GuiaGeneticaEcuadorDetalleDto>();
+    let guiaPorDia = new Map<number, GuiaGeneticaEngordeDetalleDto>();
     try {
       const detalle = await firstValueFrom(this.guiaEcuador.getDatos(raza, anio, 'mixto'));
       for (const d of detalle ?? []) {
@@ -268,9 +268,9 @@ export class IndicadoresDiariosEngordeComputeService {
   }
 
   private guiaParaDia(
-    map: Map<number, GuiaGeneticaEcuadorDetalleDto>,
+    map: Map<number, GuiaGeneticaEngordeDetalleDto>,
     dia: number
-  ): GuiaGeneticaEcuadorDetalleDto | undefined {
+  ): GuiaGeneticaEngordeDetalleDto | undefined {
     if (map.has(dia)) {
       return map.get(dia);
     }

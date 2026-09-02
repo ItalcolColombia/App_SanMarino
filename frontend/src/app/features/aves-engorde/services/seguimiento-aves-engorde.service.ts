@@ -167,9 +167,11 @@ export * from '../../engorde-comun/models/cuadrar-saldos-engorde.models';
 
 @Injectable({ providedIn: 'root' })
 export class SeguimientoAvesEngordeService {
-  // Ruta neutra. El controller la expone junto con la historica
-  // `/api/SeguimientoAvesEngordeEcuador`, que sigue viva como alias: este CRUD nunca fue de
-  // Ecuador, lo usan Ecuador, Panama y Colombia contra la misma tabla.
+  // Ruta neutra. El controller la expone junto con la historica (el nombre viejo del controller,
+  // `SeguimientoAvesEngordeEcuador`), que sigue viva como alias para los bundles ya desplegados:
+  // este CRUD nunca fue de Ecuador, lo usan Ecuador, Panama y Colombia contra la misma tabla.
+  // Ojo al redactar: `verificar-lista-cacheable.js` lee cualquier `/api/<recurso>` del texto —
+  // comentarios incluidos— como si la app lo pidiera, y falla si no esta en ninguna de las listas.
   private readonly baseUrl = `${environment.apiUrl}/seguimiento-diario-engorde`;
   private readonly movUrl = `${environment.apiUrl}/MovimientoPolloEngorde`;
 

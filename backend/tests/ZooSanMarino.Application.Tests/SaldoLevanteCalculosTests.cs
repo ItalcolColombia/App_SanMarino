@@ -95,7 +95,7 @@ public class SaldoLevanteCalculosTests
         Assert.Equal(10_000 - 300 - 120 - 600, aves); // 8980
     }
 
-    // ── 5. Cross-reader: mismo saldo entre fn/GetMortalidadResumen e IndicadorEcuador ──
+    // ── 5. Cross-reader: mismo saldo entre fn/GetMortalidadResumen e IndicadorEngorde ──
     [Fact]
     public void CrossReader_MismaFormula_MismoSaldo()
     {

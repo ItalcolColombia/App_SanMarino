@@ -20,7 +20,7 @@ namespace ZooSanMarino.Application.Tests;
 ///
 /// La aritmética de create (positivos), update (diff→incrementos/devoluciones) y delete (devolución
 /// total) replicada aquí es la MISMA que las ramas Colombia de SeguimientoAvesEngordeService /
-/// SeguimientoAvesEngordeEcuadorService. La mutación real del stock (RegistrarConsumoNivelGranjaAsync)
+/// SeguimientoDiarioEngordeService. La mutación real del stock (RegistrarConsumoNivelGranjaAsync)
 /// y el id-mapping A→B se prueban en ColombiaInventarioIdResolutionCalculosTests.
 /// </summary>
 public class SeguimientoEngordeColombiaInventarioTests

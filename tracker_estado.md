@@ -6131,11 +6131,37 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
       sin tocarlo habría dejado de encolar las capturas de engorde **sin un solo error visible**. El
       regex ahora acepta **las dos** rutas, y el spec cubre las dos: un dispositivo con el bundle
       viejo, o con capturas ya encoladas contra la URL vieja, sigue funcionando
-- [ ] B4 `GuiaGeneticaEcuador*` → `GuiaGenetica*` (negative lookahead para no tocar el escalar FK todavía)
-- [ ] B5 `IndicadorEcuador*` → `IndicadorEngorde*`
-- [ ] B6 Front: carpetas `indicador-ecuador/` y `config/guia-genetica-ecuador/` neutras, rutas SPA nuevas
-      **+ redirect** de las viejas, menú apuntado por migración data-only
-- [ ] B7 `dotnet build` + `dotnet test` + `yarn build` + `ng test` + gate de change detection
+- [x] B4 `GuiaGeneticaEcuador*` → **`GuiaGeneticaEngorde*`**, no `GuiaGenetica*`: ya existe un
+      `guia-genetica` DISTINTO (el de levante, `services/guia-genetica.service.ts`). El nombre lleva el
+      MÓDULO, no el país. La diferencia de mayúsculas protegió sola los nombres de BD
+      (`guia_genetica_ecuador_*` sigue intacto hasta Fase C). Controller con ruta neutra + la histórica
+      de alias
+- [x] B5 `IndicadorEcuador*` → `IndicadorEngorde*` (controller, service, `Calculos`, DTOs, interfaz y
+      sus tests). Ruta neutra + histórica de alias
+- [x] B6 Front: carpetas `indicador-engorde/` y `config/guia-genetica-engorde/`, rutas SPA nuevas
+      **+ redirect** de las viejas. **El menú en BD NO se mueve**: apunta a la ruta vieja y el redirect
+      lo cubre. Moverlo por migración lo aplicaría el backend al arrancar, y si el bundle del front
+      todavía es el anterior el menú llevaría a una ruta que no existe — el orden de despliegue no se
+      puede garantizar, el redirect sí
+- [x] 🔴 **B6.1 — el gate de la lista cacheable me corrigió una premisa equivocada.** Había dejado la
+      ruta histórica en `ENDPOINTS_OPERATIVOS` «para los bundles viejos». Está mal: **esa lista se
+      compila DENTRO del bundle**, así que el dispositivo con el bundle anterior lleva su propia copia
+      con el nombre viejo. Repetirla en el bundle nuevo no protege a nadie y queda como entrada muerta.
+      Corregido: va sólo la ruta neutra. Además `'indicadorecuador'` estaba en `EXCLUIDOS` en minúscula
+      y el rename no la alcanzó (otro caso donde el gate evitó una regresión silenciosa)
+- [x] [i] **Cuidado al redactar comentarios cerca de una URL:** el gate cuenta cualquier
+      `/api/<recurso>` del TEXTO —comentarios incluidos— como si la app lo pidiera. Un comentario mío
+      lo hizo fallar. Anotado en el propio archivo
+- [x] 🔴 **B7.1 — la FK de la guía se llamaba distinto en la BD que en el modelo.** El rename de la
+      entidad hacía que EF quisiera renombrar la constraint (o sea: un rename de C# generando DDL, lo
+      contrario de lo que esta fase promete). Al mirarlo, la constraint real es **`fk_gge_det_header`**
+      —la creó `create_guia_genetica_ecuador_tables.sql`, no EF— mientras el modelo asumía el nombre
+      largo derivado. Cualquier migración futura habría intentado dropear una constraint **inexistente**.
+      Fijada con `HasConstraintName`: el rename queda sin DDL y de paso se corrige el desfase previo
+- [x] B7 `dotnet build` **0/0** · `dotnet test` **3.747 + 1** · `yarn build` limpio · `ng test`
+      **807/807** · gates: lista cacheable **89/55/34/0**, change detection **242/0**, `.sql` por
+      migración, front-no-descuenta-inventario. `migrations has-pending-model-changes` verificado con
+      una migración de descarte: **mi trabajo no aporta ni una operación al diff**
 
 ## Fase C · BD (DDL — requiere OK y deploy propio)
 
@@ -6152,6 +6178,20 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
 - [ ] C7 Idempotencia: correr la migración dos veces sobre la misma BD sin error
 - [ ] C8 Smoke: rutas HTTP viejas en 200, ruta SPA vieja redirige, cola offline de la PWA sincroniza
 - [ ] C9 **Migración inversa escrita ANTES de desplegar** (ver riesgo de rollback silencioso, §7 del plan)
+
+## Hallazgos de paso — NO son de esta tarea
+
+- [ ] 🔴 **Dos cambios de modelo de AYER quedaron sin migración ni snapshot.** `migrations add` hoy
+      genera, para cualquiera que lo corra, un `AddColumn` de `historial_traslado_lote.fecha_traslado`
+      (además con el tipo cambiado a `DateOnly`) y de `email_queue.next_retry_at`. **Las dos columnas
+      YA EXISTEN en la BD**, así que esa migración fallaría al aplicarse y dejaría la app en
+      crash-loop al arrancar — el incidente que CLAUDE.md documenta. Verificado que es previo: el
+      snapshot commiteado en `764de8f` ya no las tenía. Viene de los bloques del 1-sep (historial de
+      traslados y cola de correo). **No lo toco acá**: arreglarlo es decidir sobre una feature ajena
+- [ ] 🔎 **`LiquidacionTecnicaEcuador` es el mismo defecto y no estaba en los 4 elegidos.** Sus
+      endpoints reciben `loteAveEngordeId` y el front lo llama `baseUrlEcuador` para distinguirlo del
+      de levante: la diferencia real es **engorde vs levante**, no el país. Queda anotado en vez de
+      renombrado, para no ampliar el alcance por mi cuenta
 
 ## Fuera de alcance (explícito)
 

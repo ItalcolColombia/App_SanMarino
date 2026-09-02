@@ -1797,7 +1797,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("galpon_silos", "public");
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEcuadorDetalle", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEngordeDetalle", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1846,7 +1846,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("numeric(18,3)")
                         .HasColumnName("ganancia_diaria_g");
 
-                    b.Property<int>("GuiaGeneticaEcuadorHeaderId")
+                    b.Property<int>("GuiaGeneticaEngordeHeaderId")
                         .HasColumnType("integer")
                         .HasColumnName("guia_genetica_ecuador_header_id");
 
@@ -1882,14 +1882,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_guia_genetica_ecuador_detalle");
 
-                    b.HasIndex("GuiaGeneticaEcuadorHeaderId", "Sexo", "Dia")
+                    b.HasIndex("GuiaGeneticaEngordeHeaderId", "Sexo", "Dia")
                         .IsUnique()
                         .HasDatabaseName("ix_guia_genetica_ecuador_detalle_guia_genetica_ecuador_header_");
 
                     b.ToTable("guia_genetica_ecuador_detalle", (string)null);
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEcuadorHeader", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEngordeHeader", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -12375,16 +12375,16 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("FarmSilo");
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEcuadorDetalle", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEngordeDetalle", b =>
                 {
-                    b.HasOne("ZooSanMarino.Domain.Entities.GuiaGeneticaEcuadorHeader", "GuiaGeneticaEcuadorHeader")
+                    b.HasOne("ZooSanMarino.Domain.Entities.GuiaGeneticaEngordeHeader", "GuiaGeneticaEngordeHeader")
                         .WithMany("Detalles")
-                        .HasForeignKey("GuiaGeneticaEcuadorHeaderId")
+                        .HasForeignKey("GuiaGeneticaEngordeHeaderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_guia_genetica_ecuador_detalle_guia_genetica_ecuador_header_");
+                        .HasConstraintName("fk_gge_det_header");
 
-                    b.Navigation("GuiaGeneticaEcuadorHeader");
+                    b.Navigation("GuiaGeneticaEngordeHeader");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.HistorialInventario", b =>
@@ -13926,7 +13926,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("UserFarms");
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEcuadorHeader", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.GuiaGeneticaEngordeHeader", b =>
                 {
                     b.Navigation("Detalles");
                 });

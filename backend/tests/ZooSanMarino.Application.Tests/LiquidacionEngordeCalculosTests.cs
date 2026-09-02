@@ -6,7 +6,7 @@ namespace ZooSanMarino.Application.Tests;
 /// <summary>
 /// Verifica que LiquidacionEngordeCalculos reproduce exactamente la aritmética
 /// que vivía duplicada en SeguimientoAvesEngordeService (Colombia) y
-/// SeguimientoAvesEngordeEcuadorService (Ecuador).
+/// SeguimientoDiarioEngordeService (Ecuador).
 /// </summary>
 public class LiquidacionEngordeCalculosTests
 {

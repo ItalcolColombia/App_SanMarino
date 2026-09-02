@@ -85,8 +85,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SyncOperacion> SyncOperaciones => Set<SyncOperacion>();
 
         // Guía genética Ecuador (tablas mixto/hembra/macho por empresa + raza + año)
-        public DbSet<GuiaGeneticaEcuadorHeader> GuiaGeneticaEcuadorHeader => Set<GuiaGeneticaEcuadorHeader>();
-        public DbSet<GuiaGeneticaEcuadorDetalle> GuiaGeneticaEcuadorDetalle => Set<GuiaGeneticaEcuadorDetalle>();
+        public DbSet<GuiaGeneticaEngordeHeader> GuiaGeneticaEngordeHeader => Set<GuiaGeneticaEngordeHeader>();
+        public DbSet<GuiaGeneticaEngordeDetalle> GuiaGeneticaEngordeDetalle => Set<GuiaGeneticaEngordeDetalle>();
         
         // Sistema de Inventario de Aves
         public DbSet<InventarioAves> InventarioAves => Set<InventarioAves>();

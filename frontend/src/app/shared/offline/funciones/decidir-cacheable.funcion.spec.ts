@@ -47,7 +47,7 @@ describe('decidirCacheable', () => {
     expect(decidirCacheable('GET', '/api/guia-genetica-santa-reyes?page=1')).toBeFalse();
     expect(decidirCacheable('GET', '/api/guia-genetica-santa-reyes/plantilla')).toBeFalse();
     expect(decidirCacheable('GET', '/api/guia-genetica')).toBeTrue();
-    expect(decidirCacheable('GET', '/api/guia-genetica-ecuador/anos')).toBeTrue();
+    expect(decidirCacheable('GET', '/api/guia-genetica-engorde/anos')).toBeTrue();
   });
 
   it('es LISTA BLANCA: un endpoint desconocido no se cachea', () => {

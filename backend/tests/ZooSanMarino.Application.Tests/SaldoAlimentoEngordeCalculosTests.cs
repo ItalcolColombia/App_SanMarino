@@ -5,7 +5,7 @@ namespace ZooSanMarino.Application.Tests;
 
 /// <summary>
 /// Verifica TryGetHistDeltaAndOrd (SaldoAlimentoEngordeCalculos), el cálculo puro compartido
-/// que usa SeguimientoAvesEngordeEcuadorService.SaldoAlimento y SeguimientoAvesEngordeService
+/// que usa SeguimientoDiarioEngordeService.SaldoAlimento y SeguimientoAvesEngordeService
 /// (Colombia) para el recálculo del saldo de alimento por lote: qué eventos del histórico
 /// unificado participan, su signo y su orden intra-día.
 /// </summary>

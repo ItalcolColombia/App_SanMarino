@@ -52,10 +52,10 @@ describe('LoteEngordeListComponent', () => {
   function abrirModalEditando(lote: LoteAveEngordeDto, anosPorRaza: number[]) {
     component.openModal(lote);
     httpMock.expectOne(req => req.url.endsWith('/LoteAveEngorde/form-data')).flush(formData);
-    httpMock.expectOne(req => req.url.endsWith('/guia-genetica-ecuador/filters'))
+    httpMock.expectOne(req => req.url.endsWith('/guia-genetica-engorde/filters'))
       .flush({ razas: formData.razas, anos: anosPorRaza });
     if (lote.raza) {
-      httpMock.expectOne(req => req.url.includes('/guia-genetica-ecuador/anos')).flush(anosPorRaza);
+      httpMock.expectOne(req => req.url.includes('/guia-genetica-engorde/anos')).flush(anosPorRaza);
     }
   }
 

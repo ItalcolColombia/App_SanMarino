@@ -433,7 +433,7 @@ public partial class PuentePanamaService
         {
             var items = PuentePanamaCalculos.MapGuiaGeneticaDetalle(filas);
             await _guiaGeneticaService.UpsertManualAsync(
-                new GuiaGeneticaEcuadorManualRequestDto(raza, anio, "mixto", "active", items), ct);
+                new GuiaGeneticaEngordeManualRequestDto(raza, anio, "mixto", "active", items), ct);
             c.RazaAnioGuia.Add(key);
             c.GuiasAseguradas.Add(key);
             c.R.GuiaGeneticaFilas += items.Count;

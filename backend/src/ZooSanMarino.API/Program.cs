@@ -318,7 +318,7 @@ builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
 // Indicador Ecuador Service
-builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
+builder.Services.AddScoped<IIndicadorEngordeService, IndicadorEngordeService>();
 
 // Informe Semanal Pollo de Engorde (Panamá)
 builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPolloEngordeService>();
@@ -362,7 +362,7 @@ builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableE
 
 // Guía Genética Service
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
-builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorService>();
+builder.Services.AddScoped<IGuiaGeneticaEngordeService, GuiaGeneticaEngordeService>();
 
 // Guía Genética REDUCIDA (guia_genetica_santa_reyes): la puerta de escritura que la tabla no tenía.
 builder.Services.AddScoped<IGuiaGeneticaSantaReyesService, GuiaGeneticaSantaReyesService>();

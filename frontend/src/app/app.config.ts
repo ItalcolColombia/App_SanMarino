@@ -503,12 +503,17 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.GuiaGeneticaFormComponent)
           },
 
+          // Guía genética de POLLO ENGORDE (tabla compartida por todas las empresas y países: su
+          // header tiene pais_id, y la Ross 308 AP de Panamá vive ahí). Se llamaba
+          // 'guia-genetica-ecuador'; esa URL queda como REDIRECT porque es la que tiene el menú
+          // guardado en BD, y el menú no se puede mover antes que el bundle.
           {
-            path: 'guia-genetica-ecuador',
+            path: 'guia-genetica-engorde',
             loadComponent: () =>
-              import('./features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component')
-                .then(m => m.GuiaGeneticaEcuadorPageComponent)
+              import('./features/config/guia-genetica-engorde/guia-genetica-engorde-page/guia-genetica-engorde-page.component')
+                .then(m => m.GuiaGeneticaEngordePageComponent)
           },
+          { path: 'guia-genetica-ecuador', redirectTo: 'guia-genetica-engorde', pathMatch: 'full' },
 
           // Guía genética REDUCIDA (guia_genetica_santa_reyes) — tabla plana de 3 métricas por
           // raza/año/semana. Es la TERCERA pantalla de guía genética, y son tres a propósito: cada
@@ -554,14 +559,17 @@ export const appConfig: ApplicationConfig = {
         ]
       },
       
-      // Indicador Ecuador (ruta independiente)
+      // Indicador de pollo engorde (ruta independiente). Se llamaba 'indicador-ecuador' pero nunca
+      // fue de Ecuador: adentro viven los reportes de corrida y de liquidación de Panamá. La URL
+      // vieja queda como REDIRECT porque es la que tiene el menú guardado en BD.
       {
-        path: 'indicador-ecuador',
+        path: 'indicador-engorde',
         canActivate: [authGuard],
         loadChildren: () =>
-          import('./features/indicador-ecuador/indicador-ecuador.module')
-            .then(m => m.IndicadorEcuadorModule)
+          import('./features/indicador-engorde/indicador-engorde.module')
+            .then(m => m.IndicadorEngordeModule)
       },
+      { path: 'indicador-ecuador', redirectTo: 'indicador-engorde', pathMatch: 'prefix' },
 
       // Informe Semanal Pollo de Engorde (Panamá)
       {

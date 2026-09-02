@@ -1,0 +1,131 @@
+using ZooSanMarino.Application.Calculos;
+
+namespace ZooSanMarino.Application.Tests;
+
+/// <summary>
+/// Fórmulas de merma de la liquidación técnica Ecuador (R1), verificadas contra el ejemplo real
+/// del requerimiento (liquidación km 61 lote 02 del reporte de Costos): merma 5 und ⇒ 0,01 %,
+/// ajuste −8 ⇒ −0,02 %, merma 10,66 kg descontada del total a cliente.
+/// </summary>
+public class IndicadorEngordeCalculosTests
+{
+    // Valores del comparativo de Costos (km 61 lote 02).
+    private const int MermaUnidades = 5;
+    private const decimal MermaKilos = 10.66m;
+
+    [Fact]
+    public void MermaPorcentaje_EjemploRequerimiento_RedondeaA001()
+    {
+        // 5 aves de merma sobre ~44.700 vendidas ⇒ 0,011 % ⇒ se reporta 0,01.
+        var pct = IndicadorEngordeCalculos.MermaPorcentaje(MermaUnidades, 44_700);
+        Assert.Equal(0.01m, Math.Round(pct, 2));
+    }
+
+    [Fact]
+    public void AjusteAves_EjemploRequerimiento_DaMenosTres()
+    {
+        // encasetadas − vendidas − (mortalidad + selección) = ajuste; sin restar merma.
+        var ajuste = IndicadorEngordeCalculos.AjusteAves(
+            avesEncasetadas: 45_880, avesVendidas: 44_700, mortalidad: 1_183);
+        Assert.Equal(-3, ajuste);
+    }
+
+    [Fact]
+    public void PorcentajeAjuste_EjemploRequerimiento_RedondeaAMenos002()
+    {
+        var pct = IndicadorEngordeCalculos.PorcentajeAjuste(ajusteAves: -8, avesEncasetadas: 45_880);
+        Assert.Equal(-0.02m, Math.Round(pct, 2));
+    }
+
+    [Fact]
+    public void TotalKilosDespachadosCliente_DescuentaLaMermaKilos()
+    {
+        var total = IndicadorEngordeCalculos.TotalKilosDespachadosCliente(135_090.66m, MermaKilos);
+        Assert.Equal(135_080.00m, total);
+    }
+
+    [Fact]
+    public void MermaPorcentaje_SinVentas_DevuelveCero()
+    {
+        Assert.Equal(0m, IndicadorEngordeCalculos.MermaPorcentaje(5, 0));
+    }
+
+    [Fact]
+    public void PorcentajeAjuste_SinEncasetadas_DevuelveCero()
+    {
+        Assert.Equal(0m, IndicadorEngordeCalculos.PorcentajeAjuste(-8, 0));
+    }
+
+    [Theory]
+    [InlineData("2026-03-23", "2026-05-13", 51)] // fechas del ejemplo (encaset → liquidación)
+    [InlineData("2026-03-23", "2026-03-23", 0)]
+    public void DiasEngorde_DiferenciaDeFechas(string encaset, string cierre, int esperado)
+    {
+        var dias = IndicadorEngordeCalculos.DiasEngorde(DateTime.Parse(encaset), DateTime.Parse(cierre));
+        Assert.Equal(esperado, dias);
+    }
+
+    [Fact]
+    public void DiasEngorde_SinFechas_DevuelveCero()
+    {
+        Assert.Equal(0, IndicadorEngordeCalculos.DiasEngorde(null, DateTime.Today));
+        Assert.Equal(0, IndicadorEngordeCalculos.DiasEngorde(DateTime.Today, null));
+    }
+
+    // ─── ConversionAjustada (extraído de IndicadorEngordeService en el refactor partial) ───
+    // Réplica exacta de la fórmula previa: conversion + (pesoAjuste − pesoPromedio) / divisorAjuste,
+    // con las variables por defecto pesoAjuste=2,7 y divisorAjuste=4,5.
+
+    [Fact]
+    public void ConversionAjustada_AplicaLaFormulaConVariablesPorDefecto()
+    {
+        // 1,8 + (2,7 − 2,5) / 4,5 = 1,8 + 0,0444… = 1,8444…
+        var esperado = 1.8m + ((2.7m - 2.5m) / 4.5m);
+        var actual = IndicadorEngordeCalculos.ConversionAjustada(
+            conversion: 1.8m, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(esperado, actual);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.5)]
+    public void ConversionAjustada_ConversionNoPositiva_DevuelveCero(double conversion)
+    {
+        var actual = IndicadorEngordeCalculos.ConversionAjustada(
+            conversion: (decimal)conversion, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(0m, actual);
+    }
+
+    // ─── ExcedenteSobrante (usado por MovimientoPolloEngordeService al reservar aves) ───
+    // Suma, por sexo, el faltante (solicitado − disponible) acotado a ≥ 0; nunca negativo.
+
+    [Fact]
+    public void ExcedenteSobrante_SolicitadoSuperaDisponibleEnLosTresSexos_SumaCadaFaltante()
+    {
+        var excedente = IndicadorEngordeCalculos.ExcedenteSobrante(
+            solicitadoH: 100, dispH: 80,
+            solicitadoM: 50, dispM: 20,
+            solicitadoX: 10, dispX: 0);
+        Assert.Equal(60, excedente); // 20 + 30 + 10
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_DisponibleAlcanzaOSobra_NoAportaExcedenteNegativo()
+    {
+        var excedente = IndicadorEngordeCalculos.ExcedenteSobrante(
+            solicitadoH: 50, dispH: 100,
+            solicitadoM: 0, dispM: 0,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_TodoDisponible_DevuelveCero()
+    {
+        var excedente = IndicadorEngordeCalculos.ExcedenteSobrante(
+            solicitadoH: 10, dispH: 10,
+            solicitadoM: 5, dispM: 5,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
+}
