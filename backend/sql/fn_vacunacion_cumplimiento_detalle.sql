@@ -85,7 +85,7 @@ WITH base AS (
     FROM public.vacunacion_cronograma_item ci
     LEFT JOIN public.vacunacion_registro_aplicacion ra ON ra.vacunacion_cronograma_item_id = ci.id
     LEFT JOIN public.farms f ON f.id = ci.granja_id
-    LEFT JOIN public.item_inventario_ecuador ii ON ii.id = ci.item_inventario_id
+    LEFT JOIN public.item_inventario ii ON ii.id = ci.item_inventario_id
     LEFT JOIN public.lote_postura_levante lpl ON lpl.lote_postura_levante_id = ci.lote_postura_levante_id
     LEFT JOIN public.lote_postura_produccion lpp ON lpp.lote_postura_produccion_id = ci.lote_postura_produccion_id
     LEFT JOIN public.lote_ave_engorde lae ON lae.lote_ave_engorde_id = ci.lote_ave_engorde_id

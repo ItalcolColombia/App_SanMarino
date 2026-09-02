@@ -13,7 +13,7 @@ public class ItemSeguimientoDto
     public string TipoItem { get; set; } = string.Empty; // "alimento", "vacuna", "medicamento", etc.
     [JsonPropertyName("catalogItemId")]
     public int CatalogItemId { get; set; } // ID del ítem del inventario (catálogo legacy)
-    /// <summary>ID de item_inventario_ecuador (Ecuador/Panamá). Cuando está presente, se aplica consumo en inventario-gestion.</summary>
+    /// <summary>ID de item_inventario (Ecuador/Panamá). Cuando está presente, se aplica consumo en inventario-gestion.</summary>
     [JsonPropertyName("itemInventarioEcuadorId")]
     public int? ItemInventarioEcuadorId { get; set; }
     /// <summary>Nombre del ítem resuelto por el frontend. Solo informativo: se persiste en metadata jsonb

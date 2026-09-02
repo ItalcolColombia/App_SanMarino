@@ -603,7 +603,7 @@ public partial class ReporteContableService
     ///
     /// <para>
     /// Dos diferencias que NO son opcionales: el tipo de ítem se resuelve contra
-    /// <c>item_inventario_ecuador</c> (el catálogo del módulo nuevo, no <c>catalogo_items</c>), y el
+    /// <c>item_inventario</c> (el catálogo del módulo nuevo, no <c>catalogo_items</c>), y el
     /// <c>movement_type</c> es un texto, no el enum viejo, así que la traducción a las tres
     /// categorías vive en la clase de cálculo con sus tests.
     /// </para>

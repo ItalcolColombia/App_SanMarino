@@ -85,7 +85,7 @@ public partial class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Acumula por CLAVE TIPADA de ítem (conserva el origen del id: item_inventario_ecuador si viene
+    /// Acumula por CLAVE TIPADA de ítem (conserva el origen del id: item_inventario si viene
     /// camino-2, si no catalogItemId) los kg de los ítems del request (ItemsHembras + ItemsMachos),
     /// usando la MISMA prioridad de id y conversión g→kg que ParseMetadataItemsToKgPorOrigen.
     /// TODOS los tipos (alimento + medicamento + insumo), sin re-parsear el JSON del metadata. Id &lt;= 0 se ignora.

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
 
@@ -8,9 +8,9 @@ public class GuiaGeneticaEngordeHeaderConfiguration : IEntityTypeConfiguration<G
 {
     public void Configure(EntityTypeBuilder<GuiaGeneticaEngordeHeader> e)
     {
-        e.ToTable("guia_genetica_ecuador_header");
+        e.ToTable("guia_genetica_header");
 
-        e.HasKey(x => x.Id);
+        e.HasKey(x => x.Id).HasName("guia_genetica_header_pkey");
 
         e.Property(x => x.PaisId)
             .HasColumnName("pais_id")
@@ -39,7 +39,8 @@ public class GuiaGeneticaEngordeHeaderConfiguration : IEntityTypeConfiguration<G
         e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired(false);
         e.Property(x => x.DeletedAt).HasColumnName("deleted_at").IsRequired(false);
 
-        e.HasIndex(x => new { x.CompanyId, x.PaisId, x.Raza, x.AnioGuia }).IsUnique();
+        e.HasIndex(x => new { x.CompanyId, x.PaisId, x.Raza, x.AnioGuia })
+            .HasDatabaseName("ix_guia_genetica_header_company_id_pais_id_raza_anio_g").IsUnique();
 
         e.HasMany(x => x.Detalles)
             .WithOne(d => d.GuiaGeneticaEngordeHeader)

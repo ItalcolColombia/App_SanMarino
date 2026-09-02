@@ -37,7 +37,7 @@ CREATE OR REPLACE FUNCTION fn_inventario_gastos_existencias(
 RETURNS TABLE(
     farm_id                    integer,
     granja_nombre              text,
-    item_inventario_ecuador_id integer,
+    item_inventario_id integer,
     codigo                     text,
     nombre                     text,
     tipo_item                  text,
@@ -63,7 +63,7 @@ LANGUAGE sql STABLE AS $fn$
     items AS (
         -- Catálogo NO-alimento activo de la empresa (el módulo no consume alimento).
         SELECT i.id, i.codigo, i.nombre, i.tipo_item, i.unidad, i.concepto
-        FROM item_inventario_ecuador i
+        FROM item_inventario i
         WHERE i.company_id = p_company_id
           AND i.activo
           AND lower(i.tipo_item) <> 'alimento'
@@ -73,12 +73,12 @@ LANGUAGE sql STABLE AS $fn$
         -- Saldo a nivel granja: la SUMA de lo que hay en cada silo/bodega. Ver la nota de arriba —
         -- sin este GROUP BY, una empresa por silo multiplicaría las filas del reporte.
         -- Se acota a las granjas del universo para no escanear el stock de toda la BD.
-        SELECT s.farm_id, s.item_inventario_ecuador_id, SUM(s.quantity) AS quantity
+        SELECT s.farm_id, s.item_inventario_id, SUM(s.quantity) AS quantity
         FROM inventario_gestion_stock s
         WHERE s.farm_id IN (SELECT id FROM granjas)
           AND s.nucleo_id IS NULL
           AND s.galpon_id IS NULL
-        GROUP BY s.farm_id, s.item_inventario_ecuador_id
+        GROUP BY s.farm_id, s.item_inventario_id
     )
     SELECT
         gr.id,
@@ -96,7 +96,7 @@ LANGUAGE sql STABLE AS $fn$
     CROSS JOIN items it
     LEFT JOIN saldos st
            ON st.farm_id = gr.id
-          AND st.item_inventario_ecuador_id = it.id
+          AND st.item_inventario_id = it.id
     LEFT JOIN LATERAL (
         SELECT SUM(d.cantidad)              AS consumido,
                COUNT(DISTINCT g.id)         AS gastos
@@ -104,7 +104,7 @@ LANGUAGE sql STABLE AS $fn$
         JOIN inventario_gasto_detalle d ON d.inventario_gasto_id = g.id
         WHERE g.company_id = p_company_id
           AND g.farm_id    = gr.id
-          AND d.item_inventario_ecuador_id = it.id
+          AND d.item_inventario_id = it.id
           AND g.estado <> 'Eliminado'
           AND (p_fecha_desde IS NULL OR g.fecha >= p_fecha_desde)
           AND (p_fecha_hasta IS NULL OR g.fecha <= p_fecha_hasta)

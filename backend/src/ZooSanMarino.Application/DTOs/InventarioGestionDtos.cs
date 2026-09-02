@@ -55,7 +55,7 @@ public sealed record InventarioGestionHistoricoFiltrosDto(
     IReadOnlyList<NucleoDto> NucleosOrigen,
     IReadOnlyList<GalponLiteDto> GalponesOrigen);
 
-/// <summary>Stock de un ítem en una ubicación (granja o granja+núcleo+galpón). Ítem desde item_inventario_ecuador.</summary>
+/// <summary>Stock de un ítem en una ubicación (granja o granja+núcleo+galpón). Ítem desde item_inventario.</summary>
 public sealed record InventarioGestionStockDto(
     int Id,
     int FarmId,

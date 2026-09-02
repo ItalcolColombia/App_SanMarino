@@ -236,7 +236,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         if (!allowed.Contains(dto.GranjaId))
             throw new InvalidOperationException("No tiene permiso para registrar lotes en esta granja (no está asignada a su usuario).");
 
-        // Guía clásica (produccion_avicola_raw) o guía Ecuador (guia_genetica_ecuador_header), misma compañía
+        // Guía clásica (produccion_avicola_raw) o guía Ecuador (guia_genetica_header), misma compañía
         if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
             throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
 

@@ -918,7 +918,7 @@ public partial class InventarioGestionService
         // —justo lo que este repo prohíbe—. Además, un mismo remito repartido en dos galpones de la
         // misma granja es exactamente el caso que vale la pena avisar; el usuario confirma y sigue.
         //
-        // Se filtra en la BD, no en memoria: el índice (farm_id, item_inventario_ecuador_id) descarta
+        // Se filtra en la BD, no en memoria: el índice (farm_id, item_inventario_id) descarta
         // el resto ahí mismo, sin traer los movimientos de la granja para compararlos en C#.
         return await _db.InventarioGestionMovimientos.AsNoTracking()
             .Where(m => m.MovementType == "Ingreso"

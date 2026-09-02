@@ -119,10 +119,10 @@ public partial class InventarioGestionService
             .FromSql(
                 $@"INSERT INTO inventario_gestion_stock
                        (company_id, pais_id, farm_id, nucleo_id, galpon_id, silo_id,
-                        item_inventario_ecuador_id, quantity, unit, created_at, updated_at)
+                        item_inventario_id, quantity, unit, created_at, updated_at)
                    VALUES ({companyId}, {paisId}, {farmId}, {nucleoId}, {galponId}, {siloId},
                         {itemInventarioId}, {cantidad}, {unidad}, now(), now())
-                   ON CONFLICT (farm_id, item_inventario_ecuador_id,
+                   ON CONFLICT (farm_id, item_inventario_id,
                                 COALESCE(nucleo_id, ''), COALESCE(galpon_id, ''),
                                 COALESCE(silo_id, 0))
                    DO UPDATE SET quantity   = inventario_gestion_stock.quantity + EXCLUDED.quantity,

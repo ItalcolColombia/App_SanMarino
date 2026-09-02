@@ -141,6 +141,9 @@ con_aves2 AS (
 con_guia AS (
     SELECT c.*,
         LAG(c.lpos_incl) OVER (PARTITION BY c.lote_ave_engorde_id ORDER BY c.fecha_registro) AS peso_medido_prev,
+        -- El ALIAS conserva el nombre viejo A PROPOSITO: esta vista la lee Power BI, que es un
+        -- consumidor EXTERNO. Renombrar la columna de salida le rompe el reporte sin aviso. La
+        -- columna de la que sale ya se llama `guia_genetica_header_id`; el alias es el contrato.
         gh.id AS guia_genetica_ecuador_header_id,
         gd.peso_corporal_g::numeric AS peso_tabla_g,
         gd.ganancia_diaria_g::numeric AS ganancia_diaria_tabla_g,
@@ -151,7 +154,7 @@ con_guia AS (
     FROM con_aves2 c
         LEFT JOIN LATERAL (
             SELECT h.id
-            FROM guia_genetica_ecuador_header h
+            FROM guia_genetica_header h
             WHERE h.company_id = c.company_id
               AND h.pais_id = c.pais_id
               AND TRIM(BOTH FROM lower(h.raza::text)) = TRIM(BOTH FROM lower(COALESCE(c.raza, ''::text)))
@@ -164,8 +167,8 @@ con_guia AS (
         ) gh ON TRUE
         LEFT JOIN LATERAL (
             SELECT d.peso_corporal_g, d.ganancia_diaria_g, d.cantidad_alimento_diario_g, d.alimento_acumulado_g, d.ca, d.mortalidad_seleccion_diaria
-            FROM guia_genetica_ecuador_detalle d
-            WHERE d.guia_genetica_ecuador_header_id = gh.id
+            FROM guia_genetica_detalle d
+            WHERE d.guia_genetica_header_id = gh.id
               AND lower(TRIM(BOTH FROM d.sexo)) = 'mixto'::text
               AND d.deleted_at IS NULL
               AND d.dia <= c.dia_vida

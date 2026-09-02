@@ -324,7 +324,7 @@ alim_ingresos AS (
     FROM lote_registro_historico_unificado h
     JOIN galpones_scope gs ON gs.galpon_id = COALESCE(TRIM(h.galpon_id), '')
     CROSS JOIN flag_alim fa
-    LEFT JOIN item_inventario_ecuador ii ON ii.id = h.item_inventario_ecuador_id
+    LEFT JOIN item_inventario ii ON ii.id = h.item_inventario_id
     WHERE fa.fuentes_reales
       AND h.company_id = p_company_id
       AND h.farm_id    = p_granja_id

@@ -16,7 +16,7 @@ public static class MetadataEngordeCalculos
     }
 
     /// <summary>
-    /// Acumula por ítem (item_inventario_ecuador_id o catalog_item_id) los kg de
+    /// Acumula por ítem (item_inventario_id o catalog_item_id) los kg de
     /// itemsHembras + itemsMachos + itemsGenerales del metadata del seguimiento.
     /// Propiedades que no sean arrays se ignoran (guarda defensiva).
     /// Nota Fase 2: itemsGenerales es ADITIVO (Ecuador no usa generales → sin impacto;
@@ -55,7 +55,7 @@ public static class MetadataEngordeCalculos
     /// inventario unificado (camino 2); si no, cae a <c>catalogItemId</c> (catálogo A, camino 1).
     /// Lo usan las ramas Colombia (IColombiaInventarioConsumoService), donde ambos tipos de id
     /// conviven y sus rangos colisionan — el parser plano sigue siendo el correcto para
-    /// Ecuador/Panamá (allí ambos campos traen el mismo id de item_inventario_ecuador).
+    /// Ecuador/Panamá (allí ambos campos traen el mismo id de item_inventario).
     /// <para>
     /// Fase C (silos): si el ítem trae <c>siloId</c>, viaja en la clave. Dos filas del mismo ítem en
     /// silos distintos son DOS claves y se descuentan por separado; sin <c>siloId</c> la clave es

@@ -94,9 +94,9 @@ public static class SeparacionSeguimientoHelper
             : MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(metadata.RootElement);
 
         // F5.4 — bajo Modelo B (EC/PA) un ítem con EsItemInventario=false no es del catálogo A: es
-        // item_inventario_ecuador mal etiquetado (ver ItemConsumoCalculos.NormalizarParaModeloB).
+        // item_inventario mal etiquetado (ver ItemConsumoCalculos.NormalizarParaModeloB).
         // Sin esto, la reserva de un lote reproductora Panamá/Ecuador queda con la marca de origen
-        // mintiendo, aunque el consumo real ya resuelva bien contra item_inventario_ecuador.
+        // mintiendo, aunque el consumo real ya resuelva bien contra item_inventario.
         if (InventarioConsumoGate.ResolverModelo(paisId) == ModeloInventarioConsumo.ModeloB)
             consumo = ItemConsumoCalculos.NormalizarParaModeloB(consumo);
 

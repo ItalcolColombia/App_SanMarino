@@ -336,7 +336,7 @@ items_metadata AS (
     CROSS JOIN LATERAL jsonb_array_elements(
         CASE WHEN jsonb_typeof(b.metadata -> 'itemsHembras') = 'array'
              THEN b.metadata -> 'itemsHembras' ELSE '[]'::jsonb END) it
-    LEFT JOIN item_inventario_ecuador iie
+    LEFT JOIN item_inventario iie
            ON iie.id = NULLIF(it->>'itemInventarioEcuadorId', '')::int
     LEFT JOIN catalogo_items ci
            ON ci.id = NULLIF(it->>'catalogItemId', '')::int
@@ -352,7 +352,7 @@ items_metadata AS (
     CROSS JOIN LATERAL jsonb_array_elements(
         CASE WHEN jsonb_typeof(b.metadata -> 'itemsMachos') = 'array'
              THEN b.metadata -> 'itemsMachos' ELSE '[]'::jsonb END) it
-    LEFT JOIN item_inventario_ecuador iie
+    LEFT JOIN item_inventario iie
            ON iie.id = NULLIF(it->>'itemInventarioEcuadorId', '')::int
     LEFT JOIN catalogo_items ci
            ON ci.id = NULLIF(it->>'catalogItemId', '')::int

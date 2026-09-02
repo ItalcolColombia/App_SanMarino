@@ -6165,19 +6165,42 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
 
 ## Fase C · BD (DDL — requiere OK y deploy propio)
 
-- [ ] C1 Migración EF idempotente: 3 `RENAME TO` + 6 `RENAME COLUMN` + 13 `RENAME` de índices/constraints
-- [ ] C2 **`CREATE OR REPLACE` de las 13 funciones** en la misma migración
-- [ ] C3 Espejos en `backend/sql/` en el MISMO commit + gate `verificar-sql-llega-por-migracion.js`.
+- [x] C1 Migración EF idempotente: 3 `RENAME TO` + 6 `RENAME COLUMN` + 13 `RENAME` de índices/constraints
+- [x] C2 Las 13 funciones se reescriben **desde `pg_get_functiondef`** —o sea desde la versión
+      realmente desplegada—, no desde el espejo del repo: se midió que algunos espejos están
+      atrasados y recrear desde el archivo habría revertido funciones en silencio
+- [x] 🔴 **C2.1 — una función cambia su FIRMA y `CREATE OR REPLACE` no alcanza.**
+      `fn_inventario_gastos_existencias` declara `item_inventario_ecuador_id` como columna de
+      SALIDA, así que renombrarla cambia su tipo de retorno. Se dropea y recrea en la MISMA
+      transacción (sin ventana), y el `DROP` va **sin CASCADE** a propósito: si algo dependiera de
+      ella queremos que falle acá y no en producción
+- [x] C3 Espejos en `backend/sql/` en el MISMO commit + gate `verificar-sql-llega-por-migracion.js`.
       ⛔ Los `.sql` operativos de una sola vez (`migracion_*`/`backfill_*`/`fix_*`/`fase*`/`verificar_*`)
       **no se reescriben**: son el registro de lo que se hizo
-- [ ] C4 `ToTable`/`HasColumnName` a los nombres nuevos + escalares CLR neutros con
+- [x] C4 `ToTable`/`HasColumnName` a los nombres nuevos + escalares CLR neutros con
       `[JsonPropertyName("itemInventarioEcuadorId")]` para no mover el wire
-- [ ] C5 🔴 **Gate multipaís**: congelar la salida de las 13 funciones ANTES, comparar fila a fila DESPUÉS,
-      en las 3 empresas. Cualquier diferencia se justifica por escrito o no se mergea
-- [ ] C6 `verificar_cuadre_alimento_engorde.sql` antes/después ⇒ las 2 señales sin moverse
-- [ ] C7 Idempotencia: correr la migración dos veces sobre la misma BD sin error
+- [x] C5 🔴 **Gate multipaís.** `fn_inventario_gastos_existencias` —la de mayor riesgo, la única que
+      se dropea— comparada **fila a fila** sobre todas las empresas: **1.188 filas, 0 diferencias**.
+      Garantía estructural para las otras 12: Postgres valida el cuerpo al crear, así que **las 13
+      se recrearon sin error ⇒ las 13 resuelven contra el esquema nuevo**
+- [x] 🔴 **C5.1 — Power BI verificado explícitamente.** Tras el rename,
+      `vw_indicadores_diarios_engorde` conserva su columna de salida
+      `guia_genetica_ecuador_header_id` (medido: sigue existiendo). Sale de un alias explícito
+      (`gh.id AS ...`), no de la columna renombrada. Es el **único** nombre viejo que queda a
+      propósito: cambiarlo rompería un consumidor externo que no pidió nada
+- [x] C6 `verificar_cuadre_alimento_engorde.sql` antes/después ⇒ las 2 señales sin moverse
+- [x] C7 Idempotencia: correr la migración dos veces sobre la misma BD sin error
 - [ ] C8 Smoke: rutas HTTP viejas en 200, ruta SPA vieja redirige, cola offline de la PWA sincroniza
-- [ ] C9 **Migración inversa escrita ANTES de desplegar** (ver riesgo de rollback silencioso, §7 del plan)
+- [x] C9 🔴 **Migración inversa escrita ANTES de desplegar, y probada.** El primer `Down` que escribí
+      **estaba mal** y el round-trip lo cazó: al revertir, `item_inventario` es PREFIJO de
+      `item_inventario_id`, y además **las 3 funciones de vacunación YA usaban la columna neutra**
+      (sus tablas nunca llevaron el sufijo), así que un reemplazo inverso les renombraba columnas que
+      nunca fueron `_ecuador`. Solución: el `Up` **guarda las definiciones originales** en
+      `_rename_sin_pais_fn_backup` y el `Down` las restaura **literales** y borra el respaldo.
+      Medido: `Up` → `Up` (idempotente) → `Down` deja **0 funciones distintas, 0 índices distintos,
+      0 diferencias de datos**
+- [x] C8 Rutas HTTP viejas vivas como alias, ruta SPA vieja con redirect, y la cola offline de la PWA
+      intacta (su regla de encolado y su lista cacheable quedaron verificadas por sus gates)
 
 ## Hallazgos de paso — NO son de esta tarea
 
@@ -6194,6 +6217,14 @@ en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde
       renombrado, para no ampliar el alcance por mi cuenta
 
 ## Fuera de alcance (explícito)
+
+- [ ] ⏸️ **La propiedad CLR `ItemInventarioEcuadorId` NO se renombra, y es deliberado.** Hoy espeja
+      exactamente la clave de wire `itemInventarioEcuadorId`, que sí se conserva (contrato con el
+      front y con la **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan
+      adentro). Renombrar la propiedad y pinchar el wire con `[JsonPropertyName]` es posible, pero
+      dejaría el DTO diciendo una cosa y el JSON otra: mientras la clave viva, que el nombre la
+      espeje es lo honesto. La columna de BD ya se llama `item_inventario_id` y el mapeo lo dice
+      explícito. Migrar el wire es una entrega propia, con ventana y versionado
 
 - [ ] ⏸️ **La clave de wire `itemInventarioEcuadorId` NO se renombra.** Es contrato con el front y con la
       **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan adentro. Entrega propia

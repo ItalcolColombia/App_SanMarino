@@ -9,13 +9,13 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
 /// Fase 3 (paso 2) — descuento/devolución de inventario Colombia en el MODELO B unificado
-/// (inventario_gestion_stock / item_inventario_ecuador) a NIVEL GRANJA. Reemplaza a
+/// (inventario_gestion_stock / item_inventario) a NIVEL GRANJA. Reemplaza a
 /// FarmInventoryConsumoService (modelo A) para los lotes Colombia.
 ///
 /// Id-mapping (dos caminos, EXPLÍCITOS en <see cref="ItemConsumoKey"/> — ya no se adivina la
 /// tabla de origen por existencia en catalogo_items, heurístico que fallaba por colisión de
 /// rangos de ids): (1) claves con EsItemInventario=false traen <c>catalogItemId</c> (modelo A)
-/// y se resuelven a <c>item_inventario_ecuador.id</c> por CÓDIGO (mapeo del backfill A→B);
+/// y se resuelven a <c>item_inventario.id</c> por CÓDIGO (mapeo del backfill A→B);
 /// (2) claves con EsItemInventario=true traen <c>itemInventarioEcuadorId</c> directo (ítems
 /// creados en el inventario nuevo, sin fila espejo) y se usan tal cual, validados contra la
 /// empresa efectiva. Batch: una query por camino resuelve todos los ids a la vez.
@@ -122,10 +122,10 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
     }
 
     /// <summary>
-    /// Resuelve en BATCH las claves de ítem → item_inventario_ecuador.id (modelo B), scope
+    /// Resuelve en BATCH las claves de ítem → item_inventario.id (modelo B), scope
     /// empresa efectiva de la granja + país Colombia. Camino por clave (sin adivinar):
-    ///   1) EsItemInventario=false → catalogItemId → codigo → item_inventario_ecuador por código.
-    ///   2) EsItemInventario=true → id directo de item_inventario_ecuador; se valida que exista y
+    ///   1) EsItemInventario=false → catalogItemId → codigo → item_inventario por código.
+    ///   2) EsItemInventario=true → id directo de item_inventario; se valida que exista y
     ///      pertenezca a la empresa efectiva antes de aceptarlo (pass-through controlado).
     /// Las claves que no resuelven por su camino NO figuran en el diccionario.
     /// </summary>
@@ -139,7 +139,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
 
         // Camino 1: catalogItemId → codigo (modelo A, catálogo Colombia). Un catalogItem SIN código
         // (p. ej. un ítem de huevo sembrado sin código ERP todavía) no tiene con qué bridgear a
-        // item_inventario_ecuador — se filtra igual que ya se filtraba implícito cuando Codigo era
+        // item_inventario — se filtra igual que ya se filtraba implícito cuando Codigo era
         // NOT NULL, y `Codigo!` queda seguro porque el `Where` ya lo garantiza no-nulo.
         var codigosPorCatalogItem = catalogIds.Length == 0
             ? new List<(int Id, string Codigo)>()
@@ -151,7 +151,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
 
         var codigos = codigosPorCatalogItem.Select(c => c.Codigo).Distinct().ToArray();
 
-        // codigo → item_inventario_ecuador.id (modelo B, empresa efectiva + Colombia).
+        // codigo → item_inventario.id (modelo B, empresa efectiva + Colombia).
         var itemsB = codigos.Length == 0
             ? new List<(int Id, string Codigo)>()
             : (await _db.ItemInventario.AsNoTracking()
@@ -160,7 +160,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 .ToListAsync(ct))
               .Select(e => (e.Id, e.Codigo)).ToList();
 
-        // Camino 2: ids directos de item_inventario_ecuador (empresa efectiva + Colombia).
+        // Camino 2: ids directos de item_inventario (empresa efectiva + Colombia).
         var itemsBDirectos = directIds.Length == 0
             ? new List<int>()
             : await _db.ItemInventario.AsNoTracking()
@@ -181,7 +181,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             ? new InvalidOperationException(
                 $"El ítem de inventario (id={key.Id}) no existe o no pertenece a la empresa de la granja (empresa {companyId}, país Colombia). No se puede descontar.")
             : new InvalidOperationException(
-                $"El producto (catalogItemId={key.Id}) no tiene equivalente en el inventario unificado de Colombia (item_inventario_ecuador). No se puede descontar.");
+                $"El producto (catalogItemId={key.Id}) no tiene equivalente en el inventario unificado de Colombia (item_inventario). No se puede descontar.");
 
     public async Task ValidarStockConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, int? loteId = null, CancellationToken ct = default)
     {

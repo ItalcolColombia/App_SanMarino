@@ -96,16 +96,16 @@ public static class ItemConsumoCalculos
 
     /// <summary>
     /// Bajo <see cref="ModeloInventarioConsumo.ModeloB"/> (Ecuador/Panamá) sólo existe UNA tabla de
-    /// origen posible para un ítem: <c>item_inventario_ecuador</c>. La marca <c>EsItemInventario =
+    /// origen posible para un ítem: <c>item_inventario</c>. La marca <c>EsItemInventario =
     /// false</c> sólo tiene sentido donde los dos orígenes conviven de verdad (Colombia,
     /// <see cref="ModeloInventarioConsumo.ModeloBNivelGranja"/>) — bajo modelo B, si llega en
     /// <c>false</c> es porque el cliente sólo mandó <c>catalogItemId</c> (el bug medido en
     /// <c>modal-seguimiento-reproductora.component.ts</c>, que hoy sirve a Panamá — 121 lotes — y
     /// Ecuador — 3 lotes — en producción), no porque el id sea de <c>catalogo_items</c>: sigue siendo
-    /// <c>item_inventario_ecuador</c>, sólo que mal etiquetado.
+    /// <c>item_inventario</c>, sólo que mal etiquetado.
     /// <para>
     /// F5.4 del plan (<c>descuento_inventario_movil_plan.md</c>): rechazar acá rompería un flujo que
-    /// hoy funciona (la reserva ya resolvía bien contra <c>item_inventario_ecuador</c>, ver
+    /// hoy funciona (la reserva ya resolvía bien contra <c>item_inventario</c>, ver
     /// <c>InventarioGestionService.ResolverUbicacionConsumoAsync</c>); dejarlo tal cual deja el
     /// registro de auditoría (<c>SeguimientoReservaAlimento.EsItemInventario</c>) mintiendo. Se
     /// normaliza a <c>true</c> — sin rechazo, sin cambiar qué fila de stock se descuenta.

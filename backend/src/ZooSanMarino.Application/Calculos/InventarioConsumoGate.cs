@@ -1,10 +1,10 @@
 // Gate PURO (sin EF/estado) para decidir si un seguimiento debe descontar del
-// inventario "modelo B" (inventario_gestion_stock / item_inventario_ecuador).
+// inventario "modelo B" (inventario_gestion_stock / item_inventario).
 //
 // Contexto del bug (Fase 1 / S1): el consumo desde seguimientos usa el parser
 // MetadataEngordeCalculos.ParseMetadataItemsToKg, que hace fallback
 // catalogItemId -> itemInventarioEcuadorId. Para lotes de Colombia (modelo A) los
-// ítems traen SOLO catalogItemId; si ese id colisiona con un item_inventario_ecuador.id
+// ítems traen SOLO catalogItemId; si ese id colisiona con un item_inventario.id
 // real con stock, se descuenta del inventario del país equivocado (Ecuador) en silencio.
 //
 // El fix se aplica AGUAS ARRIBA (a nivel de servicio): solo se invoca
@@ -21,12 +21,12 @@ public enum ModeloInventarioConsumo
 {
     /// <summary>El país no descuenta de ningún inventario automáticamente.</summary>
     Ninguno = 0,
-    /// <summary>Modelo B (Ecuador/Panamá): inventario_gestion / item_inventario_ecuador, con ubicación núcleo/galpón (alimento exige galpón).</summary>
+    /// <summary>Modelo B (Ecuador/Panamá): inventario_gestion / item_inventario, con ubicación núcleo/galpón (alimento exige galpón).</summary>
     ModeloB = 1,
     /// <summary>Modelo A (Colombia, Fase 2 — histórico): farm_product_inventory / farm_inventory_movements por catalogItemId. Fase 3 dejó de usarlo para Colombia.</summary>
     ModeloA = 2,
     /// <summary>
-    /// Modelo B a NIVEL GRANJA (Colombia, Fase 3 paso 2): inventario_gestion / item_inventario_ecuador
+    /// Modelo B a NIVEL GRANJA (Colombia, Fase 3 paso 2): inventario_gestion / item_inventario
     /// unificado, pero con stock/movimientos por (granja, ítem) sin núcleo/galpón. El ítem se resuelve
     /// desde el catalogItemId (id-mapping A→B por código). Unifica con Ecuador/Panamá SIN exigir galpón.
     /// </summary>
@@ -61,7 +61,7 @@ public static class InventarioConsumoGate
     /// Despacho por país: a qué modelo de inventario descuenta el seguimiento.
     /// Ecuador/Panamá → modelo B con núcleo/galpón (sin cambios).
     /// Colombia → modelo B a NIVEL GRANJA (Fase 3 paso 2): unificado con Ecuador/Panamá sobre
-    ///   inventario_gestion / item_inventario_ecuador, resolviendo el ítem desde catalogItemId
+    ///   inventario_gestion / item_inventario, resolviendo el ítem desde catalogItemId
     ///   (id-mapping A→B por código) y descontando por (granja, ítem) sin exigir galpón. Antes
     ///   (Fase 2) Colombia usaba <see cref="ModeloInventarioConsumo.ModeloA"/>; ese path quedó sin uso.
     /// cualquier otro país / null → ninguno.

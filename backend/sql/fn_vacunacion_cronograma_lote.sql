@@ -152,7 +152,7 @@ SELECT
     ra.aplicado_por_nombre_libre
 FROM franja f
 LEFT JOIN public.farms fm ON fm.id = f.granja_id
-LEFT JOIN public.item_inventario_ecuador ii ON ii.id = f.item_inventario_id
+LEFT JOIN public.item_inventario ii ON ii.id = f.item_inventario_id
 LEFT JOIN public.vacunacion_registro_aplicacion ra ON ra.vacunacion_cronograma_item_id = f.item_id
 LEFT JOIN LATERAL (
     SELECT NULLIF(btrim(COALESCE(u.first_name, '') || ' ' || COALESCE(u.sur_name, '')), '') AS nombre

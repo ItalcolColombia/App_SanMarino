@@ -107,7 +107,7 @@ lotes AS (
 vacunas AS (
     -- Case-insensitive: el dato real trae "Vacuna"/"vacuna" mezclado (paridad con EF ILike).
     SELECT i.id, i.codigo, i.nombre, i.unidad
-    FROM public.item_inventario_ecuador i
+    FROM public.item_inventario i
     WHERE i.company_id = p_company_id AND i.activo = true AND i.tipo_item ILIKE 'vacuna'
 ),
 usuarios AS (

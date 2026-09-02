@@ -4,7 +4,7 @@
 namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
-/// Una sola unidad por ítem, y la dueña es el <b>catálogo</b> (<c>item_inventario_ecuador.unidad</c>).
+/// Una sola unidad por ítem, y la dueña es el <b>catálogo</b> (<c>item_inventario.unidad</c>).
 ///
 /// <para>
 /// <b>El defecto que corrige (TK-2026-000019).</b> <c>inventario_gestion_stock</c> tiene su propia
@@ -35,7 +35,7 @@ public static class UnidadInventarioCalculos
     /// unidad (imposible hoy: la columna es <c>NOT NULL</c>, pero el resolutor no depende de eso) se
     /// cae a la que pidió el llamador, y recién después a <c>kg</c>.
     /// </summary>
-    /// <param name="unidadCatalogo">La del ítem (<c>item_inventario_ecuador.unidad</c>).</param>
+    /// <param name="unidadCatalogo">La del ítem (<c>item_inventario.unidad</c>).</param>
     /// <param name="unidadSolicitada">La que traía el request o la fila previa. Es un respaldo, no una opción.</param>
     public static string Resolver(string? unidadCatalogo, string? unidadSolicitada = null)
     {

@@ -205,7 +205,7 @@ SELECT
     END                          AS dias
 FROM clasificado c
 LEFT JOIN granjas g ON g.id = c.granja_id
-LEFT JOIN public.item_inventario_ecuador ii ON ii.id = c.item_inventario_id
+LEFT JOIN public.item_inventario ii ON ii.id = c.item_inventario_id
 -- El horizonte recorta SÓLO lo que viene: un vencido de hace un año sigue siendo pendiente.
 WHERE c.fin < p_hoy
    OR c.inicio <= p_hoy

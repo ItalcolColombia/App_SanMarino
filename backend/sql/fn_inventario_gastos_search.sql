@@ -106,7 +106,7 @@ LANGUAGE sql STABLE AS $fn$
                 '[]'::json
             )                 AS items
         FROM inventario_gasto_detalle det
-        LEFT JOIN item_inventario_ecuador it ON it.id = det.item_inventario_ecuador_id
+        LEFT JOIN item_inventario it ON it.id = det.item_inventario_id
         WHERE det.inventario_gasto_id = g.id
     ) d ON TRUE
     WHERE g.company_id = p_company_id

@@ -21,7 +21,7 @@ public class InventarioGestionMovimientoConfiguration : IEntityTypeConfiguration
         e.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(50);
         // Espejo de galpon_id/from_galpon_id para el inventario por silo (ver InventarioGestionStock.SiloId).
         e.Property(x => x.SiloId).HasColumnName("silo_id");
-        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
+        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_id").IsRequired();
 
         e.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 3).IsRequired();
         e.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(20).HasDefaultValue("kg").IsRequired();

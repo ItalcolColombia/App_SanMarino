@@ -1,6 +1,6 @@
 -- Tabla para ítems de inventario (Ecuador/Panama) en Configuraciones.
 -- Nota: Esta tabla también se crea en inventario_gestion_tables.sql (todo en uno).
-CREATE TABLE IF NOT EXISTS public.item_inventario_ecuador (
+CREATE TABLE IF NOT EXISTS public.item_inventario (
     id SERIAL PRIMARY KEY,
     codigo VARCHAR(50) NOT NULL,
     nombre VARCHAR(200) NOT NULL,
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS public.item_inventario_ecuador (
     CONSTRAINT uq_item_inv_ecuador_company_pais_codigo UNIQUE (company_id, pais_id, codigo)
 );
 
-CREATE INDEX IF NOT EXISTS ix_item_inventario_ecuador_tipo_item ON public.item_inventario_ecuador (tipo_item);
-CREATE INDEX IF NOT EXISTS ix_item_inventario_ecuador_company_id ON public.item_inventario_ecuador (company_id);
-CREATE INDEX IF NOT EXISTS ix_item_inventario_ecuador_pais_id ON public.item_inventario_ecuador (pais_id);
+CREATE INDEX IF NOT EXISTS ix_item_inventario_tipo_item ON public.item_inventario (tipo_item);
+CREATE INDEX IF NOT EXISTS ix_item_inventario_company_id ON public.item_inventario (company_id);
+CREATE INDEX IF NOT EXISTS ix_item_inventario_pais_id ON public.item_inventario (pais_id);
 
-COMMENT ON TABLE public.item_inventario_ecuador IS 'Catálogo de ítems de inventario para Gestión de Inventario (Ecuador/Panama).';
+COMMENT ON TABLE public.item_inventario IS 'Catálogo de ítems de inventario para Gestión de Inventario (Ecuador/Panama).';

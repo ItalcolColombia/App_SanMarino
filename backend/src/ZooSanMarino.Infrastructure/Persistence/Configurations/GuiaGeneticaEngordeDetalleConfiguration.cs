@@ -8,11 +8,11 @@ public class GuiaGeneticaEngordeDetalleConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<GuiaGeneticaEngordeDetalle> e)
     {
-        e.ToTable("guia_genetica_ecuador_detalle");
+        e.ToTable("guia_genetica_detalle");
 
-        e.HasKey(x => x.Id);
+        e.HasKey(x => x.Id).HasName("guia_genetica_detalle_pkey");
 
-        e.Property(x => x.GuiaGeneticaEngordeHeaderId).HasColumnName("guia_genetica_ecuador_header_id").IsRequired();
+        e.Property(x => x.GuiaGeneticaEngordeHeaderId).HasColumnName("guia_genetica_header_id").IsRequired();
         e.Property(x => x.Sexo).HasColumnName("sexo").HasMaxLength(20).IsRequired();
         e.Property(x => x.Dia).HasColumnName("dia").IsRequired();
 
@@ -32,7 +32,8 @@ public class GuiaGeneticaEngordeDetalleConfiguration : IEntityTypeConfiguration<
         e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired(false);
         e.Property(x => x.DeletedAt).HasColumnName("deleted_at").IsRequired(false);
 
-        e.HasIndex(x => new { x.GuiaGeneticaEngordeHeaderId, x.Sexo, x.Dia }).IsUnique();
+        e.HasIndex(x => new { x.GuiaGeneticaEngordeHeaderId, x.Sexo, x.Dia })
+            .HasDatabaseName("uq_gge_det_header_sexo_dia").IsUnique();
 
         e.HasOne(x => x.GuiaGeneticaEngordeHeader)
             .WithMany(h => h.Detalles)
@@ -40,7 +41,7 @@ public class GuiaGeneticaEngordeDetalleConfiguration : IEntityTypeConfiguration<
             // El nombre va FIJO porque la tabla no la creó EF sino `create_guia_genetica_ecuador_tables.sql`,
             // y ahí la constraint quedó como `fk_gge_det_header` — corto, no el largo que EF deriva de los
             // nombres de las entidades. Sin fijarlo, EF creía que se llamaba
-            // `fk_guia_genetica_ecuador_detalle_guia_genetica_ecuador_header_` y cualquier migración que
+            // `fk_guia_genetica_detalle_guia_genetica_header_` y cualquier migración que
             // generara intentaría dropear una constraint que en la base NO EXISTE. Además, atarlo al nombre
             // derivado hacía que renombrar la ENTIDAD moviera la constraint de la BD: un rename de C# no
             // tiene por qué generar DDL.

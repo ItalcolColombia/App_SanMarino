@@ -7,7 +7,7 @@
 // Seguimiento Diario Aves de Engorde: persiste en tabla seguimiento_diario_aves_engorde (FK a lote_ave_engorde).
 // Filtros del módulo muestran lotes de lote_ave_engorde. DTO mantiene LoteId = lote_ave_engorde_id para el front.
 //
-// Inventario nuevo (inventario-gestion / item_inventario_ecuador): este módulo es el único que aplica consumo
+// Inventario nuevo (inventario-gestion / item_inventario): este módulo es el único que aplica consumo
 // y devolución sobre el inventario nuevo. El módulo Seguimiento diario postura (ProduccionService) no usa
 // inventario-gestion; los dos módulos de inventario están divididos (postura → su inventario; pollo engorde → inventario-gestion).
 using System.Text.Json;

@@ -6,7 +6,7 @@
 //
 // Comparte la tabla `seguimiento_diario_aves_engorde` con el servicio Colombia
 // (SeguimientoAvesEngordeService) pero usa flujo de inventario propio para Ecuador
-// (inventario-gestion / item_inventario_ecuador). La lógica de descuento de alimento,
+// (inventario-gestion / item_inventario). La lógica de descuento de alimento,
 // recálculo de saldo y retiro de aves está portada del servicio original; ver
 // fase_de_desarrollo/11_fix_seguimiento_ecuador_descuento_inventario.md.
 using System.Globalization;
