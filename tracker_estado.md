@@ -5666,3 +5666,40 @@ semana ya produciendo). En Sanmarino ademas se registra huevo **desde la semana 
       produccion de la semana de transicion**. De ahi salen las columnas «amarillas» del Cuadro
       (consumo, peso, mortalidad standard). Tiene **3 consumidores**
       (`ClasificacionHuevo`, `Cuadro`, `IndicadoresProduccion`), asi que cambiarlo excede este pase
+
+## Cierre: `25P` tambien entra en la SERIE de produccion (1-sep-2026)
+
+Ultimo hueco del pase, el que quedaba anotado como pendiente: el desempate ya elegia bien la fila
+`25P` cuando estaba disponible, pero `ObtenerGuiaGeneticaProduccionAsync` **ni siquiera la
+entregaba** — su corte `edad >= 26` la descartaba, porque el parseo devuelve 25 para `"25P"`.
+
+- [x] **Medido el alcance antes de tocar**, que era el motivo de haberlo diferido: de los 3
+      consumidores, `IndicadoresProduccionService` solo lo usa como `guias.Any()` (un booleano de
+      «¿hay guia?») ⇒ **no le afecta**; los otros dos (`Cuadro`, `ClasificacionHuevo`) son del
+      modulo `/reporte-tecnico-produccion`, donde el contenido si importa
+- [x] `GrafiaEdadGuiaCalculos.EsSerieDeProduccion(grafia, edad, desdeSemana = 26)`: entra por numero
+      **o** por grafia. El corte quedo **parametrizable** —no una constante enterrada— porque la guia
+      de esquema simple arranca su produccion en la semana 18, no en la 26
+- [x] **9 casos de test nuevos**: `25P` entra pese a parsear 25 · la `25` de levante sigue afuera ·
+      las semanas 1/18/24 quedan fuera · 26/53/140 entran · el corte se puede mover a 18
+- [x] **Delta cero para quien no tiene `25P`**: el cambio solo AGREGA filas con sufijo `P`, y esa
+      grafia existe unicamente en la guia de Sanmarino y Demo (una fila por raza/anio). Ecuador,
+      Panama y Santa Reyes reciben exactamente lo mismo que antes
+- [x] **Verificado en el reporte Cuadro con el lote real** (`GET /cuadro/6`): **43/43 filas con
+      consumo standard** y la primera fila trae `PesoHuevoStd 50,1` y `StGrHembra 116` — los valores
+      de `25P`, que antes se descartaban. `%Ross` sigue vacio en esa fila, que es correcto: en la
+      semana de transicion todavia no hay % de produccion standard
+- [x] `dotnet build` 0/0 · `dotnet test` **3.703 verdes** · sesion de smoke borrada · puertos LIBRES
+
+### Estado final del pase
+
+| Frente | Estado |
+|---|---|
+| Eje de la guia (semana de vida) | corregido en los 2 reportes, para las 5 empresas |
+| Semana de transicion `25` / `25P` | desempate + serie, con calculo puro y 17 tests |
+| Huevo por items (Primera/Pnc) | en las 4 tablas de produccion + Excel |
+| Columnas de guia sin dato | ocultas, con el backend informando que puede comparar |
+| Aviso de tramo sin guia (levante) | en pantalla, con la semana REAL de la guia |
+| Etapas del ciclo por raza | conectadas |
+| 3 desalineaciones preexistentes | corregidas |
+| Menu neutro | migracion idempotente, probada en transaccion revertida |

@@ -109,6 +109,55 @@ public class GrafiaEdadGuiaCalculosTests
         Assert.Equal("30", elegida);
     }
 
+    // ── Que entra en la serie de PRODUCCION ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 🔴 El caso que motivo `EsSerieDeProduccion`: el corte por numero (>= 26) descartaba `25P`,
+    /// que parsea a 25 y es la fila que ABRE la produccion. La semana de transicion se quedaba sin
+    /// consumo, peso ni mortalidad standard.
+    /// </summary>
+    [Fact]
+    public void La_fila_25P_entra_en_la_serie_de_produccion_pese_a_parsear_25()
+    {
+        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("25P", 25));
+    }
+
+    /// <summary>La fila de LEVANTE de la misma semana sigue fuera: es lo que el corte protege.</summary>
+    [Fact]
+    public void La_fila_25_de_levante_NO_entra_en_la_serie_de_produccion()
+    {
+        Assert.False(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("25", 25));
+    }
+
+    [Theory]
+    [InlineData("1", 1)]
+    [InlineData("18", 18)]
+    [InlineData("24", 24)]
+    public void Las_semanas_de_levante_quedan_fuera(string grafia, int edad)
+    {
+        Assert.False(GrafiaEdadGuiaCalculos.EsSerieDeProduccion(grafia, edad));
+    }
+
+    [Theory]
+    [InlineData("26", 26)]
+    [InlineData("53", 53)]
+    [InlineData("140", 140)]
+    public void Desde_el_corte_entran_todas(string grafia, int edad)
+    {
+        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion(grafia, edad));
+    }
+
+    /// <summary>
+    /// El corte es parametrizable: una guia que arranque su produccion antes -la de esquema simple
+    /// empieza en la semana 18- puede declararlo sin tocar el calculo.
+    /// </summary>
+    [Fact]
+    public void El_corte_se_puede_mover_para_una_guia_que_arranque_antes()
+    {
+        Assert.False(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("18", 18));
+        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("18", 18, desdeSemana: 18));
+    }
+
     /// <summary>Una grafia desconocida va al final, nunca antes de una que si se entiende.</summary>
     [Theory]
     [InlineData(true)]

@@ -418,7 +418,12 @@ public class GuiaGeneticaService : IGuiaGeneticaService
 
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
-            .Where(x => x.edad.HasValue && x.edad!.Value >= 26) // Solo semanas >= 26
+            // Serie de PRODUCCION. El corte por numero (>= 26) deja fuera las filas de levante de
+            // la guia de esquema completo, pero por si solo tambien descartaba "25P" -que parsea a
+            // 25 y es justamente la fila que ABRE la produccion, con los acumulados reiniciados-.
+            // Sin ella, la semana de transicion se quedaba sin consumo, peso ni mortalidad standard.
+            // Ver GrafiaEdadGuiaCalculos.
+            .Where(x => x.edad.HasValue && GrafiaEdadGuiaCalculos.EsSerieDeProduccion(x.g.Edad, x.edad!.Value))
             .OrderBy(x => x.edad!.Value)
             .Select(x => new GuiaGeneticaDto(
                 Edad: x.edad!.Value,

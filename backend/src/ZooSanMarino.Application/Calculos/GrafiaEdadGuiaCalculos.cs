@@ -54,6 +54,25 @@ public static class GrafiaEdadGuiaCalculos
         !string.IsNullOrWhiteSpace(edad) && edad.Trim().All(char.IsDigit);
 
     /// <summary>
+    /// Primera semana de vida que la guia de esquema completo considera PRODUCCION. Es el corte
+    /// historico de <c>ObtenerGuiaGeneticaProduccionAsync</c> y coincide con el dato: en esa guia
+    /// la primera edad con <c>prod_porcentaje</c> es la 25/26.
+    /// </summary>
+    public const int PrimeraSemanaProduccion = 26;
+
+    /// <summary>
+    /// ¿Esta fila pertenece a la SERIE DE PRODUCCION de la guia?
+    ///
+    /// <para>Lo es si su edad ya llego al corte de produccion <b>o</b> si su grafia la marca como
+    /// tal. Esa segunda condicion es la que rescata a <c>"25P"</c>: numericamente es 25 —por debajo
+    /// del corte— pero es la fila que <b>abre</b> la serie de postura, con los acumulados
+    /// reiniciados. Sin ella, la semana de transicion se queda sin sus valores standard de consumo,
+    /// peso y mortalidad.</para>
+    /// </summary>
+    public static bool EsSerieDeProduccion(string? grafia, int edadNumerica, int desdeSemana = PrimeraSemanaProduccion)
+        => edadNumerica >= desdeSemana || EsFilaDeProduccion(grafia);
+
+    /// <summary>
     /// Peso de preferencia para ordenar candidatas de una misma semana: <b>menor gana</b>.
     ///
     /// <para>Con <paramref name="paraProduccion"/> la fila con <c>P</c> va primero; sin el, la
