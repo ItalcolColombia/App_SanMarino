@@ -5631,3 +5631,38 @@ alcance» un defecto que afectaba a las cinco. Pidio validarlo y corregirlo.
 - [x] Santa Reyes **no cambia** con esta correccion: su guia ya se cruzaba por semana de vida
 - [x] `dotnet build` 0/0 · `dotnet test` **3.671 verdes** · smoke HTTP con el lote real
 - [x] Sesion de smoke borrada (0) y puertos 5501/5002 **LIBRES**
+
+## `25P` es la fila de PRODUCCION, no un duplicado — el desempate estaba al reves (1-sep-2026)
+
+El usuario explico que en Sanmarino la semana 25 es la de **paso de levante a produccion**, y que la
+guia trae las dos: `25` (todavia en levante, sin producir huevo «de produccion») y `25P` (la misma
+semana ya produciendo). En Sanmarino ademas se registra huevo **desde la semana 18 en LEVANTE**
+—flag `captura_huevos_en_levante`— y en la semana 26 el lote de levante ya debe cerrarse.
+
+- [x] **Verificado en el dato, no solo en el relato.** Lo que distingue a las dos filas es que los
+      ACUMULADOS SE REINICIAN en la de produccion (AP 2026, Sanmarino):
+      | edad | `cons_ac_h` | `retiro_ac_h` | `uniformidad` | `peso_huevo` |
+      |---|---|---|---|---|
+      | 24 | 10.678,5 | 3,93 | 90 | — |
+      | **25** | 11.501,2 | 4,03 | 90 | — | ← cierra el levante |
+      | **25P** | **847,0** | **0,10** | — | 50,1 | ← abre la produccion |
+      | 26 | 920,9 | 0,33 | — | 52,3 | ← sigue desde 847 |
+- [x] **El flag confirma a quien aplica**: `captura_huevos_en_levante` esta en `t` exactamente en
+      **Sanmarino y Demo** —las dos empresas cuya guia tiene `25P`— y en `f` en Ecuador, Panama y
+      Santa Reyes. La guia de esquema simple no tiene esta duplicidad: arranca directo en produccion
+- [x] 🔴 **Mi desempate anterior estaba AL REVES** (elegia la numerica pura). Un reporte de
+      produccion habria mostrado `cons_ac_h = 11.501` —el consumo acumulado del **levante entero**—
+      donde corresponde **847**: trece veces mas grande y sin que nada se vea roto
+- [x] `GrafiaEdadGuiaCalculos` (calculo puro + 8 casos de test): en produccion gana la fila con `P`,
+      en levante la numerica pura, la grafia desconocida queda ultima y el resultado **no depende del
+      orden de entrada**
+- [x] Aplicado en los dos reportes de produccion (`Tabs.cs` y `Cuadro.cs`). **El levante ya estaba
+      bien** y no se toco: usa `int.TryParse` estricto, que rechaza `25P` de entrada
+- [x] **Smoke**: la semana 25 del lote real ahora trae `pesoHuevoGuia = 50,1` (el valor de `25P`;
+      con la fila `25` ese campo viene vacio) y la 26 sigue con 52,3 / 31,25 %
+- [x] `dotnet build` 0/0 · `dotnet test` **3.694 verdes** · sesion de smoke borrada · puertos LIBRES
+- [!] **Pendiente anotado, NO tocado**: `GuiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync`
+      filtra `edad >= 26`, y como `TryParseEdadNumerica("25P")` devuelve 25, **descarta la fila de
+      produccion de la semana de transicion**. De ahi salen las columnas «amarillas» del Cuadro
+      (consumo, peso, mortalidad standard). Tiene **3 consumidores**
+      (`ClasificacionHuevo`, `Cuadro`, `IndicadoresProduccion`), asi que cambiarlo excede este pase

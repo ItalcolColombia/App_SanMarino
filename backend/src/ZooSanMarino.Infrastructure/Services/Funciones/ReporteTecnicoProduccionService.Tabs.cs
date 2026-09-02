@@ -214,26 +214,24 @@ public partial class ReporteTecnicoProduccionService
             return m.Success && int.TryParse(m.Groups[1].Value, out var n2) ? n2 : null;
         }
 
-        // Desempate DETERMINISTA cuando dos filas caen en la misma semana. Medido: la única
-        // colisión real es `25P` (prepostura) contra `25`, una fila por raza/año en la guía de
-        // esquema completo. Antes no importaba —con el eje viejo la semana 25 no se alcanzaba
-        // nunca—; ahora sí, porque es justo el arranque de la postura. Se prefiere la grafía
-        // NUMÉRICA PURA: `25P` es un caso aparte del calendario, no la semana 25 estándar.
-        var candidatas = guias.Where(g => TryParseEdad(g.Edad) == semana).ToList();
-        var guia = candidatas.FirstOrDefault(g => EsEdadNumericaPura(g.Edad))
-                   ?? candidatas.FirstOrDefault();
+        // Desempate DETERMINISTA de la SEMANA DE TRANSICIÓN, que aparece dos veces en la guía de
+        // esquema completo: `25` (fin del levante) y `25P` (arranque de la producción, con los
+        // acumulados reiniciados). Este es el reporte de PRODUCCIÓN ⇒ gana la fila con `P`.
+        //
+        // No es un detalle de presentación: tomar la `25` mostraría `cons_ac_h = 11.501` -el
+        // consumo acumulado del LEVANTE entero- donde corresponde `847`. Ver GrafiaEdadGuiaCalculos.
+        //
+        // Antes daba igual porque el eje viejo (semana relativa a producción) nunca alcanzaba la
+        // semana 25 de la guía; con el eje corregido es justo el arranque de la postura.
+        var guia = guias
+            .Where(g => TryParseEdad(g.Edad) == semana)
+            .OrderBy(g => GrafiaEdadGuiaCalculos.Preferencia(g.Edad, paraProduccion: true))
+            .FirstOrDefault();
         if (guia == null) return null;
 
         return (TryParse(guia.ProdPorcentaje), TryParse(guia.PesoHuevo),
                 TryParse(guia.HTotalAa),       TryParse(guia.Uniformidad));
     }
-
-    /// <summary>
-    /// ¿La edad de la guía es un número sin sufijos? Distingue <c>"25"</c> de <c>"25P"</c>
-    /// (prepostura), que el parseo tolerante colapsa en el mismo 25.
-    /// </summary>
-    private static bool EsEdadNumericaPura(string? edad) =>
-        !string.IsNullOrWhiteSpace(edad) && edad.Trim().All(char.IsDigit);
 
     public async Task<ReporteTecnicoProduccionTabsDto> ObtenerReporteProduccionTabsAsync(
         ObtenerReporteProduccionRequestDto request,

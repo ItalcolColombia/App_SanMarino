@@ -107,12 +107,16 @@ public partial class ReporteTecnicoProduccionService
                 return null;
             }
 
+            // Mismo desempate que en Tabs: en la semana de transición la guía trae `25` (fin del
+            // levante) y `25P` (arranque de la producción, acumulados reiniciados). Este es un
+            // reporte de PRODUCCIÓN ⇒ gana la fila con `P`. Ver GrafiaEdadGuiaCalculos.
             var guiaCompletaSemana = guiasCompletas
                 .Where(g =>
                 {
                     var edad = TryParseEdad(g.Edad);
                     return edad.HasValue && edad.Value == edadProduccionSemanas;
                 })
+                .OrderBy(g => GrafiaEdadGuiaCalculos.Preferencia(g.Edad, paraProduccion: true))
                 .FirstOrDefault();
 
             // Helper para parsear valores decimales
