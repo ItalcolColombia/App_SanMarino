@@ -1,0 +1,47 @@
+/* Fila de captura sin enviar. Tiene que leerse como "distinta de las de abajo" de un vistazo, sin
+   competir con la tabla: el naranja de acento para lo pendiente, el rojo SÓLO para el rechazo (regla
+   de marca del repo). */
+
+:host {
+  background: var(--ital-cream-50, #faf8f5);
+}
+
+.fila-captura-pendiente__celda {
+  padding: 0.5rem 0.75rem !important;
+  border-left: 4px solid var(--ital-orange, #f5821f);
+  font-size: 0.82rem;
+  color: var(--ital-gray-700, #374151);
+  white-space: normal;
+}
+
+.fila-captura-pendiente__badge {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--ital-orange, #f5821f);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Rojo sólo acá: un rechazo es lo único de esta fila que exige que alguien haga algo. */
+.fila-captura-pendiente__badge--rechazada {
+  background: var(--ital-red-600, #dc2626);
+}
+
+.fila-captura-pendiente__fecha {
+  margin-right: 0.5rem;
+  font-weight: 700;
+}
+
+.fila-captura-pendiente__texto {
+  color: var(--ital-gray-600, #4b5563);
+}
+
+.fila-captura-pendiente__enlace {
+  color: var(--ital-orange-dark, #c2410c);
+  text-decoration: underline;
+}

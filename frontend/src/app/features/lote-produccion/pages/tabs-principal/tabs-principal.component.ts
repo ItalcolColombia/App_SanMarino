@@ -13,17 +13,27 @@ import { CatalogoAlimentosService, CatalogItemDto } from '../../../catalogo-alim
 import { catchError, of } from 'rxjs';
 import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
+import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
-  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent],
+  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent, FilaCapturaPendienteComponent],
   templateUrl: './tabs-principal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
+
+  /**
+   * Capturas de este lote guardadas sin red y todavía sin enviar. Input **aparte** de
+   * `seguimientos` a propósito: ese arreglo alimenta los indicadores, la gráfica y el Excel de esta
+   * misma clase, y una fila que el servidor nunca vio no puede llegar a ninguno de los tres. Al no
+   * mezclarse, la separación queda garantizada por construcción.
+   */
+  @Input() capturasPendientes: CapturaPendienteResumen[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() produccionLote: ProduccionLoteDetalleDto | null = null;
   /** ID del lote en fase Producción (hijo o mismo). Mismo que usa listado y modal de seguimiento diario. */

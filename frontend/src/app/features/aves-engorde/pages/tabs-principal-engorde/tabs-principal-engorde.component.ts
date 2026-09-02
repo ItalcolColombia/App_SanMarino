@@ -24,6 +24,8 @@ import {
   esConsumoAlimentoMixto,
   esConsumoAlimentoPorGenero
 } from '../../funciones/modo-consumo-alimento-fila.funcion';
+import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 
 /** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
 export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
@@ -31,7 +33,7 @@ export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fe
 @Component({
   selector: 'app-tabs-principal-engorde',
   standalone: true,
-  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, GraficasProductividadEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent, TabReproductoraEngordeComponent],
+  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, GraficasProductividadEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent, TabReproductoraEngordeComponent, FilaCapturaPendienteComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -39,6 +41,13 @@ export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fe
 })
 export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
+
+  /**
+   * Capturas de este lote guardadas sin red y todavía sin enviar. Input **aparte** de
+   * `seguimientos` a propósito: ese arreglo alimenta los indicadores, las gráficas y el Excel de
+   * esta misma clase, y una fila que el servidor nunca vio no puede llegar a ninguno de los tres.
+   */
+  @Input() capturasPendientes: CapturaPendienteResumen[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() resumenLevante: LoteMortalidadResumenDto | null = null;
   @Input() loading: boolean = false;

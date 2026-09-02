@@ -385,8 +385,13 @@
               </tr>
             </thead>
             <tbody>
+              <!-- Capturas guardadas sin red y sin enviar. NO se mezclan con `seguimientos`: ese
+                   arreglo alimenta los cálculos de la pantalla y el servidor nunca vio estas filas. -->
+              @for (captura of capturasPendientes; track captura.clientOpId) {
+                <tr app-fila-captura-pendiente [captura]="captura"></tr>
+              }
               <!-- Empty state -->
-              @if (!loading && (!seguimientos || seguimientos.length === 0)) {
+              @if (!loading && (!seguimientos || seguimientos.length === 0) && capturasPendientes.length === 0) {
                 <tr class="data-table__empty-row">
                   <td colspan="17">
                     <div class="empty-state">

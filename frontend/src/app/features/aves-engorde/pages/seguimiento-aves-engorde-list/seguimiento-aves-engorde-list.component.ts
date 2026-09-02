@@ -1,5 +1,7 @@
 import { ToastService } from '../../../../shared/services/toast.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -88,6 +90,12 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   private allLotes: LoteDto[] = [];
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
+
+  /**
+   * Capturas de ESTE lote guardadas sin red y sin enviar. Va aparte de `seguimientos` a propósito:
+   * ese arreglo alimenta indicadores, gráfica y Excel, y el servidor nunca vio estas filas.
+   */
+  capturasPendientes: CapturaPendienteResumen[] = [];
   /** Filas de lote_registro_historico_unificado (inventario + ventas) para la pestaña Seguimiento. */
   historicoUnificado: LoteRegistroHistoricoUnificadoDto[] = [];
   /** Tabla diaria precalculada por fn_seguimiento_diario_engorde. */
@@ -161,8 +169,25 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     /** Doble validación: alerta de registros vencidos al entrar al lote. */
     private validacionSvc: ValidacionSeguimientoService,
     private confirmDialog: ConfirmDialogService,
-    private permSvc: UserPermissionService
+    private permSvc: UserPermissionService,
+    /** Capturas offline de este lote que el servidor todavía no vio (F3). */
+    private capturasPendientesSrv: CapturasPendientesLoteService
   ) {}
+
+  /**
+   * Relee del outbox qué capturas de este lote siguen sin enviar. `onSave` vuelve a llamar a
+   * `onLoteChange`, así que con llamarla ahí quedan cubiertos los dos momentos: entrar al lote y
+   * acabar de capturar sin red.
+   *
+   * ⚠️ El tipo es `seguimiento_engorde_crear`, NO el de reproductora: **comparten el cuerpo** del
+   * request y lo único que las separa es el tipo. Confundirlos mostraría acá capturas que van a
+   * otra tabla.
+   */
+  private refrescarCapturasPendientes(): void {
+    void this.capturasPendientesSrv
+      .resumir('seguimiento_engorde_crear', { loteId: this.selectedLoteId })
+      .then(capturas => (this.capturasPendientes = capturas));
+  }
 
   // ─── Doble validación ───────────────────────────────────────────────────────
 
@@ -532,6 +557,7 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.historicoUnificado = [];
     this.tablaFilas = [];
     this.selectedLote = null;
@@ -540,6 +566,8 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
     this.avesDisponibles = null;
     this.lotesReproductora = [];
     if (!this.selectedLoteId) return;
+
+    this.refrescarCapturasPendientes();
 
     // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
     // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.

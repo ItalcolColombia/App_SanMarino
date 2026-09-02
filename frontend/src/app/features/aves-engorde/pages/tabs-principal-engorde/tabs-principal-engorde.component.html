@@ -234,7 +234,12 @@
                         </tr>
                       </thead>
                       <tbody>
-                        @if (!loading && (!tablaFilas || tablaFilas.length === 0)) {
+                        <!-- Capturas guardadas sin red y sin enviar. NO se mezclan con `tablaFilas`:
+                             ese arreglo alimenta indicadores, gráficas y Excel. -->
+                        @for (captura of capturasPendientes; track captura.clientOpId) {
+                          <tr app-fila-captura-pendiente [captura]="captura"></tr>
+                        }
+                        @if (!loading && (!tablaFilas || tablaFilas.length === 0) && capturasPendientes.length === 0) {
                           <tr>
                             <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
                               <div class="empty-illustration" aria-hidden="true">📄</div>

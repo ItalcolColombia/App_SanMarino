@@ -5803,15 +5803,33 @@ usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en
 
 ## H3 · La fila capturada sin red se ve (y sigue sin poder exportarse)
 
-- [ ] H3.1 `fusionar-pendientes.funcion.ts` **pura** + spec: marca `__pendiente`, ordena por fecha
-      capturada, **dedupe prefiriendo la del servidor**, ignora lo de otra partición, y con outbox
-      vacío devuelve el array del servidor **por referencia** (no una copia nueva)
-- [ ] H3.2 Las 4 pantallas fusionan **en un campo al cargar**, nunca en un getter del template
-- [ ] H3.3 🔴 **El Excel y los indicadores filtran `__pendiente`** — es la razón por la que esto no se
-      hizo en F3: el servidor nunca vio esa fila, un indicador calculado con ella es un número inventado
-- [ ] H3.4 La fila pendiente se pinta sin editar ni borrar (no existe la operación offline: F4.2)
-- [ ] H3.5 **La prueba que prueba la prueba**: con el filtro de `__pendiente` desactivado, el test de
-      exportación tiene que **fallar**. Receta de D6, cuesta dos minutos
+- [i] 🔁 **Cambio de diseño respecto del plan, y es más fuerte.** El plan decía `fusionarPendientes`
+      dentro del arreglo `seguimientos` + un filtro de `__pendiente` en cada Excel e indicador. Se
+      hizo al revés: la captura **nunca entra** a ese arreglo — viaja por un `@Input()` propio
+      (`capturasPendientes`) que sólo la tabla lee. La separación queda garantizada **por
+      construcción** y no por un filtro que alguien tiene que acordarse de poner en la exportación
+      número 12. Costo: la fila va arriba de la tabla y no intercalada por fecha
+- [x] H3.1 `resumir-capturas-pendientes.funcion.ts` **pura** + spec (17 casos): filtra por tipo,
+      partición y lote; ordena por fecha del registro; **no devuelve el payload ni un solo número
+      capturado** — no hay nada que copiar a un Excel
+- [x] H3.2 Las 4 pantallas la llenan **en un campo al cargar y al guardar**, nunca en un getter del
+      template. Puente único en `CapturasPendientesLoteService` para no cablear cuatro veces el
+      filtro de partición
+- [x] H3.3 🔴 **La captura no llega al Excel, ni a los indicadores, ni a la gráfica** porque no está
+      en el arreglo del que salen. El servidor nunca vio esa fila: un indicador calculado con ella
+      es un número inventado
+- [x] H3.4 La fila no tiene botones de editar ni borrar: no existe la operación offline (F4.2), y un
+      botón que abre un modal sobre una fila que el servidor no tiene sólo termina en un PUT contra
+      un id inexistente
+- [x] H3.5 **La prueba que prueba la prueba** (corrida): agregando `payload` al resumen falla
+      **exactamente 1** test —el del aislamiento— y los otros **743 siguen verdes**
+- [i] 🔴 **Dos hallazgos medidos que un solo campo habría escondido**, los dos sin error y sin aviso:
+      producción manda `lotePosturaProduccionId` (flujo LPP) **o** `produccionLoteId` (legacy) con
+      **valores distintos** ⇒ el criterio es un mapa de campos, no un par; y la **reproductora manda
+      `fecha`, no `fechaRegistro`** ⇒ su captura se habría mostrado sin día, que es justo el dato
+      que sirve para reconocerla
+- [x] H3.6 `yarn build` 0 errores · `ng test` **744/744** (de 727) · gates de change detection
+      (236 componentes, 0 sin declarar) y lista cacheable en verde
 
 ## H4 · Gastos de inventario se guarda sin red (nivel 2, con `requiere_cuadre`)
 

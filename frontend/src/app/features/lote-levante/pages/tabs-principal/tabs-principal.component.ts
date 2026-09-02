@@ -10,6 +10,8 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/services/seguimiento-aves-engorde.service';
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
+import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 
 /** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
 interface AggregadoHistoricoDia {
@@ -76,13 +78,22 @@ const COLUMNAS_MACHOS_TABLA_DIARIA = 11;
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
-  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent],
+  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent, FilaCapturaPendienteComponent],
   templateUrl: './tabs-principal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
+
+  /**
+   * Capturas de este lote guardadas sin red y todavía sin enviar. Entra como **input aparte** de
+   * `seguimientos` a propósito: ese arreglo alimenta los indicadores, la gráfica y el Excel de esta
+   * misma clase, y una fila que el servidor nunca vio no puede llegar a ninguno de los tres. Al no
+   * mezclarse, la separación está garantizada por construcción y no por un filtro que haya que
+   * recordar en cada exportación nueva.
+   */
+  @Input() capturasPendientes: CapturaPendienteResumen[] = [];
   /** LoteDto (aves-engorde) o LotePosturaLevanteDto (seguimiento levante). */
   @Input() selectedLote: LoteDto | LotePosturaLevanteDto | null = null;
   /** Resumen de descuentos (mortalidad, descarte, error sexaje) sobre el lote en Levante. */

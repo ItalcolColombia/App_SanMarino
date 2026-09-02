@@ -309,7 +309,13 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @if (!loading && (!diarioFilas || diarioFilas.length === 0)) {
+                    <!-- Capturas guardadas sin red y todavía sin enviar. Van arriba porque son lo
+                         último que hizo el galponero, y NO se mezclan con `diarioFilas`: ese arreglo
+                         alimenta indicadores, gráfica y Excel, y el servidor nunca vio estas filas. -->
+                    @for (captura of capturasPendientes; track captura.clientOpId) {
+                      <tr app-fila-captura-pendiente [captura]="captura"></tr>
+                    }
+                    @if (!loading && (!diarioFilas || diarioFilas.length === 0) && capturasPendientes.length === 0) {
                       <tr>
                         <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>
