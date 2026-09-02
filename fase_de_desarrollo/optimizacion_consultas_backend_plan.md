@@ -180,6 +180,40 @@ solo para leer `disponibilidad.GranjaId` y para un chequeo de nulo — el bloque
 `ValidarDisponibilidadAvesAsync`, que es otro camino. Así que esto **no está bloqueando traslados**;
 lo que hace es mostrar la disponibilidad de huevos en cero.
 
-**Por qué no se arregló acá:** apuntar a la tabla correcta cambia el comportamiento visible y entra
-en la trampa ya documentada de `loteId` vs `lotePosturaProduccionId` (un dígito de distancia, no
-truena, no encuentra nada). Es una entrega propia, con su decisión.
+**Resuelto el 2-sep-2026.** El camino por lote ahora resuelve el LPP y lee `espejo_huevo_produccion`
+— el **mismo** origen que ya usaba el camino por LPP, para no tener una tercera aritmética del mismo
+número. La ubicación (granja/núcleo/galpón) se sigue tomando del **lote**, no del LPP, porque
+`TrasladosController:113` usa ese `GranjaId` como granja origen del movimiento; hoy coinciden en los
+datos, pero apoyarse en eso sería frágil.
+
+Verificado: el espejo cuadra **exacto** con la fórmula directa (producción − traslados Completados)
+en los 5 LPP con espejo — LPP 6: 2.091.450 histórico / 108.462 disponible; LPP 7: 1.541.184 / 70.561;
+**0 diferencias**. La resolución lote → LPP es 1:1 (0 lotes con más de un LPP vivo).
+
+### Pero el endpoint sigue mostrando cero, por una SEGUNDA causa
+
+Arreglar la tabla no alcanza. `ObtenerDisponibilidadLoteAsync` solo entra al camino de huevos si
+`lote.Fase == "Produccion"`, y eso es justo el anti-patrón ya documentado en el repo: **`lotes.fase`
+no dice en qué fase está el lote**, solo lo que `DerivarPorEdad` decidió al crearlo; el paso a
+producción no la actualiza. Medido acá:
+
+| LPP | lote | `fase` | filas de producción | huevos |
+|---|---|---|---|---|
+| 6 | 14 | **Levante** | 301 | 2.091.450 |
+| 7 | 13 | **Levante** | 301 | 1.541.184 |
+| 21 | 142 | Produccion | 0 | 0 |
+| 22 | 143 | Produccion | 0 | 0 |
+
+Los lotes que tienen huevos **no** pasan el filtro, y los que lo pasan no tienen huevos. La prueba
+buena de producción es la fila viva en `lote_postura_produccion` (regla canónica en
+`FaseLoteCalculos.ResolverFaseVisible`, que además exige el levante cerrado).
+
+**No se cambió el filtro, y es a propósito.** Mover ese gate hace que los lotes 13/14 devuelvan
+`tipoLote='Produccion'` con `Aves = null`, y eso pega en el lado aves:
+- `traslado-aves-huevos.component.ts:193` corta con *«Este lote es de producción, selecciona traslado
+  de huevos»* en cuanto `tipoLote !== 'Levante'` — bloquearía traslados de aves que hoy funcionan.
+- `inventario-dashboard.component.ts:1453` arma los validadores del retiro de aves sobre
+  `disponibilidad.aves`, que quedaría en null.
+
+Es un cambio de comportamiento en pantallas que nadie pidió tocar: va aparte, con decisión del
+usuario y prueba en las dos pantallas.

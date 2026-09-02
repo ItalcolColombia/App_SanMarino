@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/DisponibilidadLoteService.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/DisponibilidadLoteService.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Produccion;
@@ -68,138 +68,141 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         return await ObtenerDisponibilidadAvesAsync(lote);
     }
 
+    /// <summary>
+    /// Lee el espejo de huevos del LPP y, si todavía no existe, lo manda a recalcular una vez.
+    /// El espejo (<c>espejo_huevo_produccion</c>) es la fórmula ÚNICA de «huevos disponibles»:
+    /// <c>*_historico</c> es todo lo producido y <c>*_dinamico</c> es lo que queda tras descontar
+    /// los traslados/ventas Completados. Los dos caminos de este service —por lote y por LPP—
+    /// pasan por acá para no tener dos aritméticas del mismo número.
+    /// </summary>
+    private async Task<EspejoHuevoProduccion?> ObtenerEspejoHuevoAsync(int lotePosturaProduccionId)
+    {
+        var espejo = await _context.EspejoHuevoProduccion
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e =>
+                e.LotePosturaProduccionId == lotePosturaProduccionId &&
+                e.CompanyId == _currentUser.CompanyId);
+
+        if (espejo != null) return espejo;
+
+        await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId).ConfigureAwait(false);
+
+        return await _context.EspejoHuevoProduccion
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e =>
+                e.LotePosturaProduccionId == lotePosturaProduccionId &&
+                e.CompanyId == _currentUser.CompanyId);
+    }
+
+    /// <summary>Arma el bloque de huevos a partir de una cara del espejo (dinámico o histórico).</summary>
+    private static HuevosDisponiblesDto ArmarHuevos(
+        int total, int incubables, int limpio, int tratado, int sucio, int deforme, int blanco,
+        int dobleYema, int piso, int pequeno, int roto, int desecho, int otro,
+        int diasEnProduccion, DateTime? fechaUltimoRegistro = null) => new()
+    {
+        TotalHuevos = total,
+        TotalHuevosIncubables = incubables,
+        Limpio = limpio,
+        Tratado = tratado,
+        Sucio = sucio,
+        Deforme = deforme,
+        Blanco = blanco,
+        DobleYema = dobleYema,
+        Piso = piso,
+        Pequeno = pequeno,
+        Roto = roto,
+        Desecho = desecho,
+        Otro = otro,
+        DiasEnProduccion = diasEnProduccion,
+        FechaUltimoRegistro = fechaUltimoRegistro
+    };
+
+    /// <summary>
+    /// Disponibilidad de huevos de un lote en producción.
+    ///
+    /// ⚠️ Hasta el 2-sep-2026 esto devolvía CERO siempre: sumaba sobre la entidad
+    /// <c>SeguimientoDiario</c>, que por <c>ToTable</c> apunta a <c>seguimiento_diario_levante</c>,
+    /// filtrando <c>TipoSeguimiento == "produccion"</c> — una condición que en esa tabla no puede
+    /// cumplirse (medido: todas sus filas son 'levante'). La producción real vive en
+    /// <c>seguimiento_diario_produccion</c>, indexada por <c>LotePosturaProduccionId</c>.
+    ///
+    /// En vez de re-sumar acá (sería una tercera fórmula del mismo número, justo lo que CLAUDE.md
+    /// prohíbe), se resuelve el LPP del lote y se lee el espejo, que es el mismo origen que ya
+    /// usaba el camino por LPP.
+    ///
+    /// Lo que NO cambia: granja, núcleo, galpón y nombre siguen saliendo del LOTE, no del LPP.
+    /// `TrasladosController` usa `disponibilidad.GranjaId` como granja origen del movimiento, y
+    /// aunque hoy los dos coincidan en los datos, tomarlos del LPP sería apoyarse en eso.
+    /// </summary>
     private async Task<DisponibilidadLoteDto> ObtenerDisponibilidadHuevosAsync(Lote loteProd)
     {
         if (!loteProd.LoteId.HasValue)
             throw new InvalidOperationException("Lote sin LoteId.");
 
-        var loteIdStr = loteProd.LoteId.Value.ToString();
-
-        // Seguimientos desde tabla unificada seguimiento_diario (tipo produccion) — alineado con seguimiento diario unificado.
-        // Se agrega en la BD: antes se traían TODAS las filas del lote para sumarlas en memoria
-        // (11 Sum sobre la lista completa). El GroupBy(1) traduce a un único SELECT con los 11
-        // SUM, el COUNT y el MAX(fecha) — un solo viaje y sin materializar las filas.
-        // SUM de Postgres ignora los NULL igual que `?? 0` en memoria, así que el número no cambia;
-        // sobre cero filas la consulta no devuelve grupo, y ahí los totales quedan en 0 como antes.
-        var agg = await _context.SeguimientoDiario
-            .AsNoTracking()
-            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr)
-            .GroupBy(s => 1)
-            .Select(g => new
-            {
-                Limpio    = g.Sum(s => (int?)s.HuevoLimpio)    ?? 0,
-                Tratado   = g.Sum(s => (int?)s.HuevoTratado)   ?? 0,
-                Sucio     = g.Sum(s => (int?)s.HuevoSucio)     ?? 0,
-                Deforme   = g.Sum(s => (int?)s.HuevoDeforme)   ?? 0,
-                Blanco    = g.Sum(s => (int?)s.HuevoBlanco)    ?? 0,
-                DobleYema = g.Sum(s => (int?)s.HuevoDobleYema) ?? 0,
-                Piso      = g.Sum(s => (int?)s.HuevoPiso)      ?? 0,
-                Pequeno   = g.Sum(s => (int?)s.HuevoPequeno)   ?? 0,
-                Roto      = g.Sum(s => (int?)s.HuevoRoto)      ?? 0,
-                Desecho   = g.Sum(s => (int?)s.HuevoDesecho)   ?? 0,
-                Otro      = g.Sum(s => (int?)s.HuevoOtro)      ?? 0,
-                Filas     = g.Count(),
-                UltimaFecha = (DateTime?)g.Max(s => s.Fecha)
-            })
-            .FirstOrDefaultAsync();
-
-        var totalLimpio    = agg?.Limpio    ?? 0;
-        var totalTratado   = agg?.Tratado   ?? 0;
-        var totalSucio     = agg?.Sucio     ?? 0;
-        var totalDeforme   = agg?.Deforme   ?? 0;
-        var totalBlanco    = agg?.Blanco    ?? 0;
-        var totalDobleYema = agg?.DobleYema ?? 0;
-        var totalPiso      = agg?.Piso      ?? 0;
-        var totalPequeno   = agg?.Pequeno   ?? 0;
-        var totalRoto      = agg?.Roto      ?? 0;
-        var totalDesecho   = agg?.Desecho   ?? 0;
-        var totalOtro      = agg?.Otro      ?? 0;
-
-        // Traslados completados para restar: mismo criterio, un solo SELECT agregado.
-        var aggTraslados = await _context.TrasladoHuevos
-            .AsNoTracking()
-            .Where(t => t.LoteId == loteIdStr && t.Estado == "Completado")
-            .GroupBy(t => 1)
-            .Select(g => new
-            {
-                Limpio    = g.Sum(t => (int?)t.CantidadLimpio)    ?? 0,
-                Tratado   = g.Sum(t => (int?)t.CantidadTratado)   ?? 0,
-                Sucio     = g.Sum(t => (int?)t.CantidadSucio)     ?? 0,
-                Deforme   = g.Sum(t => (int?)t.CantidadDeforme)   ?? 0,
-                Blanco    = g.Sum(t => (int?)t.CantidadBlanco)    ?? 0,
-                DobleYema = g.Sum(t => (int?)t.CantidadDobleYema) ?? 0,
-                Piso      = g.Sum(t => (int?)t.CantidadPiso)      ?? 0,
-                Pequeno   = g.Sum(t => (int?)t.CantidadPequeno)   ?? 0,
-                Roto      = g.Sum(t => (int?)t.CantidadRoto)      ?? 0,
-                Desecho   = g.Sum(t => (int?)t.CantidadDesecho)   ?? 0,
-                Otro      = g.Sum(t => (int?)t.CantidadOtro)      ?? 0
-            })
-            .FirstOrDefaultAsync();
-
-        // Restar traslados completados
-        totalLimpio    -= aggTraslados?.Limpio    ?? 0;
-        totalTratado   -= aggTraslados?.Tratado   ?? 0;
-        totalSucio     -= aggTraslados?.Sucio     ?? 0;
-        totalDeforme   -= aggTraslados?.Deforme   ?? 0;
-        totalBlanco    -= aggTraslados?.Blanco    ?? 0;
-        totalDobleYema -= aggTraslados?.DobleYema ?? 0;
-        totalPiso      -= aggTraslados?.Piso      ?? 0;
-        totalPequeno   -= aggTraslados?.Pequeno   ?? 0;
-        totalRoto      -= aggTraslados?.Roto      ?? 0;
-        totalDesecho   -= aggTraslados?.Desecho   ?? 0;
-        totalOtro      -= aggTraslados?.Otro      ?? 0;
-
-        // Asegurar que no sean negativos
-        totalLimpio = Math.Max(0, totalLimpio);
-        totalTratado = Math.Max(0, totalTratado);
-        totalSucio = Math.Max(0, totalSucio);
-        totalDeforme = Math.Max(0, totalDeforme);
-        totalBlanco = Math.Max(0, totalBlanco);
-        totalDobleYema = Math.Max(0, totalDobleYema);
-        totalPiso = Math.Max(0, totalPiso);
-        totalPequeno = Math.Max(0, totalPequeno);
-        totalRoto = Math.Max(0, totalRoto);
-        totalDesecho = Math.Max(0, totalDesecho);
-        totalOtro = Math.Max(0, totalOtro);
-
-        var totalHuevos = totalLimpio + totalTratado + totalSucio + totalDeforme + 
-                         totalBlanco + totalDobleYema + totalPiso + totalPequeno + 
-                         totalRoto + totalDesecho + totalOtro;
-        
-        var totalHuevosIncubables = totalLimpio + totalTratado;
-
-        var fechaUltimoRegistro = (agg?.Filas ?? 0) > 0
-            ? agg!.UltimaFecha
-            : (DateTime?)null;
-
         var diasEnProduccion = loteProd.FechaInicioProduccion.HasValue && loteProd.FechaInicioProduccion.Value != default
             ? (DateTime.Today - loteProd.FechaInicioProduccion.Value.Date).Days
             : 0;
+
+        // Empresa por datos + orden determinista: si un lote llegara a tener más de un LPP vivo
+        // (hoy la relación es 1:1), se toma siempre el mismo y no uno al azar.
+        var lotePosturaProduccionId = await _context.LotePosturaProduccion
+            .AsNoTracking()
+            .Where(l => l.LoteId == loteProd.LoteId
+                        && l.DeletedAt == null
+                        && (l.EmpresaId == null || l.EmpresaId == _currentUser.CompanyId))
+            .OrderBy(l => l.LotePosturaProduccionId)
+            .Select(l => l.LotePosturaProduccionId)
+            .FirstOrDefaultAsync();
+
+        var espejo = lotePosturaProduccionId.HasValue && lotePosturaProduccionId.Value > 0
+            ? await ObtenerEspejoHuevoAsync(lotePosturaProduccionId.Value)
+            : null;
+
+        HuevosDisponiblesDto huevos;
+        HuevosDisponiblesDto? historicoEspejo = null;
+        IReadOnlyList<HuevoItemSeguimientoDto>? huevoItems = null;
+
+        if (espejo == null)
+        {
+            // Sin LPP o sin espejo no hay producción que informar: mismo bloque en cero que antes.
+            huevos = ArmarHuevos(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, diasEnProduccion);
+        }
+        else
+        {
+            // Fecha del último registro: el espejo no la guarda, sale de la tabla de producción.
+            var fechaUltimoRegistro = await _context.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId!.Value)
+                .MaxAsync(s => (DateTime?)s.Fecha);
+
+            huevos = ArmarHuevos(
+                espejo.HuevoTotDinamico, espejo.HuevoIncDinamico, espejo.HuevoLimpioDinamico,
+                espejo.HuevoTratadoDinamico, espejo.HuevoSucioDinamico, espejo.HuevoDeformeDinamico,
+                espejo.HuevoBlancoDinamico, espejo.HuevoDobleYemaDinamico, espejo.HuevoPisoDinamico,
+                espejo.HuevoPequenoDinamico, espejo.HuevoRotoDinamico, espejo.HuevoDesechoDinamico,
+                espejo.HuevoOtroDinamico, diasEnProduccion, fechaUltimoRegistro);
+
+            historicoEspejo = ArmarHuevos(
+                espejo.HuevoTotHistorico, espejo.HuevoIncHistorico, espejo.HuevoLimpioHistorico,
+                espejo.HuevoTratadoHistorico, espejo.HuevoSucioHistorico, espejo.HuevoDeformeHistorico,
+                espejo.HuevoBlancoHistorico, espejo.HuevoDobleYemaHistorico, espejo.HuevoPisoHistorico,
+                espejo.HuevoPequenoHistorico, espejo.HuevoRotoHistorico, espejo.HuevoDesechoHistorico,
+                espejo.HuevoOtroHistorico, diasEnProduccion, fechaUltimoRegistro);
+
+            huevoItems = await ObtenerDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId!.Value)
+                .ConfigureAwait(false);
+        }
 
         return new DisponibilidadLoteDto
         {
             LoteId = loteProd.LoteId ?? 0,
             LoteNombre = loteProd.LoteNombre,
             TipoLote = "Produccion",
+            LotePosturaProduccionId = lotePosturaProduccionId,
             Aves = null,
-            Huevos = new HuevosDisponiblesDto
-            {
-                TotalHuevos = totalHuevos,
-                TotalHuevosIncubables = totalHuevosIncubables,
-                Limpio = totalLimpio,
-                Tratado = totalTratado,
-                Sucio = totalSucio,
-                Deforme = totalDeforme,
-                Blanco = totalBlanco,
-                DobleYema = totalDobleYema,
-                Piso = totalPiso,
-                Pequeno = totalPequeno,
-                Roto = totalRoto,
-                Desecho = totalDesecho,
-                Otro = totalOtro,
-                FechaUltimoRegistro = fechaUltimoRegistro,
-                DiasEnProduccion = diasEnProduccion
-            },
+            Huevos = huevos,
+            HuevosHistoricoEspejo = historicoEspejo,
+            HuevoItemsDisponibles = huevoItems,
             GranjaId = loteProd.GranjaId,
             GranjaNombre = loteProd.Farm?.Name ?? string.Empty,
             NucleoId = loteProd.NucleoId,
@@ -334,21 +337,8 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
 
         if (lpp == null) return null;
 
-        var espejo = await _context.EspejoHuevoProduccion
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e =>
-                e.LotePosturaProduccionId == lotePosturaProduccionId &&
-                e.CompanyId == _currentUser.CompanyId);
-
-        if (espejo == null)
-        {
-            await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId).ConfigureAwait(false);
-            espejo = await _context.EspejoHuevoProduccion
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e =>
-                    e.LotePosturaProduccionId == lotePosturaProduccionId &&
-                    e.CompanyId == _currentUser.CompanyId);
-        }
+        // Misma lectura del espejo que usa el camino por lote (una sola fórmula del número).
+        var espejo = await ObtenerEspejoHuevoAsync(lotePosturaProduccionId).ConfigureAwait(false);
 
         if (espejo == null)
         {

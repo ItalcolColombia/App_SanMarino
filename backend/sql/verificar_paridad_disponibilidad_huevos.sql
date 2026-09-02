@@ -1,116 +1,78 @@
 -- SIN-MIGRACION: diagnóstico de solo lectura. No crea ni modifica ningún objeto; se corre a mano
--- contra una copia para comparar dos formas de calcular el mismo número.
+-- contra una copia para comprobar que el número que informa el endpoint es el correcto.
 --
--- Paridad del cálculo de huevos disponibles (DisponibilidadLoteService).
+-- Disponibilidad de huevos (`DisponibilidadLoteService`).
 --
--- Antes, el service traía TODAS las filas del lote y sumaba en memoria con `Sum(x => x.Campo ?? 0)`
--- —o sea, NULL contaba como 0 y después se sumaba. Ahora suma en la BD con `SUM(campo)`, que
--- IGNORA los NULL, y envuelve el resultado en COALESCE(...,0) para el caso de cero filas.
+-- Contexto: hasta el 2-sep-2026 el camino POR LOTE sumaba sobre la entidad `SeguimientoDiario`, que
+-- por `ToTable` apunta a `seguimiento_diario_levante`, filtrando `tipo_seguimiento='produccion'` —
+-- condición imposible en esa tabla, así que informaba CERO siempre. Ahora resuelve el LPP del lote y
+-- lee `espejo_huevo_produccion`, el mismo origen que ya usaba el camino por LPP.
 --
--- Este script compara las dos formulaciones LOTE POR LOTE sobre los datos reales. La condición de
--- aceptación es que la última columna diga 0 en todas las filas: cualquier otra cosa significa que
--- el refactor movió un número y no se mergea.
+-- Este script comprueba tres cosas:
+--   1) que el espejo cuadre con la fórmula directa (producción − traslados Completados);
+--   2) que la resolución lote → LPP sea unívoca (si no, el endpoint elegiría un ciclo al azar);
+--   3) cuánto cambia lo que ve el usuario respecto del cero que devolvía antes.
 
-\echo === 1) seguimiento_diario_levante: memoria vs BD, lote por lote ===
--- Nota: el service filtra tipo_seguimiento='produccion' sobre esta tabla, que solo contiene
--- 'levante' => hoy ese filtro no devuelve ninguna fila. Se compara SIN el filtro para que la
--- verificacion corra sobre datos reales y pruebe la aritmetica del refactor.
-WITH por_lote AS (
-  SELECT
-    lote_id,
-    -- formulación VIEJA (semántica en memoria): COALESCE por fila y después sumar
-    SUM(COALESCE(huevo_limpio,0))     AS viejo_limpio,
-    SUM(COALESCE(huevo_tratado,0))    AS viejo_tratado,
-    SUM(COALESCE(huevo_sucio,0))      AS viejo_sucio,
-    SUM(COALESCE(huevo_deforme,0))    AS viejo_deforme,
-    SUM(COALESCE(huevo_blanco,0))     AS viejo_blanco,
-    SUM(COALESCE(huevo_doble_yema,0)) AS viejo_doble_yema,
-    SUM(COALESCE(huevo_piso,0))       AS viejo_piso,
-    SUM(COALESCE(huevo_pequeno,0))    AS viejo_pequeno,
-    SUM(COALESCE(huevo_roto,0))       AS viejo_roto,
-    SUM(COALESCE(huevo_desecho,0))    AS viejo_desecho,
-    SUM(COALESCE(huevo_otro,0))       AS viejo_otro,
-    -- formulación NUEVA (la que emite EF): SUM que ignora NULL, con COALESCE al final
-    COALESCE(SUM(huevo_limpio),0)     AS nuevo_limpio,
-    COALESCE(SUM(huevo_tratado),0)    AS nuevo_tratado,
-    COALESCE(SUM(huevo_sucio),0)      AS nuevo_sucio,
-    COALESCE(SUM(huevo_deforme),0)    AS nuevo_deforme,
-    COALESCE(SUM(huevo_blanco),0)     AS nuevo_blanco,
-    COALESCE(SUM(huevo_doble_yema),0) AS nuevo_doble_yema,
-    COALESCE(SUM(huevo_piso),0)       AS nuevo_piso,
-    COALESCE(SUM(huevo_pequeno),0)    AS nuevo_pequeno,
-    COALESCE(SUM(huevo_roto),0)       AS nuevo_roto,
-    COALESCE(SUM(huevo_desecho),0)    AS nuevo_desecho,
-    COALESCE(SUM(huevo_otro),0)       AS nuevo_otro,
-    COUNT(*)                          AS filas,
-    MAX(fecha)                        AS ultima_fecha
-  FROM seguimiento_diario_levante   -- la entidad SeguimientoDiario mapea ACA (ToTable)
-  GROUP BY lote_id
-)
-SELECT
-  COUNT(*)                                    AS lotes_comparados,
-  SUM(filas)                                  AS filas_agregadas,
-  COUNT(*) FILTER (WHERE ultima_fecha IS NULL AND filas > 0) AS max_fecha_nula_con_filas,
-  COUNT(*) FILTER (WHERE
-        viejo_limpio     IS DISTINCT FROM nuevo_limpio
-     OR viejo_tratado    IS DISTINCT FROM nuevo_tratado
-     OR viejo_sucio      IS DISTINCT FROM nuevo_sucio
-     OR viejo_deforme    IS DISTINCT FROM nuevo_deforme
-     OR viejo_blanco     IS DISTINCT FROM nuevo_blanco
-     OR viejo_doble_yema IS DISTINCT FROM nuevo_doble_yema
-     OR viejo_piso       IS DISTINCT FROM nuevo_piso
-     OR viejo_pequeno    IS DISTINCT FROM nuevo_pequeno
-     OR viejo_roto       IS DISTINCT FROM nuevo_roto
-     OR viejo_desecho    IS DISTINCT FROM nuevo_desecho
-     OR viejo_otro       IS DISTINCT FROM nuevo_otro
-  ) AS lotes_con_diferencia
-FROM por_lote;
-
-\echo === 2) traslado_huevos (Completado): memoria vs BD, lote por lote ===
-WITH por_lote AS (
-  SELECT
-    lote_id,
-    SUM(COALESCE(cantidad_limpio,0))     AS viejo_limpio,
-    SUM(COALESCE(cantidad_tratado,0))    AS viejo_tratado,
-    SUM(COALESCE(cantidad_sucio,0))      AS viejo_sucio,
-    SUM(COALESCE(cantidad_deforme,0))    AS viejo_deforme,
-    SUM(COALESCE(cantidad_blanco,0))     AS viejo_blanco,
-    SUM(COALESCE(cantidad_doble_yema,0)) AS viejo_doble_yema,
-    SUM(COALESCE(cantidad_piso,0))       AS viejo_piso,
-    SUM(COALESCE(cantidad_pequeno,0))    AS viejo_pequeno,
-    SUM(COALESCE(cantidad_roto,0))       AS viejo_roto,
-    SUM(COALESCE(cantidad_desecho,0))    AS viejo_desecho,
-    SUM(COALESCE(cantidad_otro,0))       AS viejo_otro,
-    COALESCE(SUM(cantidad_limpio),0)     AS nuevo_limpio,
-    COALESCE(SUM(cantidad_tratado),0)    AS nuevo_tratado,
-    COALESCE(SUM(cantidad_sucio),0)      AS nuevo_sucio,
-    COALESCE(SUM(cantidad_deforme),0)    AS nuevo_deforme,
-    COALESCE(SUM(cantidad_blanco),0)     AS nuevo_blanco,
-    COALESCE(SUM(cantidad_doble_yema),0) AS nuevo_doble_yema,
-    COALESCE(SUM(cantidad_piso),0)       AS nuevo_piso,
-    COALESCE(SUM(cantidad_pequeno),0)    AS nuevo_pequeno,
-    COALESCE(SUM(cantidad_roto),0)       AS nuevo_roto,
-    COALESCE(SUM(cantidad_desecho),0)    AS nuevo_desecho,
-    COALESCE(SUM(cantidad_otro),0)       AS nuevo_otro,
-    COUNT(*)                             AS filas
+\echo === 1) espejo *_dinamico vs formula directa (produccion - traslados Completados) ===
+WITH prod AS (
+  SELECT lote_postura_produccion_id AS lpp,
+         SUM(huevo_tot)        AS tot,   SUM(huevo_inc)        AS inc,
+         SUM(huevo_limpio)     AS limpio, SUM(huevo_tratado)   AS tratado,
+         SUM(huevo_sucio)      AS sucio,  SUM(huevo_deforme)   AS deforme,
+         SUM(huevo_blanco)     AS blanco, SUM(huevo_doble_yema) AS doble_yema,
+         SUM(huevo_piso)       AS piso,   SUM(huevo_pequeno)   AS pequeno,
+         SUM(huevo_roto)       AS roto,   SUM(huevo_desecho)   AS desecho,
+         SUM(huevo_otro)       AS otro
+  FROM seguimiento_diario_produccion
+  WHERE lote_postura_produccion_id IS NOT NULL
+  GROUP BY lote_postura_produccion_id
+),
+mov AS (
+  -- El total se descuenta SIEMPRE desde total_huevos: un traslado por ítems deja el desglose
+  -- de las 11 columnas en 0 a propósito, y usarlas para el total dejaría corto el descuento.
+  SELECT lote_postura_produccion_id AS lpp,
+         SUM(total_huevos)      AS tot,
+         SUM(cantidad_limpio)   AS limpio, SUM(cantidad_tratado)    AS tratado,
+         SUM(cantidad_sucio)    AS sucio,  SUM(cantidad_deforme)    AS deforme,
+         SUM(cantidad_blanco)   AS blanco, SUM(cantidad_doble_yema) AS doble_yema,
+         SUM(cantidad_piso)     AS piso,   SUM(cantidad_pequeno)    AS pequeno,
+         SUM(cantidad_roto)     AS roto,   SUM(cantidad_desecho)    AS desecho,
+         SUM(cantidad_otro)     AS otro
   FROM traslado_huevos
-  WHERE estado = 'Completado'
-  GROUP BY lote_id
+  WHERE estado = 'Completado' AND deleted_at IS NULL AND lote_postura_produccion_id IS NOT NULL
+  GROUP BY lote_postura_produccion_id
 )
 SELECT
-  COUNT(*)   AS lotes_comparados,
-  SUM(filas) AS filas_agregadas,
-  COUNT(*) FILTER (WHERE
-        viejo_limpio     IS DISTINCT FROM nuevo_limpio
-     OR viejo_tratado    IS DISTINCT FROM nuevo_tratado
-     OR viejo_sucio      IS DISTINCT FROM nuevo_sucio
-     OR viejo_deforme    IS DISTINCT FROM nuevo_deforme
-     OR viejo_blanco     IS DISTINCT FROM nuevo_blanco
-     OR viejo_doble_yema IS DISTINCT FROM nuevo_doble_yema
-     OR viejo_piso       IS DISTINCT FROM nuevo_piso
-     OR viejo_pequeno    IS DISTINCT FROM nuevo_pequeno
-     OR viejo_roto       IS DISTINCT FROM nuevo_roto
-     OR viejo_desecho    IS DISTINCT FROM nuevo_desecho
-     OR viejo_otro       IS DISTINCT FROM nuevo_otro
-  ) AS lotes_con_diferencia
-FROM por_lote;
+  e.lote_postura_produccion_id                                   AS lpp,
+  e.huevo_tot_historico                                          AS espejo_historico,
+  COALESCE(p.tot,0)                                              AS calc_historico,
+  e.huevo_tot_dinamico                                           AS espejo_disponible,
+  COALESCE(p.tot,0) - COALESCE(m.tot,0)                          AS calc_disponible,
+  (e.huevo_tot_historico IS DISTINCT FROM COALESCE(p.tot,0))     AS difiere_historico,
+  (e.huevo_tot_dinamico  IS DISTINCT FROM COALESCE(p.tot,0) - COALESCE(m.tot,0)) AS difiere_disponible
+FROM espejo_huevo_produccion e
+LEFT JOIN prod p ON p.lpp = e.lote_postura_produccion_id
+LEFT JOIN mov  m ON m.lpp = e.lote_postura_produccion_id
+ORDER BY e.lote_postura_produccion_id;
+
+\echo === 2) resolucion lote -> LPP: tiene que ser 1:1 (cero filas aca) ===
+SELECT lote_id, COUNT(*) AS lpps_vivos
+FROM lote_postura_produccion
+WHERE deleted_at IS NULL AND lote_id IS NOT NULL
+GROUP BY lote_id
+HAVING COUNT(*) > 1
+ORDER BY 2 DESC;
+
+\echo === 3) que ve el usuario ahora vs el cero de antes, por lote ===
+SELECT
+  l.lote_id,
+  l.lote_nombre,
+  p.lote_postura_produccion_id AS lpp,
+  0                            AS antes_total,
+  e.huevo_tot_dinamico         AS ahora_total,
+  e.huevo_tot_historico        AS historico
+FROM lotes l
+JOIN lote_postura_produccion p ON p.lote_id = l.lote_id AND p.deleted_at IS NULL
+LEFT JOIN espejo_huevo_produccion e ON e.lote_postura_produccion_id = p.lote_postura_produccion_id
+WHERE l.deleted_at IS NULL AND l.fase = 'Produccion'
+ORDER BY l.lote_id;

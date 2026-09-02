@@ -6456,14 +6456,37 @@ Auditoria medida contra el repo y la BD local. **La ejecucion espera decision de
       `PATCH /api/users/{id}/password` (`UsersController.cs:125`)
 - [x] F3.4 `POST api/Auth/change-email`: backend completo que **nunca se conecto a la UI** (sin
       equivalente en Users, sin pantalla en el front)
-- [ ] ⏸️ F3.5 Borrar los endpoints confirmados — **espera OK explicito, uno por uno**
-- [ ] ⏸️ F3.6 Borrar tablas `_backup_*`/`_migracion_*` — **OK explicito por tabla**
+- [x] F3.5 Borrado `POST /api/Auth/change-password` (pedido del usuario). El service, el DTO y la
+      interfaz **quedan**: `UsersController.ChangePassword` llama al mismo
+      `IAuthService.ChangePasswordAsync` con el mismo DTO. Verificado que
+      `AuthService.ChangePasswordAsync` sigue exigiendo la contrasena actual, asi que el camino que
+      sobrevive conserva la garantia
+- [ ] ⏸️ F3.6 Los otros 9 endpoints sin lector — **esperan OK, uno por uno**
+- [ ] ⏸️ F3.7 Borrar tablas `_backup_*`/`_migracion_*` — **OK explicito por tabla**
 
-## Hallazgo aparte (no lo causo este trabajo)
+## Fase 4 — Disponibilidad de huevos (pedido del usuario)
 
-- [ ] ⏸️ **`GET /api/Traslados/disponibilidad/{loteId}` informa 0 huevos SIEMPRE.** Filtra
-      `tipo_seguimiento='produccion'` sobre `seguimiento_diario_levante` (ahi mapea la entidad),
-      que tiene 1.112 filas **todas 'levante'**. La produccion real vive en
-      `seguimiento_diario_produccion` (605 filas, 4 lotes, 3.633.088 huevos). No bloquea traslados
-      (el resultado solo se usa para `GranjaId`), pero muestra la disponibilidad en cero. Arreglarlo
-      cambia comportamiento y toca la trampa `loteId` vs `lotePosturaProduccionId`: entrega propia
+- [x] F4.1 Causa medida: el camino por lote sumaba sobre la entidad `SeguimientoDiario`, que por
+      `ToTable` apunta a `seguimiento_diario_levante`, filtrando `tipo_seguimiento='produccion'` —
+      imposible en esa tabla (1.112 filas, todas 'levante')
+- [x] F4.2 🔴 **No se escribio una tercera formula.** Ya existia `espejo_huevo_produccion`
+      (`*_historico` = producido, `*_dinamico` = disponible tras descontar traslados Completados) y
+      el camino por LPP ya lo usaba. El camino por lote ahora resuelve el LPP y lee el MISMO espejo
+- [x] F4.3 Helper `ObtenerEspejoHuevoAsync` extraido y usado por los DOS caminos (el de LPP se
+      refactorizo para llamarlo) — una sola lectura del numero
+- [x] F4.4 La ubicacion (granja/nucleo/galpon/nombre) se sigue tomando del **LOTE**, no del LPP:
+      `TrasladosController:113` usa ese `GranjaId` como granja origen del movimiento. Hoy coinciden
+      en los datos, pero apoyarse en eso seria fragil
+- [x] F4.5 Verificado (`backend/sql/verificar_paridad_disponibilidad_huevos.sql`): el espejo cuadra
+      **exacto** con la formula directa en los 5 LPP con espejo — LPP 6: 2.091.450 / 108.462;
+      LPP 7: 1.541.184 / 70.561; **0 diferencias**. Resolucion lote -> LPP **1:1**
+- [ ] ⏸️ F4.6 🔴 **El endpoint SIGUE mostrando cero, por una SEGUNDA causa que no se toco.**
+      `ObtenerDisponibilidadLoteAsync` solo entra al camino de huevos si `lote.Fase=='Produccion'`, y
+      esa columna **no dice la fase** (anti-patron ya documentado: el paso a produccion no la
+      actualiza). Medido: los lotes con huevos (13 y 14, 2,09M y 1,54M) estan en `fase='Levante'`, y
+      los que estan en `'Produccion'` (142, 143) tienen 0 filas de produccion.
+      **No se cambio el gate a proposito**: haria que 13/14 devuelvan `tipoLote='Produccion'` con
+      `Aves=null`, y eso rompe el lado aves —`traslado-aves-huevos.component.ts:193` corta con «Este
+      lote es de produccion» y `inventario-dashboard.component.ts:1453` arma los validadores del
+      retiro sobre `disponibilidad.aves`. Cambio de comportamiento en pantallas que nadie pidio
+      tocar: va aparte, con prueba en las dos
