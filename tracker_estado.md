@@ -6380,3 +6380,90 @@ lugares de DTOs y 6 services.
       (`Database__RunMigrations=true`). CLAUDE.md pide OK explícito para DDL en prod
 - [ ] ⏸️ **`lote_registro_historico_unificado.peso_tara_real` sigue `numeric(18,3)`** — a propósito.
       Ahí el recorte a 3 decimales sí es del histórico y tocarlo es otra entrega
+
+---
+
+# Optimizacion de consultas, carga del backend y codigo sin uso
+
+Plan: [`fase_de_desarrollo/optimizacion_consultas_backend_plan.md`](fase_de_desarrollo/optimizacion_consultas_backend_plan.md)
+
+Auditoria medida contra el repo y la BD local. **La ejecucion espera decision de alcance del usuario**
+(los frentes son independientes; F3 borra cosas y es irreversible).
+
+## Fase 0 — Auditoria (cerrada)
+
+- [x] A1 Detector propio de patrones EF (no grep suelto): entiende el cuerpo del `foreach` y la
+      materializacion temprana. Resultado: **17** bloques con BD dentro de un bucle, **119** sitios que
+      bajan la tabla y agregan en memoria, **72** `ToListAsync` sin `AsNoTracking`
+- [x] A2 Filtros no sargables: **19** `.Date ==`, **17** `.ToString()`, **16** `.ToLower()/.ToUpper()`
+      dentro de `Where(...)` — descartan el indice
+- [x] A3 BD local: **14 FK sin indice** en las tablas mas grandes; `inventario_gasto` con 8.164 seq
+      scans contra 45 index scans; **16 tablas** `_backup_*`/`_migracion_*` vivas
+- [x] A4 Pipeline: **sin compresion de respuesta** (ni en el API ni en un proxy delante),
+      `AddDbContext` sin pool ni `EnableRetryOnFailure`
+- [x] A5 Front: `shareReplay` en **3 de 120** servicios con `HttpClient`; polling fijo 2-5 s en 6 pantallas
+- [x] A6 Cruce rutas-vs-clientes (front + app movil Flutter + backend) sobre **834 endpoints**:
+      **1** controller sin lector (`ServiceTokens`) y **124** sub-paths candidatos **a verificar uno a
+      uno** — el detector no resuelve URLs armadas por concatenacion, no es una sentencia
+- [x] A7 Plan escrito con orden por ganancia/riesgo y casos de prueba
+
+## Fase 1 — Transporte y pipeline (riesgo casi nulo) — PENDIENTE DE OK
+
+- [x] F1.1 `AddResponseCompression` (brotli + gzip) sobre `application/json`, `problem+json`, `text/csv`
+- [x] F1.2 Cuerpo descomprimido **identico**: mismo sha256 (`aac96b64...`); 3.459 -> 1.274 B con br
+      (-63%) y 1.509 B con gzip (-56%); `Content-Encoding` + `Vary` correctos
+- [x] F1.3 `AddDbContextPool`. 🔴 **`EnableRetryOnFailure` NO se activa**: la estrategia de reintento
+      no soporta transacciones del usuario y hay **67 `BeginTransaction`** en ~25 services contra
+      **1** `CreateExecutionStrategy` -> lanzaria en runtime en todo camino de escritura
+- [x] F1.4 🔴 El smoke encontro lo que el build y los tests NO veian: `AddDbContextPool` choca con el
+      `OnConfiguring` del contexto («cannot be used to modify DbContextOptions when pooling is
+      enabled»). Resuelto moviendo la supresion del warning a los 3 sitios que construyen el
+      contexto (Program.cs + las 2 design-time factories)
+- [x] F1.5 Validado: build 0/0, 3.748 tests verdes, `/db-ping` 200 con el contexto pooled, 37
+      requests concurrentes OK antes del rate limiter, 0 excepciones. Backend apagado, puerto libre
+
+## Fase 2 — Consultas (parcial; queda lo que exige decision)
+
+- [x] F2.1 Migracion `20260902173436_IndicesClavesForaneasInventarioYEngorde`: 14 indices, parciales
+      (`WHERE ... IS NOT NULL`) en las columnas NULL, siguiendo la convencion que ya tenia
+      `movimiento_pollo_engorde` — donde justamente faltaba la simetria: los ORIGEN estaban
+      indexados y los DESTINO no
+- [x] F2.2 Idempotencia probada por transaccion con `ROLLBACK`: 0 -> 14 -> 14 (avisa «skipping»)
+      -> 0 -> 0. BD local **intacta**
+- [x] F2.3 Recuento corregido: **14** N+1 reales, no 17 (el detector no manejaba el `foreach` sin
+      llaves). Los 2 «casos claros» resultaron ser **falso positivo** (`AuthService:654`: el
+      `SaveChanges` ya estaba afuera) y **deliberado** (`EmailQueueProcessorService:87`: guarda
+      `processing` antes de enviar para no duplicar el correo) -> ninguno se toca
+- [x] F2.4 `DisponibilidadLoteService`: las 2 lecturas completas + 22 `Sum()` en memoria pasan a
+      2 consultas agregadas (`GroupBy(1)`), un viaje cada una, con `COUNT` y `MAX(fecha)` incluidos
+- [x] F2.5 🔴 Paridad **lote por lote** sobre datos reales
+      (`backend/sql/verificar_paridad_disponibilidad_huevos.sql`): **0 diferencias** en 26 lotes /
+      1.112 filas y en 2 lotes / 424 traslados
+- [x] F2.6 Gate de CI `verificar-sql-llega-por-migracion.js` OK; build 0/0; 3.748 tests verdes
+- [ ] ⏸️ F2.7 Confirmar el volumen de esas tablas **en prod** para dimensionar la ganancia real de
+      los indices (en local la tabla entra en una pagina y el planner elige seq scan igual)
+- [ ] ⏸️ F2.8 Los 4 N+1 de camino de request (`ColombiaInventarioConsumo`, `FarmInventoryReport`,
+      `InventarioGestion.Traslado`, `UserFarmScope`) — entrega propia
+- [ ] ⏸️ F2.9 Los 52 filtros no sargables: mueven el borde de la fecha, hay que medir uno por uno
+
+## Fase 3 — Verificacion de codigo sin uso (hecha; NO se borro nada)
+
+- [x] F3.1 `ServiceTokensController`: **NO es codigo muerto**. Por diseno no tiene cliente en el
+      repo — emite PAT para crones headless que llaman `/api/tickets`, se opera a mano. Conservar
+- [x] F3.2 Recuento corregido: **11** endpoints sin ninguna referencia, no 124 (el detector unia
+      segmentos estaticos NO adyacentes). Los 11 verificados uno por uno, veredicto en el plan
+- [x] F3.3 `POST api/Auth/change-password` es **duplicado superado**: el front usa
+      `PATCH /api/users/{id}/password` (`UsersController.cs:125`)
+- [x] F3.4 `POST api/Auth/change-email`: backend completo que **nunca se conecto a la UI** (sin
+      equivalente en Users, sin pantalla en el front)
+- [ ] ⏸️ F3.5 Borrar los endpoints confirmados — **espera OK explicito, uno por uno**
+- [ ] ⏸️ F3.6 Borrar tablas `_backup_*`/`_migracion_*` — **OK explicito por tabla**
+
+## Hallazgo aparte (no lo causo este trabajo)
+
+- [ ] ⏸️ **`GET /api/Traslados/disponibilidad/{loteId}` informa 0 huevos SIEMPRE.** Filtra
+      `tipo_seguimiento='produccion'` sobre `seguimiento_diario_levante` (ahi mapea la entidad),
+      que tiene 1.112 filas **todas 'levante'**. La produccion real vive en
+      `seguimiento_diario_produccion` (605 filas, 4 lotes, 3.633.088 huevos). No bloquea traslados
+      (el resultado solo se usa para `GranjaId`), pero muestra la disponibilidad en cero. Arreglarlo
+      cambia comportamiento y toca la trampa `loteId` vs `lotePosturaProduccionId`: entrega propia

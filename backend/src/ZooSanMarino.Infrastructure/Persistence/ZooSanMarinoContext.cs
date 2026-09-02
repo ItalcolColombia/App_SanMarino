@@ -189,14 +189,17 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 
 
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            base.OnConfiguring(optionsBuilder);
-            
-            // Suprimir warning de cambios pendientes en el modelo
-            optionsBuilder.ConfigureWarnings(warnings => 
+        /// <summary>
+        /// Supresión del warning de cambios pendientes en el modelo.
+        /// Vivía en un override de <c>OnConfiguring</c>, pero EF prohíbe modificar las opciones
+        /// desde ahí cuando el contexto está en pool ("'OnConfiguring' cannot be used to modify
+        /// DbContextOptions when DbContext pooling is enabled"), y el API usa AddDbContextPool.
+        /// Ahora lo aplica cada sitio que construye el contexto: Program.cs y las dos factories
+        /// de design-time (que son las que corren <c>dotnet ef</c>, donde este warning importa).
+        /// </summary>
+        public static void ConfigurarWarnings(DbContextOptionsBuilder optionsBuilder) =>
+            optionsBuilder.ConfigureWarnings(warnings =>
                 warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

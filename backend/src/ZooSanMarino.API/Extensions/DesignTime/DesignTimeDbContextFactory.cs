@@ -69,11 +69,12 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<ZooSanMari
         var csb = new NpgsqlConnectionStringBuilder(conn);
         Console.WriteLine($"[EF] ENV: {environment} | .env usado: {usedEnv ?? "(ninguno)"} | Host: {csb.Host} | Port: {csb.Port}");
 
-        var options = new DbContextOptionsBuilder<ZooSanMarinoContext>()
+        var optionsBuilder = new DbContextOptionsBuilder<ZooSanMarinoContext>()
             .UseSnakeCaseNamingConvention()
-            .UseNpgsql(conn)
-            .Options;
+            .UseNpgsql(conn);
+        // Antes lo hacía OnConfiguring; se movió acá porque el pool del API lo prohíbe.
+        ZooSanMarinoContext.ConfigurarWarnings(optionsBuilder);
 
-        return new ZooSanMarinoContext(options);
+        return new ZooSanMarinoContext(optionsBuilder.Options);
     }
 }

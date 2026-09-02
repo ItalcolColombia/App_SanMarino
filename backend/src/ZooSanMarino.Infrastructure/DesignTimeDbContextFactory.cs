@@ -22,6 +22,8 @@ namespace ZooSanMarino.Infrastructure
             optionsBuilder
                 .UseNpgsql(config.GetConnectionString("ZooSanMarinoContext"))
                 .UseSnakeCaseNamingConvention();
+            // Antes lo hacía OnConfiguring; se movió acá porque el pool del API lo prohíbe.
+            ZooSanMarinoContext.ConfigurarWarnings(optionsBuilder);
 
             return new ZooSanMarinoContext(optionsBuilder.Options);
         }

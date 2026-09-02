@@ -75,43 +75,79 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
 
         var loteIdStr = loteProd.LoteId.Value.ToString();
 
-        // Seguimientos desde tabla unificada seguimiento_diario (tipo produccion) — alineado con seguimiento diario unificado
-        var seguimientos = await _context.SeguimientoDiario
+        // Seguimientos desde tabla unificada seguimiento_diario (tipo produccion) — alineado con seguimiento diario unificado.
+        // Se agrega en la BD: antes se traían TODAS las filas del lote para sumarlas en memoria
+        // (11 Sum sobre la lista completa). El GroupBy(1) traduce a un único SELECT con los 11
+        // SUM, el COUNT y el MAX(fecha) — un solo viaje y sin materializar las filas.
+        // SUM de Postgres ignora los NULL igual que `?? 0` en memoria, así que el número no cambia;
+        // sobre cero filas la consulta no devuelve grupo, y ahí los totales quedan en 0 como antes.
+        var agg = await _context.SeguimientoDiario
             .AsNoTracking()
             .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr)
-            .ToListAsync();
+            .GroupBy(s => 1)
+            .Select(g => new
+            {
+                Limpio    = g.Sum(s => (int?)s.HuevoLimpio)    ?? 0,
+                Tratado   = g.Sum(s => (int?)s.HuevoTratado)   ?? 0,
+                Sucio     = g.Sum(s => (int?)s.HuevoSucio)     ?? 0,
+                Deforme   = g.Sum(s => (int?)s.HuevoDeforme)   ?? 0,
+                Blanco    = g.Sum(s => (int?)s.HuevoBlanco)    ?? 0,
+                DobleYema = g.Sum(s => (int?)s.HuevoDobleYema) ?? 0,
+                Piso      = g.Sum(s => (int?)s.HuevoPiso)      ?? 0,
+                Pequeno   = g.Sum(s => (int?)s.HuevoPequeno)   ?? 0,
+                Roto      = g.Sum(s => (int?)s.HuevoRoto)      ?? 0,
+                Desecho   = g.Sum(s => (int?)s.HuevoDesecho)   ?? 0,
+                Otro      = g.Sum(s => (int?)s.HuevoOtro)      ?? 0,
+                Filas     = g.Count(),
+                UltimaFecha = (DateTime?)g.Max(s => s.Fecha)
+            })
+            .FirstOrDefaultAsync();
 
-        // Calcular totales acumulados por tipo de huevo
-        var totalLimpio = seguimientos.Sum(s => s.HuevoLimpio ?? 0);
-        var totalTratado = seguimientos.Sum(s => s.HuevoTratado ?? 0);
-        var totalSucio = seguimientos.Sum(s => s.HuevoSucio ?? 0);
-        var totalDeforme = seguimientos.Sum(s => s.HuevoDeforme ?? 0);
-        var totalBlanco = seguimientos.Sum(s => s.HuevoBlanco ?? 0);
-        var totalDobleYema = seguimientos.Sum(s => s.HuevoDobleYema ?? 0);
-        var totalPiso = seguimientos.Sum(s => s.HuevoPiso ?? 0);
-        var totalPequeno = seguimientos.Sum(s => s.HuevoPequeno ?? 0);
-        var totalRoto = seguimientos.Sum(s => s.HuevoRoto ?? 0);
-        var totalDesecho = seguimientos.Sum(s => s.HuevoDesecho ?? 0);
-        var totalOtro = seguimientos.Sum(s => s.HuevoOtro ?? 0);
+        var totalLimpio    = agg?.Limpio    ?? 0;
+        var totalTratado   = agg?.Tratado   ?? 0;
+        var totalSucio     = agg?.Sucio     ?? 0;
+        var totalDeforme   = agg?.Deforme   ?? 0;
+        var totalBlanco    = agg?.Blanco    ?? 0;
+        var totalDobleYema = agg?.DobleYema ?? 0;
+        var totalPiso      = agg?.Piso      ?? 0;
+        var totalPequeno   = agg?.Pequeno   ?? 0;
+        var totalRoto      = agg?.Roto      ?? 0;
+        var totalDesecho   = agg?.Desecho   ?? 0;
+        var totalOtro      = agg?.Otro      ?? 0;
 
-        // Obtener traslados completados para restar
-        var trasladosCompletados = await _context.TrasladoHuevos
+        // Traslados completados para restar: mismo criterio, un solo SELECT agregado.
+        var aggTraslados = await _context.TrasladoHuevos
             .AsNoTracking()
             .Where(t => t.LoteId == loteIdStr && t.Estado == "Completado")
-            .ToListAsync();
+            .GroupBy(t => 1)
+            .Select(g => new
+            {
+                Limpio    = g.Sum(t => (int?)t.CantidadLimpio)    ?? 0,
+                Tratado   = g.Sum(t => (int?)t.CantidadTratado)   ?? 0,
+                Sucio     = g.Sum(t => (int?)t.CantidadSucio)     ?? 0,
+                Deforme   = g.Sum(t => (int?)t.CantidadDeforme)   ?? 0,
+                Blanco    = g.Sum(t => (int?)t.CantidadBlanco)    ?? 0,
+                DobleYema = g.Sum(t => (int?)t.CantidadDobleYema) ?? 0,
+                Piso      = g.Sum(t => (int?)t.CantidadPiso)      ?? 0,
+                Pequeno   = g.Sum(t => (int?)t.CantidadPequeno)   ?? 0,
+                Roto      = g.Sum(t => (int?)t.CantidadRoto)      ?? 0,
+                Desecho   = g.Sum(t => (int?)t.CantidadDesecho)   ?? 0,
+                Otro      = g.Sum(t => (int?)t.CantidadOtro)      ?? 0
+            })
+            .FirstOrDefaultAsync();
 
         // Restar traslados completados
-        totalLimpio -= trasladosCompletados.Sum(t => t.CantidadLimpio);
-        totalTratado -= trasladosCompletados.Sum(t => t.CantidadTratado);
-        totalSucio -= trasladosCompletados.Sum(t => t.CantidadSucio);
-        totalDeforme -= trasladosCompletados.Sum(t => t.CantidadDeforme);
-        totalBlanco -= trasladosCompletados.Sum(t => t.CantidadBlanco);
-        totalDobleYema -= trasladosCompletados.Sum(t => t.CantidadDobleYema);
-        totalPiso -= trasladosCompletados.Sum(t => t.CantidadPiso);
-        totalPequeno -= trasladosCompletados.Sum(t => t.CantidadPequeno);
-        totalRoto -= trasladosCompletados.Sum(t => t.CantidadRoto);
-        totalDesecho -= trasladosCompletados.Sum(t => t.CantidadDesecho);
-        totalOtro -= trasladosCompletados.Sum(t => t.CantidadOtro);
+        totalLimpio    -= aggTraslados?.Limpio    ?? 0;
+        totalTratado   -= aggTraslados?.Tratado   ?? 0;
+        totalSucio     -= aggTraslados?.Sucio     ?? 0;
+        totalDeforme   -= aggTraslados?.Deforme   ?? 0;
+        totalBlanco    -= aggTraslados?.Blanco    ?? 0;
+        totalDobleYema -= aggTraslados?.DobleYema ?? 0;
+        totalPiso      -= aggTraslados?.Piso      ?? 0;
+        totalPequeno   -= aggTraslados?.Pequeno   ?? 0;
+        totalRoto      -= aggTraslados?.Roto      ?? 0;
+        totalDesecho   -= aggTraslados?.Desecho   ?? 0;
+        totalOtro      -= aggTraslados?.Otro      ?? 0;
 
         // Asegurar que no sean negativos
         totalLimpio = Math.Max(0, totalLimpio);
@@ -132,8 +168,8 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         
         var totalHuevosIncubables = totalLimpio + totalTratado;
 
-        var fechaUltimoRegistro = seguimientos.Count > 0
-            ? seguimientos.Max(s => s.Fecha)
+        var fechaUltimoRegistro = (agg?.Filas ?? 0) > 0
+            ? agg!.UltimaFecha
             : (DateTime?)null;
 
         var diasEnProduccion = loteProd.FechaInicioProduccion.HasValue && loteProd.FechaInicioProduccion.Value != default
