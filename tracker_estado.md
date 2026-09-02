@@ -5796,8 +5796,15 @@ usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en
       `authGuard` expulsa al minuto 61 sin señal y toda la caché de 16 h y el multi-slot son
       inalcanzables en el galpón. **Va DESPUÉS de verificar B1 (`c9a7349`) desplegado**: 16 h sin
       revocación real es una ventana de acceso irrevocable en una tablet que se puede perder (D4)
-- [ ] H2.2 Actualizar `backend/ecs-taskdef-new-aws.json:38` para que el repo deje de mentir. ⚠️ Eso
-      solo **no cambia nada en prod**: la TaskDef viva pisa el `appsettings`
+- [!] H2.2 **NO se tocó `backend/ecs-taskdef-new-aws.json:38`, y es una decisión, no un olvido.**
+      Medido: el workflow **no lee ese archivo** —hace `describe-task-definition` de la familia viva
+      (`sanmarino-back-task`) y sólo le cambia la imagen—, pero `backend/scripts/deploy-backend-ecs.sh`
+      **sí lo usa**. O sea que subirlo a 960 no es un cambio cosmético: cambiaría producción por el
+      camino del deploy manual, sin OK. Hoy el archivo dice **60**, que es lo que corre; ponerle 960
+      antes de tocar la TaskDef sería la mentira al revés (el repo diría que H2 está hecho)
+- [i] 💡 **Lo bueno de que el workflow lea la TaskDef viva:** el cambio se hace **una sola vez** (por
+      consola o CLI) y **sobrevive a todos los deploys** siguientes — el pipeline conserva las
+      variables de entorno y sólo reemplaza la imagen
 - [~] H2.3 Verificación post-cambio: `describe-task-definition` + **decodificar el `exp` del JWT
       recién emitido** (960, no 60). Sin el segundo paso no está verificado — ECS hace rollback silencioso
 
