@@ -5703,3 +5703,41 @@ entregaba** — su corte `edad >= 26` la descartaba, porque el parseo devuelve 2
 | Etapas del ciclo por raza | conectadas |
 | 3 desalineaciones preexistentes | corregidas |
 | Menu neutro | migracion idempotente, probada en transaccion revertida |
+
+## El corte de inicio de produccion de la guia, por EMPRESA (1-sep-2026)
+
+Pedido del usuario: *«cuando este en la empresa Santa Reyes aplica la correccion de semana 18, de lo
+contrario es semana 25»*. El corte estaba escrito a mano como `26` y era el de la guia de esquema
+completo; la de esquema simple arranca directamente en produccion.
+
+- [x] **Validado antes de codificar, en el dato**: la guia de esquema simple arranca en la **18 y ya
+      trae produccion ahi** — Hy Line Brown va 7,70 % (sem 18) → 27,10 → 57,30 → 80,50 → 90,60 →
+      94,10 → 95,50 → **96,60 (sem 25)**. Con el corte en 26 se perdian **8 semanas por linea**
+      (115 de 123 filas entraban; ahora 123), justo la curva de arranque de la postura
+- [x] **Por columna, NO por `if (empresa == ...)`** (regla §🏢 de CLAUDE.md):
+      `companies.semana_inicio_produccion_guia` INTEGER NOT NULL **DEFAULT 26** — el mismo numero
+      que estaba en el codigo, asi que quien no se toque se comporta igual **por construccion**
+- [x] La migración **localiza la empresa por SU GUIA, no por el nombre**: pone 18 a quien tenga filas
+      en la tabla de esquema simple. Asi no depende del orden respecto al seed que crea la empresa
+      (§🏢.7) y, si la empresa no existe todavia, no afecta ninguna fila
+- [x] **Validada en transaccion revertida**: `Up()` 1a = ALTER + **UPDATE 1** · 2a = NOTICE «already
+      exists» + **UPDATE 0** · reparto correcto (Santa Reyes **18**, las otras 4 en **26**) ·
+      `Down()` deja la columna en **0**
+- [x] **Aplicada de verdad en local** al arrancar el backend (`Database:RunMigrations=true`), junto
+      con la del menu: `menus./reportes-tecnicos` ya dice **«Reporte Tecnico»**
+- [x] `GrafiaEdadGuiaCalculos.EsSerieDeProduccion` ya era parametrizable; el service resuelve el
+      valor de la empresa y lo pasa. **Fail-safe**: empresa no encontrada ⇒ cae al default 26
+- [x] **12 tests nuevos**, incluido uno que recorre las 140 semanas comparando el default contra el
+      corte 26 explicito (delta cero demostrado, no afirmado) y otro que fija que la fila con `P`
+      entra **con cualquier corte**
+- [x] **Smoke HTTP con Santa Reyes**: sembrados 21 dias en el tramo de la semana 18-25 de vida
+      (encaset + 119 dias), el Cuadro devuelve **2/2 filas con consumo standard** (95 y 102,5
+      gr/ave/dia) donde con el corte fijo en 26 habrian salido en `null`. Datos y sesion **borrados**
+      (0 y 0), puertos **LIBRES**
+- [x] `dotnet build` 0/0 · `dotnet test` **3.715 verdes**
+- [!] **Tension que sigue abierta y NO se toco**: `SemanasCicloPosturaCalculos` (auditado del docx
+      del cliente) define para esa empresa **postura desde la semana 29** (8 alistamiento + 16
+      levante + 4 levante-en-produccion), pero su guia produce desde la **18**. Este pase alinea el
+      **corte de la guia** —que es lo que el usuario pidio y lo que el dato respalda— y **no toca las
+      etapas del ciclo**, que alimentan la columna «fase» del reporte. Si el corte real es 18, esa
+      clase tambien habria que ajustarla: es decision del cliente, no mia

@@ -1,4 +1,4 @@
-﻿// file: src/ZooSanMarino.Infrastructure/Persistence/Configurations/CompanyConfiguration.cs
+// file: src/ZooSanMarino.Infrastructure/Persistence/Configurations/CompanyConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
@@ -156,6 +156,11 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.SemanasCicloPosturaPorRaza)
             .HasColumnName("semanas_ciclo_postura_por_raza")
             .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(x => x.SemanaInicioProduccionGuia)
+            .HasColumnName("semana_inicio_produccion_guia")
+            .HasDefaultValue(26)
             .IsRequired();
 
         // Flag tipado por comportamiento: el catálogo de ítems de inventario sólo ofrece Alimento

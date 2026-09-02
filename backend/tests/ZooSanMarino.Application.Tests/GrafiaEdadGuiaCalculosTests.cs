@@ -147,15 +147,67 @@ public class GrafiaEdadGuiaCalculosTests
         Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion(grafia, edad));
     }
 
+    // ── El corte depende de la GUIA de la empresa (`companies.semana_inicio_produccion_guia`) ──
+
     /// <summary>
-    /// El corte es parametrizable: una guia que arranque su produccion antes -la de esquema simple
-    /// empieza en la semana 18- puede declararlo sin tocar el calculo.
+    /// 🔴 Guia de ESQUEMA SIMPLE (corte 18): arranca directamente en produccion. Medido: su primera
+    /// edad es la 18 y ya trae produccion ahi — 7,70 % en Hy Line Brown, subiendo a 96,60 % en la
+    /// semana 25. Con el corte fijo en 26 se perdian esas 8 semanas, que son la curva de arranque
+    /// de la postura.
+    /// </summary>
+    [Theory]
+    [InlineData(18)]
+    [InlineData(19)]
+    [InlineData(24)]
+    [InlineData(25)]
+    [InlineData(140)]
+    public void Con_corte_18_toda_la_guia_de_esquema_simple_es_produccion(int edad)
+    {
+        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion(edad.ToString(), edad, desdeSemana: 18));
+    }
+
+    /// <summary>
+    /// Guia de ESQUEMA COMPLETO (corte 26, el default): cubre levante + postura, asi que las
+    /// semanas de levante tienen que quedar fuera. Es lo que el corte protege.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(18)]
+    [InlineData(24)]
+    [InlineData(25)]
+    public void Con_el_corte_por_defecto_el_levante_queda_fuera(int edad)
+    {
+        Assert.False(GrafiaEdadGuiaCalculos.EsSerieDeProduccion(edad.ToString(), edad));
+    }
+
+    /// <summary>
+    /// El default del calculo es el mismo numero que estaba escrito a mano en el service antes de
+    /// que el corte fuera un parametro: quien no declare nada se comporta igual que siempre.
     /// </summary>
     [Fact]
-    public void El_corte_se_puede_mover_para_una_guia_que_arranque_antes()
+    public void El_default_es_26_y_coincide_con_el_corte_historico()
     {
-        Assert.False(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("18", 18));
-        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("18", 18, desdeSemana: 18));
+        Assert.Equal(26, GrafiaEdadGuiaCalculos.PrimeraSemanaProduccion);
+
+        for (var edad = 1; edad <= 140; edad++)
+        {
+            Assert.Equal(
+                GrafiaEdadGuiaCalculos.EsSerieDeProduccion(edad.ToString(), edad),
+                GrafiaEdadGuiaCalculos.EsSerieDeProduccion(edad.ToString(), edad, desdeSemana: 26));
+        }
+    }
+
+    /// <summary>
+    /// La grafia de transicion entra <b>cualquiera sea el corte</b>: no depende de el, sino de que
+    /// esa fila abre la serie de produccion por definicion.
+    /// </summary>
+    [Theory]
+    [InlineData(18)]
+    [InlineData(26)]
+    [InlineData(99)]
+    public void La_fila_con_P_entra_con_cualquier_corte(int desdeSemana)
+    {
+        Assert.True(GrafiaEdadGuiaCalculos.EsSerieDeProduccion("25P", 25, desdeSemana));
     }
 
     /// <summary>Una grafia desconocida va al final, nunca antes de una que si se entiende.</summary>
