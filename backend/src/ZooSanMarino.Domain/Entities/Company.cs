@@ -1,4 +1,4 @@
-﻿namespace ZooSanMarino.Domain.Entities
+namespace ZooSanMarino.Domain.Entities
 {
     public class Company
     {
@@ -296,6 +296,23 @@
         /// <c>false</c> (default) = comportamiento actual, sin cambios.
         /// </summary>
         public bool SemanasCicloPosturaPorRaza { get; set; }
+
+        /// <summary>
+        /// Primera semana de VIDA que la guía genética de esta empresa considera PRODUCCIÓN.
+        ///
+        /// <para>Es el corte con el que los reportes deciden qué filas de la guía son de postura y
+        /// cuáles de levante. Depende de la guía que la empresa carga, no de su nombre:</para>
+        /// <list type="bullet">
+        ///   <item><b>26</b> (default): guía de esquema completo, que cubre levante + postura. Su
+        ///   primera edad con <c>prod_porcentaje</c> es la 25/26, y la semana 25 de transición entra
+        ///   igual por su grafía <c>"25P"</c>.</item>
+        ///   <item><b>18</b>: guía que arranca directamente en producción — medido en la de esquema
+        ///   simple, cuya primera edad es la 18 y ya trae producción ahí (7,7 % subiendo a 96,6 % en
+        ///   la semana 25). Con el corte en 26 se perdía justo la curva de arranque de la postura.</item>
+        /// </list>
+        /// Ver <c>GrafiaEdadGuiaCalculos.EsSerieDeProduccion</c>.
+        /// </summary>
+        public int SemanaInicioProduccionGuia { get; set; } = 26;
 
         /// <summary>
         /// <c>true</c> = el catálogo de ítems de inventario (<c>CatalogItem.ItemType</c>) sólo

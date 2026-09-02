@@ -760,3 +760,21 @@
   background: #fef3c7 !important;
   color: #92400e;
 }
+
+/* ── Aviso de tramo sin guia ───────────────────────────────────────────────────
+   Se muestra cuando la guia genetica de la linea arranca despues de la primera
+   semana del reporte (p. ej. una guia que solo cubre produccion). Es informativo,
+   no un error: naranja de marca = atencion; el rojo queda reservado para peligro
+   / destructivo (regla de marca del repo, ver theme-italfoods.scss).            */
+.aviso-sin-guia {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--ital-orange);
+  background: var(--ital-orange-50);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-strong, #2b2b2b);
+
+  strong { display: block; margin-bottom: 2px; }
+}

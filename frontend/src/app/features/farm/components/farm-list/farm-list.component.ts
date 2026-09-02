@@ -31,6 +31,7 @@ import { CiudadService, CiudadDto } from '../../services/ciudad.service';
 import { PaisService, PaisDto } from '../../services/pais.service';
 import { ClienteService } from '../../../clientes/services/cliente.service';
 import { ClienteDto } from '../../../clientes/models/cliente.models';
+import { construirPayloadGranja } from '../../funciones/construir-payload-granja.funcion';
 
 @Component({
   selector: 'app-farm-list',
@@ -196,12 +197,18 @@ export class FarmListComponent implements OnInit {
       ciudadId: [null],
       department: [''],
       city: [''],
+      // ── Nivel de manejo de alimento (override por granja) ─────────────
+      // Tri-estado: null = hereda el flag de la empresa; true = sobre galpón; false = sobre granja.
+      manejaAlimentoPorGalpon: [null as boolean | null],
       // ── Campos exclusivos Panamá ──────────────────────────────────────
       clienteId:      [null],
       zona:           [{ value: '', disabled: true }], // autopoblada desde el cliente
       certificadoGab: [false],
       latitud:        [null],
       longitud:       [null],
+      // Correlativo ERP de engorde de la granja: sólo dígitos, máx. 18 (avanza +1 al cerrar el
+      // ciclo, así que el backend rechaza cualquier otra cosa).
+      codigoErpEngorde: ['', [Validators.pattern(/^\d*$/), Validators.maxLength(18)]],
       // ── Códigos ERP avícolas (solo si la empresa activa los maneja) ────
       // Todos opcionales: el ERP se carga cuando el cliente lo tiene definido.
       codigoBodega:               ['', [Validators.maxLength(20)]],
@@ -488,6 +495,10 @@ export class FarmListComponent implements OnInit {
               certificadoGab: farmData.certificadoGab ?? false,
               latitud:        farmData.latitud         ?? null,
               longitud:       farmData.longitud        ?? null,
+              codigoErpEngorde: farmData.codigoErpEngorde ?? '',
+              // Se hidrata aunque el país o la empresa no lo muestren: el payload lo manda siempre
+              // y el backend lo asigna sin condicional, así que lo que no se lea acá se borra.
+              manejaAlimentoPorGalpon: farmData.manejaAlimentoPorGalpon ?? null,
               // Códigos ERP avícolas
               codigoBodega:               farmData.codigoBodega               ?? '',
               descripcionBodega:          farmData.descripcionBodega          ?? '',
@@ -533,6 +544,8 @@ export class FarmListComponent implements OnInit {
         certificadoGab: false,
         latitud:        null,
         longitud:       null,
+        codigoErpEngorde: '',
+        manejaAlimentoPorGalpon: null,
         // Códigos ERP avícolas
         codigoBodega:               '',
         descripcionBodega:          '',
@@ -655,37 +668,9 @@ export class FarmListComponent implements OnInit {
       return;
     }
 
-    const raw = this.form.getRawValue();
-
-    // Normaliza status a 'A' | 'I'
-    const status: 'A' | 'I' = (String(raw.status ?? 'A').toUpperCase() === 'I' ? 'I' : 'A');
-
-    // El valor seleccionado en el select es el id de la opción (lista maestra); se envía como regionalId para que se guarde
-    const regionalId = raw?.regionalOptionId != null && raw?.regionalOptionId !== '' ? Number(raw.regionalOptionId) : null;
-
-    const dtoBase = {
-      name: (raw.name ?? '').trim(),
-      companyId: Number(raw.companyId ?? 1),
-      status,
-      regionalId,
-      departamentoId: raw?.departamentoId != null && raw?.departamentoId !== '' ? Number(raw.departamentoId) : null,
-      ciudadId:       raw?.ciudadId       != null && raw?.ciudadId       !== '' ? Number(raw.ciudadId)       : null,
-      // ── Campos Panamá (null para otros países) ──────────────────────
-      clienteId:      raw?.clienteId != null && raw?.clienteId !== '' ? Number(raw.clienteId) : null,
-      zona:           raw?.zona  || null,
-      certificadoGab: raw?.certificadoGab ?? false,
-      latitud:        raw?.latitud  != null && raw?.latitud  !== '' ? Number(raw.latitud)  : null,
-      longitud:       raw?.longitud != null && raw?.longitud !== '' ? Number(raw.longitud) : null,
-      // ── Códigos ERP avícolas ────────────────────────────────────────
-      // Se envían siempre desde el form (hidratado con lo que devuelve el backend):
-      // así una edición hecha con el flag apagado NO borra los códigos existentes.
-      codigoBodega:               this.textoOrNull(raw?.codigoBodega),
-      descripcionBodega:          this.textoOrNull(raw?.descripcionBodega),
-      centroOperacion:            this.textoOrNull(raw?.centroOperacion),
-      descripcionCentroOperacion: this.textoOrNull(raw?.descripcionCentroOperacion),
-      codigoInstalacion:          this.textoOrNull(raw?.codigoInstalacion),
-      descripcionInstalacion:     this.textoOrNull(raw?.descripcionInstalacion),
-    };
+    // El payload se arma en una sola función pura (`funciones/construir-payload-granja.funcion.ts`):
+    // es el punto único donde se decide qué campos viajan, y tiene test de regresión.
+    const dtoBase = construirPayloadGranja(this.form.getRawValue());
 
     this.loading = true;
 
@@ -812,12 +797,6 @@ export class FarmListComponent implements OnInit {
   // =============
   // Helpers
   // =============
-  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
-  private textoOrNull(value: unknown): string | null {
-    const texto = value == null ? '' : String(value).trim();
-    return texto === '' ? null : texto;
-  }
-
   /** Calcula el siguiente ID consecutivo a partir de la lista cargada (máximo + 1). */
   private getNextFarmId(): number {
     const ids = (this.farms ?? []).map(f => Number(f.id)).filter(n => Number.isFinite(n));

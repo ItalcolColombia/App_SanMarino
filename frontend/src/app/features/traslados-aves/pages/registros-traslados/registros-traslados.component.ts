@@ -10,6 +10,7 @@ import {
 } from '../../services/traslados-aves.service';
 import { TrasladoNavigationService, TrasladoUnificado, MovimientoAvesCompleto } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
+import { fechaTrasladoHistorialLote as fechaTrasladoHistorialLoteFn } from '../../funciones/fecha-traslado-historial-lote.funcion';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
@@ -167,6 +168,11 @@ export class RegistrosTrasladosComponent implements OnInit {
 
   formatearNumero(numero: number): string {
     return fmtNumero(numero);
+  }
+
+  /** Dia del traslado de lote (no el de digitacion), sin corrimiento de zona. */
+  fechaTrasladoLote(historial: HistorialTrasladoLoteDto): string {
+    return fechaTrasladoHistorialLoteFn(historial);
   }
 
   obtenerNombreGranja(granjaId: number): string {

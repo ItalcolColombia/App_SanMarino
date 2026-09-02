@@ -9,21 +9,31 @@
           <th rowspan="2">Sem.</th>
           <th rowspan="2">Edad</th>
           <th rowspan="2">SaldoH</th>
-          <th rowspan="2">SaldoM</th>
+          @if (!ocultaMachosEnPostura) { <th rowspan="2">SaldoM</th> }
           <th [attr.colspan]="ocultaMachosEnPostura ? 2 : 3">Mortalidad</th>
           <th [attr.colspan]="ocultaMachosEnPostura ? 1 : 2">Consumo kg</th>
-          <th colspan="2">Huevos</th>
-          <th colspan="3">%Postura</th>
-          <th colspan="2">Peso Huevo (g)</th>
+          <th [attr.colspan]="colHuevos.colspan">Huevos</th>
+          <th [attr.colspan]="colspanPostura">%Postura</th>
+          <th [attr.colspan]="colspanPesoHuevo">Peso Huevo (g)</th>
           <th rowspan="2">Unif.</th>
-          <th rowspan="2" class="col-guia">HTAA G</th>
+          @if (guiaDisponible.hTotalAa) { <th rowspan="2" class="col-guia">HTAA G</th> }
         </tr>
         <tr class="thead-sub">
           <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}<th>%</th>
           <th>H</th>@if (!ocultaMachosEnPostura) {<th>M</th>}
-          <th>Tot</th><th>Inc</th>
-          <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
-          <th class="col-real">Real</th><th class="col-guia">Guía</th>
+          <th>Tot</th>
+          @if (clasificacionHuevoPorItems) {
+            <th>Primera</th><th>Pnc</th>
+            @if (colHuevos.columnas.includes('otros')) { <th>Otros</th> }
+          } @else {
+            <th>Inc</th>
+          }
+          <th class="col-real">Real</th>
+          @if (guiaDisponible.prodPorcentaje) {
+            <th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+          }
+          <th class="col-real">Real</th>
+          @if (guiaDisponible.pesoHuevo) { <th class="col-guia">Guía</th> }
         </tr>
       </thead>
       <tbody>
@@ -38,20 +48,28 @@
             @if (!ocultaMachosEnPostura) { <td>{{ row.mortalidadTotalMachos }}</td> }
             <td>{{ fmt(row.porcMortalidadPromedio, 2) }}%</td>
             <td>{{ fmt(row.consKgHTotalKg) }}</td>
-            <td>{{ fmt(row.consKgMTotalKg) }}</td>
+            @if (!ocultaMachosEnPostura) { <td>{{ fmt(row.consKgMTotalKg) }}</td> }
             <td>{{ row.huevosTotTotal | number }}</td>
-            <td>{{ row.huevosIncTotal | number }}</td>
+            @if (clasificacionHuevoPorItems) {
+              <td>{{ row.huevoPrimera | number }}</td>
+              <td>{{ row.huevoPnc | number }}</td>
+              @if (colHuevos.columnas.includes('otros')) { <td>{{ row.huevoOtros | number }}</td> }
+            } @else {
+              <td>{{ row.huevosIncTotal | number }}</td>
+            }
             <td [class]="semaforo(row.porcentajePosturaPromedio, row.porcentajePosturaGuia)">
               {{ fmt(row.porcentajePosturaPromedio) }}%
             </td>
-            <td class="col-guia">{{ fmt(row.porcentajePosturaGuia) }}</td>
-            <td [class]="classDif(row.difPostura)">{{ fmt(row.difPostura) }}</td>
+            @if (guiaDisponible.prodPorcentaje) {
+              <td class="col-guia">{{ fmt(row.porcentajePosturaGuia) }}</td>
+              <td [class]="classDif(row.difPostura)">{{ fmt(row.difPostura) }}</td>
+            }
             <td [class]="semaforo(row.pesoHuevoPromedio, row.pesoHuevoGuia, 3)">
               {{ fmt(row.pesoHuevoPromedio) }}
             </td>
-            <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td>
+            @if (guiaDisponible.pesoHuevo) { <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td> }
             <td>{{ fmt(row.uniformidadPromedio) }}</td>
-            <td class="col-guia">{{ fmt(row.htaaGuia) }}</td>
+            @if (guiaDisponible.hTotalAa) { <td class="col-guia">{{ fmt(row.htaaGuia) }}</td> }
           </tr>
         }
       </tbody>

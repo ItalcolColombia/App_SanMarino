@@ -1,6 +1,7 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Cuadro.cs
+// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Cuadro.cs
 // Reporte de PRODUCCION en formato cuadro (matriz semana x indicador) para un lote/sublote.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -78,8 +79,18 @@ public partial class ReporteTecnicoProduccionService
         
         foreach (var semanal in reporteCompleto.DatosSemanales)
         {
-            // Obtener guía genética para esta semana (edad en semanas de producción)
-            var edadProduccionSemanas = semanal.EdadInicioSemanas;
+            // Semana con la que se cruza la GUÍA: la de VIDA del ave, que es el eje en el que están
+            // las dos tablas de guía (cada empresa carga la suya, en una u otra).
+            //
+            // 🔴 Antes se usaba `semanal.EdadInicioSemanas`, que se cuenta desde el INICIO DE
+            // PRODUCCIÓN (`fechaReferencia = fechaInicioProduccion` en el reporte diario). O sea:
+            // la semana 1 de postura se comparaba contra la fila de la primera semana de VIDA de
+            // la guía —producción y peso vacíos, y la uniformidad de levante—. Medido: el desfase
+            // en los lotes vivos va de 128 a 363 días. Ver SemanaGuiaProduccionCalculos.
+            var edadProduccionSemanas = SemanaGuiaProduccionCalculos.SemanaDesde(
+                semanal.FechaInicioSemana,
+                lpp.FechaEncaset ?? lpp.FechaInicioProduccion ?? semanal.FechaInicioSemana);
+
             var guiaSemana = guiasProduccion.FirstOrDefault(g => g.Edad == edadProduccionSemanas);
             
             // Helper para parsear edad en ProduccionAvicolaRaw
@@ -96,12 +107,16 @@ public partial class ReporteTecnicoProduccionService
                 return null;
             }
 
+            // Mismo desempate que en Tabs: en la semana de transición la guía trae `25` (fin del
+            // levante) y `25P` (arranque de la producción, acumulados reiniciados). Este es un
+            // reporte de PRODUCCIÓN ⇒ gana la fila con `P`. Ver GrafiaEdadGuiaCalculos.
             var guiaCompletaSemana = guiasCompletas
                 .Where(g =>
                 {
                     var edad = TryParseEdad(g.Edad);
                     return edad.HasValue && edad.Value == edadProduccionSemanas;
                 })
+                .OrderBy(g => GrafiaEdadGuiaCalculos.Preferencia(g.Edad, paraProduccion: true))
                 .FirstOrDefault();
 
             // Helper para parsear valores decimales

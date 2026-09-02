@@ -32,13 +32,13 @@
           <th rowspan="2">EDAD EN SEM.</th>
           <th rowspan="2">SALDO AVES</th>
           <th colspan="3">AVES</th>
-          <th colspan="4">% SEM. MORT.</th>
-          <th colspan="5">% MORTALIDAD ACUMULADA</th>
+          <th [attr.colspan]="colspanSemMort">% SEM. MORT.</th>
+          <th [attr.colspan]="colspanMortAcum">% MORTALIDAD ACUMULADA</th>
           <th colspan="2">CONSUMIDO ALIMENTO (Kg)</th>
-          <th colspan="3">cons.acumulado</th>
-          <th colspan="4">TOSCANA</th>
-          <th colspan="3">PESO CORPORAL Grs.</th>
-          <th colspan="2">GANANCIA</th>
+          <th [attr.colspan]="colspanConsAcum">cons.acumulado</th>
+          <th [attr.colspan]="colspanToscana">TOSCANA</th>
+          <th [attr.colspan]="colspanPesoCorporal">PESO CORPORAL Grs.</th>
+          <th [attr.colspan]="colspanGanancia">GANANCIA</th>
           <th rowspan="2">HEMBRA</th>
           <th colspan="2">%</th>
         </tr>
@@ -50,7 +50,7 @@
 
           <!-- % SEM. MORT. -->
           <th>M</th>
-          <th class="highlight-yellow">M std</th>
+          @if (guiaDisponible.mortSemH) { <th class="highlight-yellow">M std</th> }
           <th>S</th>
           <th>E.S.</th>
 
@@ -59,7 +59,7 @@
           <th>S</th>
           <th>E.S.</th>
           <th>{{ informacionLote?.loteNombre || 'LOTE' }}</th>
-          <th class="highlight-yellow">PTO. Dif.</th>
+          @if (guiaDisponible.retiroAcH) { <th class="highlight-yellow">PTO. Dif.</th> }
 
           <!-- CONSUMIDO ALIMENTO -->
           <th>SEM (KG)</th>
@@ -67,23 +67,23 @@
 
           <!-- cons.acumulado -->
           <th>REAL</th>
-          <th class="highlight-yellow">TABLA</th>
+          @if (guiaDisponible.consAcH) { <th class="highlight-yellow">TABLA</th> }
           <th>% DIF</th>
 
           <!-- TOSCANA -->
           <th>gr. / AVE / DIA</th>
-          <th class="highlight-yellow">Tabla</th>
+          @if (guiaDisponible.grAveDiaH) { <th class="highlight-yellow">Tabla</th> }
           <th>CON LOTE</th>
           <th>Incrementos</th>
-          <th class="highlight-yellow">Tabla</th>
+          @if (guiaDisponible.consAcH) { <th class="highlight-yellow">Tabla</th> }
 
           <!-- PESO CORPORAL -->
-          <th class="highlight-yellow">Tabla</th>
+          @if (guiaDisponible.pesoH) { <th class="highlight-yellow">Tabla</th> }
           <th>PESO LOTE</th>
           <th>DIF LOTE</th>
 
           <!-- GANANCIA -->
-          <th class="highlight-yellow">TABLA</th>
+          @if (guiaDisponible.consAcH) { <th class="highlight-yellow">TABLA</th> }
           <th>REAL</th>
 
           <!-- % -->
@@ -106,7 +106,7 @@
             <td class="text-right">{{ dato.errorH }}</td>
             <!-- % SEM. MORT. -->
             <td class="text-right">{{ formatPercentage(dato.porcMortH) }}</td>
-            <td class="text-right highlight-yellow">{{ formatPercentage(dato.porcMortHGUIA) }}</td>
+            @if (guiaDisponible.mortSemH) { <td class="text-right highlight-yellow">{{ formatPercentage(dato.porcMortHGUIA) }}</td> }
             <td class="text-right">{{ formatPercentage(dato.porcSelH) }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcErrH) }}</td>
             <!-- % MORTALIDAD ACUMULADA -->
@@ -114,26 +114,26 @@
             <td class="text-right">{{ formatPercentage(dato.porcSelH) }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcErrH) }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcRetiroH) }}</td>
-            <td class="text-right highlight-yellow">{{ formatNumber(dato.retiroHGUIA, 2) }}</td>
+            @if (guiaDisponible.retiroAcH) { <td class="text-right highlight-yellow">{{ formatNumber(dato.retiroHGUIA, 2) }}</td> }
             <!-- CONSUMIDO ALIMENTO -->
             <td class="text-right">{{ formatNumber(dato.consKgH, 1) }}</td>
             <td class="text-right">{{ formatNumber(dato.acConsH, 1) }}</td>
             <!-- cons.acumulado -->
             <td class="text-right">{{ formatNumber(dato.consAcGrH, 1) }}</td>
-            <td class="text-right highlight-yellow">{{ formatNumber(getConsumoAcumuladoTabla(dato.semana, dato.consAcGrHGUIA), 1) }}</td>
+            @if (guiaDisponible.consAcH) { <td class="text-right highlight-yellow">{{ formatNumber(getConsumoAcumuladoTabla(dato.semana, dato.consAcGrHGUIA), 1) }}</td> }
             <td class="text-right">{{ formatPercentage(dato.porcDifConsH) }}</td>
             <!-- TOSCANA -->
             <td class="text-right">{{ formatNumber(dato.grAveDiaH, 1) }}</td>
-            <td class="text-right highlight-yellow">{{ formatNumber(getGrAveDiaTabla(dato.semana, dato.grAveDiaGUIAH), 1) }}</td>
+            @if (guiaDisponible.grAveDiaH) { <td class="text-right highlight-yellow">{{ formatNumber(getGrAveDiaTabla(dato.semana, dato.grAveDiaGUIAH), 1) }}</td> }
             <td class="text-right">{{ formatNumber(dato.grAveDiaH, 1) }}</td>
             <td class="text-right">{{ formatNumber(dato.incrConsH, 1) }}</td>
-            <td class="text-right highlight-yellow">{{ formatNumber(getIncrementoTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td>
+            @if (guiaDisponible.consAcH) { <td class="text-right highlight-yellow">{{ formatNumber(getIncrementoTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td> }
             <!-- PESO CORPORAL -->
-            <td class="text-right highlight-yellow">{{ formatNumber(getPesoTabla(dato.semana, dato.pesoHGUIA), 1) }}</td>
+            @if (guiaDisponible.pesoH) { <td class="text-right highlight-yellow">{{ formatNumber(getPesoTabla(dato.semana, dato.pesoHGUIA), 1) }}</td> }
             <td class="text-right">{{ formatNumber(dato.pesoH ? dato.pesoH * 1000 : null, 1) }}</td>
             <td class="text-right">{{ formatPercentage(dato.porcDifPesoH) }}</td>
             <!-- GANANCIA -->
-            <td class="text-right highlight-yellow">{{ formatNumber(getGananciaTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td>
+            @if (guiaDisponible.consAcH) { <td class="text-right highlight-yellow">{{ formatNumber(getGananciaTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td> }
             <td class="text-right">{{ formatNumber(dato.incrConsH, 1) }}</td>
             <!-- HEMBRA -->
             <td class="text-right">{{ formatNumber(dato.uniformH, 1) }}</td>

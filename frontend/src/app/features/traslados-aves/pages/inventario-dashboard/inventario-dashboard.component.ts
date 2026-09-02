@@ -21,6 +21,7 @@ import {
   obtenerEstadoClass as obtenerEstadoClassFn
 } from '../../funciones/inventario-dashboard-formato.funcion';
 import { puedeAnularMovimientoAves as puedeAnularMovimientoAvesFn } from '../../funciones/inventario-dashboard-movimiento.funcion';
+import { fechaTrasladoHistorialLote as fechaTrasladoHistorialLoteFn } from '../../funciones/fecha-traslado-historial-lote.funcion';
 import { ModalTrasladoLoteComponent } from '../../../lote/components/modal-traslado-lote/modal-traslado-lote.component';
 
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -790,6 +791,9 @@ export class InventarioDashboardComponent implements OnInit {
 
   formatearFecha(fecha: Date | string): string { return formatearFechaFn(fecha); }
 
+  /** Dia del traslado (no el de digitacion), sin corrimiento de zona. */
+  fechaTrasladoLote(historial: HistorialTrasladoLoteDto): string { return fechaTrasladoHistorialLoteFn(historial); }
+
   formatearNumero(n: number): string { return formatearNumeroFn(n); }
 
   private normalize(s: string): string { return normalizeFn(s); }
@@ -1259,6 +1263,7 @@ export class InventarioDashboardComponent implements OnInit {
     nucleoDestinoId?: string | null;
     galponDestinoId?: string | null;
     observaciones?: string | null;
+    fechaTraslado?: string | null;
   }): Promise<void> {
     this.procesandoTrasladoLote.set(true);
     try {
@@ -1267,7 +1272,10 @@ export class InventarioDashboardComponent implements OnInit {
         granjaDestinoId: data.granjaDestinoId,
         nucleoDestinoId: data.nucleoDestinoId,
         galponDestinoId: data.galponDestinoId,
-        observaciones: data.observaciones
+        observaciones: data.observaciones,
+        // El modal la emite desde siempre; por este camino se descartaba y todo traslado quedaba
+        // fechado hoy. Null ⇒ el backend usa hoy, como antes de que el campo existiera.
+        fechaTraslado: data.fechaTraslado || null
       };
 
       const response = await firstValueFrom(this.trasladosService.crearTrasladoLote(dto));

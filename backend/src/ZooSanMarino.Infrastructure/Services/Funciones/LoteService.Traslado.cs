@@ -209,6 +209,20 @@ public partial class LoteService
             .Include(h => h.GranjaDestino)
             .ToListAsync();
 
+        // Nombres de quien registro cada traslado, en UNA sola consulta: created_by_user_id es la
+        // cedula del usuario (users.id es Guid, asi que no hay FK; mismo puente que usan
+        // LoteBaseEngordeService y el modulo ItalJira). Antes aca vivia el literal
+        // $"Usuario ID: {id}" con un TODO, y la columna Usuario de la pantalla mostraba eso.
+        var cedulas = HistorialTrasladoLoteCalculos.CedulasAConsultar(historiales.Select(h => h.CreatedByUserId));
+        var nombresPorCedula = cedulas.Count == 0
+            ? new Dictionary<int, string>()
+            : HistorialTrasladoLoteCalculos.NombresPorCedula(
+                (await _ctx.Users.AsNoTracking()
+                    .Where(u => cedulas.Contains(u.cedula))
+                    .Select(u => new { u.cedula, u.firstName, u.surName })
+                    .ToListAsync())
+                .Select(u => ((string?)u.cedula, (string?)u.firstName, (string?)u.surName)));
+
         var result = new List<HistorialTrasladoLoteDto>();
 
         foreach (var h in historiales)
@@ -232,10 +246,9 @@ public partial class LoteService
                 galponNombre = galpon?.GalponNombre;
             }
 
-            // Obtener nombre del usuario (CreatedByUserId es int, pero User.Id es Guid)
-            // Por ahora, no podemos hacer la relación directa, así que usamos un valor por defecto
-            // TODO: Si se necesita el nombre del usuario, se podría crear una tabla de mapeo o cambiar el sistema
-            var nombreUsuario = $"Usuario ID: {h.CreatedByUserId}";
+            // null si el id no corresponde a ninguna cedula: la pantalla muestra su guion en vez
+            // de un nombre inventado.
+            var nombreUsuario = HistorialTrasladoLoteCalculos.ResolverNombre(nombresPorCedula, h.CreatedByUserId);
 
             result.Add(new HistorialTrasladoLoteDto(
                 h.Id,
@@ -252,7 +265,9 @@ public partial class LoteService
                 h.Observaciones,
                 h.CreatedByUserId,
                 nombreUsuario,
-                h.CreatedAt
+                h.CreatedAt,
+                // El DIA del movimiento, que no es cuando se digito: la pantalla muestra este.
+                h.FechaTraslado
             ));
         }
 

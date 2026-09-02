@@ -1,4 +1,4 @@
-import { Component, Input, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnChanges, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import {
   ReporteTecnicoProduccionTabsDto,
@@ -10,6 +10,8 @@ import { ReporteDiarioGalponComponent }   from '../reporte-diario-galpon/reporte
 import { ReporteSemanalGalponComponent }  from '../reporte-semanal-galpon/reporte-semanal-galpon.component';
 import { ReporteGeneralDiarioComponent }  from '../reporte-general-diario/reporte-general-diario.component';
 import { ReporteGeneralSemanalComponent } from '../reporte-general-semanal/reporte-general-semanal.component';
+import { GuiaMetricasDisponibles, GUIA_TODAS_DISPONIBLES } from '../../models/reporte-tecnico-guia.model';
+import { normalizarGuiaDisponibilidad } from '../../funciones/normalizar-guia-disponibilidad.funcion';
 
 type TabPrincipal = 'sublote' | 'consolidado';
 type TabPeriodo   = 'diario'  | 'semanal';
@@ -27,8 +29,24 @@ type TabPeriodo   = 'diario'  | 'semanal';
   templateUrl: './reportes-tabs.component.html',
   styleUrls: ['./reportes-tabs.component.scss']
 })
-export class ReportesTabsComponent {
+export class ReportesTabsComponent implements OnChanges {
   @Input({ required: true }) reporte!: ReporteTecnicoProduccionTabsDto;
+
+  /**
+   * Qué columnas de guía tienen dato, resuelto UNA vez por cambio de reporte. Campo y no getter a
+   * propósito: `normalizarGuiaDisponibilidad` devuelve un objeto nuevo, y un getter lo recrearía
+   * en cada ciclo de detección de cambios (CLAUDE.md §🧩).
+   */
+  guiaDisponible: GuiaMetricasDisponibles = GUIA_TODAS_DISPONIBLES;
+
+  ngOnChanges(): void {
+    this.guiaDisponible = normalizarGuiaDisponibilidad(this.reporte?.loteInfo?.guiaMetricasDisponibles);
+  }
+
+  /** `companies.clasificacion_huevo_por_items` de la empresa del reporte, informado por el backend. */
+  get clasificacionHuevoPorItems(): boolean {
+    return this.reporte?.loteInfo?.clasificacionHuevoPorItems === true;
+  }
 
   tabPrincipal  = signal<TabPrincipal>('sublote');
   tabPeriodo    = signal<TabPeriodo>('diario');

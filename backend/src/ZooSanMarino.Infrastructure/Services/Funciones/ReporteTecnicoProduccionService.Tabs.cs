@@ -1,7 +1,9 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Tabs.cs
+// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoProduccionService.Tabs.cs
 // Reporte de PRODUCCION con pestanas por galpon (Fase 4), leyendo desde produccion_diaria.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -106,6 +108,8 @@ public partial class ReporteTecnicoProduccionService
         public double? PesoM         { get; set; }
         public double? Uniformidad   { get; set; }
         public string? Observaciones { get; set; }
+        /// <summary>Desglose por ítems del día (`metadata.huevoItems`), ya resumido en Primera/Pnc/Otros.</summary>
+        public ResumenHuevoPorTipo Huevo { get; set; }
     }
 
     private async Task<List<SegProdTab>> ObtenerSegsProdTabsAsync(
@@ -136,8 +140,53 @@ public partial class ReporteTecnicoProduccionService
                 PesoM        = s.PesoM     != null ? (double?)((double)s.PesoM.Value)        : null,
                 Uniformidad  = s.Uniformidad != null ? (double?)((double)s.Uniformidad.Value) : null,
                 Observaciones = s.Observaciones
+                // OJO: `Huevo` NO se asigna acá. Ponerlo en la proyección -aunque sea `default`-
+                // hace que EF lo lea como una constante del cliente dentro del Select y REVIENTE la
+                // consulta entera con "The client projection contains a reference to a constant
+                // expression"; el endpoint devolvía 404 con ese mensaje para TODAS las empresas.
+                // Lo detectó el smoke HTTP, no los tests: el cálculo puro no toca EF.
+                // Al ser una clase, el campo ya nace en su valor por defecto y lo llena
+                // `ObtenerSegsProdTabsConItemsAsync` después, en memoria.
             })
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Igual que <see cref="ObtenerSegsProdTabsAsync"/> pero además resuelve el desglose por ítems.
+    /// Se usa SÓLO cuando la empresa clasifica por ítems: para las demás el `metadata` no se pide,
+    /// así que su consulta queda exactamente como estaba.
+    /// </summary>
+    private async Task<List<SegProdTab>> ObtenerSegsProdTabsConItemsAsync(
+        int lppId, DateTime? fechaInicio, DateTime? fechaFin, bool clasificacionPorItems,
+        CancellationToken ct)
+    {
+        var segs = await ObtenerSegsProdTabsAsync(lppId, fechaInicio, fechaFin, ct);
+        if (!clasificacionPorItems || segs.Count == 0) return segs;
+
+        var query = _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == lppId);
+
+        if (fechaInicio.HasValue) query = query.Where(s => s.Fecha >= fechaInicio.Value);
+        if (fechaFin.HasValue)   query = query.Where(s => s.Fecha <= fechaFin.Value);
+
+        var metadatos = await query
+            .Select(s => new { s.Fecha, s.Metadata })
+            .ToListAsync(ct);
+
+        var porFecha = new Dictionary<DateTime, ResumenHuevoPorTipo>();
+        foreach (var m in metadatos)
+        {
+            if (m.Metadata is null) continue;
+            var items = HuevoItemsCalculos.LeerDeMetadata(m.Metadata.RootElement);
+            porFecha[m.Fecha] = HuevoItemsResumenCalculos.Resumir(items);
+        }
+
+        foreach (var seg in segs)
+            if (porFecha.TryGetValue(seg.Fecha, out var resumen))
+                seg.Huevo = resumen;
+
+        return segs;
     }
 
     private static (double? ProdPorc, double? PesoHuevo, double? HtotalAa, double? Uniformidad)?
@@ -165,7 +214,19 @@ public partial class ReporteTecnicoProduccionService
             return m.Success && int.TryParse(m.Groups[1].Value, out var n2) ? n2 : null;
         }
 
-        var guia = guias.FirstOrDefault(g => TryParseEdad(g.Edad) == semana);
+        // Desempate DETERMINISTA de la SEMANA DE TRANSICIÓN, que aparece dos veces en la guía de
+        // esquema completo: `25` (fin del levante) y `25P` (arranque de la producción, con los
+        // acumulados reiniciados). Este es el reporte de PRODUCCIÓN ⇒ gana la fila con `P`.
+        //
+        // No es un detalle de presentación: tomar la `25` mostraría `cons_ac_h = 11.501` -el
+        // consumo acumulado del LEVANTE entero- donde corresponde `847`. Ver GrafiaEdadGuiaCalculos.
+        //
+        // Antes daba igual porque el eje viejo (semana relativa a producción) nunca alcanzaba la
+        // semana 25 de la guía; con el eje corregido es justo el arranque de la postura.
+        var guia = guias
+            .Where(g => TryParseEdad(g.Edad) == semana)
+            .OrderBy(g => GrafiaEdadGuiaCalculos.Preferencia(g.Edad, paraProduccion: true))
+            .FirstOrDefault();
         if (guia == null) return null;
 
         return (TryParse(guia.ProdPorcentaje), TryParse(guia.PesoHuevo),
@@ -220,6 +281,7 @@ public partial class ReporteTecnicoProduccionService
 
         // ── 2. Cargar GUIA genética (primer LPP con Raza + AnoTablaGenetica) ──
         var guiasCompletas = new List<Domain.Entities.ProduccionAvicolaRaw>();
+        var guiaEsPropia   = false;
         var lppConRaza = lotesProduccion.FirstOrDefault(l =>
             !string.IsNullOrWhiteSpace(l.Raza) && l.AnoTablaGenetica.HasValue);
 
@@ -242,7 +304,23 @@ public partial class ReporteTecnicoProduccionService
                                 p.AnioGuia.Trim() == ano)
                     .ToListAsync(ct);
             }
+            else
+            {
+                // Vino de la tabla dedicada: es guía PROPIA. Se marca acá, donde se sabe, en vez de
+                // volver a consultar.
+                guiaEsPropia = true;
+            }
         }
+
+        // Cada empresa carga SU guía; lo que cambia es la tabla en que vive. La dedicada es un
+        // modelo simple de 3 métricas, así que el reporte pinta sólo las columnas que esa guía
+        // puede llenar; con la de esquema completo informa todas y no cambia nada.
+        var guiaDisponibles = GuiaMetricasDisponiblesCalculos.Resolver(
+            guiaEsPropia, AFilasGuiaMetricas(guiasCompletas));
+        var semanaGuiaDesde = SemanaMinimaConGuia(guiasCompletas);
+
+        var clasificacionPorItems = await ResolverClasificacionHuevoPorItemsAsync(ct);
+        var cicloPorRaza          = await ResolverSemanasCicloPorRazaAsync(ct);
 
         // ── 3. Construir datos por galpón ──────────────────────────────────────
         var diariosGalpon   = new List<ReporteDiarioGalponDto>();
@@ -257,7 +335,8 @@ public partial class ReporteTecnicoProduccionService
             var machosIni    = (int)(lpp.AvesMInicial ?? lpp.MachosInicialesProd  ?? lpp.MachosL  ?? 0);
             var fechaInicioProd = lpp.FechaInicioProduccion ?? lpp.FechaEncaset ?? DateTime.Today;
 
-            var segs = await ObtenerSegsProdTabsAsync(lppId, request.FechaInicio, request.FechaFin, ct);
+            var segs = await ObtenerSegsProdTabsConItemsAsync(
+                lppId, request.FechaInicio, request.FechaFin, clasificacionPorItems, ct);
             if (segs.Count == 0) continue;
 
             // Acumuladores para saldo y HTAA
@@ -279,11 +358,22 @@ public partial class ReporteTecnicoProduccionService
                 var semana   = (int)Math.Ceiling((edadDias + 1.0) / 7);
                 var htaa     = saldoH > 0 ? (double?)((double)cumHuevos / saldoH) : null;
 
+                // `semana` (relativa a producción) es lo que se PINTA y no cambia. La guía —la de
+                // CUALQUIERA de las dos tablas: cada empresa carga la suya— está indexada por
+                // semana de VIDA, así que el cruce usa ese eje. Ver SemanaGuiaProduccionCalculos.
+                var semanaGuia = SemanaGuiaProduccionCalculos.Resolver(
+                    s.Fecha, fechaInicioProd, lpp.FechaEncaset);
+
+                // La etapa del ciclo también se mide en semanas de vida, así que reusa el mismo eje.
+                var etapaCiclo = cicloPorRaza
+                    ? SemanasCicloPosturaCalculos.ObtenerEtapa(lpp.Raza, semanaGuia)
+                    : null;
+
                 var porcPost = saldoH > 0 ? (double)s.HuevoTot / saldoH * 100d : 0d;
                 var porcInc  = s.HuevoTot > 0 ? (double)s.HuevoInc / s.HuevoTot * 100d : 0d;
                 var porcMort = hembrasIni > 0 ? (double)s.MortH / hembrasIni * 100d : 0d;
 
-                var guia = ObtenerGuiaParaSemana(guiasCompletas, semana);
+                var guia = ObtenerGuiaParaSemana(guiasCompletas, semanaGuia);
 
                 diasLpp.Add(new ReporteDiarioGalponDto(
                     LotePosturaProduccionId: lppId,
@@ -315,7 +405,12 @@ public partial class ReporteTecnicoProduccionService
                     UniformidadGuia:        guia?.Uniformidad,
                     DifPostura:  guia?.ProdPorc  != null ? porcPost   - guia.Value.ProdPorc.Value  : null,
                     DifPesoHuevo: guia?.PesoHuevo != null ? s.PesoHuevo - guia.Value.PesoHuevo.Value : null,
-                    Observaciones: s.Observaciones
+                    Observaciones: s.Observaciones,
+                    HuevoPrimera: s.Huevo.Primera,
+                    HuevoPnc:     s.Huevo.Pnc,
+                    HuevoOtros:   s.Huevo.Otros,
+                    SemanaGuia:   semanaGuia,
+                    EtapaCiclo:   etapaCiclo
                 ));
             }
 
@@ -325,7 +420,11 @@ public partial class ReporteTecnicoProduccionService
             foreach (var sg in diasLpp.GroupBy(d => d.SemanaRelativa).OrderBy(g => g.Key))
             {
                 var rows  = sg.ToList();
-                var guia  = ObtenerGuiaParaSemana(guiasCompletas, sg.Key);
+                // El grupo sigue siendo por semana relativa (lo que se pinta); el cruce con la guía
+                // usa el eje de la guía, que con la propia es la semana de vida.
+                var guia  = ObtenerGuiaParaSemana(guiasCompletas, rows[0].SemanaGuia);
+                var huevoSem = HuevoItemsResumenCalculos.Sumar(
+                    rows.Select(r => new ResumenHuevoPorTipo(r.HuevoPrimera, r.HuevoPnc, r.HuevoOtros)));
                 var porcPos = rows.Count(r => r.SaldoHembras > 0) > 0
                     ? rows.Where(r => r.SaldoHembras > 0).Average(r => r.PorcentajePostura)
                     : 0d;
@@ -373,7 +472,12 @@ public partial class ReporteTecnicoProduccionService
                     HtaaGuia:               guia?.HtotalAa,
                     UniformidadGuia:        guia?.Uniformidad,
                     DifPostura:   guia?.ProdPorc  != null ? porcPos      - guia.Value.ProdPorc.Value   : null,
-                    DifPesoHuevo: guia?.PesoHuevo != null ? pesoHuevoSem - guia.Value.PesoHuevo.Value  : null
+                    DifPesoHuevo: guia?.PesoHuevo != null ? pesoHuevoSem - guia.Value.PesoHuevo.Value  : null,
+                    HuevoPrimera: huevoSem.Primera,
+                    HuevoPnc:     huevoSem.Pnc,
+                    HuevoOtros:   huevoSem.Otros,
+                    SemanaGuia:   rows[0].SemanaGuia,
+                    EtapaCiclo:   rows[0].EtapaCiclo
                 ));
             }
         }
@@ -386,7 +490,9 @@ public partial class ReporteTecnicoProduccionService
             {
                 var rows    = g.ToList();
                 var semR    = rows[0].SemanaRelativa;
-                var guia    = ObtenerGuiaParaSemana(guiasCompletas, semR);
+                var guia    = ObtenerGuiaParaSemana(guiasCompletas, rows[0].SemanaGuia);
+                var huevoDia = HuevoItemsResumenCalculos.Sumar(
+                    rows.Select(r => new ResumenHuevoPorTipo(r.HuevoPrimera, r.HuevoPnc, r.HuevoOtros)));
                 var saldoH  = rows.Sum(r => r.SaldoHembras);
                 var htotSum = rows.Sum(r => r.HuevoTot);
                 var porcPos = saldoH > 0 ? (double)htotSum / saldoH * 100d : 0d;
@@ -415,7 +521,12 @@ public partial class ReporteTecnicoProduccionService
                     PorcentajePosturaGuia:    guia?.ProdPorc,
                     PesoHuevoGuia:            guia?.PesoHuevo,
                     HtaaGuia:                 guia?.HtotalAa,
-                    DifPostura:  guia?.ProdPorc != null ? porcPos - guia.Value.ProdPorc.Value : null
+                    DifPostura:  guia?.ProdPorc != null ? porcPos - guia.Value.ProdPorc.Value : null,
+                    HuevoPrimera: huevoDia.Primera,
+                    HuevoPnc:     huevoDia.Pnc,
+                    HuevoOtros:   huevoDia.Otros,
+                    SemanaGuia:   rows[0].SemanaGuia,
+                    EtapaCiclo:   rows[0].EtapaCiclo
                 );
             })
             .ToList();
@@ -427,7 +538,9 @@ public partial class ReporteTecnicoProduccionService
             .Select(g =>
             {
                 var rows     = g.ToList();
-                var guia     = ObtenerGuiaParaSemana(guiasCompletas, g.Key);
+                var guia     = ObtenerGuiaParaSemana(guiasCompletas, rows[0].SemanaGuia);
+                var huevoSemG = HuevoItemsResumenCalculos.Sumar(
+                    rows.Select(r => new ResumenHuevoPorTipo(r.HuevoPrimera, r.HuevoPnc, r.HuevoOtros)));
                 var htotSum  = rows.Sum(r => r.HuevoTotSemanal);
                 var saldoFin = rows.Sum(r => r.SaldoFinHembras);
                 var porcPos  = saldoFin > 0
@@ -468,14 +581,26 @@ public partial class ReporteTecnicoProduccionService
                     HtaaGuia:               guia?.HtotalAa,
                     UniformidadGuia:        guia?.Uniformidad,
                     DifPostura:   guia?.ProdPorc  != null ? porcPos   - guia.Value.ProdPorc.Value   : null,
-                    DifPesoHuevo: guia?.PesoHuevo != null ? pesoHuevo - guia.Value.PesoHuevo.Value  : null
+                    DifPesoHuevo: guia?.PesoHuevo != null ? pesoHuevo - guia.Value.PesoHuevo.Value  : null,
+                    HuevoPrimera: huevoSemG.Primera,
+                    HuevoPnc:     huevoSemG.Pnc,
+                    HuevoOtros:   huevoSemG.Otros,
+                    SemanaGuia:   rows[0].SemanaGuia,
+                    EtapaCiclo:   rows[0].EtapaCiclo
                 );
             })
             .ToList();
 
+        var loteInfo = MapearInformacionLoteFromLPP(lotesProduccion.First()) with
+        {
+            ClasificacionHuevoPorItems = clasificacionPorItems,
+            GuiaMetricasDisponibles    = guiaDisponibles,
+            SemanaGuiaDesde            = semanaGuiaDesde
+        };
+
         return new ReporteTecnicoProduccionTabsDto
         {
-            LoteInfo        = MapearInformacionLoteFromLPP(lotesProduccion.First()),
+            LoteInfo        = loteInfo,
             DiariosGalpon   = diariosGalpon,
             SemanalesGalpon = semanalesGalpon,
             DiariosGeneral  = diariosGeneral,

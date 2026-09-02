@@ -34,6 +34,30 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     }
 
     /// <summary>
+    /// Primera semana de VIDA que la guía de esta empresa considera PRODUCCIÓN
+    /// (<c>companies.semana_inicio_produccion_guia</c>).
+    ///
+    /// <para>Depende de la guía que la empresa carga, no de su nombre: la de esquema completo cubre
+    /// levante + postura y arranca su producción en la 26, mientras que la de esquema simple
+    /// arranca directamente en producción, en la 18. Ver la migración
+    /// <c>AddSemanaInicioProduccionGuia</c>.</para>
+    ///
+    /// <para>Si la empresa no se encuentra, se cae al default de la columna
+    /// (<see cref="GrafiaEdadGuiaCalculos.PrimeraSemanaProduccion"/>), que es el número que estaba
+    /// escrito en el código antes de este parámetro: fail-safe hacia el comportamiento previo.</para>
+    /// </summary>
+    private async Task<int> GetSemanaInicioProduccionGuiaAsync(int companyId)
+    {
+        var valor = await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (int?)c.SemanaInicioProduccionGuia)
+            .FirstOrDefaultAsync();
+
+        return valor is > 0 ? valor.Value : GrafiaEdadGuiaCalculos.PrimeraSemanaProduccion;
+    }
+
+    /// <summary>
     /// Fila de guía genética normalizada a texto, sea cual sea la tabla de origen. Preserva el
     /// contrato que ya consumen <see cref="ParseDouble"/>/<see cref="TryParseEdadNumerica"/>, así
     /// que agregar una fuente nueva no cambia un byte del parseo existente.
@@ -416,9 +440,20 @@ public class GuiaGeneticaService : IGuiaGeneticaService
 
         var guias = await ObtenerCandidatosAsync(effectiveCompanyId, razaNorm, ano);
 
+        // Desde que semana la guia de ESTA empresa es de produccion. No es un numero fijo: la de
+        // esquema completo cubre levante + postura y arranca en la 26, la de esquema simple arranca
+        // directamente en produccion, en la 18. Con el 26 fijo, a esta ultima se le comian las
+        // semanas 18-25, que son justo la curva de arranque de la postura (7,7% -> 96,6%).
+        var desdeSemana = await GetSemanaInicioProduccionGuiaAsync(effectiveCompanyId);
+
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
-            .Where(x => x.edad.HasValue && x.edad!.Value >= 26) // Solo semanas >= 26
+            // Serie de PRODUCCION. El corte por numero deja fuera las filas de levante, pero por si
+            // solo tambien descartaba "25P" -que parsea a 25 y es justamente la fila que ABRE la
+            // produccion, con los acumulados reiniciados-. Sin ella, la semana de transicion se
+            // quedaba sin consumo, peso ni mortalidad standard. Ver GrafiaEdadGuiaCalculos.
+            .Where(x => x.edad.HasValue &&
+                        GrafiaEdadGuiaCalculos.EsSerieDeProduccion(x.g.Edad, x.edad!.Value, desdeSemana))
             .OrderBy(x => x.edad!.Value)
             .Select(x => new GuiaGeneticaDto(
                 Edad: x.edad!.Value,

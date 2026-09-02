@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import { GuiaMetricasDisponibles } from '../models/reporte-tecnico-guia.model';
 
 // DTOs
 export interface ReporteTecnicoDiarioDto {
@@ -378,6 +379,15 @@ export interface ReporteTecnicoProduccionLoteInfoDto {
   tecnico?: string | null;
   granjaNombre?: string | null;
   nucleoNombre?: string | null;
+  /** `companies.clasificacion_huevo_por_items` de la empresa del reporte. */
+  clasificacionHuevoPorItems?: boolean;
+  /**
+   * Qué columnas de comparación contra la guía tienen dato real. Ausente ⇒ el front asume todas
+   * (fail-open al comportamiento previo). Ver `normalizarGuiaDisponibilidad`.
+   */
+  guiaMetricasDisponibles?: Partial<GuiaMetricasDisponibles> | null;
+  /** Semana MÍNIMA con guía cargada para esta raza/año. `null` = sin guía o sin restricción. */
+  semanaGuiaDesde?: number | null;
 }
 
 export interface ReporteTecnicoProduccionDiarioDto {
@@ -682,6 +692,16 @@ export interface ReporteTecnicoLevanteCompletoDto {
   datosDiarios: ReporteTecnicoDiarioLevanteDto[];
   esConsolidado: boolean;
   sublotesIncluidos: string[];
+  /**
+   * Qué columnas de comparación contra la guía tienen dato real. Ausente ⇒ el front asume todas
+   * (fail-open al comportamiento previo). Ver `normalizarGuiaDisponibilidad`.
+   */
+  guiaMetricasDisponibles?: Partial<GuiaMetricasDisponibles> | null;
+  /**
+   * Semana MÍNIMA con guía cargada para la línea del lote. `null` = hay guía desde la semana 1, o
+   * no hay guía en absoluto.
+   */
+  semanaGuiaDesde?: number | null;
 }
 
 // ========== DTOs para Reporte Técnico Diario Separado ==========
@@ -808,6 +828,17 @@ export interface ReporteDiarioGalponDto {
   difPostura?: number | null;
   difPesoHuevo?: number | null;
   observaciones?: string | null;
+  // ── Clasificación de huevo POR ÍTEMS (`companies.clasificacion_huevo_por_items`) ─────────────
+  // Reemplazan a `huevoInc`/`porcentajeIncubables`, que en esas empresas el backend escribe en 0
+  // a propósito (postura comercial, no incuba). Opcionales: un backend que no los mande deja el
+  // reporte igual que antes.
+  huevoPrimera?: number;
+  huevoPnc?: number;
+  huevoOtros?: number;
+  /** Semana con la que se cruzó la guía (con guía propia es la semana de VIDA del ave). */
+  semanaGuia?: number;
+  /** Etapa del ciclo (`Alistamiento`/`Levante`/`LevanteEnProduccion`/`Postura`/`FueraDeCiclo`). */
+  etapaCiclo?: string | null;
 }
 
 export interface ReporteSemanalGalponDto {
@@ -845,6 +876,17 @@ export interface ReporteSemanalGalponDto {
   // Diferencias
   difPostura?: number | null;
   difPesoHuevo?: number | null;
+  // ── Clasificación de huevo POR ÍTEMS (`companies.clasificacion_huevo_por_items`) ─────────────
+  // Reemplazan a `huevoInc`/`porcentajeIncubables`, que en esas empresas el backend escribe en 0
+  // a propósito (postura comercial, no incuba). Opcionales: un backend que no los mande deja el
+  // reporte igual que antes.
+  huevoPrimera?: number;
+  huevoPnc?: number;
+  huevoOtros?: number;
+  /** Semana con la que se cruzó la guía (con guía propia es la semana de VIDA del ave). */
+  semanaGuia?: number;
+  /** Etapa del ciclo (`Alistamiento`/`Levante`/`LevanteEnProduccion`/`Postura`/`FueraDeCiclo`). */
+  etapaCiclo?: string | null;
 }
 
 export interface ReporteGeneralDiarioDto {
@@ -869,6 +911,17 @@ export interface ReporteGeneralDiarioDto {
   htaaGuia?: number | null;
   // Diferencia
   difPostura?: number | null;
+  // ── Clasificación de huevo POR ÍTEMS (`companies.clasificacion_huevo_por_items`) ─────────────
+  // Reemplazan a `huevoInc`/`porcentajeIncubables`, que en esas empresas el backend escribe en 0
+  // a propósito (postura comercial, no incuba). Opcionales: un backend que no los mande deja el
+  // reporte igual que antes.
+  huevoPrimera?: number;
+  huevoPnc?: number;
+  huevoOtros?: number;
+  /** Semana con la que se cruzó la guía (con guía propia es la semana de VIDA del ave). */
+  semanaGuia?: number;
+  /** Etapa del ciclo (`Alistamiento`/`Levante`/`LevanteEnProduccion`/`Postura`/`FueraDeCiclo`). */
+  etapaCiclo?: string | null;
 }
 
 export interface ReporteGeneralSemanalDto {
@@ -901,6 +954,17 @@ export interface ReporteGeneralSemanalDto {
   // Diferencias
   difPostura?: number | null;
   difPesoHuevo?: number | null;
+  // ── Clasificación de huevo POR ÍTEMS (`companies.clasificacion_huevo_por_items`) ─────────────
+  // Reemplazan a `huevoInc`/`porcentajeIncubables`, que en esas empresas el backend escribe en 0
+  // a propósito (postura comercial, no incuba). Opcionales: un backend que no los mande deja el
+  // reporte igual que antes.
+  huevoPrimera?: number;
+  huevoPnc?: number;
+  huevoOtros?: number;
+  /** Semana con la que se cruzó la guía (con guía propia es la semana de VIDA del ave). */
+  semanaGuia?: number;
+  /** Etapa del ciclo (`Alistamiento`/`Levante`/`LevanteEnProduccion`/`Postura`/`FueraDeCiclo`). */
+  etapaCiclo?: string | null;
 }
 
 export interface ReporteTecnicoProduccionTabsDto {

@@ -553,6 +553,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue(25)
                         .HasColumnName("semana_inicio_indicadores_produccion");
 
+                    b.Property<int>("SemanaInicioProduccionGuia")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(26)
+                        .HasColumnName("semana_inicio_produccion_guia");
+
                     b.Property<bool>("SemanasCicloPosturaPorRaza")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

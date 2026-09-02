@@ -1,4 +1,4 @@
-﻿// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoService.LevanteTabs.cs
+// src/ZooSanMarino.Infrastructure/Services/Funciones/ReporteTecnicoService.LevanteTabs.cs
 // Reporte de LEVANTE con pestanas (machos/hembras) consolidando varios LPL del mismo lote base.
 // ObtenerReporteLevanteAsync navega: lote_postura_base -> lotes -> lote_postura_levante -> seguimiento_diario
 using Microsoft.EntityFrameworkCore;
@@ -305,6 +305,9 @@ public partial class ReporteTecnicoService
         var primerLpl = lotesLevante.First();
         var guiasRaw = new Dictionary<int, Domain.Entities.ProduccionAvicolaRaw>();
         var guiasGenetica = new Dictionary<int, GuiaGeneticaDto>();
+        var guiaEsPropia = false;
+        var guiaMetricas = GuiaMetricasDisponiblesCalculos.Todas;
+        int? semanaGuiaDesde = null;
 
         if (!string.IsNullOrWhiteSpace(primerLpl.Raza) && primerLpl.AnoTablaGenetica.HasValue)
         {
@@ -330,6 +333,18 @@ public partial class ReporteTecnicoService
                             p.DeletedAt == null)
                         .ToListAsync(ct);
                 }
+                else
+                {
+                    // Vino de la tabla dedicada: es guía PROPIA. Se marca acá, donde se sabe.
+                    guiaEsPropia = true;
+                }
+
+                // El aviso de "la guía de esta línea arranca en la semana N" sale de las filas
+                // CARGADAS, no de un número hardcodeado: si mañana el cliente completa el levante,
+                // el aviso desaparece solo.
+                guiaMetricas   = GuiaMetricasDisponiblesCalculos.Resolver(
+                    guiaEsPropia, AFilasGuiaMetricasLevante(guiasRawList));
+                semanaGuiaDesde = SemanaMinimaConGuiaLevante(guiasRawList);
 
                 foreach (var guia in guiasRawList)
                 {
@@ -362,7 +377,9 @@ public partial class ReporteTecnicoService
                 DatosSemanales = datosSemanales,
                 DatosDiarios = new List<ReporteTecnicoDiarioLevanteDto>(),
                 EsConsolidado = esConsolidado,
-                SublotesIncluidos = sublotesIncluidos
+                SublotesIncluidos = sublotesIncluidos,
+                GuiaMetricasDisponibles = guiaMetricas,
+                SemanaGuiaDesde = semanaGuiaDesde
             };
         }
         else // Diario
@@ -376,7 +393,9 @@ public partial class ReporteTecnicoService
                 DatosSemanales = new List<ReporteTecnicoLevanteSemanalDto>(),
                 DatosDiarios = datosDiarios,
                 EsConsolidado = esConsolidado,
-                SublotesIncluidos = sublotesIncluidos
+                SublotesIncluidos = sublotesIncluidos,
+                GuiaMetricasDisponibles = guiaMetricas,
+                SemanaGuiaDesde = semanaGuiaDesde
             };
         }
     }

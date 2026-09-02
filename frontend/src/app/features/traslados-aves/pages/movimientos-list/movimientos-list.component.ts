@@ -11,6 +11,7 @@ import {
   TrasladoHuevosDto,
 } from '../../services/traslados-aves.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
+import { fechaTrasladoHistorialLote as fechaTrasladoHistorialLoteFn } from '../../funciones/fecha-traslado-historial-lote.funcion';
 import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
@@ -162,6 +163,11 @@ export class MovimientosListComponent implements OnInit {
 
   formatearNumero(numero: number): string {
     return fmtNumero(numero);
+  }
+
+  /** Dia del traslado de lote (no el de digitacion), sin corrimiento de zona. */
+  fechaTrasladoLote(historial: HistorialTrasladoLoteDto): string {
+    return fechaTrasladoHistorialLoteFn(historial);
   }
 
   // ===================== Navegación ====================

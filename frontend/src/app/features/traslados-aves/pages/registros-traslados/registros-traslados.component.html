@@ -130,12 +130,12 @@
                       <tbody>
                         @for (historial of historialTrasladosLotes(); track historial) {
                           <tr class="ux-row">
-                            <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                            <td>{{ fechaTrasladoLote(historial) }}</td>
                             <td><strong>#{{ historial.loteOriginalId }}</strong></td>
                             <td><strong>#{{ historial.loteNuevoId }}</strong></td>
                             <td>{{ historial.granjaOrigenNombre || '—' }}</td>
                             <td>{{ historial.granjaDestinoNombre || '—' }}</td>
-                            <td>{{ historial.usuarioNombre || '—' }}</td>
+                            <td>{{ historial.createdByUserName || '—' }}</td>
                             <td class="text-sm">{{ historial.observaciones || '—' }}</td>
                           </tr>
                         }

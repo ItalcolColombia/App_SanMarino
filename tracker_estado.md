@@ -5368,3 +5368,376 @@ Plan: [`fase_de_desarrollo/apagar_nombre_lote_incluye_corrida_ecuador_plan.md`](
       `Up()` 2a = **0** y respaldo sin duplicar · de las **144** filas de Ecuador cambian **solo esas
       2** · eliminados y el `2604 - 2` intactos · `Down()` deja **0 filas distintas del inicio**
 - [x] `dotnet build` Infrastructure **0/0** · `dotnet test` **3.590 verdes**
+
+---
+
+## Granjas — editar una granja borraba 2 campos que la pantalla no muestra (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/farm_list_no_borrar_flags_granja_plan.md`](fase_de_desarrollo/farm_list_no_borrar_flags_granja_plan.md)
+
+`farm-list.component.ts` armaba el PUT campo por campo y omitia `codigoErpEngorde` (correlativo ERP
+de engorde de Panama) y `manejaAlimentoPorGalpon` (override `farm ?? company` del nivel de alimento).
+El backend los asigna sin condicional ⇒ cada edicion los dejaba en `NULL`, sin error ni aviso.
+
+- [x] Funcion pura `funciones/construir-payload-granja.funcion.ts` + README de la carpeta
+- [x] `buildForm()`: controles `codigoErpEngorde` (`^\d*$`, max 18) y `manejaAlimentoPorGalpon` (tri-estado)
+- [x] `openModal()`: hidratar los 2 desde `getById` en la rama de EDICION y con los defaults de hoy en la de CREACION
+- [x] `save()` delega en la funcion pura (payload identico al de hoy en todo lo demas)
+- [x] HTML: select de manejo de alimento (siempre) + input de codigo ERP engorde (`@if (isPanama)`)
+- [x] Test de regresion `frontend/src/tests/construir-payload-granja.funcion.spec.ts` (6 casos)
+- [x] `yarn build` **0 errores, 0 warnings** (778 s) - karma sobre el spec nuevo **11/11 SUCCESS**
+- [x] Test de alambre backend `UpdateFarmDtoBindingTests` (6 casos): el JSON que manda la pantalla
+      llena los 2 campos del `UpdateFarmDto`, y un payload sin esas claves deserializa sin error y
+      las deja en `null` -la foto del defecto-. `dotnet test` **3.615 verdes**, 0 warnings
+- [x] Smoke end-to-end contra la BD local (backend aislado en :5501, `RunMigrations=false`, granja
+      105 TROFARELLO de ItalcolPanama sembrada con `4001017` + `true`). Los 3 PUT, en orden:
+      **payload VIEJO** -el de antes del fix, sin las 2 claves- responde **200** y deja los dos en
+      `NULL` (defecto reproducido) · **payload NUEVO** los restaura · **editar solo el nombre**
+      (hidratado como hace ahora el modal) los deja intactos: `4001017` / `t`. BD devuelta a su
+      estado inicial: valores en NULL, nombre TROFARELLO, sesion de smoke borrada, :5501 libre
+- [i] El :5002 que quedo escuchando NO es mio: es el backend del worktree `reverent-saha-d10a85`
+      (otra ventana). No se toco
+
+---
+
+## Historial de traslados de lote: Fecha y Usuario siempre en «—» (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/historial_traslado_lote_fecha_y_usuario_plan.md`](fase_de_desarrollo/historial_traslado_lote_fecha_y_usuario_plan.md)
+
+### A · Backend — exponer la fecha real y resolver el usuario
+- [x] `HistorialTrasladoLoteDto` expone `FechaTraslado` (`DateOnly?`) y `CreatedByUserName` pasa a
+      `string?` — nullable porque el id **no siempre** corresponde a una cedula
+- [x] `Application/Calculos/HistorialTrasladoLoteCalculos.cs`: mapeo puro cedula↔int + nombre
+- [x] `LoteService.Traslado.cs`: se va el literal `$"Usuario ID: {...}"` y su TODO. El puente ya
+      estaba resuelto en el repo (`LoteBaseEngordeService`, ItalJira): `created_by_user_id` **es la
+      cedula**; `users.id` es Guid y por eso no hay FK. Resuelto en **una** query batch, sin agregar
+      N+1 al bucle
+- [x] `HistorialTrasladoLoteCalculosTests` (xUnit) — 8 casos verdes
+
+### B · Frontend — alinear al wire y pintar las columnas
+- [x] Interfaz `HistorialTrasladoLoteDto` alineada al JSON real (`createdByUserName`, `createdAt`,
+      `fechaTraslado`, nombres de nucleo/galpon, que tampoco estaban)
+- [x] Funcion pura `fechaTrasladoHistorialLote` + spec. Usa `fechaCortaSinTz`, **no**
+      `formatearFecha`: `new Date("2026-09-01")` es medianoche **UTC** y en Colombia se pintaria
+      **31/08**. Fila legacy sin `fecha_traslado` ⇒ cae a `createdAt`, no al guion
+- [x] Las columnas eran **4 tablas**, no 1: 2 en `inventario-dashboard` + `movimientos-list` +
+      `registros-traslados` (comparten la misma interfaz)
+
+### C · El modal del dashboard tiraba la fecha
+- [x] `TrasladoLoteRequest` de `traslados-aves.service.ts` declara `fechaTraslado`
+- [x] `procesarTrasladoLote` la acepta y la reenvia (mismo contrato que ya cumplia `lote-list`)
+
+### D · Validacion
+- [x] `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **3.616 verdes** (8 nuevos)
+- [x] `yarn build` OK · `ng test` **712 verdes** (4 nuevos)
+- [x] **Smoke contra el backend real** (:5002, BD local, 2 filas sembradas y **borradas** al
+      terminar): `GET /api/Lote/151/historial-traslados` → `"createdByUserName":"Cesar Eduardo
+      Hurtado Riascos"` (resuelto de la BD, **no** es el usuario logueado) y
+      `"fechaTraslado":"2026-08-25"` distinta de `"createdAt":"2026-09-01T14:30:00"`. La fila legacy
+      devuelve los dos en `null`, como se espera
+- [x] **Render real en Chrome**: `registros-traslados.component.spec.ts` monta la tabla de verdad con
+      esa misma respuesta y fija las celdas — `25/8/2026` y el nombre; la fila legacy da `14/7/2026`
+      y `—`. Es la prueba de pantalla y ademas queda como regresion en el CI
+- [i] 🔴 **El test nuevo tumbaba `offline-db.spec.ts`** con un timeout que Karma atribuia a
+      `NucleoService`: montar el componente real abre IndexedDB y la conexion viva **bloquea el
+      upgrade de esquema**. Se cierra en `afterEach` con `cerrarConexion()` (la API existe justo
+      para esto y su doc describe el sintoma). Sin eso: 2 FAILED; con eso: 712 SUCCESS
+- [i] **No hay migracion**: la columna `fecha_traslado`, su indice y el backfill ya los trajo
+      `20260831170000_FechaTrasladoLote`. Esto es solo lectura
+- [i] **Fuera de alcance, anotado**: `getHistorialTrasladosLotesPorGranja` pega a
+      `GET /Lote/historial-traslados/granja/{id}`, **ruta que no existe** en el backend (el unico
+      endpoint es `{loteId}/historial-traslados`) ⇒ la solapa de lotes de `registros-traslados`
+      siempre cae al `catch`. Falta un endpoint, no es un rename
+
+---
+
+# Reporte Tecnico alineado al ciclo y a la clasificacion de huevo de la empresa (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/reporte_tecnico_alineado_ciclo_empresa_plan.md`](fase_de_desarrollo/reporte_tecnico_alineado_ciclo_empresa_plan.md)
+
+El modulo `/reportes-tecnicos` (menu «Reporte Tecnico Sanmarino», las dos vistas Levante y
+Produccion) **esta habilitado para Santa Reyes** — verificado en `company_menus`, es el unico de los
+3 reportes tecnicos que esa empresa tiene prendido. Se abre hoy y sale a medias: guia con 2 de 17
+columnas, huevo incubable en 0 sin gatear y las fases del ciclo de la empresa sin aplicar.
+
+Decisiones del usuario (en sesion): **adaptar el modulo con flags, no duplicarlo** · **ocultar** las
+columnas de guia sin dato (no ampliar la tabla de guia en este pase) · levante 1-17 **con el real y
+un aviso**, sin cortar ni bloquear.
+
+## Auditoria previa (medida, no asumida)
+
+- [x] `/reportes-tecnicos` prendido para company 6; `/reporte-tecnico-produccion` y
+      `/reporte-tecnico-semanal` apagados
+- [x] `guia_genetica_santa_reyes`: **semanas 18 a 140**, 123 filas x 5 lineas, con 3 metricas
+      (`prod_porcentaje`, `retiro_ac_h`, `gr_ave_dia_h`). La compartida arranca en **edad 1**
+- [x] `grep clasificacionHuevoPorItems` sobre `features/reportes-tecnicos/` ⇒ **0 coincidencias**
+- [x] `AplicarTotalesHuevoPorItems` escribe `huevo_inc = 0` **a proposito** («postura comercial, no
+      incuba») ⇒ las columnas Incubable/%Incub no son un dato faltante, son un cero por diseno
+- [x] `SemanasCicloPosturaCalculos.ObtenerEtapa` existe con tests desde el 20ago26 y
+      `semanas_ciclo_postura_por_raza` esta en `t`, pero **ningun service la consume**
+- [x] `fecha_encaset` de `lote_postura_produccion` es el encaset ORIGINAL del ave (P-K345B: encaset
+      2025-01-31, inicio produccion 2025-07-19) ⇒ sirve como eje de semana de vida
+
+## A · Calculo puro + tests (backend, sin tocar servicios todavia)
+
+- [x] `SemanaGuiaProduccionCalculos` — guia propia ⇒ semana de vida; compartida ⇒ semana relativa
+      tal cual (delta cero); `fecha_encaset` nula ⇒ cae a la relativa sin lanzar
+- [x] `GuiaMetricasDisponiblesCalculos` — que metricas de guia tienen al menos un dato
+- [x] `HuevoItemsResumenCalculos` — Primera/Pnc/Otros, espejo de
+      `resumir-huevo-items-por-tipo.funcion.ts`
+- [x] Tests xUnit de los 3, **con caso flag-OFF que verifica salida identica a la formula previa**:
+      la formula previa esta copiada VERBATIM en el test y se compara contra ella en 8 fechas.
+      **45 verdes**
+
+## B · Backend Produccion (`ReporteTecnicoProduccionService.Tabs.cs`)
+
+- [x] Eje de la guia por `SemanaGuiaProduccionCalculos` en los 4 agregados (diario y semanal por
+      galpon, diario y semanal general). `SemanaRelativa` -lo que se PINTA- no cambia
+- [x] `ObtenerSegsProdTabsConItemsAsync`: variante que ademas trae `metadata` y resume por tipo.
+      **Solo corre con el flag ON**; con OFF la consulta queda exactamente como estaba
+- [x] Disponibilidad de guia, `SemanaGuiaDesde` y etapa del ciclo expuestas en el DTO
+- [x] Helpers en el ancla: `ResolverSemanasCicloPorRazaAsync`, `AFilasGuiaMetricas`,
+      `SemanaMinimaConGuia`, `ParsearEdadGuia`
+- [x] `dotnet build` Infrastructure **0 errores / 0 warnings**
+
+## C · Backend Levante (`ReporteTecnicoService.LevanteTabs.cs` + `.LevanteCompleto.cs`)
+
+- [x] **El filtro `edad 1..25` NO habia que tocarlo** — se verifico en vez de asumirlo: el levante de
+      la empresa termina en la semana **24** (8 alistamiento + 16 levante) y la guia propia arranca
+      en la **18**, asi que las semanas 18-24 YA cruzaban bien. Lo que faltaba no era el rango
+- [x] `SemanaGuiaDesde` (minima semana con guia REAL, no un 18 hardcodeado) en el DTO: si manana el
+      cliente carga el levante, el aviso desaparece solo
+- [x] Disponibilidad de guia expuesta igual que en produccion, en las 2 ramas (Semanal y Diario)
+- [i] `ReporteTecnicoService.LevanteCompleto` (`/levante/completo/{loteId}`) **no se toco**: este
+      modulo no lo llama -el main usa `POST /levante/obtener`-. Queda escrito, no olvidado
+
+## D · Frontend
+
+- [x] `models/reporte-tecnico-guia.model.ts` + `funciones/` (`normalizar-guia-disponibilidad`,
+      `columnas-huevo-reporte`) con su `README.md`. Las dos son **fail-open**: si el dato que las
+      gobierna no llega, se pinta todo -lo de antes-
+- [x] 4 tablas de produccion: huevos por items + `%Incubables` retirado, `[attr.colspan]`
+      recalculado, y los inputs bajan desde `reportes-tabs` (el backend ya sabe: no se vuelve a
+      preguntar por el flag)
+- [x] 🔴 **2 desalineaciones PREEXISTENTES corregidas al pasar**, que se ven solo con
+      `oculta_machos_en_postura` ON -o sea, solo en Santa Reyes-: en `reporte-general-diario` el
+      `<th>` de **SaldoM** se pintaba siempre con su `<td>` condicional, y el `<td>` de **Consumo M**
+      al reves; en `reporte-diario-galpon` el grupo **Peso Ave (g)** tenia `colspan="2"` fijo con su
+      celda M condicional. Las columnas quedaban corridas
+- [x] Los 4 componentes pasan de `OnPush` a **`Eager`**: asignan estado desde un `subscribe`, que es
+      exactamente el caso que CLAUDE.md manda resolver con `Eager`
+- [x] **2** tablas de levante (`semanal-hembras`, `semanal-machos`): las 7 y 8 columnas GUIA
+      gateadas **en pares** (`<th>` + `<td>` + el `colspan` del grupo), asi la tabla queda alineada
+      en los DOS estados del flag
+- [x] 🔴 **3a desalineacion PREEXISTENTE corregida**: en las dos tablas el grupo **TOSCANA**
+      declaraba `colspan="4"` con **cinco** columnas debajo (medido: 5 `<th>` y 5 `<td>`), asi que
+      ese rotulo y los de TODOS los grupos siguientes se pintaban corridos una columna. Los datos
+      siempre estuvieron bien; mentia el encabezado. Verificado por conteo simulando el render:
+      con guia completa **29 grupos = 29 th** y **33 columnas = 33 td** (antes 28 vs 29 y 32 vs 33);
+      con guia propia **24 = 24** y **28 = 28**
+- [i] `tabla-levante-completa` **no se toco**: la usa `reporte-tecnico-administrativo`, que es OTRO
+      modulo y no esta en el alcance de este pase. Queda escrito, no olvidado
+- [x] `reporte-tecnico-main`: 16 bloques de la tabla «Real vs Guia» gateados por disponibilidad
+      (cabeceras, subcabeceras y celdas, con los 6 `colspan` de grupo recalculados) + **aviso de
+      tramo sin guia**, en naranja de marca (atencion), no rojo (peligro)
+- [x] Todo componente/modal nuevo con `changeDetection: ChangeDetectionStrategy.Eager` explicito
+- [x] `yarn build` **0 errores** (unico warning el de bundle budget preexistente)
+
+## E · Excel (backend, endpoints `exportar-excel-tabs` y `levante/exportar-excel`)
+
+- [x] Mismo gateo en las 4 hojas. **La columna «Huevo Inc» solo existe en la hoja «Diario Galpon»**
+      (se verifico, no se asumio): ahi se REUSA la columna 14 (Inc ⇄ Primera) y «Huevo Pnc» se
+      agrega **al FINAL**; en las otras 3 hojas Primera/Pnc van al final. Asi ningun indice de
+      columna previo se mueve y no hay forma de desalinear la hoja
+
+## F · Menu
+
+- [x] `20260901220000_RenombraMenuReporteTecnicoNeutro`: «Reporte Tecnico Sanmarino» → «Reporte
+      Tecnico», localizando por `route` (jamas por id: aca es 19, en prod puede ser otro) y con
+      `IS DISTINCT FROM` para no ensuciar `updated_at`
+- [x] **Validada por transaccion revertida**: `Up()` 1a = **UPDATE 1** · `Up()` 2a = **UPDATE 0**
+      (idempotente) · los otros 2 menus con «Sanmarino» en el label **intactos** · `Down()` restaura
+      exacto. Designer clonado sin tocar el ModelSnapshot (es data-only)
+
+## G · Validacion
+
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **3.653 verdes, 0 fallos**
+- [i] Ojo al reproducir: compilar con `--artifacts-path` FUERA del repo hace fallar 2 tests
+      (`RazaGuiaAliasParidadSqlTests`) que suben desde el binario buscando
+      `backend/sql/vw_guia_genetica_postura.sql`. No es una regresion: con el output normal pasan
+- [x] `yarn build` **0 errores** · `yarn test` **723 SUCCESS**
+- [x] **Smoke doble HTTP contra el backend real** (`:5501`, contentRoot aislado y
+      `RunMigrations=false` para no tocar el esquema de la BD compartida). Con permiso del usuario se
+      sembraron 10 dias de seguimiento y 2 sesiones, **borrados al terminar** (verificado: 0 y 0)
+- [x] 🔴 **El smoke encontro un defecto que los tests NO veian, y era total**: dejar
+      `Huevo = default` dentro del `.Select()` de EF hace que EF lo lea como constante del cliente y
+      **revienta la consulta entera** — `HTTP 404 «The client projection contains a reference to a
+      constant expression»`. **El endpoint no respondia para NINGUNA empresa**, con o sin flag. Los
+      45 tests nuevos pasaban igual porque el calculo puro no toca EF. Corregido: el campo no se
+      asigna en la proyeccion; lo llena despues, en memoria,
+      `ObtenerSegsProdTabsConItemsAsync`. Mismo patron que [[sqlqueryraw-digitos-en-el-nombre]]
+- [x] **Flags OFF (Sanmarino, P-K345B, 301 seguimientos) ⇒ delta cero MEDIDO**, no afirmado: sobre
+      las **688 filas** de los 4 agregados, `semanaGuia != semana` en **0** (el eje no se movio),
+      filas con Primera/Pnc/Otros **0**, filas con `etapaCiclo` **0**, y `guiaMetricasDisponibles`
+      llega con **las 14 en true** (el front no oculta ni una columna). Los campos de siempre traen
+      su dato real
+- [x] **Flags ON (Santa Reyes, P-LOTE 218A, Criolla)**: `clasificacionHuevoPorItems=true` ·
+      `semanaGuiaDesde=18` (dispara el aviso) · guia **CON** dato = exactamente
+      `prodPorcentaje`, `retiroAcH`, `grAveDiaH` — las 3 que esa tabla tiene — y las otras **11 en
+      false**, o sea retiradas · `huevoInc=0` en todas · **invariante
+      `Primera+Pnc+Otros == huevoTot` en el 100% de las filas** y en el agregado semanal
+      (16.800 = 15.400 + 1.400 + 0) · `etapaCiclo` poblada («Alistamiento» para la edad del lote)
+- [x] Backend local levantado SOLO para el smoke y **apagado al terminar**: `:5501` y `:5002`
+      confirmados **LIBRES**
+- [i] **No se comparo contra el backend viejo por HTTP**: `:5002` corria codigo anterior y habria
+      sido el testigo ideal, pero **otra sesion lo apago** a mitad del trabajo. El delta cero quedo
+      medido en los puntos de bifurcacion —que es donde el codigo nuevo podria desviarse—, no por
+      diff de dos respuestas
+- [i] **La pantalla no se miro en el navegador**: el usuario eligio sembrar y borrar, no dejar los
+      datos. Lo verificado es el CONTRATO que gobierna el render (los `@if` del template cuelgan de
+      `clasificacionHuevoPorItems` y de `guiaMetricasDisponibles`, ambos confirmados en la respuesta
+      real). Si se quiere la captura, hay que volver a sembrar
+
+## Correccion posterior (1-sep-2026): el eje de la guia estaba mal para TODAS las empresas
+
+El usuario corrigio una premisa mia: **cada empresa carga su PROPIA guia genetica** (Sanmarino 889
+filas, Demo 224, Ecuador 15, Santa Reyes 615, todas filtradas por `company_id`); lo que cambia es en
+que TABLA vive. Hablar de «guia propia vs compartida» me hizo dejar como «preexistente, fuera de
+alcance» un defecto que afectaba a las cinco. Pidio validarlo y corregirlo.
+
+- [x] **Validado: la columna `edad` de la guia es SEMANA DE VIDA, no de postura.** La prueba esta en
+      el dato, no en el nombre: en `guia_genetica_sanmarino_colombia` la edad va de **1 a 71-97**, la
+      **primera edad con produccion es la 25/26** —cuando el ave empieza a poner— y la primera con
+      `peso_h` es la **1**. Por eso `ObtenerGuiaGeneticaProduccionAsync` ya filtraba `edad >= 26`
+- [x] **El defecto estaba en los DOS reportes**, no solo en el que Santa Reyes ve: `Tabs.cs` usaba la
+      semana relativa y `Cuadro.cs` usaba `EdadInicioSemanas`, que se cuenta desde
+      `fechaReferencia = fechaInicioProduccion`
+- [x] **Impacto medido antes de tocar**: los 7 lotes de produccion vivos tienen `fecha_encaset`
+      cargada y el eje se corre entre **128 y 363 dias** (18 a 52 semanas)
+- [x] `SemanaGuiaProduccionCalculos.Resolver` ya no depende de en que tabla vive la guia: cruza por
+      semana de vida siempre. **La semana que se PINTA no cambia** — sigue siendo la de postura
+- [x] 🔴 **Desempate `25P` vs `25`**: el fix vuelve alcanzable la semana 25, que es la unica del
+      catalogo con dos grafias (`25P` = prepostura, una fila por raza/anio; el parseo tolerante las
+      colapsa). Gana la **numerica pura**, de forma determinista. Antes daba igual porque el eje
+      viejo nunca llegaba a la 25. **Conviene confirmarlo con el cliente**: las 2 filas llenan campos
+      distintos (`25P` trae `peso_huevo`, `25` trae `uniformidad`)
+- [x] **Efecto MEDIDO en P-K345B** (encaset 2025-01-31, inicio produccion 2025-07-19 ⇒ semana 25):
+      | fecha | sem. pintada | ANTES | AHORA |
+      |---|---|---|---|
+      | 2025-07-19 | 1 | edad 1 · `uniformidad 70` (dato de LEVANTE) | edad 25 · `uniformidad 90` |
+      | 2025-07-26 | 2 | edad 2 · todo vacio | edad 26 · **31,25 %** · peso **52,30** |
+      | 2026-02-04 | 29 | edad 29 · 86,75 % (la meta de la semana **5** de postura) | edad 53 · 69,15 % |
+      Cobertura: **% Postura Guia 126/301 → 294/301** · **Peso Huevo Guia 133/301 → 294/301**
+- [x] Santa Reyes **no cambia** con esta correccion: su guia ya se cruzaba por semana de vida
+- [x] `dotnet build` 0/0 · `dotnet test` **3.671 verdes** · smoke HTTP con el lote real
+- [x] Sesion de smoke borrada (0) y puertos 5501/5002 **LIBRES**
+
+## `25P` es la fila de PRODUCCION, no un duplicado — el desempate estaba al reves (1-sep-2026)
+
+El usuario explico que en Sanmarino la semana 25 es la de **paso de levante a produccion**, y que la
+guia trae las dos: `25` (todavia en levante, sin producir huevo «de produccion») y `25P` (la misma
+semana ya produciendo). En Sanmarino ademas se registra huevo **desde la semana 18 en LEVANTE**
+—flag `captura_huevos_en_levante`— y en la semana 26 el lote de levante ya debe cerrarse.
+
+- [x] **Verificado en el dato, no solo en el relato.** Lo que distingue a las dos filas es que los
+      ACUMULADOS SE REINICIAN en la de produccion (AP 2026, Sanmarino):
+      | edad | `cons_ac_h` | `retiro_ac_h` | `uniformidad` | `peso_huevo` |
+      |---|---|---|---|---|
+      | 24 | 10.678,5 | 3,93 | 90 | — |
+      | **25** | 11.501,2 | 4,03 | 90 | — | ← cierra el levante |
+      | **25P** | **847,0** | **0,10** | — | 50,1 | ← abre la produccion |
+      | 26 | 920,9 | 0,33 | — | 52,3 | ← sigue desde 847 |
+- [x] **El flag confirma a quien aplica**: `captura_huevos_en_levante` esta en `t` exactamente en
+      **Sanmarino y Demo** —las dos empresas cuya guia tiene `25P`— y en `f` en Ecuador, Panama y
+      Santa Reyes. La guia de esquema simple no tiene esta duplicidad: arranca directo en produccion
+- [x] 🔴 **Mi desempate anterior estaba AL REVES** (elegia la numerica pura). Un reporte de
+      produccion habria mostrado `cons_ac_h = 11.501` —el consumo acumulado del **levante entero**—
+      donde corresponde **847**: trece veces mas grande y sin que nada se vea roto
+- [x] `GrafiaEdadGuiaCalculos` (calculo puro + 8 casos de test): en produccion gana la fila con `P`,
+      en levante la numerica pura, la grafia desconocida queda ultima y el resultado **no depende del
+      orden de entrada**
+- [x] Aplicado en los dos reportes de produccion (`Tabs.cs` y `Cuadro.cs`). **El levante ya estaba
+      bien** y no se toco: usa `int.TryParse` estricto, que rechaza `25P` de entrada
+- [x] **Smoke**: la semana 25 del lote real ahora trae `pesoHuevoGuia = 50,1` (el valor de `25P`;
+      con la fila `25` ese campo viene vacio) y la 26 sigue con 52,3 / 31,25 %
+- [x] `dotnet build` 0/0 · `dotnet test` **3.694 verdes** · sesion de smoke borrada · puertos LIBRES
+- [!] **Pendiente anotado, NO tocado**: `GuiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync`
+      filtra `edad >= 26`, y como `TryParseEdadNumerica("25P")` devuelve 25, **descarta la fila de
+      produccion de la semana de transicion**. De ahi salen las columnas «amarillas» del Cuadro
+      (consumo, peso, mortalidad standard). Tiene **3 consumidores**
+      (`ClasificacionHuevo`, `Cuadro`, `IndicadoresProduccion`), asi que cambiarlo excede este pase
+
+## Cierre: `25P` tambien entra en la SERIE de produccion (1-sep-2026)
+
+Ultimo hueco del pase, el que quedaba anotado como pendiente: el desempate ya elegia bien la fila
+`25P` cuando estaba disponible, pero `ObtenerGuiaGeneticaProduccionAsync` **ni siquiera la
+entregaba** — su corte `edad >= 26` la descartaba, porque el parseo devuelve 25 para `"25P"`.
+
+- [x] **Medido el alcance antes de tocar**, que era el motivo de haberlo diferido: de los 3
+      consumidores, `IndicadoresProduccionService` solo lo usa como `guias.Any()` (un booleano de
+      «¿hay guia?») ⇒ **no le afecta**; los otros dos (`Cuadro`, `ClasificacionHuevo`) son del
+      modulo `/reporte-tecnico-produccion`, donde el contenido si importa
+- [x] `GrafiaEdadGuiaCalculos.EsSerieDeProduccion(grafia, edad, desdeSemana = 26)`: entra por numero
+      **o** por grafia. El corte quedo **parametrizable** —no una constante enterrada— porque la guia
+      de esquema simple arranca su produccion en la semana 18, no en la 26
+- [x] **9 casos de test nuevos**: `25P` entra pese a parsear 25 · la `25` de levante sigue afuera ·
+      las semanas 1/18/24 quedan fuera · 26/53/140 entran · el corte se puede mover a 18
+- [x] **Delta cero para quien no tiene `25P`**: el cambio solo AGREGA filas con sufijo `P`, y esa
+      grafia existe unicamente en la guia de Sanmarino y Demo (una fila por raza/anio). Ecuador,
+      Panama y Santa Reyes reciben exactamente lo mismo que antes
+- [x] **Verificado en el reporte Cuadro con el lote real** (`GET /cuadro/6`): **43/43 filas con
+      consumo standard** y la primera fila trae `PesoHuevoStd 50,1` y `StGrHembra 116` — los valores
+      de `25P`, que antes se descartaban. `%Ross` sigue vacio en esa fila, que es correcto: en la
+      semana de transicion todavia no hay % de produccion standard
+- [x] `dotnet build` 0/0 · `dotnet test` **3.703 verdes** · sesion de smoke borrada · puertos LIBRES
+
+### Estado final del pase
+
+| Frente | Estado |
+|---|---|
+| Eje de la guia (semana de vida) | corregido en los 2 reportes, para las 5 empresas |
+| Semana de transicion `25` / `25P` | desempate + serie, con calculo puro y 17 tests |
+| Huevo por items (Primera/Pnc) | en las 4 tablas de produccion + Excel |
+| Columnas de guia sin dato | ocultas, con el backend informando que puede comparar |
+| Aviso de tramo sin guia (levante) | en pantalla, con la semana REAL de la guia |
+| Etapas del ciclo por raza | conectadas |
+| 3 desalineaciones preexistentes | corregidas |
+| Menu neutro | migracion idempotente, probada en transaccion revertida |
+
+## El corte de inicio de produccion de la guia, por EMPRESA (1-sep-2026)
+
+Pedido del usuario: *«cuando este en la empresa Santa Reyes aplica la correccion de semana 18, de lo
+contrario es semana 25»*. El corte estaba escrito a mano como `26` y era el de la guia de esquema
+completo; la de esquema simple arranca directamente en produccion.
+
+- [x] **Validado antes de codificar, en el dato**: la guia de esquema simple arranca en la **18 y ya
+      trae produccion ahi** — Hy Line Brown va 7,70 % (sem 18) → 27,10 → 57,30 → 80,50 → 90,60 →
+      94,10 → 95,50 → **96,60 (sem 25)**. Con el corte en 26 se perdian **8 semanas por linea**
+      (115 de 123 filas entraban; ahora 123), justo la curva de arranque de la postura
+- [x] **Por columna, NO por `if (empresa == ...)`** (regla §🏢 de CLAUDE.md):
+      `companies.semana_inicio_produccion_guia` INTEGER NOT NULL **DEFAULT 26** — el mismo numero
+      que estaba en el codigo, asi que quien no se toque se comporta igual **por construccion**
+- [x] La migración **localiza la empresa por SU GUIA, no por el nombre**: pone 18 a quien tenga filas
+      en la tabla de esquema simple. Asi no depende del orden respecto al seed que crea la empresa
+      (§🏢.7) y, si la empresa no existe todavia, no afecta ninguna fila
+- [x] **Validada en transaccion revertida**: `Up()` 1a = ALTER + **UPDATE 1** · 2a = NOTICE «already
+      exists» + **UPDATE 0** · reparto correcto (Santa Reyes **18**, las otras 4 en **26**) ·
+      `Down()` deja la columna en **0**
+- [x] **Aplicada de verdad en local** al arrancar el backend (`Database:RunMigrations=true`), junto
+      con la del menu: `menus./reportes-tecnicos` ya dice **«Reporte Tecnico»**
+- [x] `GrafiaEdadGuiaCalculos.EsSerieDeProduccion` ya era parametrizable; el service resuelve el
+      valor de la empresa y lo pasa. **Fail-safe**: empresa no encontrada ⇒ cae al default 26
+- [x] **12 tests nuevos**, incluido uno que recorre las 140 semanas comparando el default contra el
+      corte 26 explicito (delta cero demostrado, no afirmado) y otro que fija que la fila con `P`
+      entra **con cualquier corte**
+- [x] **Smoke HTTP con Santa Reyes**: sembrados 21 dias en el tramo de la semana 18-25 de vida
+      (encaset + 119 dias), el Cuadro devuelve **2/2 filas con consumo standard** (95 y 102,5
+      gr/ave/dia) donde con el corte fijo en 26 habrian salido en `null`. Datos y sesion **borrados**
+      (0 y 0), puertos **LIBRES**
+- [x] `dotnet build` 0/0 · `dotnet test` **3.715 verdes**
+- [!] **Tension que sigue abierta y NO se toco**: `SemanasCicloPosturaCalculos` (auditado del docx
+      del cliente) define para esa empresa **postura desde la semana 29** (8 alistamiento + 16
+      levante + 4 levante-en-produccion), pero su guia produce desde la **18**. Este pase alinea el
+      **corte de la guia** —que es lo que el usuario pidio y lo que el dato respalda— y **no toca las
+      etapas del ciclo**, que alimentan la columna «fase» del reporte. Si el corte real es 18, esa
+      clase tambien habria que ajustarla: es decision del cliente, no mia

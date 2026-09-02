@@ -168,35 +168,50 @@ public class ExportacionExcelService : IExportacionExcelService
 
         _AgregarHojaInformacion(pkg, meta);
 
+        // Empresas con `companies.clasificacion_huevo_por_items`: `huevo_inc` se escribe en 0 a
+        // propósito (postura comercial, no incuba) y el desglose real es Primera/Pnc. Exportar la
+        // columna «Huevo Inc» siempre en 0 sería exportar un número inventado.
+        var porItems = reporte.LoteInfo.ClasificacionHuevoPorItems;
+
         if (reporte.DiariosGalpon.Any())
-            _AgregarHojaDiarioGalpon(pkg, reporte.DiariosGalpon);
+            _AgregarHojaDiarioGalpon(pkg, reporte.DiariosGalpon, porItems);
 
         if (reporte.SemanalesGalpon.Any())
-            _AgregarHojaSemanalGalpon(pkg, reporte.SemanalesGalpon);
+            _AgregarHojaSemanalGalpon(pkg, reporte.SemanalesGalpon, porItems);
 
         if (reporte.DiariosGeneral.Any())
-            _AgregarHojaDiarioGeneral(pkg, reporte.DiariosGeneral);
+            _AgregarHojaDiarioGeneral(pkg, reporte.DiariosGeneral, porItems);
 
         if (reporte.SemanalesGeneral.Any())
-            _AgregarHojaSemanalGeneral(pkg, reporte.SemanalesGeneral);
+            _AgregarHojaSemanalGeneral(pkg, reporte.SemanalesGeneral, porItems);
 
         return pkg.GetAsByteArray();
     }
 
-    private void _AgregarHojaDiarioGalpon(ExcelPackage pkg, List<ReporteDiarioGalponDto> datos)
+    private void _AgregarHojaDiarioGalpon(
+        ExcelPackage pkg, List<ReporteDiarioGalponDto> datos, bool clasificacionPorItems = false)
     {
         var ws = pkg.Workbook.Worksheets.Add("Diario Galpón");
-        int totalCols = 16;
+        // La columna 14 se reusa (Inc ⇄ Primera) y «Huevo Pnc» se agrega al FINAL: así ningún
+        // índice de columna previo se mueve y la hoja no se desalinea.
+        int totalCols = clasificacionPorItems ? 17 : 16;
 
         ws.Cells[1, 1].Value = "PRODUCCIÓN — Diario por Galpón";
         ws.Cells[1, 1, 1, totalCols].Merge = true;
         _EstiloTitulo(ws.Cells[1, 1]);
 
-        string[] headers = {
-            "Galpón", "Lote", "Fecha", "Sem.", "Edad",
-            "Saldo H", "Saldo M", "Mort H", "Mort M", "%Mort",
-            "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Inc", "%Postura", "Peso Huevo"
-        };
+        var headers = clasificacionPorItems
+            ? new[] {
+                "Galpón", "Lote", "Fecha", "Sem.", "Edad",
+                "Saldo H", "Saldo M", "Mort H", "Mort M", "%Mort",
+                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Primera", "%Postura", "Peso Huevo",
+                "Huevo Pnc"
+              }
+            : new[] {
+                "Galpón", "Lote", "Fecha", "Sem.", "Edad",
+                "Saldo H", "Saldo M", "Mort H", "Mort M", "%Mort",
+                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Inc", "%Postura", "Peso Huevo"
+              };
         for (int i = 0; i < headers.Length; i++)
         {
             ws.Cells[2, i + 1].Value = headers[i];
@@ -238,7 +253,8 @@ public class ExportacionExcelService : IExportacionExcelService
                 ws.Cells[row, 11].Value = _Fmt2(d.ConsKgH);
                 ws.Cells[row, 12].Value = _Fmt2(d.ConsKgM);
                 ws.Cells[row, 13].Value = d.HuevoTot;
-                ws.Cells[row, 14].Value = d.HuevoInc;
+                ws.Cells[row, 14].Value = clasificacionPorItems ? d.HuevoPrimera : d.HuevoInc;
+                if (clasificacionPorItems) ws.Cells[row, 17].Value = d.HuevoPnc;
                 ws.Cells[row, 15].Value = _Fmt2(d.PorcentajePostura);
                 ws.Cells[row, 16].Value = _Fmt2(d.PesoHuevo);
                 _EstiloFila(ws.Cells[row, 1, row, totalCols], Color.White);
@@ -268,10 +284,12 @@ public class ExportacionExcelService : IExportacionExcelService
         ws.View.FreezePanes(3, 1);
     }
 
-    private void _AgregarHojaSemanalGalpon(ExcelPackage pkg, List<ReporteSemanalGalponDto> datos)
+    private void _AgregarHojaSemanalGalpon(
+        ExcelPackage pkg, List<ReporteSemanalGalponDto> datos, bool clasificacionPorItems = false)
     {
         var ws = pkg.Workbook.Worksheets.Add("Semanal Galpón");
-        int totalCols = 16;
+        // Primera/Pnc se agregan al FINAL: ningún índice de columna previo se mueve.
+        int totalCols = clasificacionPorItems ? 18 : 16;
 
         ws.Cells[1, 1].Value = "PRODUCCIÓN — Semanal por Galpón";
         ws.Cells[1, 1, 1, totalCols].Merge = true;
@@ -288,6 +306,14 @@ public class ExportacionExcelService : IExportacionExcelService
         {
             ws.Cells[2, i + 1].Value = headers[i];
             _EstiloSubHeader(ws.Cells[2, i + 1]);
+        }
+
+        if (clasificacionPorItems)
+        {
+            ws.Cells[2, 17].Value = "Huevo Primera";
+            _EstiloSubHeader(ws.Cells[2, 17]);
+            ws.Cells[2, 18].Value = "Huevo Pnc";
+            _EstiloSubHeader(ws.Cells[2, 18]);
         }
 
         var galponesOrdenados = datos
@@ -325,6 +351,11 @@ public class ExportacionExcelService : IExportacionExcelService
                 ws.Cells[row, 14].Value = d.HuevoTotSemanal;
                 ws.Cells[row, 15].Value = _Fmt2(d.PorcentajePosturaPromedio);
                 ws.Cells[row, 16].Value = _Fmt2(d.PesoHuevoPromedio);
+                if (clasificacionPorItems)
+                {
+                    ws.Cells[row, 17].Value = d.HuevoPrimera;
+                    ws.Cells[row, 18].Value = d.HuevoPnc;
+                }
                 _EstiloFila(ws.Cells[row, 1, row, totalCols], Color.White);
 
                 if (d.PorcentajePosturaGuia.HasValue || d.PesoHuevoGuia.HasValue)
@@ -350,10 +381,12 @@ public class ExportacionExcelService : IExportacionExcelService
         ws.View.FreezePanes(3, 1);
     }
 
-    private void _AgregarHojaDiarioGeneral(ExcelPackage pkg, List<ReporteGeneralDiarioDto> datos)
+    private void _AgregarHojaDiarioGeneral(
+        ExcelPackage pkg, List<ReporteGeneralDiarioDto> datos, bool clasificacionPorItems = false)
     {
         var ws = pkg.Workbook.Worksheets.Add("Diario General");
-        int totalCols = 13;
+        // Primera/Pnc se agregan al FINAL: ningún índice de columna previo se mueve.
+        int totalCols = clasificacionPorItems ? 15 : 13;
 
         ws.Cells[1, 1].Value = "PRODUCCIÓN — Diario General (Consolidado)";
         ws.Cells[1, 1, 1, totalCols].Merge = true;
@@ -368,6 +401,14 @@ public class ExportacionExcelService : IExportacionExcelService
         {
             ws.Cells[2, i + 1].Value = headers[i];
             _EstiloSubHeader(ws.Cells[2, i + 1]);
+        }
+
+        if (clasificacionPorItems)
+        {
+            ws.Cells[2, 14].Value = "Huevo Primera";
+            _EstiloSubHeader(ws.Cells[2, 14]);
+            ws.Cells[2, 15].Value = "Huevo Pnc";
+            _EstiloSubHeader(ws.Cells[2, 15]);
         }
 
         int row = 3;
@@ -386,6 +427,11 @@ public class ExportacionExcelService : IExportacionExcelService
             ws.Cells[row, 11].Value = _Fmt2(d.PorcentajePosturaPromedio);
             ws.Cells[row, 12].Value = _Fmt2(d.PesoHuevoPromedio);
             ws.Cells[row, 13].Value = _Fmt2(d.PorcentajePosturaGuia);
+            if (clasificacionPorItems)
+            {
+                ws.Cells[row, 14].Value = d.HuevoPrimera;
+                ws.Cells[row, 15].Value = d.HuevoPnc;
+            }
             _EstiloFila(ws.Cells[row, 1, row, totalCols], Color.White);
 
             if (d.DifPostura.HasValue)
@@ -405,10 +451,12 @@ public class ExportacionExcelService : IExportacionExcelService
         ws.View.FreezePanes(3, 1);
     }
 
-    private void _AgregarHojaSemanalGeneral(ExcelPackage pkg, List<ReporteGeneralSemanalDto> datos)
+    private void _AgregarHojaSemanalGeneral(
+        ExcelPackage pkg, List<ReporteGeneralSemanalDto> datos, bool clasificacionPorItems = false)
     {
         var ws = pkg.Workbook.Worksheets.Add("Semanal General");
-        int totalCols = 14;
+        // Primera/Pnc se agregan al FINAL: ningún índice de columna previo se mueve.
+        int totalCols = clasificacionPorItems ? 16 : 14;
 
         ws.Cells[1, 1].Value = "PRODUCCIÓN — Semanal General (Consolidado)";
         ws.Cells[1, 1, 1, totalCols].Merge = true;
@@ -423,6 +471,14 @@ public class ExportacionExcelService : IExportacionExcelService
         {
             ws.Cells[2, i + 1].Value = headers[i];
             _EstiloSubHeader(ws.Cells[2, i + 1]);
+        }
+
+        if (clasificacionPorItems)
+        {
+            ws.Cells[2, 15].Value = "Huevo Primera";
+            _EstiloSubHeader(ws.Cells[2, 15]);
+            ws.Cells[2, 16].Value = "Huevo Pnc";
+            _EstiloSubHeader(ws.Cells[2, 16]);
         }
 
         int row = 3;
@@ -442,6 +498,11 @@ public class ExportacionExcelService : IExportacionExcelService
             ws.Cells[row, 12].Value = _Fmt2(d.PorcentajePosturaPromedio);
             ws.Cells[row, 13].Value = _Fmt2(d.PesoHuevoPromedio);
             ws.Cells[row, 14].Value = _Fmt2(d.PorcentajePosturaGuia);
+            if (clasificacionPorItems)
+            {
+                ws.Cells[row, 15].Value = d.HuevoPrimera;
+                ws.Cells[row, 16].Value = d.HuevoPnc;
+            }
             _EstiloFila(ws.Cells[row, 1, row, totalCols], Color.White);
 
             if (d.DifPostura.HasValue || d.DifPesoHuevo.HasValue)
