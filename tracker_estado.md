@@ -6252,3 +6252,45 @@ columnas que **ya existen** ⇒ la próxima migración que alguien genere revien
 - [x] S8 Verificar que la BD local no se tocó (ningún DDL, `__EFMigrationsHistory` igual)
 - [x] S9 Commit `4cf26b5` y fast-forward de `main` conservando el tracker de la
       sesion vecina byte a byte (su apendice de 42 lineas y su lista de sucios, identicos)
+
+---
+
+## Anexo — `LiquidacionTecnicaEcuador` → `LiquidacionTecnicaEngorde` (2-sep-2026)
+
+Mismo defecto que los 4 módulos del bloque anterior, y estaba anotado ahí como hallazgo fuera de
+alcance. Ahora sí se hizo. Mapeado con un workflow de **12 agentes** (6 superficies × mapeo +
+verificación adversarial), 5 correcciones y 14 omisiones incorporadas al plan antes de tocar código.
+
+- [x] **Por qué el nombre mentía:** sus endpoints reciben `loteAveEngordeId`, y su hermano
+      `LiquidacionTecnicaController` es el de **LEVANTE**. La diferencia real es *engorde vs levante*,
+      no el país. Por eso el neutro **no** puede ser `LiquidacionTecnica` a secas — tercera vez en la
+      sesión que el nombre obvio ya tiene dueño
+- [x] Backend: controller + interfaz + service + el registro de DI en `Program.cs`
+- [x] **Ruta doble**: neutra `api/LiquidacionTecnicaEngorde` (PascalCase, para no partir la simetría
+      con `api/LiquidacionTecnica`) + la histórica como alias. Salía de `[Route("api/[controller]")]`,
+      así que sin el alias el rename de la clase habría cambiado la URL sola.
+      `[Tags]` explícito: con dos `[Route]` cada acción aparece una vez por ruta y el grupo de Swagger
+      lo decidiría el nombre de la clase
+- [x] Front: `baseUrlEcuador` → `baseUrlEngorde` y **`useEcuador` → `useEngorde`** en los 2 services.
+      Era **parámetro público de 5 métodos**. Los 3 componentes ya usaban el nombre honesto
+      (`esLoteAveEngorde`): sólo se les limpió el comentario
+- [x] Documentación (`DESARROLLO_MODULO_AVES_ENGORDE_ECUADOR.md`, `LIQUIDACION_TECNICA_POLLO_ENGORDE.md`),
+      anotando que la ruta vieja sigue viva como alias
+
+### Lo que el workflow encontró y yo no habría visto
+
+- [x] 🔴 **`.claude/worktrees/` tiene 16 checkouts completos** de otras ventanas de Claude Code, con
+      copias del controller. `ripgrep` los ignora (están en `.gitignore`), pero un `sed` recursivo
+      desde la raíz —o un «reemplazar en todos los archivos» del IDE— **reescribiría trabajo no
+      commiteado de 16 sesiones ajenas**. Verificado que los renames de hoy **no** los tocaron
+      (`kind-nash-403266` conserva archivo y símbolo viejos); este también fue acotado a
+      `backend/src` y `frontend/src`
+- [x] 🔴 **El gate de la lista cacheable corta por la mitad que yo no había previsto.** No falla por
+      dejar la entrada vieja —vive en `EXCLUIDOS`, y el chequeo de huérfanos mira **sólo** la lista
+      blanca—, sino porque la URL nueva quedaría **sin decisión**. Y el match es **exacto sobre el
+      primer segmento**: `'liquidaciontecnica'` NO cubre a `'liquidaciontecnicaengorde'`
+- [x] [i] **Un motivo del mapeo era falso y se descartó:** los `///` del controller NO salen en
+      Swagger (`Program.cs:614` tiene `IncludeXmlComments` comentado y ningún `.csproj` define
+      `GenerateDocumentationFile`). Eran comentarios internos, no contrato público
+- [x] [i] **Este módulo no tiene superficie de datos:** 0 tablas, 0 vistas, 0 filas de `menus`,
+      0 keys de `permissions`, 0 rutas SPA. Su única entrada real era la lista offline
