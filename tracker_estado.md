@@ -6368,8 +6368,10 @@ lugares de DTOs y 6 services.
       numeric»), `Down`×2, tipos correctos en cada paso, **0 diferencias de valor** exactas tras el
       `Up` y tras el round-trip, y triggers **idénticos** las dos veces
 - [x] P7 El modelo no cambia ⇒ el `ModelSnapshot` no se toca; el Designer clona el snapshot actual
-- [ ] P8 `dotnet build` + `has-pending-model-changes` + `migrations list`
-- [ ] P9 Commit y fast-forward de `main`
+- [x] P8 `dotnet build` 0 errores / 0 advertencias; `has-pending-model-changes` sin cambios
+      (confirma que el modelo no se movio); `migrations list` muestra la migracion como (Pending).
+      BD local intacta: 360 filas de historial, los 2 tipos siguen `numeric`, 2 triggers vivos
+- [x] P9 Commit y fast-forward de `main`
 
 ### Queda pendiente de decisión del usuario
 

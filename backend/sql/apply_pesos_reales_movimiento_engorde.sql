@@ -3,6 +3,17 @@
 --     a movimiento_pollo_engorde (prorrateo proporcional).
 -- Aplicar en DBeaver / psql conectado a la BD objetivo.
 -- ============================================================
+--
+-- HISTORICO - NO CORRER. Queda como registro de lo que se hizo, pero su NUMERIC(12,3)
+-- ya no es el tipo vigente: el modelo declara double? y la migracion
+-- 20260902160000_AlineaTipoPesoRealMovimientoEngorde alineo las dos columnas a
+-- double precision, que es lo que ya eran las otras 6 columnas peso_* de la tabla.
+--
+-- Y este script es el ejemplo del anti-patron que CLAUDE.md prohibe: aplicar schema a
+-- mano e insertar el id en __EFMigrationsHistory. Eso dejo a la migracion
+-- 20260521110000 sin su .Designer.cs -o sea invisible para EF- hasta el 2-sep-2026.
+-- El schema llega por migracion; el .sql es espejo, no vehiculo.
+-- ============================================================
 
 BEGIN;
 
