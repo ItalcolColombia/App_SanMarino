@@ -6294,3 +6294,43 @@ verificación adversarial), 5 correcciones y 14 omisiones incorporadas al plan a
       `GenerateDocumentationFile`). Eran comentarios internos, no contrato público
 - [x] [i] **Este módulo no tiene superficie de datos:** 0 tablas, 0 vistas, 0 filas de `menus`,
       0 keys de `permissions`, 0 rutas SPA. Su única entrada real era la lista offline
+
+---
+
+# Fase 2 — las otras 3 migraciones que EF no veía
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md) (sección «Fase 2»)
+
+En la Fase 1 quedaron anotadas y sin tocar porque hacerlas visibles con el `Up()` como estaba era
+peligroso. Pedido explícito del usuario ⇒ se hacen **con la guarda puesta**: primero idempotentes,
+después visibles.
+
+- [x] T1 Medir de dónde salen: `git log --diff-filter=AD` sobre sus `.Designer.cs` ⇒ **nunca
+      existieron**; el schema se aplicó a mano con `apply_*.sql` / `053_sync_produccion_traslados_prod.sql`,
+      que además insertaban el id en `__EFMigrationsHistory`
+- [x] T2 🔴 `Up()` idempotente en las 2 que usaban `AddColumn` (EF lo escribe **sin**
+      `IF NOT EXISTS`) ⇒ `ADD COLUMN IF NOT EXISTS`. La 3ª ya lo era y **no se toca**
+- [x] T3 Idempotencia probada por transacción con `ROLLBACK`, **dos corridas**: la 2ª avisa
+      `already exists, skipping`
+- [x] T4 `.Designer.cs` para las 3, con el `BuildTargetModel` **de la época** (Designer de la
+      migración anterior + exactamente las propiedades que introduce cada una), no el snapshot de hoy
+- [x] T5 Auditoría de visibilidad: **0** clases `: Migration` sin id en algún `[Migration(...)]`
+- [ ] T6 `dotnet build` + `has-pending-model-changes` + `migrations list` con las 3
+- [ ] T7 BD local intacta (historial y tipos de columna iguales antes y después)
+- [ ] T8 Commit y merge a `main`
+
+### Anotado, no arreglado (sería cambio de comportamiento)
+
+- [ ] ⏸️ **`peso_bruto_real`/`peso_tara_real`: el tipo no es el mismo en todos lados.** El modelo dice
+      `double?` ⇒ `double precision` y eso crea la migración; el script manual las creó
+      **`numeric(12,3)`** y así están en la base local (medido) ⇒ donde se aplicó a mano el peso
+      **se redondea a 3 decimales** y en una base creada desde migraciones no. El código manda ⇒ la
+      migración conserva `double precision`. Alinearlo toca datos de báscula: entrega propia
+- [ ] ⏸️ **`fecha_alistamiento`: base `date` vs modelo `timestamp with time zone`.** Misma familia que
+      `next_retry_at`. Previo, funciona (Postgres castea al asignar), no se toca
+- [ ] ⏸️ **Los `Down()` no son revertibles, y tampoco lo eran antes.** Medido: la vista
+      `vw_liquidacion_ecuador_pollo_engorde` depende de `fecha_alistamiento` y el trigger
+      `trg_movimiento_pollo_engorde_lote_hist` —uno de los que llenan
+      `lote_registro_historico_unificado`— depende de `peso_tara_real`. Los dos fallan con «other
+      objects depend on it», igual que el `DropColumn` original. **Sin `CASCADE`**: borraría una
+      vista y un trigger del histórico en silencio

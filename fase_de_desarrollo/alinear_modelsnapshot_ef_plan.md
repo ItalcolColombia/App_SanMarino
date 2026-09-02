@@ -90,3 +90,69 @@ declara `timestamp with time zone` (el default de Npgsql para `DateTime?`, la co
 tipo). Funciona —Npgsql manda `timestamptz` y Postgres castea con la zona de sesión, que es UTC—
 pero es la misma clase de desalineación que ya mordió en `sesiones_activas`. Alinearla es un
 cambio de comportamiento sobre la cola de correo: entrega propia.
+
+---
+
+# Fase 2 — las otras 3 migraciones sin Designer (pedido explícito del usuario)
+
+En la Fase 1 las dejé anotadas y sin tocar porque hacerlas visibles con el `Up()` como estaba era
+peligroso. El usuario pidió arreglarlas, así que se hacen **con la guarda puesta**: primero
+idempotentes, después visibles.
+
+## De dónde salen (medido, no supuesto)
+
+`git log --diff-filter=AD` sobre sus `.Designer.cs`: **nunca existieron**. EF no las vio jamás. El
+schema se aplicó **a mano** con scripts que además insertaban el id en `__EFMigrationsHistory` —el
+anti-patrón que CLAUDE.md señala como causa raíz del peor incidente del proyecto—:
+
+| migración | script que la aplicó a mano |
+|---|---|
+| `20260521100000_AddFechaAlistamientoLoteEngorde` | `backend/sql/apply_fecha_alistamiento_lote_engorde.sql` |
+| `20260521110000_AddPesosRealesMovimientoEngorde` | `backend/sql/apply_pesos_reales_movimiento_engorde.sql` |
+| `20260524180000_AddFarmIdErpCreateToLotePosturaBase` | `backend/sql/053_sync_produccion_traslados_prod.sql` |
+
+Los tres ids están en el `__EFMigrationsHistory` local. En prod **no se puede medir desde acá**, y
+por eso el orden importa: la idempotencia va primero, para que el caso «el id no está registrado»
+sea un no-op en vez de un crash-loop.
+
+## Qué se hace
+
+1. **`Up()` idempotente** en las dos que usaban `AddColumn` (EF lo escribe **sin** `IF NOT EXISTS`):
+   pasan a `migrationBuilder.Sql` con `ADD COLUMN IF NOT EXISTS`. La tercera ya era SQL idempotente
+   y **no se toca**.
+2. **`.Designer.cs`** para las tres, con `[Migration(...)]` — que es lo único que EF necesita para
+   descubrirlas.
+3. El `BuildTargetModel` se reconstruye **de la época**, no de hoy: se parte del Designer de la
+   migración anterior y se le agregan exactamente las propiedades que introduce cada una. Clonar el
+   snapshot actual sobre una migración de mayo pondría un modelo que es falso.
+
+## Tipos: dos divergencias que quedan anotadas, no "arregladas"
+
+- **`peso_bruto_real` / `peso_tara_real`**: el modelo dice `double?` ⇒ `double precision`, y eso crea
+  la migración. El script manual las creó **`numeric(12,3)`**, y eso es lo que hay en la base local
+  (medido). O sea: donde se aplicó a mano el peso **se redondea a 3 decimales** y en una base creada
+  desde migraciones no. El código manda ⇒ la migración conserva `double precision`. Cambiar el tipo
+  del peso en cualquiera de los dos sentidos es un cambio de comportamiento sobre datos de báscula.
+- **`fecha_alistamiento`**: la base la tiene `date` y el modelo la declara `timestamp with time zone`.
+  Misma familia que `next_retry_at`. Previo, funciona, no se toca.
+
+## Los `Down()` no son revertibles, y tampoco lo eran antes
+
+Medido en transacción con `ROLLBACK`:
+
+- `fecha_alistamiento` → la vista `vw_liquidacion_ecuador_pollo_engorde` depende de la columna.
+- `peso_tara_real` → el trigger `trg_movimiento_pollo_engorde_lote_hist` (uno de los que llenan
+  `lote_registro_historico_unificado`) depende de la columna.
+
+Los dos fallan con *«other objects depend on it»*, exactamente igual que el `DropColumn` original:
+no es una regresión. **No se les pone `CASCADE`** — borraría una vista y un trigger del histórico en
+silencio.
+
+## Casos de prueba
+
+1. Idempotencia por transacción con `ROLLBACK`, **dos corridas seguidas**: la 2ª tiene que avisar
+   `NOTICE: ... already exists, skipping`.
+2. Auditoría de visibilidad: **cero** clases `: Migration` sin su id en algún `[Migration(...)]`.
+3. `dotnet build` 0 errores; `has-pending-model-changes` sin cambios; `migrations list` muestra las
+   tres.
+4. BD local intacta: `__EFMigrationsHistory` y los tipos de columna, iguales antes y después.
