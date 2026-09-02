@@ -337,7 +337,7 @@ builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanam
 
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
-builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEngordeService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEngordeService>();
 
 // Liquidación Cierre Lote Levante
 builder.Services.AddScoped<ILiquidacionCierreLoteLevanteService, LiquidacionCierreLoteLevanteService>();

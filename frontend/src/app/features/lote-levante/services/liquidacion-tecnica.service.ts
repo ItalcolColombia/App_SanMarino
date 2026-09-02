@@ -97,26 +97,26 @@ export interface ProduccionAvicolaRawDto {
 })
 export class LiquidacionTecnicaService {
   private baseUrl = `${environment.apiUrl}/LiquidacionTecnica`;
-  private baseUrlEcuador = `${environment.apiUrl}/LiquidacionTecnicaEcuador`;
+  private baseUrlEngorde = `${environment.apiUrl}/LiquidacionTecnicaEngorde`;
 
   constructor(private http: HttpClient) {}
 
   /**
    * Obtener liquidación técnica simple.
-   * @param useEcuador true cuando el loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
+   * @param useEngorde true cuando el loteId es LoteAveEngordeId, o sea cuando el lote es de POLLO ENGORDE.
    */
-  getLiquidacionTecnica(loteId: string, fechaHasta: Date, useEcuador = false): Observable<LiquidacionTecnicaDto> {
-    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+  getLiquidacionTecnica(loteId: string, fechaHasta: Date, useEngorde = false): Observable<LiquidacionTecnicaDto> {
+    const base = useEngorde ? this.baseUrlEngorde : this.baseUrl;
     const params = new HttpParams().set('fechaHasta', fechaHasta.toISOString());
     return this.http.get<LiquidacionTecnicaDto>(`${base}/${loteId}`, { params });
   }
 
   /**
    * Obtener liquidación técnica completa con detalles.
-   * @param useEcuador true cuando el loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
+   * @param useEngorde true cuando el loteId es LoteAveEngordeId, o sea cuando el lote es de POLLO ENGORDE.
    */
-  getLiquidacionCompleta(loteId: string, fechaHasta: Date, useEcuador = false): Observable<LiquidacionTecnicaCompletaDto> {
-    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+  getLiquidacionCompleta(loteId: string, fechaHasta: Date, useEngorde = false): Observable<LiquidacionTecnicaCompletaDto> {
+    const base = useEngorde ? this.baseUrlEngorde : this.baseUrl;
     const params = new HttpParams().set('fechaHasta', fechaHasta.toISOString());
     return this.http.get<LiquidacionTecnicaCompletaDto>(`${base}/${loteId}/completa`, { params });
   }

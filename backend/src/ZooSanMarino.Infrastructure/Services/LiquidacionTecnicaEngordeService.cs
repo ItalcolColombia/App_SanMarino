@@ -7,12 +7,12 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public class LiquidacionTecnicaEcuadorService : ILiquidacionTecnicaEcuadorService
+public class LiquidacionTecnicaEngordeService : ILiquidacionTecnicaEngordeService
 {
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
 
-    public LiquidacionTecnicaEcuadorService(ZooSanMarinoContext context, ICurrentUser currentUser)
+    public LiquidacionTecnicaEngordeService(ZooSanMarinoContext context, ICurrentUser currentUser)
     {
         _context = context;
         _currentUser = currentUser;

@@ -4,7 +4,7 @@ using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Application.Interfaces;
 
-public interface ILiquidacionTecnicaEcuadorService
+public interface ILiquidacionTecnicaEngordeService
 {
     /// <summary>Calcula la liquidación técnica de un lote de aves de engorde (pollo engorde).</summary>
     Task<LiquidacionTecnicaDto> CalcularLiquidacionAsync(int loteAveEngordeId, DateTime? fechaHasta = null);

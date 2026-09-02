@@ -87,16 +87,16 @@ export interface LiquidacionTecnicaComparacionCompletaDto {
 })
 export class LiquidacionComparacionService {
   private baseUrl = `${environment.apiUrl}/LiquidacionTecnicaComparacion`;
-  private baseUrlEcuador = `${environment.apiUrl}/LiquidacionTecnicaEcuador`;
+  private baseUrlEngorde = `${environment.apiUrl}/LiquidacionTecnicaEngorde`;
 
   constructor(private http: HttpClient) {}
 
   /**
    * Compara los datos del lote con la guía genética correspondiente.
-   * @param useEcuador true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
+   * @param useEngorde true cuando loteId es LoteAveEngordeId, o sea cuando el lote es de POLLO ENGORDE.
    */
-  compararConGuiaGenetica(loteId: number, fechaHasta?: string, useEcuador = false): Observable<LiquidacionTecnicaComparacionDto> {
-    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+  compararConGuiaGenetica(loteId: number, fechaHasta?: string, useEngorde = false): Observable<LiquidacionTecnicaComparacionDto> {
+    const base = useEngorde ? this.baseUrlEngorde : this.baseUrl;
     let url = `${base}/lote/${loteId}`;
     if (fechaHasta) {
       url += `?fechaHasta=${encodeURIComponent(fechaHasta)}`;
@@ -107,17 +107,17 @@ export class LiquidacionComparacionService {
   /**
    * Alias para compatibilidad con el componente
    */
-  getComparacionBasica(loteId: number, fechaHasta?: Date, useEcuador = false): Observable<LiquidacionTecnicaComparacionDto> {
+  getComparacionBasica(loteId: number, fechaHasta?: Date, useEngorde = false): Observable<LiquidacionTecnicaComparacionDto> {
     const fechaHastaStr = fechaHasta ? fechaHasta.toISOString() : undefined;
-    return this.compararConGuiaGenetica(loteId, fechaHastaStr, useEcuador);
+    return this.compararConGuiaGenetica(loteId, fechaHastaStr, useEngorde);
   }
 
   /**
    * Obtiene la comparación completa con detalles.
-   * @param useEcuador true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
+   * @param useEngorde true cuando loteId es LoteAveEngordeId, o sea cuando el lote es de POLLO ENGORDE.
    */
-  obtenerComparacionCompleta(loteId: number, fechaHasta?: string, useEcuador = false): Observable<LiquidacionTecnicaComparacionCompletaDto> {
-    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+  obtenerComparacionCompleta(loteId: number, fechaHasta?: string, useEngorde = false): Observable<LiquidacionTecnicaComparacionCompletaDto> {
+    const base = useEngorde ? this.baseUrlEngorde : this.baseUrl;
     let url = `${base}/lote/${loteId}/completa`;
     if (fechaHasta) {
       url += `?fechaHasta=${encodeURIComponent(fechaHasta)}`;

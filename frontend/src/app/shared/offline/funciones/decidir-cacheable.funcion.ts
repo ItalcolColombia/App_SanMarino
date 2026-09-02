@@ -106,7 +106,9 @@ const EXCLUIDOS: readonly string[] = [
   'liquidacioncierrelotelevante',
   'liquidaciontecnica',
   'liquidaciontecnicacomparacion',
-  'liquidaciontecnicaecuador',
+  // La liquidacion tecnica de POLLO ENGORDE. El match es EXACTO sobre el primer segmento, asi que
+  // 'liquidaciontecnica' NO la cubre: sin esta linea el gate corta el CI por "endpoint sin decision".
+  'liquidaciontecnicaengorde',
 
   // Todo el recurso `Sync`, por dos motivos distintos:
   //   · `push` (F3) no es una consulta: es la escritura misma. Guardar su respuesta no tendría

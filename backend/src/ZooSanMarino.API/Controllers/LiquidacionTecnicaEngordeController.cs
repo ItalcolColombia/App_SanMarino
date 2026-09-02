@@ -1,5 +1,7 @@
-// API de Liquidación Técnica para Ecuador: lote aves de engorde (LoteAveEngordeId).
-// Rutas compatibles con el frontend que usa LiquidacionTecnica + LiquidacionTecnicaComparacion.
+﻿// API de Liquidación Técnica de POLLO ENGORDE: opera sobre `LoteAveEngordeId`.
+// Su hermano `LiquidacionTecnicaController` es el de LEVANTE — esa es la diferencia real entre los
+// dos, no el país: hasta sep-2026 este se llamaba `LiquidacionTecnicaEcuador` y el nombre hacía
+// creer que había un camino por país. No lo hay.
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
@@ -8,16 +10,25 @@ using ZooSanMarino.Application.Interfaces;
 namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+// Ruta neutra. Va en PascalCase, igual que su hermano de levante (`api/LiquidacionTecnica`), para
+// no partir la simetría del par.
+[Route("api/LiquidacionTecnicaEngorde")]
+// Ruta histórica, conservada como ALIAS: la piden el front ya desplegado y cualquier cliente que
+// todavía no bajó el bundle nuevo. La ruta salía de `[controller]`, así que sin este alias el
+// rename de la clase la habría cambiado sola.
+[Route("api/LiquidacionTecnicaEcuador")]
+// Fija el grupo de Swagger: con dos `[Route]` cada acción aparece una vez por ruta, y sin `[Tags]`
+// el nombre del grupo lo decide el nombre de la clase. Mismo patrón que `GuiaGeneticaEngordeController`.
+[Tags("LiquidacionTecnicaEngorde")]
 [Authorize]
-public class LiquidacionTecnicaEcuadorController : ControllerBase
+public class LiquidacionTecnicaEngordeController : ControllerBase
 {
-    private readonly ILiquidacionTecnicaEcuadorService _service;
-    private readonly ILogger<LiquidacionTecnicaEcuadorController> _logger;
+    private readonly ILiquidacionTecnicaEngordeService _service;
+    private readonly ILogger<LiquidacionTecnicaEngordeController> _logger;
 
-    public LiquidacionTecnicaEcuadorController(
-        ILiquidacionTecnicaEcuadorService service,
-        ILogger<LiquidacionTecnicaEcuadorController> logger)
+    public LiquidacionTecnicaEngordeController(
+        ILiquidacionTecnicaEngordeService service,
+        ILogger<LiquidacionTecnicaEngordeController> logger)
     {
         _service = service;
         _logger = logger;
