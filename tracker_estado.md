@@ -5774,18 +5774,21 @@ usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en
 
 ## H1 · Bandeja de cuadres — la pantalla que le falta al backend
 
-- [ ] H1.1 `cuadres-offline.service.ts` (`listar` / `resolver`) + modelo espejo de `CuadrePendienteDto`
-- [ ] H1.2 `etiquetar-tipo-cuadre.funcion.ts` **pura** + spec: los 4 tipos del contrato a nombre
+- [x] H1.1 `cuadres-offline.service.ts` (`listar` / `resolver`) + modelo espejo de `CuadrePendienteDto`
+- [x] H1.2 `etiquetar-tipo-cuadre.funcion.ts` **pura** + spec: los 4 tipos del contrato a nombre
       legible; un tipo desconocido muestra el identificador crudo, nunca `undefined`
-- [ ] H1.3 Pantalla `cuadres-offline` — lista con `detalle`, un solo botón «Marcar como revisada», y
+- [x] H1.3 Pantalla `cuadres-offline` — lista con `detalle`, un solo botón «Marcar como revisada», y
       **la frase de que resolver NO repone kilos** (el ingreso se carga por inventario, como siempre)
-- [ ] H1.4 Ruta lazy en `app.config.ts` (patrón de `inventario-gastos`) + `ToastService` +
+- [x] H1.4 Ruta lazy en `app.config.ts` (patrón de `inventario-gastos`) + `ToastService` +
       `ConfirmDialogService` + `changeDetection: Eager` explícito
-- [ ] H1.5 `sync/cuadres` a **EXCLUIDOS** en `decidir-cacheable.funcion.ts` con su motivo (bandeja de
-      supervisión: servirla vieja mostraría como pendiente algo ya resuelto). Sin esto el gate corta el CI
-- [ ] H1.6 Migración data-only `SeedMenuCuadresOffline`: `INSERT … WHERE NOT EXISTS`, localizando
+- [x] H1.5 `decidir-cacheable.funcion.ts`. **Medido: no hacía falta entrada nueva** — el gate clasifica
+      por RECURSO (primer segmento tras `/api`) y `sync` ya estaba en EXCLUIDOS, así que `Sync/cuadres`
+      quedaba cubierto y el conteo no se movió (89/55/34/0). Lo que sí se corrigió es el motivo: decía
+      sólo «el push no es una consulta» y ahora nombra los dos (bandeja de supervisión: servirla vieja
+      mostraría como pendiente algo que otro ya resolvió)
+- [x] H1.6 Migración data-only `SeedMenuCuadresOffline`: `INSERT … WHERE NOT EXISTS`, localizando
       **por `route`** (los ids difieren local↔prod), icono **dentro del `ICON_MAP` de `menu.service.ts`**
-- [ ] H1.7 `yarn build` + `verificar-lista-cacheable.js` + `verificar-change-detection.js` en verde
+- [x] H1.7 `yarn build` + `verificar-lista-cacheable.js` + `verificar-change-detection.js` en verde
 
 ## H2 · La jornada de 16 h no existe en producción — decisión del usuario
 
