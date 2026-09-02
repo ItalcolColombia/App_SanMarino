@@ -1,0 +1,18 @@
+<td [attr.colspan]="COLSPAN" class="fila-captura-pendiente__celda">
+  <span class="fila-captura-pendiente__badge" [class.fila-captura-pendiente__badge--rechazada]="captura.rechazada">
+    {{ captura.rechazada ? 'Rechazada' : 'Sin enviar' }}
+  </span>
+
+  <span class="fila-captura-pendiente__fecha">{{ fecha }}</span>
+
+  @if (captura.rechazada) {
+    <span class="fila-captura-pendiente__texto">
+      El servidor no la aceptó. Está guardada en este dispositivo:
+      revisala en <a href="/diagnostico" class="fila-captura-pendiente__enlace">Diagnóstico</a>.
+    </span>
+  } @else {
+    <span class="fila-captura-pendiente__texto">
+      Guardada en este dispositivo. Se envía sola cuando vuelva la conexión.
+    </span>
+  }
+</td>

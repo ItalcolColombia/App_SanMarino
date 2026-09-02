@@ -1318,7 +1318,7 @@
           </section>
         }
 
-        <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
+        <!-- TAB ITEMS (desde Config > Ítems de inventario) -->
         @if (activeTab === 'items') {
           <section class="tab-content">
             <section class="filter-card" aria-label="Filtros del catálogo de ítems">
@@ -1350,9 +1350,9 @@
               </div>
             </section>
             <div class="card-italfoods">
-              <div class="card-italfoods__title">Ítems de inventario (Ecuador)</div>
+              <div class="card-italfoods__title">Ítems de inventario</div>
               <div class="card-italfoods__body">
-                <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems inventario Ecuador</strong>.</p>
+                <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems de inventario</strong>.</p>
                 @if (itemsList.length) {
                   <div class="table-wrap">
                     <table class="table-italfoods">
@@ -1380,7 +1380,7 @@
                   </div>
                 }
                 @if (!itemsList.length) {
-                  <p class="empty-state">No hay ítems o cambie el filtro. Cree ítems en Configuración → Ítems inventario Ecuador.</p>
+                  <p class="empty-state">No hay ítems o cambie el filtro. Cree ítems en Configuración → Ítems de inventario.</p>
                 }
               </div>
             </div>

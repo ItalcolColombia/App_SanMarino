@@ -1,0 +1,15 @@
+using ZooSanMarino.Application.DTOs;
+
+namespace ZooSanMarino.Application.Interfaces;
+
+public interface ISeguimientoDiarioEngordeService
+{
+    Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id);
+    Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId);
+    Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta);
+    Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto);
+    Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto);
+    Task<bool> DeleteAsync(int id);
+    Task<IReadOnlyList<SeguimientoDiarioTablaFilaDto>> GetTablaDiariaAsync(int loteId);
+    Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId);
+}

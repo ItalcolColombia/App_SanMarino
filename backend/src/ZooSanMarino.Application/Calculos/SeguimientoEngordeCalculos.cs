@@ -1,6 +1,6 @@
 // Cálculo puro compartido del seguimiento diario de engorde.
 // Usado por SeguimientoAvesEngordeService (Colombia) y
-// SeguimientoAvesEngordeEcuadorService (Ecuador): estas funciones estaban
+// SeguimientoDiarioEngordeService (Ecuador): estas funciones estaban
 // duplicadas byte a byte en ambos servicios.
 namespace ZooSanMarino.Application.Calculos;
 

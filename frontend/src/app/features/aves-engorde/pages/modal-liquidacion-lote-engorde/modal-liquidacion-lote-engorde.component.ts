@@ -12,7 +12,7 @@ import { separarStockPorUbicacion } from '../../funciones/separar-stock-por-ubic
 import { extraerMensajeError } from '../../funciones/extraer-mensaje-error.funcion';
 import { validarInsumosEnterosPanama } from '../../funciones/validar-insumos-panama.funcion';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
-import { IndicadorEcuadorService } from '../../../indicador-ecuador/services/indicador-ecuador.service';
+import { IndicadorEngordeService } from '../../../indicador-engorde/services/indicador-engorde.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import {
   SeguimientoAvesEngordeService,
@@ -42,7 +42,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   private readonly router = inject(Router);
   private readonly invGestion = inject(GestionInventarioService);
   private readonly countryFilter = inject(CountryFilterService);
-  private readonly indicadorPanama = inject(IndicadorEcuadorService);
+  private readonly indicadorPanama = inject(IndicadorEngordeService);
 
   @Input() isOpen = false;
   @Input() loteId: number | null = null;

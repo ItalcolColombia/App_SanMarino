@@ -1813,10 +1813,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     // Eso es exactamente lo que esta pantalla intentaba garantizar esperando las promesas, sólo que
     // del lado del servidor y sin poder saltearse.
     //
-    // ⚠️ El service VIVO es `SeguimientoAvesEngordeEcuadorService.Crud.cs:143-162`, no el que sugiere
-    // el nombre: esta pantalla postea a `/SeguimientoAvesEngordeEcuador` (`seguimiento-aves-engorde.service.ts:170`)
-    // para los tres países. `SeguimientoAvesEngordeService` tiene el bloque idéntico, pero no es el que
-    // corre desde acá — los dos services escriben la MISMA tabla.
+    // ⚠️ El service VIVO es `SeguimientoDiarioEngordeService.Crud.cs`: esta pantalla postea a
+    // `/api/seguimiento-diario-engorde` (`seguimiento-aves-engorde.service.ts`) para los tres países.
+    // `SeguimientoAvesEngordeService` tiene el bloque idéntico, pero no es el que corre desde acá
+    // — los dos services escriben la MISMA tabla. (Hasta sep-2026 este controller se llamaba
+    // `SeguimientoAvesEngordeEcuador`, y ese nombre hacía creer que había un camino por país.)
     //
     // El propio `InventarioConsumoGate` documenta que el modelo A —la tabla a la que apuntaba este
     // código— «quedó sin uso» para Colombia.

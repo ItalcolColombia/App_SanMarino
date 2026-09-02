@@ -1,0 +1,82 @@
+<section class="panel" aria-labelledby="panel-postura-titulo">
+  <header class="panel__cabecera">
+    <h2 id="panel-postura-titulo" class="panel__titulo">Postura</h2>
+    <p class="panel__descripcion">
+      Mortalidad y huevo capturados en el seguimiento diario, y lotes activos por granja.
+    </p>
+    <button type="button" class="panel__accion" (click)="cargar()" [disabled]="cargando">
+      {{ cargando ? 'Cargando…' : 'Actualizar' }}
+    </button>
+  </header>
+
+  @if (error) {
+    <p class="panel__mensaje panel__mensaje--error">{{ error }}</p>
+  } @else if (cargando && !datos) {
+    <p class="panel__mensaje">Cargando datos de postura…</p>
+  } @else if (datos) {
+    @if (ve('postura.kpis')) {
+      <div class="panel__kpis">
+        @for (kpi of kpis; track kpi.etiqueta) {
+          <app-tarjeta-kpi [kpi]="kpi" />
+        }
+      </div>
+    }
+
+    @if (sinDatos) {
+      <p class="panel__mensaje">
+        No hay seguimientos cargados en este período. Las gráficas quedan vacías a propósito:
+        no se rellena con ceros lo que nadie registró.
+      </p>
+    } @else {
+      <div class="panel__graficas">
+        @if (ve('postura.mortalidad')) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Mortalidad diaria</h3>
+            <p class="panel__grafica-nota">
+              Aves muertas por día{{ datos.ocultaMachos ? ' (hembras)' : ' (hembras + machos)' }}.
+              Un día sin registro se dibuja como hueco, no como cero.
+            </p>
+            <div class="panel__lienzo">
+              <canvas baseChart
+                      [data]="serieMortalidad"
+                      [options]="opcionesMortalidad"
+                      type="line"
+                      role="img"
+                      aria-label="Mortalidad diaria de postura"></canvas>
+            </div>
+          </div>
+        }
+
+        @if (ve('postura.huevos')) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Huevo diario</h3>
+            <p class="panel__grafica-nota">Huevo total capturado por día.</p>
+            <div class="panel__lienzo">
+              <canvas baseChart
+                      [data]="serieHuevo"
+                      [options]="opcionesHuevo"
+                      type="line"
+                      role="img"
+                      aria-label="Producción diaria de huevo"></canvas>
+            </div>
+          </div>
+        }
+
+        @if (ve('postura.kpis') && datos.lotesPorGranja.length) {
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Lotes activos por granja</h3>
+            <p class="panel__grafica-nota">Lotes de postura cuyo levante no está cerrado.</p>
+            <div class="panel__lienzo">
+              <canvas baseChart
+                      [data]="lotesPorGranja"
+                      [options]="opcionesTorta"
+                      type="doughnut"
+                      role="img"
+                      aria-label="Distribución de lotes de postura por granja"></canvas>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</section>

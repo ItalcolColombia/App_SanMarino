@@ -82,7 +82,7 @@ public partial class SeguimientoLoteLevanteService
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
         // Colombia unifica con Ecuador/Panamá sobre el modelo B, pero a NIVEL GRANJA (id-mapping
-        // catalogItemId→item_inventario_ecuador por código). Validación previa de stock B de TODOS
+        // catalogItemId→item_inventario por código). Validación previa de stock B de TODOS
         // los ítems ANTES de persistir; guardado del seguimiento (+ ajuste de aves dentro de
         // CreateAsync) + descuento en UNA IDbContextTransaction. Si falta stock/ítem → throw por
         // ítem → rollback → NO se guarda. (Antes Fase 2: modelo A vía _farmInventoryConsumo.)
@@ -113,7 +113,7 @@ public partial class SeguimientoLoteLevanteService
             return MapToLevanteDto(createdCo);
         }
 
-        // Ecuador/Panamá: consumo por ítems en metadata (item_inventario_ecuador) → inventario_gestion.
+        // Ecuador/Panamá: consumo por ítems en metadata (item_inventario) → inventario_gestion.
         // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B. Para lotes Colombia
         // se usó el bloque modelo A de arriba.
         var consumeModeloB = !separa && _inventarioGestionService != null && dto.Metadata != null

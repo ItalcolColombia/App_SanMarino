@@ -120,7 +120,7 @@ public partial class MovimientoPolloEngordeService
             });
             var row = resp.Items.FirstOrDefault()?.Disponibles;
             if (row == null) throw new InvalidOperationException("No se pudo calcular disponibilidad del lote (no existe o no pertenece a la compañía).");
-            var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
+            var excedente = IndicadorEngordeCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
             if (excedente > 0)
             {
                 if (!permitirSobrante)
@@ -144,7 +144,7 @@ public partial class MovimientoPolloEngordeService
             });
             var row = resp.Items.FirstOrDefault()?.Disponibles;
             if (row == null) throw new InvalidOperationException("No se pudo calcular disponibilidad del lote reproductora.");
-            var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
+            var excedente = IndicadorEngordeCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
             if (excedente > 0)
             {
                 if (!permitirSobrante)

@@ -269,7 +269,12 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @if (!loading && (!seguimientos || seguimientos.length === 0)) {
+                    <!-- Capturas guardadas sin red y sin enviar. NO se mezclan con `seguimientos`:
+                         ese arreglo alimenta indicadores, gráfica y Excel. -->
+                    @for (captura of capturasPendientes; track captura.clientOpId) {
+                      <tr app-fila-captura-pendiente [captura]="captura"></tr>
+                    }
+                    @if (!loading && (!seguimientos || seguimientos.length === 0) && capturasPendientes.length === 0) {
                       <tr>
                         <td colspan="999" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>

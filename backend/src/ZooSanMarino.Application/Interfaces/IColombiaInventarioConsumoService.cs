@@ -4,12 +4,12 @@ namespace ZooSanMarino.Application.Interfaces;
 
 /// <summary>
 /// Fase 3 (paso 2) — descuento/devolución automáticos del inventario Colombia en el MODELO B
-/// unificado (inventario_gestion_stock / item_inventario_ecuador), a NIVEL GRANJA.
+/// unificado (inventario_gestion_stock / item_inventario), a NIVEL GRANJA.
 ///
 /// Reemplaza a <see cref="IFarmInventoryConsumoService"/> (modelo A) para los lotes Colombia. La
 /// interfaz recibe las claves <see cref="ItemConsumoKey"/> de los ítems del seguimiento, que
 /// conservan el origen del id (contrato camino-1/2 del front): <c>catalogItemId</c> (modelo A)
-/// se resuelve a <c>item_inventario_ecuador.id</c> por código, y <c>itemInventarioEcuadorId</c>
+/// se resuelve a <c>item_inventario.id</c> por código, y <c>itemInventarioEcuadorId</c>
 /// (inventario nuevo) se acepta directo. Ambos caminos se validan contra la EMPRESA EFECTIVA de
 /// la granja del lote (farms.company_id) + país Colombia — soporta multi-empresa (Sanmarino,
 /// Demo, etc.), no solo company 1. Descuenta el stock B (farm, item, nucleo=NULL, galpon=NULL)

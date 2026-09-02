@@ -38,7 +38,11 @@ const OPERACIONES_SOPORTADAS: ReadonlyArray<{
   {
     metodo: 'POST',
     // Alta de seguimiento diario de POLLO ENGORDE.
-    ruta: /\/api\/SeguimientoAvesEngordeEcuador\/?$/i,
+    // Acepta las DOS rutas a proposito: la neutra `seguimiento-diario-engorde` y la historica
+    // `SeguimientoAvesEngordeEcuador`, que el controller conserva como alias. Un dispositivo que
+    // todavia no actualizo el bundle sigue encolando contra la vieja, y lo que ya tenga encolado
+    // se reintenta con esa URL: si este regex dejara de matchearla, esas capturas se perderian.
+    ruta: /\/api\/(SeguimientoAvesEngordeEcuador|seguimiento-diario-engorde)\/?$/i,
     tipo: 'seguimiento_engorde_crear'
   },
   {
@@ -47,6 +51,14 @@ const OPERACIONES_SOPORTADAS: ReadonlyArray<{
     // anterior pero es otro service y otra tabla, asi que es otro tipo de operacion.
     ruta: /\/api\/SeguimientoDiarioLoteReproductora\/?$/i,
     tipo: 'seguimiento_reproductora_engorde_crear'
+  },
+  {
+    metodo: 'POST',
+    // H4 — alta de GASTO DE INVENTARIO (consumo de un item que no es alimento). Primera operacion
+    // offline que no es una captura diaria. El `$` importa mas que nunca: este recurso tiene varios
+    // sub-recursos (`/items`, `/existencias`, `/filter-data`, `/conceptos`) y ninguno se encola.
+    ruta: /\/api\/inventario-gastos\/?$/i,
+    tipo: 'gasto_inventario_crear'
   }
 ];
 

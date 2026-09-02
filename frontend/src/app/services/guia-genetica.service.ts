@@ -73,13 +73,13 @@ export class GuiaGeneticaService {
     semanaDesde: number,
     semanaHasta: number
   ): Observable<GuiaGeneticaDto[]> {
-    const baseEcuador = `${environment.apiUrl}/guia-genetica-ecuador`;
+    const baseEngorde = `${environment.apiUrl}/guia-genetica-engorde`;
     const params = new HttpParams()
       .set('raza', raza)
       .set('anioGuia', String(anioGuia))
       .set('semanaDesde', String(semanaDesde))
       .set('semanaHasta', String(semanaHasta));
-    return this.http.get<GuiaGeneticaDto[]>(`${baseEcuador}/indicadores-rango`, { params });
+    return this.http.get<GuiaGeneticaDto[]>(`${baseEngorde}/indicadores-rango`, { params });
   }
 
   /**

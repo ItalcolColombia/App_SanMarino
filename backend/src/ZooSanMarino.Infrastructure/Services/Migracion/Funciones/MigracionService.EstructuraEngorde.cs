@@ -23,7 +23,7 @@ public partial class MigracionService
             .Select(p => new { p.Raza, p.AnioGuia })
             .Distinct().ToListAsync(ct);
 
-        var ecuador = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
+        var ecuador = await _ctx.GuiaGeneticaEngordeHeader.AsNoTracking()
             .Where(h => h.CompanyId == companyId && h.DeletedAt == null && h.Estado == "active")
             .Select(h => new { h.Raza, h.AnioGuia })
             .Distinct().ToListAsync(ct);

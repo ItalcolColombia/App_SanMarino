@@ -30,7 +30,7 @@ public partial class ReporteTecnicoService
     /// <summary>
     /// Kilos de alimento del día en <c>inventario_gestion_movimiento</c> para los tipos indicados.
     /// El tipo de ítem se resuelve contra el catálogo del módulo nuevo
-    /// (<c>item_inventario_ecuador</c>), no por el nombre del producto: el filtro viejo buscaba la
+    /// (<c>item_inventario</c>), no por el nombre del producto: el filtro viejo buscaba la
     /// palabra «alimento» en el nombre y se perdía todo lo que no la tuviera.
     /// </summary>
     private async Task<decimal> SumaAlimentoUnificadoAsync(int granjaId, DateTime fecha, string[] tipos, CancellationToken ct)

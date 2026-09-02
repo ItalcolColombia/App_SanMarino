@@ -22,8 +22,8 @@ public class SeguimientoReservaAlimentoConfiguration : IEntityTypeConfiguration<
         // Sin navegación al silo, por el mismo motivo que en inventario_gestion_stock: se resuelve
         // por servicio y una relación acá arrastraría includes que ninguna lectura necesita.
         e.Property(x => x.SiloId).HasColumnName("silo_id");
-        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
-        // Camino 1 (catalogo_items) vs camino 2 (item_inventario_ecuador). En Colombia los rangos de
+        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_id").IsRequired();
+        // Camino 1 (catalogo_items) vs camino 2 (item_inventario). En Colombia los rangos de
         // id colisionan, así que el origen tiene que viajar con la reserva.
         e.Property(x => x.EsItemInventario).HasColumnName("es_item_inventario").HasDefaultValue(true).IsRequired();
 

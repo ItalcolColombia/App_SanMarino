@@ -51,7 +51,7 @@ import { ActiveCompanyConfigService } from '../../../../core/services/company-co
 export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   @Input() loteId: string | null = null;
   @Input() loteNombre: string | null = null;
-  /** true cuando el lote es LoteAveEngordeId (módulo aves de engorde / Ecuador). */
+  /** true cuando el lote es LoteAveEngordeId (módulo aves de engorde). */
   @Input() esLoteAveEngorde: boolean = false;
 
   // Señales reactivas

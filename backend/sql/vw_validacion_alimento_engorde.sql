@@ -72,7 +72,7 @@ WITH lotes AS (
          COALESCE(TRIM(galpon_id),'') gal, galpon_id, estado_operativo_lote
   FROM lote_ave_engorde WHERE deleted_at IS NULL),
 inv_cons AS (
-  SELECT s.lote_ave_engorde_id id, m.item_inventario_ecuador_id item,
+  SELECT s.lote_ave_engorde_id id, m.item_inventario_id item,
          ROUND(SUM(m.quantity)::numeric,0) cons_inv
   FROM inventario_gestion_movimiento m
   JOIN seguimiento_diario_aves_engorde s ON s.id=(substring(m.reference from '#([0-9]+)'))::int
@@ -80,7 +80,7 @@ inv_cons AS (
   GROUP BY 1,2),
 stock_g AS (
   SELECT farm_id, COALESCE(TRIM(nucleo_id),'') nuc, COALESCE(TRIM(galpon_id),'') gal,
-         item_inventario_ecuador_id item, ROUND(SUM(quantity)::numeric,0) stock_kg
+         item_inventario_id item, ROUND(SUM(quantity)::numeric,0) stock_kg
   FROM inventario_gestion_stock GROUP BY 1,2,3,4),
 pares AS (
   SELECT id, item FROM inv_cons
@@ -94,6 +94,6 @@ SELECT l.id lote_id, l.lote_nombre, l.galpon_id, l.estado_operativo_lote,
   COALESCE(sg.stock_kg,0) stock_galpon_actual
 FROM pares p
 JOIN lotes l ON l.id=p.id
-LEFT JOIN item_inventario_ecuador it ON it.id=p.item
+LEFT JOIN item_inventario it ON it.id=p.item
 LEFT JOIN inv_cons ic ON ic.id=p.id AND ic.item=p.item
 LEFT JOIN stock_g sg ON sg.farm_id=l.granja_id AND sg.nuc=l.nuc AND sg.gal=l.gal AND sg.item=p.item;

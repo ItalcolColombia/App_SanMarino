@@ -14,7 +14,7 @@ public class InventarioGastoDetalleConfiguration : IEntityTypeConfiguration<Inve
         e.Property(x => x.Id).HasColumnName("id");
 
         e.Property(x => x.InventarioGastoId).HasColumnName("inventario_gasto_id").IsRequired();
-        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
+        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_id").IsRequired();
         e.Property(x => x.Concepto).HasColumnName("concepto").HasMaxLength(200);
         e.Property(x => x.Cantidad).HasColumnName("cantidad").HasPrecision(18, 3).IsRequired();
         e.Property(x => x.Unidad).HasColumnName("unidad").HasMaxLength(20).HasDefaultValue("kg").IsRequired();
@@ -25,7 +25,10 @@ public class InventarioGastoDetalleConfiguration : IEntityTypeConfiguration<Inve
         e.HasIndex(x => x.InventarioGastoId).HasDatabaseName("ix_inventario_gasto_detalle_gasto");
 
         e.HasOne(x => x.InventarioGasto).WithMany(g => g.Detalles).HasForeignKey(x => x.InventarioGastoId).OnDelete(DeleteBehavior.Cascade);
-        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
+        // Nombre FIJO (ver ItemInventarioConfiguration): la constraint real de la base no coincide con
+        // la que EF deriva, asi que sin fijarla el rename de la columna generaria un DDL imposible.
+        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId)
+            .HasConstraintName("fk_inventario_gasto_detalle_item").OnDelete(DeleteBehavior.Restrict);
     }
 }
 

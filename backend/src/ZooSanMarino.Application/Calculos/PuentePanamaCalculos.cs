@@ -274,15 +274,15 @@ public static class PuentePanamaCalculos
     /// Mapea la guía genética de Panamá (gramoDiaQq por edad) al detalle Ecuador diario:
     /// CantidadAlimentoDiarioG = gramoDiaQq; AlimentoAcumuladoG = suma acumulada; resto 0. Ordenado por edad.
     /// </summary>
-    public static List<GuiaGeneticaEcuadorDetalleInputDto> MapGuiaGeneticaDetalle(IEnumerable<PanamaGuiaGenetica> filas)
+    public static List<GuiaGeneticaEngordeDetalleInputDto> MapGuiaGeneticaDetalle(IEnumerable<PanamaGuiaGenetica> filas)
     {
         decimal acum = 0m;
-        var items = new List<GuiaGeneticaEcuadorDetalleInputDto>();
+        var items = new List<GuiaGeneticaEngordeDetalleInputDto>();
         foreach (var f in filas.OrderBy(x => x.Edad))
         {
             var diaria = (decimal)f.GramoDiaQq;
             acum += diaria;
-            items.Add(new GuiaGeneticaEcuadorDetalleInputDto(
+            items.Add(new GuiaGeneticaEngordeDetalleInputDto(
                 Dia: f.Edad,
                 PesoCorporalG: 0m,
                 GananciaDiariaG: 0m,

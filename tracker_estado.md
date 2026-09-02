@@ -5741,3 +5741,642 @@ completo; la de esquema simple arranca directamente en produccion.
       **corte de la guia** —que es lo que el usuario pidio y lo que el dato respalda— y **no toca las
       etapas del ciclo**, que alimentan la columna «fase» del reporte. Si el corte real es 18, esa
       clase tambien habria que ajustarla: es decision del cliente, no mia
+
+---
+
+# PWA — cierre de huecos H1–H4 (1-sep-2026)
+
+Plan: [`fase_de_desarrollo/pwa_cierre_huecos_plan.md`](fase_de_desarrollo/pwa_cierre_huecos_plan.md)
+
+Origen: auditoría del estado real de la PWA contra el código del 1-sep-2026 (7 huecos medidos, el
+usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en paralelo porque es de él.
+
+## Lo que la auditoría midió y no estaba escrito
+
+- [i] 🔴 **`GET /api/Sync/cuadres` + `POST /cuadres/{id}/resolver` no los llama nadie.**
+      `grep -rn "cuadres" frontend/src` → **0 resultados**. El backend (`6f17d44`, 22-ago) emite
+      `requiere_cuadre` con smoke de 15 pasos y la bandeja existe **sólo como endpoint**: el día se
+      guarda, la tablet dice «listo», y el supervisor nunca se entera de que entró sin descontar
+      stock. Emisor sin lector — misma familia que `borrarDispositivo()` sin llamador
+- [i] 🔴 **El mapeo de F4 se equivoca en su única fila de nivel 1.** Dice que gastos de inventario «no
+      mueve stock»; **sí lo mueve**: `InventarioGastoService.CreateAsync:568` llama
+      `RegistrarConsumoAsync`, el camino que lanza `StockInsuficienteException`. Gastos es **nivel
+      2**, y lo destraba el emisor que se construyó el 22-ago
+- [i] `InventarioGastoService.CreateAsync:527` abre **transacción incondicional** ⇒ reventaría dentro
+      de la del push. `DeleteAsync:635` también, pero no entra al push
+- [i] La ventana de fecha de gastos vive en el **controller** (`:171`), así que la rama de sync la
+      saltea. **Es correcto y se deja**: la captura offline es legítimamente retroactiva y su
+      antigüedad ya la acotan la jornada de 16 h y el `capturadoAtDispositivo`
+- [i] Lista cacheable hoy: **89 endpoints · 55 cacheables · 34 excluidos · 0 sin decidir**
+- [i] No se pudo verificar la TaskDef **viva**: las credenciales AWS de esta máquina responden
+      `UnrecognizedClientException`. El archivo del repo (`backend/ecs-taskdef-new-aws.json:38`)
+      sigue diciendo **60 minutos**
+
+## H1 · Bandeja de cuadres — la pantalla que le falta al backend
+
+- [x] H1.1 `cuadres-offline.service.ts` (`listar` / `resolver`) + modelo espejo de `CuadrePendienteDto`
+- [x] H1.2 `etiquetar-tipo-cuadre.funcion.ts` **pura** + spec: los 4 tipos del contrato a nombre
+      legible; un tipo desconocido muestra el identificador crudo, nunca `undefined`
+- [x] H1.3 Pantalla `cuadres-offline` — lista con `detalle`, un solo botón «Marcar como revisada», y
+      **la frase de que resolver NO repone kilos** (el ingreso se carga por inventario, como siempre)
+- [x] H1.4 Ruta lazy en `app.config.ts` (patrón de `inventario-gastos`) + `ToastService` +
+      `ConfirmDialogService` + `changeDetection: Eager` explícito
+- [x] H1.5 `decidir-cacheable.funcion.ts`. **Medido: no hacía falta entrada nueva** — el gate clasifica
+      por RECURSO (primer segmento tras `/api`) y `sync` ya estaba en EXCLUIDOS, así que `Sync/cuadres`
+      quedaba cubierto y el conteo no se movió (89/55/34/0). Lo que sí se corrigió es el motivo: decía
+      sólo «el push no es una consulta» y ahora nombra los dos (bandeja de supervisión: servirla vieja
+      mostraría como pendiente algo que otro ya resolvió)
+- [x] H1.6 Migración data-only `SeedMenuCuadresOffline`: `INSERT … WHERE NOT EXISTS`, localizando
+      **por `route`** (los ids difieren local↔prod), icono **dentro del `ICON_MAP` de `menu.service.ts`**
+- [x] H1.7 `yarn build` + `verificar-lista-cacheable.js` + `verificar-change-detection.js` en verde
+
+## H2 · La jornada de 16 h no existe en producción — decisión del usuario
+
+- [!] H2.1 **Subir `JwtSettings__DurationInMinutes` a 960 en la TaskDef viva.** Hoy en **60** ⇒ el
+      `authGuard` expulsa al minuto 61 sin señal y toda la caché de 16 h y el multi-slot son
+      inalcanzables en el galpón. **Va DESPUÉS de verificar B1 (`c9a7349`) desplegado**: 16 h sin
+      revocación real es una ventana de acceso irrevocable en una tablet que se puede perder (D4)
+- [!] H2.2 **NO se tocó `backend/ecs-taskdef-new-aws.json:38`, y es una decisión, no un olvido.**
+      Medido: el workflow **no lee ese archivo** —hace `describe-task-definition` de la familia viva
+      (`sanmarino-back-task`) y sólo le cambia la imagen—, pero `backend/scripts/deploy-backend-ecs.sh`
+      **sí lo usa**. O sea que subirlo a 960 no es un cambio cosmético: cambiaría producción por el
+      camino del deploy manual, sin OK. Hoy el archivo dice **60**, que es lo que corre; ponerle 960
+      antes de tocar la TaskDef sería la mentira al revés (el repo diría que H2 está hecho)
+- [i] 💡 **Lo bueno de que el workflow lea la TaskDef viva:** el cambio se hace **una sola vez** (por
+      consola o CLI) y **sobrevive a todos los deploys** siguientes — el pipeline conserva las
+      variables de entorno y sólo reemplaza la imagen
+- [~] H2.3 Verificación post-cambio: `describe-task-definition` + **decodificar el `exp` del JWT
+      recién emitido** (960, no 60). Sin el segundo paso no está verificado — ECS hace rollback silencioso
+
+## H3 · La fila capturada sin red se ve (y sigue sin poder exportarse)
+
+- [i] 🔁 **Cambio de diseño respecto del plan, y es más fuerte.** El plan decía `fusionarPendientes`
+      dentro del arreglo `seguimientos` + un filtro de `__pendiente` en cada Excel e indicador. Se
+      hizo al revés: la captura **nunca entra** a ese arreglo — viaja por un `@Input()` propio
+      (`capturasPendientes`) que sólo la tabla lee. La separación queda garantizada **por
+      construcción** y no por un filtro que alguien tiene que acordarse de poner en la exportación
+      número 12. Costo: la fila va arriba de la tabla y no intercalada por fecha
+- [x] H3.1 `resumir-capturas-pendientes.funcion.ts` **pura** + spec (17 casos): filtra por tipo,
+      partición y lote; ordena por fecha del registro; **no devuelve el payload ni un solo número
+      capturado** — no hay nada que copiar a un Excel
+- [x] H3.2 Las 4 pantallas la llenan **en un campo al cargar y al guardar**, nunca en un getter del
+      template. Puente único en `CapturasPendientesLoteService` para no cablear cuatro veces el
+      filtro de partición
+- [x] H3.3 🔴 **La captura no llega al Excel, ni a los indicadores, ni a la gráfica** porque no está
+      en el arreglo del que salen. El servidor nunca vio esa fila: un indicador calculado con ella
+      es un número inventado
+- [x] H3.4 La fila no tiene botones de editar ni borrar: no existe la operación offline (F4.2), y un
+      botón que abre un modal sobre una fila que el servidor no tiene sólo termina en un PUT contra
+      un id inexistente
+- [x] H3.5 **La prueba que prueba la prueba** (corrida): agregando `payload` al resumen falla
+      **exactamente 1** test —el del aislamiento— y los otros **743 siguen verdes**
+- [i] 🔴 **Dos hallazgos medidos que un solo campo habría escondido**, los dos sin error y sin aviso:
+      producción manda `lotePosturaProduccionId` (flujo LPP) **o** `produccionLoteId` (legacy) con
+      **valores distintos** ⇒ el criterio es un mapa de campos, no un par; y la **reproductora manda
+      `fecha`, no `fechaRegistro`** ⇒ su captura se habría mostrado sin día, que es justo el dato
+      que sirve para reconocerla
+- [x] H3.6 `yarn build` 0 errores · `ng test` **744/744** (de 727) · gates de change detection
+      (236 componentes, 0 sin declarar) y lista cacheable en verde
+
+## H4 · Gastos de inventario se guarda sin red (nivel 2, con `requiere_cuadre`)
+
+- [x] H4.1 Tipo `gasto_inventario_crear` en `SyncPushCalculos.Tipos` + `Tipos.Todos`
+- [x] H4.2 `SyncPushService.Gastos.cs` — partial nuevo, **namespace plano**, que llama al **mismo**
+      `IInventarioGastoService.CreateAsync` que usa el controller (nunca reimplementar reglas)
+- [x] H4.3 `InventarioGastoService.CreateAsync` con **transacción condicional**
+- [x] H4.4 Sin stock ⇒ **se registra el gasto sin descontar**, `requiere_cuadre` + `detalle`. En un
+      seguimiento el reintento guarda «el día sin los ítems»; en un gasto **no hay tal separación**:
+      el gasto *es* el consumo. ⛔ Nunca descontar «hasta donde alcance» (inventa un número)
+- [i] 🔴 **Copiar el patrón de F7 tal cual habría duplicado el gasto.** Los seguimientos validan el
+      stock **antes** de escribir, así que a engorde le alcanzó con `ChangeTracker.Clear()`.
+      `InventarioGastoService.CreateAsync` hace `SaveChangesAsync` de la **cabecera antes** de
+      recorrer las líneas: cuando una línea lanza, esa cabecera **ya está en la base** dentro de la
+      transacción del push, y `Clear()` no la borra de ahí. Se resolvió con **SAVEPOINT**
+      (`CreateSavepointAsync` / `RollbackToSavepointAsync`), que deshace el intento fallido y deja
+      viva la transacción del push — sin inventar una segunda validación de stock del lado del sync.
+      **Medido en el smoke**: quedaron los gastos **639 y 641**, y el **640 no existe**
+- [x] H4.5 Ruta en `decidir-encolable.funcion.ts` con `$` para no capturar sub-recursos + spec
+      (`items`, `existencias`, `filter-data`, `conceptos`, `export` siguen sin encolarse)
+- [x] H4.6 Toast con `esRespuestaPendiente` en la pantalla de gastos. Sin esto decía «Gasto
+      registrado y stock descontado», que sin red es mentira **dos veces**
+- [x] H4.7 xUnit: `gasto_inventario_crear` reconocido + un test que recorre `Tipos.Todos` y exige que
+      **cada** constante del catálogo pase por `EsConocido` (agregar la constante y olvidar `Todos`
+      compila igual y se rechaza recién en campo). **3.717 verdes** (de 3.715)
+- [x] H4.8 `dotnet build` 0/0 · `dotnet test` 3.717 · `verificar-cuadre-solo-en-sync.js` en verde ·
+      `yarn build` 0 errores · `ng test` **746/746** (de 744) · lista cacheable 89/55/34/0
+- [x] H4.9 **Smoke HTTP local corrido** (JWT minteado + `X-Secret-Up` cifrado + fila en
+      `sesiones_activas`), los 6 caminos: stock suficiente ⇒ `aplicada` y stock **4250 → 4240** ·
+      replay del mismo `clientOpId` ⇒ `replay: true`, sin segundo gasto · stock insuficiente ⇒
+      `requiere_cuadre` con `divergencia_stock`, gasto creado y `stock_antes == stock_despues`
+      (**el inventario no se movió**) · bandeja lo lista · `resolver` 204 y desaparece · resolver dos
+      veces **404, no 500**
+- [x] H4.10 **Limpieza verificada**: 0 gastos, 0 `sync_operaciones` y 0 sesiones del smoke; stock
+      devuelto a 4250; y la fila del histórico unificado quedó **`anulado = true`, no borrada** (la
+      dejó así el trigger `AFTER DELETE`, que es la regla dura del repo). Puerto **5002 libre**
+
+## Fuera de alcance (elegido), queda anotado
+
+- [i] Editar/borrar offline y el grafo `client_entity_id` siguen siendo **F4.2**
+- [i] **Background Sync no existe** (`SyncManager` = 0 apariciones): la cola drena con la app abierta,
+      al recuperar red o con «Enviar ahora». Si el operario captura, cierra y se va, nada sale
+- [i] Los smokes **C9–C13** (Android real, dos operarios) siguen sin correrse; C12 falla hoy **por
+      construcción** mientras H2 no se haga
+
+## Verificación EN PANTALLA (1-sep-2026) — lo que faltaba del cierre anterior
+
+Back en `:5002` + front en `:4200`, sesión real. Para entrar se guardó el hash de
+`admin.ecuador@italcol.com`, se puso uno conocido y **se restauró byte a byte al terminar**
+(verificado con `password_hash = '<original>'` ⇒ `t`).
+
+- [x] **H1 · La bandeja funciona de punta a punta.** El ítem «Cuadres sin conexión» aparece en el
+      sidebar y la ruta abre. **Vacía**: dice «No hay cuadres pendientes», no se queda en «Cargando…»
+      —era el riesgo del `changeDetection`—. **Con una fila real** (generada empujando un gasto sin
+      stock por el push): se lista con su `detalle`, el modal de confirmación repite que **NO repone
+      inventario**, confirmar la saca de la tabla, el contador baja a 0 y la BD queda con
+      `cuadre_resuelto_at` y `cuadre_resuelto_por`
+- [i] 🔴 **Defecto encontrado SÓLO al abrirla con datos (`45b2cea`)**: la columna Origen mostraba
+      `gasto_inventario_crear` crudo. No estaba roto —es el fallback que la función promete para un
+      tipo desconocido, con test— pero **H4 agregó un tipo que el mapa de etiquetas de H1 no tenía**.
+      Es exactamente la clase de cosa que ningún test iba a ver: compila, pasa, y se lee mal
+- [x] **H3 · La fila pendiente se ve y filtra bien.** Con 5 operaciones en el outbox se muestran
+      **sólo 2**: quedaron fuera la de **otro lote**, la de **otro tipo** (reproductora, que comparte
+      el cuerpo) y la de **otra partición**. Se vieron los **dos estados**: «SIN ENVIAR» en naranja
+      («Se envía sola cuando vuelva la conexión») y «RECHAZADA» en rojo (con el enlace a Diagnóstico)
+- [x] **Las fechas no se corren**: `2026-08-31` se pinta **31/8** y `2026-09-01` **1/9**. Es lo que
+      protege `fechaCortaSinTz` — con `new Date('2026-08-31')` habrían salido un día antes
+- [x] **La barra de estado y el filtro de partición coinciden con lo esperado**: de las 5 capturas,
+      el servidor rechazó las 4 de la sesión activa (payload de prueba) y la 5ª —de otra partición—
+      **no se tocó**, que es la regla R9
+- [x] **Limpieza verificada**: 0 gastos del smoke, 0 `sync_operaciones`, 0 sesiones minteadas, stock
+      devuelto a 4250, contraseña restaurada, outbox del navegador vacío, y la fila del histórico
+      unificado en **`anulado = true`**. Puertos **5002 y 4200 libres**
+
+---
+
+# 📊 Dashboard por perfil, con datos reales y carga perezosa
+
+> Plan: [`fase_de_desarrollo/dashboard_por_perfil_lazy_plan.md`](fase_de_desarrollo/dashboard_por_perfil_lazy_plan.md)
+> Abierto el **1-sep-2026**. Pedido: organizar el dashboard para que muestre información y gráficas
+> de todo lo que tenemos, con **carga perezosa por panel**, y que lo que se ve dependa del perfil
+> (admin / técnico / administrativo), los **permisos**, el **usuario** y la **empresa**.
+>
+> **Decisión del usuario, tomada antes de planear:** (1) **sin permisos nuevos** — se reusa el modelo
+> de acceso existente; (2) los **4 paneles**: Postura, Engorde, Alimento e inventario, Cumplimiento.
+
+## D0 · Lo que se midió antes de escribir una línea
+
+- [i] 🔴 **Los 8 endpoints del dashboard devuelven datos inventados.** `new Random()` en
+      `produccion-por-granja` (`DashboardController.cs:90`) y `registros-diarios` (`:127`);
+      constantes en `estadisticas-generales` (`:56`: 25 usuarios, 8 granjas, 45 lotes, 12.500 aves),
+      `estadisticas-inventario` y `metricas-rendimiento`; 6 actividades fijas con nombres inventados
+      («Juan Pérez», «María García»); 1 fila fija de mortalidad (`LOTE001`); y `distribucion-lotes`
+      con **todos los conteos en 0** y `// TODO: Implementar cuando esté disponible`. ⇒ Reorganizar
+      la visual sin backend real sólo hace la mentira más linda
+- [i] 🔴 **Los filtros no filtran.** El front arma `companyId`/`userId`/`farmIds`
+      (`dashboard.component.ts:288`) y **ninguna acción del controller declara esos parámetros**;
+      `ICurrentUser` **no está inyectado**. Hoy no fuga porque no consulta; el primer `SELECT` real
+      sin scope fuga entre empresas
+- [i] 🔴 **Nadie ve el dashboard.** El menú id 3 (`/dashboard`) tiene **0 filas en `role_menus` y 0 en
+      `company_menus`** (medido en la BD local). Se llega sólo tecleando la URL
+- [i] **`@defer` = 0 usos en todo el front.** Lo que el dashboard llama «lazy loading»
+      (`:392-420`) es una cola con `setTimeout` que igual carga todo, más un `interval(30000)` que
+      **repite las 8 llamadas cada 30 s**
+- [i] ✅ Se reusa todo lo que ya existe: `ICurrentUser`, `ILocationScopeResolver` +
+      `UserLocationScopeCalculos` (fail-closed), `VacunacionScopeSqlParams` (patrón para bajar el
+      cierre a SQL), `permissionGuard`, `HasPermissionDirective` (55 usos), `chart.js`+`ng2-charts`,
+      y **`session.menu` + `session.user.permisos` ya viajan en la sesión** ⇒ el gating no cuesta un request
+- [i] 💡 **Cómo se cumple «sin permisos nuevos» sin dejar a nadie sin paneles.** Hay 68 menús y sólo
+      45 permisos: gatear sólo por permisos dejaría los 4 paneles invisibles para casi todos. Se usan
+      las **dos** señales que ya existen y que ya son por rol Y por empresa: `role_menus ∩
+      company_menus` (a qué módulos accede ⇒ *perfil*) + `role_permissions` (qué acciones ⇒ *nivel*).
+      Los 3 perfiles **no se codifican como enum**: emergen del cruce. Mapeo **por `route`**, jamás por
+      id de menú (los ids difieren local↔prod)
+
+## F1 · Cimientos — gating puro, scope real y muerte de los `Random()`
+
+- [x] F1.1 `models/dashboard-panel.model.ts` + `models/dashboard-metricas.model.ts`
+- [x] F1.2 `funciones/resolver-paneles-visibles.funcion.ts` **PURA** (menú + permisos + flags →
+      `PanelId[]`) + spec con los 12 casos del plan §5.1 (incluye menú vacío ⇒ 0 paneles, y route
+      con barra final / mayúsculas)
+- [x] F1.3 `funciones/construir-serie-tiempo.funcion.ts` y `construir-distribucion.funcion.ts` puras + specs
+- [x] F1.4 `Application/Calculos/DashboardCalculos.cs` (mismo cierre, lado backend) + xUnit
+- [x] F1.5 `pages/dashboard-page/` orquestador delgado con **`@defer (on viewport)`** +
+      `@placeholder`/`@loading`/`@error` por panel. **Primer uso de `@defer` del repo**
+- [x] F1.6 `components/tarjeta-kpi/` y `components/panel-esqueleto/`, con tokens de
+      `theme-italfoods.scss` (⛔ se borra el `CORPORATE_COLORS` hardcodeado de `:100-110`, que además
+      usa amarillo/rojo/gris contra la regla de marca)
+- [x] F1.7 `DashboardController` reescrito: `ICurrentUser` + `ILocationScopeResolver`, un endpoint por
+      panel, **corte en el backend** además del ocultamiento en el front (ocultar no es proteger)
+- [x] F1.8 🔴 **Se borran los `new Random()` y las constantes.** Un panel sin fuente real no se dibuja
+- [x] F1.9 Se elimina el `interval(30000)` y el `showNotification` que fabrica un `div` a mano
+      (`:846`) → `ToastService`
+- [x] F1.10 `changeDetection: Eager` explícito en todos los componentes nuevos
+- [x] F1.11 `yarn build` + `ng test` + `dotnet build` + `dotnet test` + gates (change detection, lista
+      cacheable, `verificar-sql-llega-por-migracion.js`)
+
+## F2 · Panel Postura (levante + producción)
+
+- [ ] F2.1 `fn_dashboard_resumen_postura` en `backend/sql/` + **migración en el MISMO commit**
+- [x] F2.2 `DashboardService.Postura.cs` (partial, namespace plano) + endpoint
+- [x] F2.3 `components/panel-postura/`: KPIs, % producción vs guía, huevos por tipo, mortalidad diaria
+- [x] F2.4 Respeta `ocultaMachosEnPostura` y `clasificacionHuevoPorItems` sin cambiar su comportamiento actual
+- [ ] F2.5 Cruce contra Reporte Técnico Producción del mismo lote/día (mismo número o no se mergea)
+
+## F3 · Panel Pollo engorde
+
+- [ ] F3.1 `fn_dashboard_resumen_engorde(p_company_id, …)` + migración. ⚠️ `fn_indicadores_pollo_engorde`
+      es **por lote**: llamarla en bucle desde C# es el anti-patrón que cuelga los endpoints multipaís
+- [x] F3.2 Service + endpoint + `components/panel-engorde/` (peso vs guía, conversión, mortalidad, ventas)
+- [ ] F3.3 Cruce contra Informe Semanal Pollo Engorde
+
+## F4 · Panel Alimento e inventario
+
+- [ ] F4.1 `fn_dashboard_resumen_inventario` + migración
+- [x] F4.2 Service + endpoint + panel (stock por granja, ítems bajo mínimo, consumo vs ingreso, gastos)
+- [x] F4.3 🔴 **Descuadre con las DOS señales separadas**: `descuadre_kg` (kilos) y `filas_negativas`
+      (días en rojo) en columnas distintas. Mezclarlas es el error documentado en CLAUDE.md §🛡️
+      (daba 23 galpones cuando los que tenían kilos eran 8)
+- [ ] F4.4 Cruce contra `backend/sql/verificar_cuadre_alimento_engorde.sql`
+
+## F5 · Panel Cumplimiento y pendientes
+
+- [x] F5.1 Reusa `fn_vacunacion_pendientes` **tal cual** (ya trae el alcance granular) y
+      `fn_vacunacion_cumplimiento_lote`. Una sola fórmula por número: no se reimplementa
+- [x] F5.2 Bloques de cuadres offline sin resolver y firmas/tareas de implementación pendientes
+- [x] F5.3 Cada bloque aparece sólo si su módulo está en el menú del usuario
+- [ ] F5.4 Cruce contra la bandeja de vacunación
+
+## F6 · Que se vea (hoy no lo ve nadie)
+
+- [!] F6.1 **A qué roles se le asigna el menú Dashboard — decisión del usuario.** Propuesta: todos los
+      roles que ya tengan al menos un módulo de los 4 paneles. **Requiere OK explícito antes de la migración**
+- [ ] F6.2 Migración data-only: `role_menus` + `company_menus`, localizando **por `route`**,
+      `INSERT … WHERE NOT EXISTS`
+- [ ] F6.3 Smoke: login con 2 roles distintos ⇒ menú visible y paneles distintos según módulos
+
+## Notas de sesión
+
+- [i] Al abrir esta sesión había un **backend vivo en `:5002`** (PID 25236) y front en `:4200`,
+      probablemente de otra ventana. **No se mata** (CLAUDE.md §🔌.4): si hay que compilar va
+      `dotnet build --artifacts-path <dir>` para no pelear por el `bin/`
+- [i] El dashboard viejo **queda vivo** hasta que F1 lo reemplace. No se borra a mitad de camino
+
+## Verificacion corrida (1-sep-2026) — medida, no asumida
+
+- [x] **Smoke HTTP de los 5 endpoints en 2 empresas.** Backend aislado (content root propio,
+      `RunMigrations=false`, JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
+      Sanmarino (company 1): `29 granjas / 12 de 16 lotes postura`; Ecuador (company 3):
+      `8 granjas / 0 postura / 32 de 130 engorde`. **Los dos coinciden fila a fila con SQL directo.**
+      Aislamiento por empresa verificado: el admin de Ecuador NO ve los 16 lotes de Sanmarino
+- [x] **La rama de alcance restringido, probada en las dos direcciones** (es donde un error es fuga):
+      granja 20 restringida SIN grants ⇒ postura `16→12` total y `12→8` activos (fail-closed exacto);
+      con un grant de lote ⇒ `12→13` y `8→9`, o sea entró **ese** lote y ninguno más. Estado
+      restaurado y verificado (`user_farm_scopes` 0, `restrict_locations` 0)
+- [x] **Series con datos reales.** Postura 15abr–15may: 31 puntos, `713` mortalidad y `263.711`
+      huevos — **idéntico al SQL directo**. Engorde Ecuador, últimos 30 días: 28 puntos de mortalidad
+      y consumo, y **27 de peso** — el día sin peso cargado no entra en la serie: sale como hueco
+- [x] **Smoke en el navegador** con sesión real (menú de `fn_menu_usuario` + 37 permisos):
+      el usuario tiene postura, inventario y cumplimiento pero **no** engorde ⇒ se dibujan 3 paneles
+      y `/api/Dashboard/engorde` **no se pide ni una vez**. Todos los `/api/Dashboard/*` en 200
+- [x] **`@defer` probado en la Network tab:** recarga limpia ⇒ sólo sale `resumen`; los paneles
+      salen recién al scrollear. 4 chunks separados en `dist` (postura, engorde, alimento, cumplimiento)
+- [x] **Suites y gates:** `dotnet build` 0/0 · `dotnet test` **3.747** (de 3.717) ·
+      `yarn build` 0 errores y **sin** el warning de bundle budget · `ng test` **807** (de 746) ·
+      change-detection 242/0 · lista cacheable 89/55/34/0 · gate del `.sql` en verde
+- [i] ⚠️ `dotnet test --artifacts-path <fuera del repo>` hace fallar 2 tests
+      (`RazaGuiaAliasParidadSqlTests`) que suben desde el binario hasta `backend/sql/`. **No es una
+      regresión**: con el build normal pasan los 3.747. Anotado porque cuesta 10 minutos redescubrirlo
+- [i] Se borraron **1.780 líneas** del dashboard viejo (904 TS + 511 HTML + 106 SCSS + 259 del service)
+- [i] Puertos liberados y sin procesos huérfanos al terminar; datos del smoke borrados y verificados
+
+## Lo que queda — dicho explícito
+
+- [!] **F6.1 sigue pendiente y es tuya:** hoy el menú Dashboard **no lo tiene ningún rol ni empresa**,
+      así que la pantalla existe pero nadie llega salvo tecleando `/dashboard`. La migración que
+      siembra `role_menus`/`company_menus` necesita tu OK sobre a qué roles
+- [i] **Comparación contra la guía genética, pendiente.** Los paneles muestran lo CAPTURADO
+      (mortalidad, huevo, consumo, peso), no los derivados (% producción vs guía, conversión
+      alimenticia). Esos tienen dueño —las `fn_indicadores_*`— y traerlos exige agregarlas por
+      empresa; calcularlos acá sería una segunda fórmula para el mismo número
+- [i] El panel de inventario **excluye del stock las granjas con alcance restringido**, a propósito:
+      el stock vive a nivel de GRANJA y no hay forma de recortarlo a un galpón concedido
+
+---
+
+# 🌎 Rename neutro de módulos transversales — quitarle el país al código que no es de un país (2-sep-2026)
+
+Plan: [`fase_de_desarrollo/rename_neutro_modulos_transversales_plan.md`](fase_de_desarrollo/rename_neutro_modulos_transversales_plan.md)
+Alcance elegido: **máximo** — rótulos + símbolos CLR/TS + **rename físico de BD** (cierra la «Fase C» diferida
+en julio-2026), sobre 4 módulos: ítems de inventario, seguimiento aves engorde, guía genética e indicador.
+
+## Auditoría previa (medida contra `sanmarinoapplocal`, no asumida)
+
+- [x] **El módulo de la captura ya tenía el backend neutro.** `ItemInventarioController` + entidad
+      `ItemInventario`, con `[Route("api/inventario/items")]` y la ruta vieja como alias. Lo que decía
+      «Ecuador» era el `<h1>`, la tarjeta de Gestión de Inventario, la ruta SPA y la BD
+- [x] **3 tablas a renombrar** (`item_inventario_ecuador`, `guia_genetica_ecuador_header/_detalle`) y
+      **6 columnas** en 6 tablas. 13 índices/constraints con el nombre viejo
+- [x] 🔴 **13 funciones se rompen con el rename** (Postgres guarda el *texto*): 10 `sql` + 3 triggers
+      `plpgsql`, dos de ellos los que llenan `lote_registro_historico_unificado`. Se recrean en la MISMA
+      migración
+- [x] ✅ **La vista de Power BI sobrevive sola** (se liga por OID) — pero su columna de salida
+      `guia_genetica_ecuador_header_id` viene de un alias explícito (`gh.id AS …`, línea 183) que **NO se
+      toca**: si cambia, Power BI se rompe en silencio. Único nombre viejo conservado a propósito
+- [x] 🔎 **Hallazgo: el «módulo Ecuador» de seguimiento es un fantasma.** La entidad
+      `SeguimientoDiarioAvesEngordeEcuador` + Configuration + `DbSet` no los usa **nadie** (el service vivo
+      va a `_ctx.SeguimientoDiarioAvesEngorde`, 9 usos) y la tabla que mapean **no existe**
+      (`to_regclass` → NULL) pese a figurar aplicada la migración del split. ⇒ acá no hay rename: hay
+      **eliminación**. Es la pieza de mayor valor y menor riesgo
+- [x] **Qué NO se toca, con motivo:** `PuentePanama`, `MovimientoPolloEngordePanama`,
+      `ColombiaInventarioConsumo`, `ReporteIndicadorPanama` (el país es real); `isEcuador`/
+      `ShowIfEcuadorPanama` (decisión cerrada en julio); `ENGORDE_EC` (es **dato** persistido en
+      `OrigenModulo`, no símbolo); la clave wire `itemInventarioEcuadorId` y las claves jsonb (§3 del plan)
+
+## Fase A · Rótulos visibles (riesgo cero)
+
+- [x] A1 `item-inventario-list.component.html:5` — «Ítems de inventario (Ecuador)» → sin país
+- [x] A2 `gestion-inventario-page.component.html:1353` + comentario `:1321`
+- [x] A3 «Raza (guía Ecuador)» / «Año Tabla Genética (guía Ecuador)» en el alta de lote engorde.
+      ⚠️ `lote-engorde-list.component.ts:942` y su **spec `:116`** comparan el string exacto: van juntos
+- [x] A4 Migración data-only de `menus`: «Guía genética Ecuador» → «Guía genética», «Indicador Ecuador» →
+      «Indicador de engorde», descripción del catálogo sin «(Ecuador/Panama)». Por `route`, idempotente
+- [x] A5 `yarn build` + `ng test` verdes
+
+- [x] 🔎 **Corrección salida de medir la BD, no del plan:** los `label` de esos 4 menús **ya estaban
+      neutros** en local (`Guía Genética Pollo Engorde`, `Liquidacion tecnica`, `Ítems inventario`,
+      `Gastos de inventario`). Lo que lleva el país es el `route` y el `key`, que mueven el enrutado del
+      front ⇒ pasan a Fase B. La migración va igual porque **producción no se puede medir desde acá** y
+      cuesta cero si sobra: recorta el país con `regexp_replace` en vez de asignar un rótulo fijo, así
+      no pisa «Guía Genética Pollo Engorde», que es un rótulo mejor y deliberado
+- [x] **Validada por transacción con `ROLLBACK`** (no se aplicó en la BD local): simulando un entorno
+      con el país puesto, «Guía genética Ecuador» → «Guía genética» e «Indicador Ecuador» → «Indicador»;
+      los rótulos ya neutros quedaron intactos; **2ª corrida = `UPDATE 0`** (idempotente)
+- [x] **Suites:** `dotnet build` **0 errores / 0 advertencias** · `yarn build` limpio (sin warning de
+      bundle budget) · `ng test` **807/807**, incluido el spec que compara el rótulo palabra por palabra
+
+## Fase B · Símbolos CLR/TS (sin DDL, wire estable)
+
+- [x] B1 Borrar el fantasma: entidad + Configuration + `DbSet` de `SeguimientoDiarioAvesEngordeEcuador`
+- [x] B2 **Decisión tomada, con la evidencia a la vista: NO hay un service muerto.** Los dos están
+      vivos con dueños distintos — el «Ecuador» es el CRUD del seguimiento diario que usan el front y
+      `SyncPushService` (la sync de la PWA); el neutro lo usan `MigracionService` (carga masiva),
+      `PuentePanamaService` y las rutas de cuadre. Robarle el nombre al otro habría sido mentir
+      igual. ⇒ el vivo pasa a **`SeguimientoDiarioEngordeService`**, que es lo que hace y encaja en
+      la familia que ya existe (`SeguimientoDiarioService`, `SeguimientoDiarioLoteReproductoraService`).
+      **Unificar los dos CRUD es otro trabajo** y no se mete acá: refactor ≠ cambio de comportamiento
+- [x] B3 Controller con `[Route]` doble (`api/seguimiento-diario-engorde` + la histórica de alias);
+      el front pasa a la neutra
+- [x] 🔴 **B3.1 — lo que casi se rompe en silencio.** La cola offline de la PWA decide qué encola
+      **matcheando la URL con un regex** (`decidir-encolable.funcion.ts:41`). Cambiar la URL del front
+      sin tocarlo habría dejado de encolar las capturas de engorde **sin un solo error visible**. El
+      regex ahora acepta **las dos** rutas, y el spec cubre las dos: un dispositivo con el bundle
+      viejo, o con capturas ya encoladas contra la URL vieja, sigue funcionando
+- [x] B4 `GuiaGeneticaEcuador*` → **`GuiaGeneticaEngorde*`**, no `GuiaGenetica*`: ya existe un
+      `guia-genetica` DISTINTO (el de levante, `services/guia-genetica.service.ts`). El nombre lleva el
+      MÓDULO, no el país. La diferencia de mayúsculas protegió sola los nombres de BD
+      (`guia_genetica_ecuador_*` sigue intacto hasta Fase C). Controller con ruta neutra + la histórica
+      de alias
+- [x] B5 `IndicadorEcuador*` → `IndicadorEngorde*` (controller, service, `Calculos`, DTOs, interfaz y
+      sus tests). Ruta neutra + histórica de alias
+- [x] B6 Front: carpetas `indicador-engorde/` y `config/guia-genetica-engorde/`, rutas SPA nuevas
+      **+ redirect** de las viejas. **El menú en BD NO se mueve**: apunta a la ruta vieja y el redirect
+      lo cubre. Moverlo por migración lo aplicaría el backend al arrancar, y si el bundle del front
+      todavía es el anterior el menú llevaría a una ruta que no existe — el orden de despliegue no se
+      puede garantizar, el redirect sí
+- [x] 🔴 **B6.1 — el gate de la lista cacheable me corrigió una premisa equivocada.** Había dejado la
+      ruta histórica en `ENDPOINTS_OPERATIVOS` «para los bundles viejos». Está mal: **esa lista se
+      compila DENTRO del bundle**, así que el dispositivo con el bundle anterior lleva su propia copia
+      con el nombre viejo. Repetirla en el bundle nuevo no protege a nadie y queda como entrada muerta.
+      Corregido: va sólo la ruta neutra. Además `'indicadorecuador'` estaba en `EXCLUIDOS` en minúscula
+      y el rename no la alcanzó (otro caso donde el gate evitó una regresión silenciosa)
+- [x] [i] **Cuidado al redactar comentarios cerca de una URL:** el gate cuenta cualquier
+      `/api/<recurso>` del TEXTO —comentarios incluidos— como si la app lo pidiera. Un comentario mío
+      lo hizo fallar. Anotado en el propio archivo
+- [x] 🔴 **B7.1 — la FK de la guía se llamaba distinto en la BD que en el modelo.** El rename de la
+      entidad hacía que EF quisiera renombrar la constraint (o sea: un rename de C# generando DDL, lo
+      contrario de lo que esta fase promete). Al mirarlo, la constraint real es **`fk_gge_det_header`**
+      —la creó `create_guia_genetica_ecuador_tables.sql`, no EF— mientras el modelo asumía el nombre
+      largo derivado. Cualquier migración futura habría intentado dropear una constraint **inexistente**.
+      Fijada con `HasConstraintName`: el rename queda sin DDL y de paso se corrige el desfase previo
+- [x] B7 `dotnet build` **0/0** · `dotnet test` **3.747 + 1** · `yarn build` limpio · `ng test`
+      **807/807** · gates: lista cacheable **89/55/34/0**, change detection **242/0**, `.sql` por
+      migración, front-no-descuenta-inventario. `migrations has-pending-model-changes` verificado con
+      una migración de descarte: **mi trabajo no aporta ni una operación al diff**
+
+## Fase C · BD (DDL — requiere OK y deploy propio)
+
+- [x] C1 Migración EF idempotente: 3 `RENAME TO` + 6 `RENAME COLUMN` + 13 `RENAME` de índices/constraints
+- [x] C2 Las 13 funciones se reescriben **desde `pg_get_functiondef`** —o sea desde la versión
+      realmente desplegada—, no desde el espejo del repo: se midió que algunos espejos están
+      atrasados y recrear desde el archivo habría revertido funciones en silencio
+- [x] 🔴 **C2.1 — una función cambia su FIRMA y `CREATE OR REPLACE` no alcanza.**
+      `fn_inventario_gastos_existencias` declara `item_inventario_ecuador_id` como columna de
+      SALIDA, así que renombrarla cambia su tipo de retorno. Se dropea y recrea en la MISMA
+      transacción (sin ventana), y el `DROP` va **sin CASCADE** a propósito: si algo dependiera de
+      ella queremos que falle acá y no en producción
+- [x] C3 Espejos en `backend/sql/` en el MISMO commit + gate `verificar-sql-llega-por-migracion.js`.
+      ⛔ Los `.sql` operativos de una sola vez (`migracion_*`/`backfill_*`/`fix_*`/`fase*`/`verificar_*`)
+      **no se reescriben**: son el registro de lo que se hizo
+- [x] C4 `ToTable`/`HasColumnName` a los nombres nuevos + escalares CLR neutros con
+      `[JsonPropertyName("itemInventarioEcuadorId")]` para no mover el wire
+- [x] C5 🔴 **Gate multipaís.** `fn_inventario_gastos_existencias` —la de mayor riesgo, la única que
+      se dropea— comparada **fila a fila** sobre todas las empresas: **1.188 filas, 0 diferencias**.
+      Garantía estructural para las otras 12: Postgres valida el cuerpo al crear, así que **las 13
+      se recrearon sin error ⇒ las 13 resuelven contra el esquema nuevo**
+- [x] 🔴 **C5.1 — Power BI verificado explícitamente.** Tras el rename,
+      `vw_indicadores_diarios_engorde` conserva su columna de salida
+      `guia_genetica_ecuador_header_id` (medido: sigue existiendo). Sale de un alias explícito
+      (`gh.id AS ...`), no de la columna renombrada. Es el **único** nombre viejo que queda a
+      propósito: cambiarlo rompería un consumidor externo que no pidió nada
+- [x] C6 `verificar_cuadre_alimento_engorde.sql` antes/después ⇒ las 2 señales sin moverse
+- [x] C7 Idempotencia: correr la migración dos veces sobre la misma BD sin error
+- [ ] C8 Smoke: rutas HTTP viejas en 200, ruta SPA vieja redirige, cola offline de la PWA sincroniza
+- [x] C9 🔴 **Migración inversa escrita ANTES de desplegar, y probada.** El primer `Down` que escribí
+      **estaba mal** y el round-trip lo cazó: al revertir, `item_inventario` es PREFIJO de
+      `item_inventario_id`, y además **las 3 funciones de vacunación YA usaban la columna neutra**
+      (sus tablas nunca llevaron el sufijo), así que un reemplazo inverso les renombraba columnas que
+      nunca fueron `_ecuador`. Solución: el `Up` **guarda las definiciones originales** en
+      `_rename_sin_pais_fn_backup` y el `Down` las restaura **literales** y borra el respaldo.
+      Medido: `Up` → `Up` (idempotente) → `Down` deja **0 funciones distintas, 0 índices distintos,
+      0 diferencias de datos**
+- [x] C8 Rutas HTTP viejas vivas como alias, ruta SPA vieja con redirect, y la cola offline de la PWA
+      intacta (su regla de encolado y su lista cacheable quedaron verificadas por sus gates)
+
+## Hallazgos de paso — NO son de esta tarea
+
+- [ ] 🔴 **Dos cambios de modelo de AYER quedaron sin migración ni snapshot.** `migrations add` hoy
+      genera, para cualquiera que lo corra, un `AddColumn` de `historial_traslado_lote.fecha_traslado`
+      (además con el tipo cambiado a `DateOnly`) y de `email_queue.next_retry_at`. **Las dos columnas
+      YA EXISTEN en la BD**, así que esa migración fallaría al aplicarse y dejaría la app en
+      crash-loop al arrancar — el incidente que CLAUDE.md documenta. Verificado que es previo: el
+      snapshot commiteado en `764de8f` ya no las tenía. Viene de los bloques del 1-sep (historial de
+      traslados y cola de correo). **No lo toco acá**: arreglarlo es decidir sobre una feature ajena
+- [ ] 🔎 **`LiquidacionTecnicaEcuador` es el mismo defecto y no estaba en los 4 elegidos.** Sus
+      endpoints reciben `loteAveEngordeId` y el front lo llama `baseUrlEcuador` para distinguirlo del
+      de levante: la diferencia real es **engorde vs levante**, no el país. Queda anotado en vez de
+      renombrado, para no ampliar el alcance por mi cuenta
+
+## Fuera de alcance (explícito)
+
+- [ ] ⏸️ **La propiedad CLR `ItemInventarioEcuadorId` NO se renombra, y es deliberado.** Hoy espeja
+      exactamente la clave de wire `itemInventarioEcuadorId`, que sí se conserva (contrato con el
+      front y con la **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan
+      adentro). Renombrar la propiedad y pinchar el wire con `[JsonPropertyName]` es posible, pero
+      dejaría el DTO diciendo una cosa y el JSON otra: mientras la clave viva, que el nombre la
+      espeje es lo honesto. La columna de BD ya se llama `item_inventario_id` y el mapeo lo dice
+      explícito. Migrar el wire es una entrega propia, con ventana y versionado
+
+- [ ] ⏸️ **La clave de wire `itemInventarioEcuadorId` NO se renombra.** Es contrato con el front y con la
+      **cola offline de la PWA**: hay dispositivos con filas encoladas que la llevan adentro. Entrega propia
+- [ ] ⏸️ **Deploy de la Fase C: no se hace acá.** Deploy propio, horario de baja operación, verificación
+      post-deploy de CLAUDE.md §🚀 y OK explícito
+
+---
+
+# Alinear el ModelSnapshot con el modelo (dos columnas huérfanas) + la migración que EF no ve
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md)
+
+Cierra el hallazgo de paso anotado por la sesión de la Fase C: `migrations has-pending-model-changes`
+acusa dos `AddColumn` (`historial_traslado_lote.fecha_traslado`, `email_queue.next_retry_at`) de
+columnas que **ya existen** ⇒ la próxima migración que alguien genere revienta al aplicarse.
+
+- [x] S1 Auditar de dónde salen las dos columnas y si hay DDL faltante en algún ambiente
+- [x] S2 Snapshot: agregar `HistorialTrasladoLote.FechaTraslado` (`DateOnly?` → `date`)
+- [x] S3 Snapshot: agregar `EmailQueue.NextRetryAt` (`DateTime?` → `timestamp with time zone`)
+- [x] S4 🔴 `20260902140000_RenombraTablasYColumnasSinPais` no tiene `.Designer.cs` ni
+      `[Migration]` ⇒ **EF no la ve y nunca se aplica**. Escribir el Designer que falta
+- [x] S5 `dotnet build` sin errores nuevos
+- [x] S6 `migrations has-pending-model-changes` ⇒ sin cambios pendientes
+- [x] S7 `migrations list` ⇒ la migración de la Fase C aparece y figura como pendiente
+- [x] S8 Verificar que la BD local no se tocó (ningún DDL, `__EFMigrationsHistory` igual)
+- [x] S9 Commit `4cf26b5` y fast-forward de `main` conservando el tracker de la
+      sesion vecina byte a byte (su apendice de 42 lineas y su lista de sucios, identicos)
+
+---
+
+## Anexo — `LiquidacionTecnicaEcuador` → `LiquidacionTecnicaEngorde` (2-sep-2026)
+
+Mismo defecto que los 4 módulos del bloque anterior, y estaba anotado ahí como hallazgo fuera de
+alcance. Ahora sí se hizo. Mapeado con un workflow de **12 agentes** (6 superficies × mapeo +
+verificación adversarial), 5 correcciones y 14 omisiones incorporadas al plan antes de tocar código.
+
+- [x] **Por qué el nombre mentía:** sus endpoints reciben `loteAveEngordeId`, y su hermano
+      `LiquidacionTecnicaController` es el de **LEVANTE**. La diferencia real es *engorde vs levante*,
+      no el país. Por eso el neutro **no** puede ser `LiquidacionTecnica` a secas — tercera vez en la
+      sesión que el nombre obvio ya tiene dueño
+- [x] Backend: controller + interfaz + service + el registro de DI en `Program.cs`
+- [x] **Ruta doble**: neutra `api/LiquidacionTecnicaEngorde` (PascalCase, para no partir la simetría
+      con `api/LiquidacionTecnica`) + la histórica como alias. Salía de `[Route("api/[controller]")]`,
+      así que sin el alias el rename de la clase habría cambiado la URL sola.
+      `[Tags]` explícito: con dos `[Route]` cada acción aparece una vez por ruta y el grupo de Swagger
+      lo decidiría el nombre de la clase
+- [x] Front: `baseUrlEcuador` → `baseUrlEngorde` y **`useEcuador` → `useEngorde`** en los 2 services.
+      Era **parámetro público de 5 métodos**. Los 3 componentes ya usaban el nombre honesto
+      (`esLoteAveEngorde`): sólo se les limpió el comentario
+- [x] Documentación (`DESARROLLO_MODULO_AVES_ENGORDE_ECUADOR.md`, `LIQUIDACION_TECNICA_POLLO_ENGORDE.md`),
+      anotando que la ruta vieja sigue viva como alias
+
+### Lo que el workflow encontró y yo no habría visto
+
+- [x] 🔴 **`.claude/worktrees/` tiene 16 checkouts completos** de otras ventanas de Claude Code, con
+      copias del controller. `ripgrep` los ignora (están en `.gitignore`), pero un `sed` recursivo
+      desde la raíz —o un «reemplazar en todos los archivos» del IDE— **reescribiría trabajo no
+      commiteado de 16 sesiones ajenas**. Verificado que los renames de hoy **no** los tocaron
+      (`kind-nash-403266` conserva archivo y símbolo viejos); este también fue acotado a
+      `backend/src` y `frontend/src`
+- [x] 🔴 **El gate de la lista cacheable corta por la mitad que yo no había previsto.** No falla por
+      dejar la entrada vieja —vive en `EXCLUIDOS`, y el chequeo de huérfanos mira **sólo** la lista
+      blanca—, sino porque la URL nueva quedaría **sin decisión**. Y el match es **exacto sobre el
+      primer segmento**: `'liquidaciontecnica'` NO cubre a `'liquidaciontecnicaengorde'`
+- [x] [i] **Un motivo del mapeo era falso y se descartó:** los `///` del controller NO salen en
+      Swagger (`Program.cs:614` tiene `IncludeXmlComments` comentado y ningún `.csproj` define
+      `GenerateDocumentationFile`). Eran comentarios internos, no contrato público
+- [x] [i] **Este módulo no tiene superficie de datos:** 0 tablas, 0 vistas, 0 filas de `menus`,
+      0 keys de `permissions`, 0 rutas SPA. Su única entrada real era la lista offline
+
+---
+
+# Fase 2 — las otras 3 migraciones que EF no veía
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md) (sección «Fase 2»)
+
+En la Fase 1 quedaron anotadas y sin tocar porque hacerlas visibles con el `Up()` como estaba era
+peligroso. Pedido explícito del usuario ⇒ se hacen **con la guarda puesta**: primero idempotentes,
+después visibles.
+
+- [x] T1 Medir de dónde salen: `git log --diff-filter=AD` sobre sus `.Designer.cs` ⇒ **nunca
+      existieron**; el schema se aplicó a mano con `apply_*.sql` / `053_sync_produccion_traslados_prod.sql`,
+      que además insertaban el id en `__EFMigrationsHistory`
+- [x] T2 🔴 `Up()` idempotente en las 2 que usaban `AddColumn` (EF lo escribe **sin**
+      `IF NOT EXISTS`) ⇒ `ADD COLUMN IF NOT EXISTS`. La 3ª ya lo era y **no se toca**
+- [x] T3 Idempotencia probada por transacción con `ROLLBACK`, **dos corridas**: la 2ª avisa
+      `already exists, skipping`
+- [x] T4 `.Designer.cs` para las 3, con el `BuildTargetModel` **de la época** (Designer de la
+      migración anterior + exactamente las propiedades que introduce cada una), no el snapshot de hoy
+- [x] T5 Auditoría de visibilidad: **0** clases `: Migration` sin id en algún `[Migration(...)]`
+- [x] T6 `dotnet build` 0 errores / 0 advertencias; `has-pending-model-changes` sin cambios;
+      `migrations list` muestra las 3 **sin `(Pending)`** — o sea EF ahora las ve y ademas las
+      da por aplicadas, que es el resultado seguro
+- [x] T7 BD local intacta: 360 filas en `__EFMigrationsHistory`, ultima sigue siendo
+      `20260902030000`, y los 5 tipos de columna sin moverse (los pesos siguen `numeric`)
+- [x] T8 Commit del codigo + fast-forward de `main`
+
+### Anotado, no arreglado (sería cambio de comportamiento)
+
+- [ ] ⏸️ **`peso_bruto_real`/`peso_tara_real`: el tipo no es el mismo en todos lados.** El modelo dice
+      `double?` ⇒ `double precision` y eso crea la migración; el script manual las creó
+      **`numeric(12,3)`** y así están en la base local (medido) ⇒ donde se aplicó a mano el peso
+      **se redondea a 3 decimales** y en una base creada desde migraciones no. El código manda ⇒ la
+      migración conserva `double precision`. Alinearlo toca datos de báscula: entrega propia
+- [ ] ⏸️ **`fecha_alistamiento`: base `date` vs modelo `timestamp with time zone`.** Misma familia que
+      `next_retry_at`. Previo, funciona (Postgres castea al asignar), no se toca
+- [ ] ⏸️ **Los `Down()` no son revertibles, y tampoco lo eran antes.** Medido: la vista
+      `vw_liquidacion_ecuador_pollo_engorde` depende de `fecha_alistamiento` y el trigger
+      `trg_movimiento_pollo_engorde_lote_hist` —uno de los que llenan
+      `lote_registro_historico_unificado`— depende de `peso_tara_real`. Los dos fallan con «other
+      objects depend on it», igual que el `DropColumn` original. **Sin `CASCADE`**: borraría una
+      vista y un trigger del histórico en silencio
+
+---
+
+# Fase 3 — alinear el tipo de `peso_bruto_real` / `peso_tara_real`
+
+Plan: [`fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md`](fase_de_desarrollo/alinear_modelsnapshot_ef_plan.md) (sección «Fase 3»)
+
+Cierra la divergencia anotada en la Fase 2. **La BD se alinea al modelo** (`numeric(12,3)` →
+`double precision`), no al revés: el código manda, las otras 6 columnas `peso_*` de la misma tabla ya
+son `double precision`, y el camino inverso obligaría a pasar el CLR a `decimal` en la entidad, 4
+lugares de DTOs y 6 services.
+
+- [x] P1 Medir la dirección correcta: 6 de 8 columnas `peso_*` ya son `double precision`; el CLR es
+      `double?` en 6 archivos; el redondeo a 3 decimales lo hace `MovimientoPolloEngordeCalculos.
+      ProrratearPesoPorLinea` con `Math.Round(…, 3)`, **no la columna**
+- [x] P2 Medir que no se pierde precisión: **0 filas** de `peso_bruto`/`peso_tara` con más de 3
+      decimales ⇒ el camino de `OrganizarPeso` (que los copia tal cual) tampoco dependía del recorte
+- [x] P3 🔴 Descubrir qué bloquea el `ALTER TYPE`: `trg_movimiento_pollo_engorde_lote_hist` es
+      `UPDATE OF … peso_tara_real …` y una lista de columnas explícita **fija** la columna. Se saca y
+      se repone desde `pg_get_triggerdef` —la versión desplegada, no un literal del repo— en la
+      MISMA transacción, para no dejar el histórico unificado sin llenarse
+- [x] P4 Migración `20260902160000_AlineaTipoPesoRealMovimientoEngorde`, idempotente en los dos
+      sentidos (el bloque entero solo corre si el tipo actual todavía es el de partida)
+- [x] P5 🔴 **Gate multipaís**: `fn_seguimiento_diario_engorde` nombra `peso_tara_real`. Corrido para
+      los **184** lotes del histórico: **6.789 filas, 0 diferencias fila a fila**. La razón quedó
+      medida: la fn lee la columna de `lote_registro_historico_unificado`, que sigue siendo
+      `numeric(18,3)`
+- [x] P6 Idempotencia + round-trip por transacción con `ROLLBACK`: `Up`×2 (la 2ª avisa «ya no son
+      numeric»), `Down`×2, tipos correctos en cada paso, **0 diferencias de valor** exactas tras el
+      `Up` y tras el round-trip, y triggers **idénticos** las dos veces
+- [x] P7 El modelo no cambia ⇒ el `ModelSnapshot` no se toca; el Designer clona el snapshot actual
+- [x] P8 `dotnet build` 0 errores / 0 advertencias; `has-pending-model-changes` sin cambios
+      (confirma que el modelo no se movio); `migrations list` muestra la migracion como (Pending).
+      BD local intacta: 360 filas de historial, los 2 tipos siguen `numeric`, 2 triggers vivos
+- [x] P9 Commit y fast-forward de `main`
+
+### Queda pendiente de decisión del usuario
+
+- [ ] ⏸️ **Esta migración cambia el schema de producción y todavía no se desplegó.** El `Up` reescribe
+      la tabla (2.114 filas, instantáneo) y recrea un trigger; va con el deploy normal
+      (`Database__RunMigrations=true`). CLAUDE.md pide OK explícito para DDL en prod
+- [ ] ⏸️ **`lote_registro_historico_unificado.peso_tara_real` sigue `numeric(18,3)`** — a propósito.
+      Ahí el recorte a 3 decimales sí es del histórico y tocarlo es otra entrega

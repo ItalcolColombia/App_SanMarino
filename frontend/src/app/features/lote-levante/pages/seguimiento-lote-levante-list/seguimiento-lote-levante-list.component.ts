@@ -6,6 +6,8 @@ import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../sh
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -114,6 +116,14 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
 
+  /**
+   * Capturas de ESTE lote guardadas sin red y todavía sin enviar. Va **aparte** de `seguimientos`
+   * a propósito: ese arreglo alimenta indicadores, gráfica y Excel, y una fila que el servidor
+   * nunca vio no puede entrar ahí (ver `resumirCapturasPendientes`). Se llena en un campo, nunca
+   * en un getter: un getter que devuelve un arreglo nuevo por ciclo rompe change detection.
+   */
+  capturasPendientes: CapturaPendienteResumen[] = [];
+
   /** Información del lote levante seleccionado (desde lote_postura_levante). */
   selectedLote: LotePosturaLevanteDto | null = null;
   resumenSelected: LoteMortalidadResumenDto | null = null;
@@ -205,7 +215,20 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private liquidacionCierreSvc: LiquidacionCierreLoteLevanteService,
     private movimientosAvesSvc: MovimientosAvesService,
     private companyConfig: ActiveCompanyConfigService,
+    /** Capturas offline de este lote que el servidor todavía no vio (F3). */
+    private capturasPendientesSrv: CapturasPendientesLoteService,
   ) {}
+
+  /**
+   * Vuelve a leer del outbox qué capturas de este lote siguen sin enviar. Se llama al cambiar de
+   * lote y después de guardar: sin la segunda llamada, el registro recién capturado sin red no
+   * aparecería hasta recargar la pantalla — que es justo el hueco que esta fila cierra.
+   */
+  private refrescarCapturasPendientes(): void {
+    void this.capturasPendientesSrv
+      .resumir('seguimiento_levante_crear', { loteId: this.selectedLoteId })
+      .then(capturas => (this.capturasPendientes = capturas));
+  }
 
   /** Empresas sin machos en postura: no se muestran ni se capturan en ninguna pantalla. */
   ocultaMachosEnPostura = false;
@@ -368,6 +391,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
 
@@ -385,6 +409,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
     this.applyFiltersToLotes();
@@ -393,10 +418,15 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
 
     if (!this.selectedLoteId) return;
+
+    // `onSave` vuelve a llamar acá, así que esta línea cubre los dos momentos que importan: entrar
+    // al lote y acabar de capturar sin red.
+    this.refrescarCapturasPendientes();
 
     // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
     // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.

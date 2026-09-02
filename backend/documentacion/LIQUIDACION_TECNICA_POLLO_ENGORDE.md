@@ -78,7 +78,7 @@ Esta liquidación técnica es **distinta** a la que se utiliza para los lotes de
 
 Para el indicador de **liquidación técnica por lote aves de engorde** (pantalla "Liquidación técnica" dentro del módulo *Seguimiento diario pollo de engorde*) se implementó una API específica que usa `lote_ave_engorde` y `seguimiento_diario_aves_engorde`:
 
-- **Base URL:** `api/LiquidacionTecnicaEcuador`
+- **Base URL:** `api/LiquidacionTecnicaEngorde` (la histórica `api/LiquidacionTecnicaEcuador` sigue viva como **alias** del mismo controller, para los clientes ya desplegados).
 - **Parámetro:** `loteAveEngordeId` (ID del lote en `lote_ave_engorde`)
 
 Detalle de implementación, endpoints y uso desde el frontend: ver **DESARROLLO_MODULO_AVES_ENGORDE_ECUADOR.md** (sección 3).

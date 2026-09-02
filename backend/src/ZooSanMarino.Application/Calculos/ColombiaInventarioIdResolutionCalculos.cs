@@ -1,14 +1,14 @@
 namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
-/// Combina, sin tocar BD, el mapeo de ids del seguimiento → item_inventario_ecuador.id que usa
+/// Combina, sin tocar BD, el mapeo de ids del seguimiento → item_inventario.id que usa
 /// <c>ColombiaInventarioConsumoService</c>. El origen de cada id viaja explícito en
 /// <see cref="ItemConsumoKey"/> (contrato camino-1/2 del front), así que ya NO se adivina la
 /// tabla por existencia en catalogo_items (heurístico anterior que fallaba cuando los rangos
 /// numéricos de ambas tablas colisionaban):
 ///   camino 1 (EsItemInventario=false): catalogItemId (modelo A histórico) → codigo →
-///     item_inventario_ecuador por código (mapeo del backfill A→B, empresa efectiva).
-///   camino 2 (EsItemInventario=true): id directo de item_inventario_ecuador, aceptado solo si
+///     item_inventario por código (mapeo del backfill A→B, empresa efectiva).
+///   camino 2 (EsItemInventario=true): id directo de item_inventario, aceptado solo si
 ///     figura entre los válidos de la empresa efectiva (pass-through controlado).
 /// Las claves que no resuelven por su camino NO figuran en el diccionario (el servicio lanza).
 /// </summary>

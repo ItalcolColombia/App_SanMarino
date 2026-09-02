@@ -10,6 +10,8 @@ import { fechaCortaSinTz as fmtFecha } from '../../../../shared/utils/format';
 import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../shared/services/validacion-seguimiento.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { finalize, map, tap } from 'rxjs/operators';
 
 import { GalponService } from '../../../galpon/services/galpon.service';
@@ -97,6 +99,12 @@ export class LoteProduccionListComponent implements OnInit {
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoItemDto[] = [];
 
+  /**
+   * Capturas de ESTE lote guardadas sin red y sin enviar. Va aparte de `seguimientos` a propósito:
+   * ese arreglo alimenta indicadores, gráfica y Excel, y el servidor nunca vio estas filas.
+   */
+  capturasPendientes: CapturaPendienteResumen[] = [];
+
   selectedLote: LoteDto | null = null;
   produccionLote: ProduccionLoteDetalleDto | null = null;
   currentProduccionLoteId: number | null = null;
@@ -179,8 +187,26 @@ export class LoteProduccionListComponent implements OnInit {
     private loteSvc: LoteService,
     private produccionSvc: ProduccionService,
     private galponSvc: GalponService,
-    private lppSvc: LotePosturaProduccionService
+    private lppSvc: LotePosturaProduccionService,
+    /** Capturas offline de este lote que el servidor todavía no vio (F3). */
+    private capturasPendientesSrv: CapturasPendientesLoteService
   ) {}
+
+  /**
+   * Relee del outbox qué capturas de este lote siguen sin enviar.
+   *
+   * ⚠️ Se pasan **los dos** ids: el payload lleva `lotePosturaProduccionId` en el flujo LPP y
+   * `produccionLoteId` en el legacy, y **sus valores son distintos**. Con uno solo, la mitad de las
+   * capturas no aparecería — sin error y sin aviso.
+   */
+  private refrescarCapturasPendientes(): void {
+    void this.capturasPendientesSrv
+      .resumir('seguimiento_produccion_crear', {
+        lotePosturaProduccionId: this.selectedLoteLPP ? this.selectedLoteId : null,
+        produccionLoteId: this.currentProduccionLoteId
+      })
+      .then(capturas => (this.capturasPendientes = capturas));
+  }
 
   // ============ Cierre / reapertura del lote de PRODUCCIÓN ============
 
@@ -407,6 +433,7 @@ export class LoteProduccionListComponent implements OnInit {
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.selectedLote = null;
     this.produccionLote = null;
     this.currentProduccionLoteId = null;
@@ -481,6 +508,11 @@ export class LoteProduccionListComponent implements OnInit {
 
   private loadSeguimientos(): void {
     if (!this.selectedLoteId) return;
+
+    // Va acá y no en `onLoteChange`: `selectedLoteLPP` y `currentProduccionLoteId` se resuelven de
+    // forma asíncrona después del cambio de lote, así que allá todavía valen null. Además
+    // `loadSeguimientos` es el punto por el que pasan también el guardado y el cambio de filtros.
+    this.refrescarCapturasPendientes();
 
     const query = this.selectedLoteLPP
       ? { lotePosturaProduccionId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 0 }

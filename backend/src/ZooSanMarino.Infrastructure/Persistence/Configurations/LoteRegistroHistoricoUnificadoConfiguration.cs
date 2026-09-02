@@ -28,7 +28,7 @@ public class LoteRegistroHistoricoUnificadoConfiguration : IEntityTypeConfigurat
         b.Property(x => x.OrigenId).HasColumnName("origen_id").IsRequired();
 
         b.Property(x => x.MovementTypeOriginal).HasColumnName("movement_type_original").HasMaxLength(40);
-        b.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id");
+        b.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_id");
         b.Property(x => x.ItemResumen).HasColumnName("item_resumen").HasMaxLength(400);
 
         b.Property(x => x.CantidadKg).HasColumnName("cantidad_kg").HasColumnType("numeric(18,3)");

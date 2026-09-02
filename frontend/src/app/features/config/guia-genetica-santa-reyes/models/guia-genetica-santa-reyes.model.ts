@@ -10,7 +10,7 @@
  *
  * | Pantalla | Ruta | Tabla | Modelo |
  * |---|---|---|---|
- * | Pollo Engorde | `/config/guia-genetica-ecuador` | `guia_genetica_ecuador_header/_detalle` | eje DÍA, sexo por fila |
+ * | Pollo Engorde | `/config/guia-genetica-engorde` | `guia_genetica_ecuador_header/_detalle` | eje DÍA, sexo por fila |
  * | Sanmarino | `/config/guia-genetica` | `guia_genetica_sanmarino_colombia` | ~50 columnas, todo `text` |
  * | **Santa Reyes (ésta)** | `/config/guia-genetica-santa-reyes` | `guia_genetica_santa_reyes` | plana: 3 métricas numéricas |
  *

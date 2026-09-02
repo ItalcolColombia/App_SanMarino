@@ -7,7 +7,7 @@
 -- función ya resuelve edad_dia, semana, saldo_aves (incluye ventas), consumo
 -- diario/acumulado y despachos. Aquí SOLO se agrega por semana.
 --
--- Columnas "Tabla": estándar de guia_genetica_ecuador_detalle (sexo='mixto').
+-- Columnas "Tabla": estándar de guia_genetica_detalle (sexo='mixto').
 -- Cada columna es la SUMA de los 7 días de la semana de vida correspondiente.
 -- Si el lote no tiene raza/ano_tabla_genetica o no hay header activo para
 -- esa raza/año/empresa, las columnas Tabla y pct_* quedan NULL.
@@ -22,7 +22,7 @@
 --   p_fecha_hasta : NULL = sin tope superior
 --
 -- v1 (2026-06-23) — versión inicial (Tabla = NULL placeholder).
--- v2 (2026-06-23) — conecta guia_genetica_ecuador_detalle (mixto, suma 7 días).
+-- v2 (2026-06-23) — conecta guia_genetica_detalle (mixto, suma 7 días).
 -- =============================================================================
 
 DROP FUNCTION IF EXISTS public.fn_informe_semanal_pollo_engorde(INT, INT[], TEXT, TEXT, INT, DATE, DATE);
@@ -75,7 +75,7 @@ RETURNS TABLE (
     -- Agua
     agua_ml               NUMERIC,
     relacion_agua         NUMERIC,
-    -- Tabla genética (guia_genetica_ecuador_detalle, sexo='mixto', SUMA de los 7 días)
+    -- Tabla genética (guia_genetica_detalle, sexo='mixto', SUMA de los 7 días)
     consumo_tabla_g       NUMERIC,
     peso_tabla_g          NUMERIC,
     ganancia_tabla_g      NUMERIC,
@@ -176,14 +176,14 @@ tabla_gen AS (
         SUM(d.ca)::numeric                                  AS conversion_tabla,
         SUM(d.mortalidad_seleccion_diaria)::numeric         AS mortalidad_tabla_pct
     FROM lotes lo
-    JOIN public.guia_genetica_ecuador_header h
+    JOIN public.guia_genetica_header h
         ON h.company_id  = p_company_id
        AND h.raza        = lo.raza
        AND h.anio_guia   = lo.ano_tabla_genetica
        AND h.deleted_at  IS NULL
        AND h.estado      = 'active'
-    JOIN public.guia_genetica_ecuador_detalle d
-        ON d.guia_genetica_ecuador_header_id = h.id
+    JOIN public.guia_genetica_detalle d
+        ON d.guia_genetica_header_id = h.id
        AND d.sexo        = 'mixto'
        AND d.deleted_at  IS NULL
     WHERE lo.raza IS NOT NULL
@@ -265,4 +265,4 @@ ORDER BY w.semana, lo.granja_nombre, lo.lote_nombre;
 $$;
 
 COMMENT ON FUNCTION public.fn_informe_semanal_pollo_engorde(INT, INT[], TEXT, TEXT, INT, DATE, DATE) IS
-  'Informe Semanal Pollo Engorde (Panamá): 1 fila por (lote, semana de vida). Reales desde seguimiento_diario_aves_engorde + movimiento_pollo_engorde (vía fn_seguimiento_diario_engorde). Tabla genética = guia_genetica_ecuador_detalle (sexo=mixto, SUMA 7 días). Filtrar por company_id (oblig.), granja_ids[], nucleo_id, galpon_id, lote_id, fechas.';
+  'Informe Semanal Pollo Engorde (Panamá): 1 fila por (lote, semana de vida). Reales desde seguimiento_diario_aves_engorde + movimiento_pollo_engorde (vía fn_seguimiento_diario_engorde). Tabla genética = guia_genetica_detalle (sexo=mixto, SUMA 7 días). Filtrar por company_id (oblig.), granja_ids[], nucleo_id, galpon_id, lote_id, fechas.';

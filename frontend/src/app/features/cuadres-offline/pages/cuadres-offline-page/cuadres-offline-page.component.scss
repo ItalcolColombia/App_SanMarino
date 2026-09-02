@@ -1,0 +1,155 @@
+/* Bandeja de cuadre de capturas offline. Tokens del tema Italfoods (nada hardcodeado): el naranja es
+   de acento, el rojo sólo para el error de carga. */
+
+.cuadres-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+
+  .ux-card__header {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--ital-green-50);
+  }
+
+  .ux-card__header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--ital-orange-dark);
+  }
+
+  .ux-card__body {
+    padding: 1rem;
+  }
+}
+
+.cuadres-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  padding: clamp(1rem, 2.5vw, 1.35rem) clamp(1rem, 2.5vw, 1.5rem);
+  border-radius: 14px;
+  border: 1px solid var(--ital-green-100);
+  background: linear-gradient(135deg, #fff 0%, var(--ital-cream-50) 55%, #fff 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 10px 28px rgba(245, 130, 31, 0.08);
+}
+
+.cuadres-page__header-text {
+  flex: 1 1 min(0, 42rem);
+  min-width: 0;
+}
+
+.cuadres-page__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.cuadres-page__title {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  font-weight: 800;
+}
+
+.cuadres-page__subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ital-gray-600, #4b5563);
+}
+
+/* El aviso de que resolver NO repone kilos. Va antes de la tabla a propósito: es lo que evita que
+   alguien apriete el botón esperando que corrija el stock. */
+.cuadres-page__aviso {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--ital-orange-200, #fed7aa);
+  border-left: 4px solid var(--ital-orange, #f5821f);
+  background: var(--ital-cream-50, #faf8f5);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ital-gray-700, #374151);
+}
+
+.cuadres-page__contador {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: var(--ital-orange, #f5821f);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cuadres-page__estado {
+  margin: 0;
+  padding: 1.5rem 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--ital-gray-600, #4b5563);
+}
+
+.cuadres-page__estado--error {
+  color: var(--ital-red-700, #b91c1c);
+}
+
+/* La tabla scrollea dentro de su contenedor: en una tablet el ancho no puede empujar la página. */
+.cuadres-page__tabla-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.cuadres-page__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--ital-green-50, #e8f1ea);
+  }
+
+  th {
+    font-weight: 700;
+    color: var(--ital-orange-dark, #c2410c);
+    white-space: nowrap;
+  }
+
+  tbody tr:hover {
+    background: var(--ital-cream-50, #faf8f5);
+  }
+}
+
+/* El detalle es el texto que hace accionable la fila («faltaban 40 kg de X»): se le da aire y se
+   deja envolver, en vez de truncarlo. */
+.cuadres-page__detalle {
+  min-width: 18rem;
+  line-height: 1.45;
+}
+
+.cuadres-page__device {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.cuadres-page__acciones {
+  white-space: nowrap;
+  text-align: right;
+}

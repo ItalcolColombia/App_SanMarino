@@ -90,3 +90,19 @@ export interface EstadoOutbox {
   rechazadas: number;
   masAntigua: number | null;
 }
+
+/**
+ * Lo que la pantalla de un lote necesita saber de una captura sin enviar: qué día es y si quedó
+ * rechazada. **A propósito NO trae el payload ni ningún número capturado** — ver el doc-comment de
+ * `resumirCapturasPendientes`: un número que el servidor nunca vio, mostrado junto a los que sí,
+ * termina en el Excel y en los indicadores como si fuera real.
+ */
+export interface CapturaPendienteResumen {
+  clientOpId: string;
+  /** Fecha del registro capturado (`YYYY-MM-DD`), o `null` si el payload no la trae. */
+  fecha: string | null;
+  /** Momento de la captura en el dispositivo (ISO). Desempata el orden. */
+  capturadoAt: string;
+  /** El servidor la rechazó: necesita que una persona la mire en `/diagnostico`. */
+  rechazada: boolean;
+}

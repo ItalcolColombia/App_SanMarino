@@ -1,7 +1,7 @@
 -- Historial unificado por lote Ave Engorde: inventario EC (ingresos, traslados, consumos)
 -- y movimientos de venta de aves (Movimiento Pollo Engorde), con triggers AFTER INSERT.
 -- Ejecutar en PostgreSQL tras existir: lote_ave_engorde, inventario_gestion_movimiento,
--- item_inventario_ecuador, movimiento_pollo_engorde.
+-- item_inventario, movimiento_pollo_engorde.
 
 -- 1) Tabla destino
 CREATE TABLE IF NOT EXISTS public.lote_registro_historico_unificado (
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.lote_registro_historico_unificado (
     origen_tabla                VARCHAR(80) NOT NULL,
     origen_id                   INTEGER NOT NULL,
     movement_type_original      VARCHAR(40) NULL,
-    item_inventario_ecuador_id  INTEGER NULL,
+    item_inventario_id  INTEGER NULL,
     item_resumen                VARCHAR(400) NULL,
     cantidad_kg                 NUMERIC(18, 3) NULL,
     unidad                      VARCHAR(20) NULL,
@@ -139,13 +139,13 @@ BEGIN
 
     SELECT CONCAT(i.codigo, ' — ', i.nombre)
     INTO v_item_txt
-    FROM public.item_inventario_ecuador i
-    WHERE i.id = NEW.item_inventario_ecuador_id;
+    FROM public.item_inventario i
+    WHERE i.id = NEW.item_inventario_id;
 
     INSERT INTO public.lote_registro_historico_unificado (
         company_id, lote_ave_engorde_id, farm_id, nucleo_id, galpon_id, silo_id,
         fecha_operacion, tipo_evento, origen_tabla, origen_id,
-        movement_type_original, item_inventario_ecuador_id, item_resumen,
+        movement_type_original, item_inventario_id, item_resumen,
         cantidad_kg, unidad, referencia, numero_documento,
         acumulado_entradas_alimento_kg, para_proximo_ciclo
     ) VALUES (
@@ -160,7 +160,7 @@ BEGIN
         'inventario_gestion_movimiento',
         NEW.id,
         NEW.movement_type,
-        NEW.item_inventario_ecuador_id,
+        NEW.item_inventario_id,
         v_item_txt,
         NEW.quantity,
         NEW.unit,
@@ -234,7 +234,7 @@ BEGIN
     INSERT INTO public.lote_registro_historico_unificado (
         company_id, lote_ave_engorde_id, farm_id, nucleo_id, galpon_id,
         fecha_operacion, tipo_evento, origen_tabla, origen_id,
-        movement_type_original, item_inventario_ecuador_id, item_resumen,
+        movement_type_original, item_inventario_id, item_resumen,
         cantidad_kg, unidad,
         cantidad_hembras, cantidad_machos, cantidad_mixtas,
         peso_neto, peso_tara_real, promedio_peso_ave,

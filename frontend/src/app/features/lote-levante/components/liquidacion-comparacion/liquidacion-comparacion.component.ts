@@ -15,7 +15,7 @@ import { ActiveCompanyConfigService } from '../../../../core/services/company-co
 export class LiquidacionComparacionComponent implements OnInit, OnChanges {
   @Input() loteId: number | null = null;
   @Input() fechaHasta?: string;
-  /** true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador). */
+  /** true cuando loteId es LoteAveEngordeId (módulo aves de engorde). */
   @Input() esLoteAveEngorde: boolean = false;
 
   comparacion: LiquidacionTecnicaComparacionDto | null = null;

@@ -212,6 +212,7 @@ builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<ICompanyPermissionService, CompanyPermissionService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>(); // dashboard: alcance por empresa + ubicación
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();
 builder.Services.AddScoped<ILoteService, LoteService>();
@@ -257,7 +258,7 @@ builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevant
 builder.Services.AddScoped<ISyncPushService, SyncPushService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
-builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
+builder.Services.AddScoped<ISeguimientoDiarioEngordeService, SeguimientoDiarioEngordeService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
@@ -317,7 +318,7 @@ builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
 // Indicador Ecuador Service
-builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
+builder.Services.AddScoped<IIndicadorEngordeService, IndicadorEngordeService>();
 
 // Informe Semanal Pollo de Engorde (Panamá)
 builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPolloEngordeService>();
@@ -336,7 +337,7 @@ builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanam
 
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
-builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEngordeService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEngordeService>();
 
 // Liquidación Cierre Lote Levante
 builder.Services.AddScoped<ILiquidacionCierreLoteLevanteService, LiquidacionCierreLoteLevanteService>();
@@ -361,7 +362,7 @@ builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableE
 
 // Guía Genética Service
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
-builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorService>();
+builder.Services.AddScoped<IGuiaGeneticaEngordeService, GuiaGeneticaEngordeService>();
 
 // Guía Genética REDUCIDA (guia_genetica_santa_reyes): la puerta de escritura que la tabla no tenía.
 builder.Services.AddScoped<IGuiaGeneticaSantaReyesService, GuiaGeneticaSantaReyesService>();

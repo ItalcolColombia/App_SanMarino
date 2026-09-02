@@ -140,12 +140,14 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ProfileComponent)
       },
       {
+        // Los paneles de adentro cargan solos con @defer (on viewport): el que no se scrollea
+        // no dispara su request. No lleva `permissionGuard`: quien entra ve los paneles de los
+        // modulos que tiene en su menu, y si no tiene ninguno la pagina se lo dice.
         path: 'dashboard',
         canActivate: [authGuard],
-        // 👇 LAZY LOAD del componente standalone
         loadComponent: () =>
-          import('./features/dashboard/dashboard.component')
-            .then(m => m.DashboardComponent)
+          import('./features/dashboard/pages/dashboard-page/dashboard-page.component')
+            .then(m => m.DashboardPageComponent)
       },
 
 
@@ -501,12 +503,17 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.GuiaGeneticaFormComponent)
           },
 
+          // Guía genética de POLLO ENGORDE (tabla compartida por todas las empresas y países: su
+          // header tiene pais_id, y la Ross 308 AP de Panamá vive ahí). Se llamaba
+          // 'guia-genetica-ecuador'; esa URL queda como REDIRECT porque es la que tiene el menú
+          // guardado en BD, y el menú no se puede mover antes que el bundle.
           {
-            path: 'guia-genetica-ecuador',
+            path: 'guia-genetica-engorde',
             loadComponent: () =>
-              import('./features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component')
-                .then(m => m.GuiaGeneticaEcuadorPageComponent)
+              import('./features/config/guia-genetica-engorde/guia-genetica-engorde-page/guia-genetica-engorde-page.component')
+                .then(m => m.GuiaGeneticaEngordePageComponent)
           },
+          { path: 'guia-genetica-ecuador', redirectTo: 'guia-genetica-engorde', pathMatch: 'full' },
 
           // Guía genética REDUCIDA (guia_genetica_santa_reyes) — tabla plana de 3 métricas por
           // raza/año/semana. Es la TERCERA pantalla de guía genética, y son tres a propósito: cada
@@ -552,14 +559,17 @@ export const appConfig: ApplicationConfig = {
         ]
       },
       
-      // Indicador Ecuador (ruta independiente)
+      // Indicador de pollo engorde (ruta independiente). Se llamaba 'indicador-ecuador' pero nunca
+      // fue de Ecuador: adentro viven los reportes de corrida y de liquidación de Panamá. La URL
+      // vieja queda como REDIRECT porque es la que tiene el menú guardado en BD.
       {
-        path: 'indicador-ecuador',
+        path: 'indicador-engorde',
         canActivate: [authGuard],
         loadChildren: () =>
-          import('./features/indicador-ecuador/indicador-ecuador.module')
-            .then(m => m.IndicadorEcuadorModule)
+          import('./features/indicador-engorde/indicador-engorde.module')
+            .then(m => m.IndicadorEngordeModule)
       },
+      { path: 'indicador-ecuador', redirectTo: 'indicador-engorde', pathMatch: 'prefix' },
 
       // Informe Semanal Pollo de Engorde (Panamá)
       {
@@ -616,6 +626,16 @@ export const appConfig: ApplicationConfig = {
         loadChildren: () =>
           import('./features/gestion-inventario/gestion-inventario.module')
             .then(m => m.GestionInventarioModule)
+      },
+
+      // Bandeja de cuadre de las capturas offline (PWA F7): capturas que se guardaron SIN descontar
+      // inventario porque al llegar al servidor no había stock. Es de supervisión y se mira con red.
+      {
+        path: 'cuadres-offline',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/cuadres-offline/pages/cuadres-offline-page/cuadres-offline-page.component')
+            .then(m => m.CuadresOfflinePageComponent)
       },
 
       // Gastos de Inventario (Ecuador): consumos por concepto (no alimentos), stock por granja

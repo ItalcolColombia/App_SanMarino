@@ -15,7 +15,7 @@ export class ModalLiquidacionComponent implements OnInit {
   @Input() isOpen: boolean = false;
   @Input() loteId: number | null = null;
   @Input() loteNombre: string = '';
-  /** true cuando el lote es LoteAveEngordeId (módulo aves de engorde / Ecuador). */
+  /** true cuando el lote es LoteAveEngordeId (módulo aves de engorde). */
   @Input() esLoteAveEngorde: boolean = false;
 
   @Output() close = new EventEmitter<void>();

@@ -143,7 +143,7 @@ UPDATE liquidacion_lote_engorde_congelada
     /// <summary>
     /// Cálculo EN VIVO del resumen de liquidación. Es el cuerpo que antes vivía DUPLICADO en
     /// <c>SeguimientoAvesEngordeService.Consultas</c> y
-    /// <c>SeguimientoAvesEngordeEcuadorService.Consultas</c> (byte a byte): centralizado acá para
+    /// <c>SeguimientoDiarioEngordeService.Consultas</c> (byte a byte): centralizado acá para
     /// que el cierre, el re-congelado y los dos services usen la MISMA fórmula
     /// (<see cref="LiquidacionEngordeCalculos"/>). Devuelve null si el lote no existe.
     /// </summary>

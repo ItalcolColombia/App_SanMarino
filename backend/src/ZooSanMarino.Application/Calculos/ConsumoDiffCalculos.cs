@@ -43,7 +43,7 @@ public readonly record struct MovimientoConsumo(ItemConsumoKey Clave, decimal Di
 /// </para>
 /// <list type="bullet">
 ///   <item><c>Services/SeguimientoLoteLevante/Funciones/SeguimientoLoteLevanteService.Crud.cs</c></item>
-///   <item><c>Services/SeguimientoAvesEngordeEcuador/Funciones/SeguimientoAvesEngordeEcuadorService.Crud.cs</c></item>
+///   <item><c>Services/SeguimientoDiarioEngorde/Funciones/SeguimientoDiarioEngordeService.Crud.cs</c></item>
 ///   <item><c>Services/Funciones/ProduccionService.Seguimiento.cs</c></item>
 /// </list>
 ///

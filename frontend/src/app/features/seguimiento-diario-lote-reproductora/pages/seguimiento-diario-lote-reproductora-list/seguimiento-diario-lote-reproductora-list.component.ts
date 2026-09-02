@@ -2,6 +2,9 @@
 // Filtros: Granja → Núcleo → Galpón → Lote Aves Engorde → Lote Reproductora.
 // API: SeguimientoDiarioLoteReproductora (tabla seguimiento_diario_lote_reproductora_aves_engorde).
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
+import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
+import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -45,7 +48,8 @@ import { faPlus, faPen, faTrash, faFilter, faEye, faCheck, faLock } from '@forta
     FontAwesomeModule,
     ShowIfCountryDirective,
     HasPermissionDirective,
-    LesionTabComponent
+    LesionTabComponent,
+    FilaCapturaPendienteComponent
   ],
   templateUrl: './seguimiento-diario-lote-reproductora-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -80,6 +84,12 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   hasSinGalpon = false;
   seguimientos: SeguimientoLoteLevanteDto[] = [];
+
+  /**
+   * Capturas de ESTE lote reproductora guardadas sin red y sin enviar. Va aparte de `seguimientos`:
+   * ese arreglo alimenta los cálculos de la pantalla y el servidor nunca vio estas filas.
+   */
+  capturasPendientes: CapturaPendienteResumen[] = [];
   loading = false;
   /** UI: pestaña activa dentro del módulo (seguimiento, lesiones) */
   activeTab: 'seguimiento' | 'lesiones' = 'seguimiento';
@@ -211,8 +221,25 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
     private aviso: AvisoValidacionService,
     private lesionSvc: LesionService,
-    private permSvc: UserPermissionService
+    private permSvc: UserPermissionService,
+    /** Capturas offline de este lote que el servidor todavía no vio (F3). */
+    private capturasPendientesSrv: CapturasPendientesLoteService
   ) {}
+
+  /**
+   * Relee del outbox qué capturas de este lote reproductora siguen sin enviar.
+   *
+   * ⚠️ Dos cosas propias de esta pantalla: el tipo es `seguimiento_reproductora_engorde_crear` —el
+   * cuerpo es idéntico al de pollo engorde y **sólo el tipo las separa**— y el lote se identifica
+   * por `reproductoraId`, no por `loteId` (que en este payload es el lote BASE).
+   */
+  private refrescarCapturasPendientes(): void {
+    void this.capturasPendientesSrv
+      .resumir('seguimiento_reproductora_engorde_crear', {
+        reproductoraId: this.selectedLoteReproductoraId
+      })
+      .then(capturas => (this.capturasPendientes = capturas));
+  }
 
   /** True si el usuario puede confirmar registros. */
   get canConfirmar(): boolean {
@@ -338,8 +365,10 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   onLoteReproductoraChange(): void {
     this.seguimientos = [];
+    this.capturasPendientes = [];
     this.selectedReproductoraDetail = null;
     if (!this.selectedLoteReproductoraId) return;
+    this.refrescarCapturasPendientes();
     this.loading = true;
     const granjaId = this.getGranjaIdForModal();
     const repId = this.selectedLoteReproductoraId;
@@ -589,6 +618,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   /** Recarga los registros y el detalle del lote reproductora seleccionado. */
   private reloadCurrent(): void {
     if (this.selectedLoteReproductoraId == null) return;
+    // Tras guardar sin red la fila no está en el servidor: esto la trae del outbox.
+    this.refrescarCapturasPendientes();
     this.segSvc.getByLoteReproductoraId(this.selectedLoteReproductoraId).subscribe({
       next: rows => (this.seguimientos = rows ?? [])
     });

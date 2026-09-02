@@ -20,7 +20,25 @@ public interface IInventarioGastoService
 
     Task<InventarioGastoDto> GetByIdAsync(int id, CancellationToken ct = default);
 
-    Task<InventarioGastoDto> CreateAsync(CreateInventarioGastoRequest req, CancellationToken ct = default);
+    /// <param name="sinDescontarStock">
+    /// H4 / F7 — <b>sólo para el push offline</b> (<c>SyncPushService</c>). Registra el gasto y sus
+    /// líneas <b>sin mover el inventario</b>, y sin validar que alcance.
+    ///
+    /// <para>
+    /// Existe porque una captura hecha sin red llega horas después, cuando el ítem ya puede no estar
+    /// en la granja. El consumo <b>ocurrió físicamente</b>; lo que está atrasado es el número del
+    /// sistema. Rechazar la captura mandaría a la bandeja un dato de campo real y lo dejaría varado,
+    /// que es lo que §5.5 del plan madre prohíbe. La fila queda marcada <c>requiere_cuadre</c> y
+    /// aparece en la bandeja para que una persona cargue el ingreso que falta.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Nunca lo pase el controller.</b> Con red hay que ver el error: no existe el caso de un
+    /// gasto que el usuario acepte guardar sabiendo que el stock no da. Y no descuenta "hasta donde
+    /// alcance": un consumo parcial inventa un número que nadie capturó.
+    /// </para>
+    /// </param>
+    Task<InventarioGastoDto> CreateAsync(CreateInventarioGastoRequest req, CancellationToken ct = default, bool sinDescontarStock = false);
 
     Task DeleteAsync(int id, string? motivo, CancellationToken ct = default);
 

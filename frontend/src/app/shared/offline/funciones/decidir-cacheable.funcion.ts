@@ -50,7 +50,7 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
   'catalogo-alimentos',
   'item-inventario-ecuador',
   'guia-genetica',
-  'guia-genetica-ecuador',
+  'guia-genetica-engorde',
   'produccionavicolaraw',
   'clientes',
   'lesiones',
@@ -59,7 +59,11 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
   // Seguimiento diario: el corazón de la operación en granja.
   'seguimientolotelevante',
   'seguimientoavesengorde',
-  'seguimientoavesengordeecuador',
+  // El CRUD del seguimiento diario de engorde. Va SOLO la ruta neutra: esta lista se compila
+  // dentro del bundle, asi que un dispositivo con el bundle anterior lleva su propia copia con el
+  // nombre viejo. Repetir aca la ruta historica no protegeria a nadie y quedaria como entrada
+  // muerta — que es justo lo que el gate `verificar-lista-cacheable.js` corta.
+  'seguimiento-diario-engorde',
   'seguimientodiariolotereproductora',
   'seguimientoproduccion',
   'loteseguimiento',
@@ -102,11 +106,17 @@ const EXCLUIDOS: readonly string[] = [
   'liquidacioncierrelotelevante',
   'liquidaciontecnica',
   'liquidaciontecnicacomparacion',
-  'liquidaciontecnicaecuador',
+  // La liquidacion tecnica de POLLO ENGORDE. El match es EXACTO sobre el primer segmento, asi que
+  // 'liquidaciontecnica' NO la cubre: sin esta linea el gate corta el CI por "endpoint sin decision".
+  'liquidaciontecnicaengorde',
 
-  // El push de la cola offline (F3). No es una consulta: es la escritura misma. Guardar su
-  // respuesta no tendría sentido, y servirla desde caché haría creer que se sincronizó algo que
-  // nunca salió del dispositivo.
+  // Todo el recurso `Sync`, por dos motivos distintos:
+  //   · `push` (F3) no es una consulta: es la escritura misma. Guardar su respuesta no tendría
+  //     sentido, y servirla desde caché haría creer que se sincronizó algo que nunca salió del
+  //     dispositivo.
+  //   · `cuadres` (F7) es la bandeja de supervisión: se mira desde una oficina con red, y servirla
+  //     vieja mostraría como pendiente algo que otro supervisor ya resolvió — o escondería lo que
+  //     entró después. Una bandeja desactualizada es peor que una bandeja que pide conexión.
   'sync',
 
   // Doble validación: es un gate de negocio, no un dato de operación. Cachear `configuracion`
@@ -142,7 +152,7 @@ const EXCLUIDOS: readonly string[] = [
   'reportetecnicoproduccion',
   'reportetecnicosemanal',
   'reporteindicadorpanama',
-  'indicadorecuador',
+  'indicadorengorde',
   'informesemanalpolloengorde',
   'vacunacionreportes',
 
@@ -154,7 +164,7 @@ const EXCLUIDOS: readonly string[] = [
   'cuadrealimentoengorde',
 
   // Guía genética REDUCIDA de Santa Reyes. Sus dos hermanas (`guia-genetica`,
-  // `guia-genetica-ecuador`) sí se cachean porque las leen pantallas de campo —los indicadores de
+  // `guia-genetica-engorde`) sí se cachean porque las leen pantallas de campo —los indicadores de
   // engorde y el form de lote las piden para calcular—; ésta no la pide nadie más que su propia
   // pantalla de administración (`/config/guia-genetica-santa-reyes`), que es de oficina: crear,
   // editar e importar exigen red y el permiso `guia_genetica.gestionar`. Los indicadores de postura

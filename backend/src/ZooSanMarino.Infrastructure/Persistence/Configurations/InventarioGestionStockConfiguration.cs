@@ -19,7 +19,7 @@ public class InventarioGestionStockConfiguration : IEntityTypeConfiguration<Inve
         e.Property(x => x.FarmId).HasColumnName("farm_id").IsRequired();
         e.Property(x => x.NucleoId).HasColumnName("nucleo_id").HasMaxLength(50);
         e.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(50);
-        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
+        e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_id").IsRequired();
         // Ubicación real del alimento en las empresas con maneja_inventario_por_silo. Sin navegación
         // a propósito: el silo se resuelve por servicio (scoping fail-closed por granja) y una
         // relación acá arrastraría includes que ninguna lectura necesita.
@@ -37,7 +37,10 @@ public class InventarioGestionStockConfiguration : IEntityTypeConfiguration<Inve
         e.HasIndex(x => x.PaisId).HasDatabaseName("ix_inventario_gestion_stock_pais_id");
 
         e.HasOne(x => x.Farm).WithMany().HasForeignKey(x => x.FarmId).OnDelete(DeleteBehavior.Restrict);
-        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
+        // Nombre FIJO (ver ItemInventarioConfiguration): la constraint real de la base no coincide con
+        // la que EF deriva, asi que sin fijarla el rename de la columna generaria un DDL imposible.
+        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId)
+            .HasConstraintName("fk_igs_item_inventario").OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Pais).WithMany().HasForeignKey(x => x.PaisId).OnDelete(DeleteBehavior.Restrict);
     }

@@ -87,8 +87,8 @@ Se crea un **servicio y API específicos para Ecuador** que usan **lote_ave_engo
 
 #### Interfaz y servicio
 
-- **Interfaz:** `ZooSanMarino.Application/Interfaces/ILiquidacionTecnicaEcuadorService.cs`
-- **Implementación:** `ZooSanMarino.Infrastructure/Services/LiquidacionTecnicaEcuadorService.cs`
+- **Interfaz:** `ZooSanMarino.Application/Interfaces/ILiquidacionTecnicaEngordeService.cs`
+- **Implementación:** `ZooSanMarino.Infrastructure/Services/LiquidacionTecnicaEngordeService.cs`
 
 Métodos (todos reciben **loteAveEngordeId** y opcionalmente **fechaHasta**):
 
@@ -109,8 +109,8 @@ Lógica interna:
 
 #### Controlador
 
-- **Archivo:** `ZooSanMarino.API/Controllers/LiquidacionTecnicaEcuadorController.cs`
-- **Ruta base:** `api/LiquidacionTecnicaEcuador`
+- **Archivo:** `ZooSanMarino.API/Controllers/LiquidacionTecnicaEngordeController.cs`
+- **Ruta base:** `api/LiquidacionTecnicaEngorde` (la histórica `api/LiquidacionTecnicaEcuador` sigue viva como **alias** del mismo controller, para los clientes ya desplegados).
 
 | Método HTTP | Ruta | Descripción |
 |-------------|------|-------------|
@@ -123,13 +123,13 @@ Lógica interna:
 #### Registro
 
 - En **Program.cs** se registra:  
-  `ILiquidacionTecnicaEcuadorService` → `LiquidacionTecnicaEcuadorService`.
+  `ILiquidacionTecnicaEngordeService` → `LiquidacionTecnicaEngordeService`.
 
 ### Frontend
 
 - **Servicios:**  
-  - `LiquidacionTecnicaService`: métodos `getLiquidacionTecnica` y `getLiquidacionCompleta` aceptan un tercer parámetro **useEcuador**. Si es `true`, las peticiones van a `api/LiquidacionTecnicaEcuador`.  
-  - `LiquidacionComparacionService`: `compararConGuiaGenetica` y `obtenerComparacionCompleta` con **useEcuador**; si es `true`, usan `api/LiquidacionTecnicaEcuador/lote/{id}` y `.../lote/{id}/completa`.
+  - `LiquidacionTecnicaService`: métodos `getLiquidacionTecnica` y `getLiquidacionCompleta` aceptan un tercer parámetro **useEngorde**. Si es `true`, las peticiones van a `api/LiquidacionTecnicaEngorde`.  
+  - `LiquidacionComparacionService`: `compararConGuiaGenetica` y `obtenerComparacionCompleta` con **useEngorde**; si es `true`, usan `api/LiquidacionTecnicaEngorde/lote/{id}` y `.../lote/{id}/completa`.
 - **Modal:**  
   - `ModalLiquidacionComponent` tiene un **@Input() esLoteAveEngorde**. Se pasa a `app-liquidacion-tecnica` y `app-liquidacion-comparacion`.
 - **Componentes de liquidación:**  
@@ -150,7 +150,7 @@ Lógica interna:
 |------|----------|
 | **Error duplicado** | `SeguimientoAvesEngordeController.cs`, `seguimiento-aves-engorde-list.component.ts/html` |
 | **Aves disponibles** | `LoteReproductoraAveEngordeService.cs`, `seguimiento-aves-engorde-list.component.html` (texto) |
-| **Liquidación Ecuador** | `ILiquidacionTecnicaEcuadorService.cs`, `LiquidacionTecnicaEcuadorService.cs`, `LiquidacionTecnicaEcuadorController.cs`, `Program.cs`, `liquidacion-tecnica.service.ts`, `liquidacion-comparacion.service.ts`, `modal-liquidacion.component.ts/html`, `liquidacion-tecnica.component.ts`, `liquidacion-comparacion.component.ts`, `seguimiento-aves-engorde-list.component.html` |
+| **Liquidación Ecuador** | `ILiquidacionTecnicaEngordeService.cs`, `LiquidacionTecnicaEngordeService.cs`, `LiquidacionTecnicaEngordeController.cs`, `Program.cs`, `liquidacion-tecnica.service.ts`, `liquidacion-comparacion.service.ts`, `modal-liquidacion.component.ts/html`, `liquidacion-tecnica.component.ts`, `liquidacion-comparacion.component.ts`, `seguimiento-aves-engorde-list.component.html` |
 
 ---
 

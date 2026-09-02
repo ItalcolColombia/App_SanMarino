@@ -14,7 +14,7 @@
 //
 // POR QUÉ RECALCULA DESDE LA FUNCIÓN SQL Y NO EN C#
 // Había TRES implementaciones del saldo (la fn, SeguimientoAvesEngordeService para la carga masiva y
-// SeguimientoAvesEngordeEcuadorService para el formulario diario) y su divergencia fue justamente la
+// SeguimientoDiarioEngordeService para el formulario diario) y su divergencia fue justamente la
 // causa de que el dato guardado y la pantalla mostraran números distintos. La fn es la fuente de
 // verdad validada contra el stock físico, así que el saldo persistido se escribe DESDE ella: la
 // columna pasa a ser, por construcción, idéntica a lo que ve el usuario. Es el mismo SQL que corre la

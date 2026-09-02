@@ -3,7 +3,7 @@
 //
 // UNA SOLA IMPLEMENTACIÓN (jul-2026)
 // Antes había TRES aritméticas del mismo saldo: `fn_seguimiento_diario_engorde`, este service y
-// SeguimientoAvesEngordeEcuadorService. Divergieron —ventana previa al encaset, piso en 0, exclusión
+// SeguimientoDiarioEngordeService. Divergieron —ventana previa al encaset, piso en 0, exclusión
 // del ciclo anterior— y esa divergencia fue la causa directa de que el dato guardado y la pantalla
 // mostraran números distintos: Kilometro 22 / G0036 tenía 11.380 kg guardados contra 3.420 en pantalla.
 //

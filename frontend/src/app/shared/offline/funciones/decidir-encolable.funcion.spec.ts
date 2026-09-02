@@ -41,7 +41,14 @@ describe('decidirEncolable', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/indicadores-semanales')).toBeNull();
     });
 
-    it('reconoce el alta de POLLO ENGORDE', () => {
+    it('reconoce el alta de POLLO ENGORDE por la ruta neutra Y por la historica', () => {
+      // La ruta neutra es la que manda el bundle nuevo; la historica sigue viva como alias del
+      // controller. Un dispositivo con el bundle viejo, o con capturas ya encoladas contra la vieja,
+      // tiene que seguir encolando igual: si solo matcheara una, esas capturas se perderian.
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde'))
+        .toBe('seguimiento_engorde_crear');
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/'))
+        .toBe('seguimiento_engorde_crear');
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador'))
         .toBe('seguimiento_engorde_crear');
     });
@@ -49,6 +56,21 @@ describe('decidirEncolable', () => {
     it('reconoce el alta de la REPRODUCTORA de pollo engorde', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoDiarioLoteReproductora'))
         .toBe('seguimiento_reproductora_engorde_crear');
+    });
+
+    it('reconoce el alta de GASTO DE INVENTARIO (H4)', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/inventario-gastos'))
+        .toBe('gasto_inventario_crear');
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/inventario-gastos/'))
+        .toBe('gasto_inventario_crear');
+    });
+
+    it('🔑 NO encola los sub-recursos de gastos de inventario', () => {
+      // Son LECTURAS que alimentan el formulario. Encolar una devolveria un 202 sintetico en vez de
+      // la lista de items, y el formulario se quedaria vacio creyendo que guardo algo.
+      for (const sub of ['items', 'existencias', 'filter-data', 'conceptos', 'export']) {
+        expect(resolverTipoOperacion('POST', `http://localhost:5002/api/inventario-gastos/${sub}`)).toBeNull();
+      }
     });
 
     it('🔑 engorde y levante NO se confunden aunque compartan el cuerpo', () => {
@@ -61,6 +83,8 @@ describe('decidirEncolable', () => {
     it('NO encola la carga masiva ni los sub-recursos de engorde', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/bulk')).toBeNull();
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/cuadrar-saldos')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/bulk')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/seguimiento-diario-engorde/cuadrar-saldos')).toBeNull();
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoDiarioLoteReproductora/bulk')).toBeNull();
     });
 

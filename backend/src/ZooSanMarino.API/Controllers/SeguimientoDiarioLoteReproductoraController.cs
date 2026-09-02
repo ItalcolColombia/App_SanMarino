@@ -80,7 +80,7 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
         }
         // Va ANTES del `catch (Exception)`: C# evalúa en orden y el genérico se lo comía, así que el
         // duplicado (mismo lote y día) salía como 500 con el mensaje crudo de Postgres. Mismo texto
-        // que SeguimientoAvesEngordeEcuadorController, para que el cliente lo reconozca igual.
+        // que SeguimientoDiarioEngordeController, para que el cliente lo reconozca igual.
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.SqlState == "23505")
         {
             return BadRequest(new { message = "Ya existe un registro de seguimiento diario para este lote en la fecha seleccionada. Solo puede haber un registro por lote por día.", detail = pg.Message });

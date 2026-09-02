@@ -1,0 +1,46 @@
+<section class="panel" aria-labelledby="panel-cumplimiento-titulo">
+  <header class="panel__cabecera">
+    <h2 id="panel-cumplimiento-titulo" class="panel__titulo">Cumplimiento y pendientes</h2>
+    <p class="panel__descripcion">
+      Vacunación pendiente y capturas sin conexión que quedaron con diferencia. Son pendientes de
+      hoy, no del período elegido arriba.
+    </p>
+    <button type="button" class="panel__accion" (click)="cargar()" [disabled]="cargando">
+      {{ cargando ? 'Cargando…' : 'Actualizar' }}
+    </button>
+  </header>
+
+  @if (error) {
+    <p class="panel__mensaje panel__mensaje--error">{{ error }}</p>
+  } @else if (cargando && !datos) {
+    <p class="panel__mensaje">Cargando pendientes…</p>
+  } @else if (datos) {
+    @if (kpis.length) {
+      <div class="panel__kpis">
+        @for (kpi of kpis; track kpi.etiqueta) {
+          <app-tarjeta-kpi [kpi]="kpi" />
+        }
+      </div>
+    }
+
+    @if (todoAlDia) {
+      <p class="panel__mensaje">
+        No hay nada pendiente en tu alcance: ni vacunación vencida, ni cuadres sin resolver.
+      </p>
+    } @else if (ve('cumplimiento.vacunacion-pendiente') && datos.vacunacionPorGranja.length) {
+      <div class="panel__graficas">
+        <div class="panel__grafica">
+          <h3 class="panel__grafica-titulo">Vacunación pendiente por granja</h3>
+          <p class="panel__grafica-nota">
+            Ítems del cronograma vencidos, en franja o próximos a vencer, según el mismo cálculo que
+            usa la bandeja de vacunación.
+          </p>
+          <div class="panel__lienzo">
+            <canvas baseChart [data]="porGranja" [options]="opcionesPorGranja"
+                    type="bar" role="img" aria-label="Vacunación pendiente por granja"></canvas>
+          </div>
+        </div>
+      </div>
+    }
+  }
+</section>

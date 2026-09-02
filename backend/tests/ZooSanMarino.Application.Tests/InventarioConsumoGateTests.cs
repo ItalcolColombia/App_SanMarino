@@ -8,7 +8,7 @@ namespace ZooSanMarino.Application.Tests;
 /// consumo/devolución en modelo B — así se cierra el descuento cross-país silencioso que el
 /// fallback catalogItemId→item_inventario_ecuador_id producía para lotes Colombia.
 ///
-/// Los 3 servicios (SeguimientoLoteLevanteService, SeguimientoAvesEngordeEcuadorService,
+/// Los 3 servicios (SeguimientoLoteLevanteService, SeguimientoDiarioEngordeService,
 /// SeguimientoAvesEngordeService) invocan RegistrarConsumoAsync/RegistrarIngresoAsync SOLO cuando
 /// este gate devuelve true, con el país resuelto por lote.PaisId ?? (farm→departamento→pais).
 /// </summary>

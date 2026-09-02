@@ -6,7 +6,7 @@ namespace ZooSanMarino.Application.Calculos;
 /// Fuente de verdad de la aritmética (todos los lectores se alinean a ella):
 ///   LoteService.GetMortalidadResumenAsync  →  saldo = base − mortCaja − mort − sel − err + trasIn − trasOut
 ///   fn_indicadores_levante_postura / sp_recalcular_seguimiento_levante (mismo out por semana)
-///   IndicadorEcuadorService.CalcularAvesActualesAsync (ventas restan vía "sacrificadas")
+///   IndicadorEngordeService.CalcularAvesActualesAsync (ventas restan vía "sacrificadas")
 ///
 /// Convergencia: el traslado sale por columnas dedicadas (traslado_salida/ingreso), NO por ±Sel;
 /// la selección pasa a ser SIEMPRE genuina (cull real). Esto CORRIGE el signo del saldo para lotes
@@ -33,7 +33,7 @@ public static class SaldoLevanteCalculos
         => trasladoSalida - trasladoIngreso;
 
     /// <summary>
-    /// Aves actuales según IndicadorEcuadorService: iniciales − mortalidad − selección genuina
+    /// Aves actuales según IndicadorEngordeService: iniciales − mortalidad − selección genuina
     /// − sacrificadas (ventas/despachos vía movimiento_aves, restan UNA vez) − traslado neto.
     /// Nunca negativo.
     /// </summary>

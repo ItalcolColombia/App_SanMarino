@@ -1,0 +1,88 @@
+<section class="panel" aria-labelledby="panel-alimento-titulo">
+  <header class="panel__cabecera">
+    <h2 id="panel-alimento-titulo" class="panel__titulo">Alimento e inventario</h2>
+    <p class="panel__descripcion">
+      Existencias de alimento por granja y galpones cuyo saldo no cuadra. Es una foto del estado
+      actual, no del período elegido arriba.
+    </p>
+    <button type="button" class="panel__accion" (click)="cargar()" [disabled]="cargando">
+      {{ cargando ? 'Cargando…' : 'Actualizar' }}
+    </button>
+  </header>
+
+  @if (error) {
+    <p class="panel__mensaje panel__mensaje--error">{{ error }}</p>
+  } @else if (cargando && !datos) {
+    <p class="panel__mensaje">Cargando inventario…</p>
+  } @else if (datos) {
+    <div class="panel__kpis">
+      @for (kpi of kpis; track kpi.etiqueta) {
+        <app-tarjeta-kpi [kpi]="kpi" />
+      }
+    </div>
+
+    @if (ve('inventario.stock')) {
+      @if (datos.stockPorGranja.length) {
+        <div class="panel__graficas">
+          <div class="panel__grafica">
+            <h3 class="panel__grafica-titulo">Alimento en existencia por granja</h3>
+            <p class="panel__grafica-nota">
+              Sólo ítems de tipo alimento: el catálogo mide otros ítems en litros, galones o
+              unidades, y sumarlos daría un número sin significado.
+            </p>
+            <div class="panel__lienzo">
+              <canvas baseChart [data]="stockPorGranja" [options]="opcionesStock"
+                      type="bar" role="img" aria-label="Alimento en existencia por granja"></canvas>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <p class="panel__mensaje">
+          No hay existencias de alimento registradas en las granjas de tu alcance.
+        </p>
+      }
+    }
+
+    @if (ve('inventario.descuadres')) {
+      @if (datos.descuadres.length) {
+        <div class="panel__tabla-scroll">
+          <table class="panel__tabla">
+            <caption class="panel__grafica-nota">
+              Las dos columnas miden problemas <strong>distintos</strong> y no se suman:
+              «Descuadre» son kilos que faltan o sobran; «Días en rojo» son días que cerraron
+              negativos aunque el total cuadre (está mal el orden o la fecha de los ingresos).
+              El descuadre se <strong>hereda</strong> al ciclo siguiente: el stock es del galpón y el
+              saldo es del ciclo activo.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Granja</th>
+                <th scope="col">Galpón</th>
+                <th scope="col">Descuadre (kg)</th>
+                <th scope="col">Días en rojo</th>
+                <th scope="col">Ciclos</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of datos.descuadres; track d.galponId) {
+                <tr>
+                  <td>{{ d.granjaNombre }}</td>
+                  <td>{{ d.galponId }}</td>
+                  <td class="num" [class.alerta]="d.descuadreKg > 1 || d.descuadreKg < -1">
+                    {{ d.descuadreKg }}
+                  </td>
+                  <td class="num" [class.alerta]="d.filasNegativas > 0">{{ d.filasNegativas }}</td>
+                  <td class="num">{{ d.ciclosDelGalpon }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="panel__mensaje">
+          El invariante del alimento se cumple: ningún galpón de tu alcance está descuadrado.
+        </p>
+      }
+    }
+  }
+</section>

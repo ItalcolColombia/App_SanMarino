@@ -11,6 +11,7 @@ import { GestionInventarioService, InventarioGestionSiloDto } from '../../../ges
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import {
   extremosVentanaRegistro,
   hintVentanaFechaRegistro,
@@ -528,9 +529,17 @@ export class GastosInventarioPageComponent implements OnInit {
       }))
     };
     try {
-      await firstValueFrom(this.api.create(payload));
+      const respuesta = await firstValueFrom(this.api.create(payload));
       this.closeModal();
-      this.toast.success('Gasto registrado y stock descontado.', 'Éxito');
+
+      // Sin red el interceptor encoló la captura y devolvió un 202 sintético. «Gasto registrado y
+      // stock descontado» sería mentira dos veces: el servidor todavía no lo vio y el inventario no
+      // se movió. La tabla se recarga desde la caché, que tampoco tiene la fila.
+      if (esRespuestaPendiente(respuesta)) {
+        this.toast.info(MENSAJE_GUARDADO_SIN_RED, 'Sin conexión', 6000);
+      } else {
+        this.toast.success('Gasto registrado y stock descontado.', 'Éxito');
+      }
       await this.refresh();
     } catch (e: any) {
       this.error = e?.error?.message ?? e?.error?.error ?? 'No se pudo registrar el gasto.';

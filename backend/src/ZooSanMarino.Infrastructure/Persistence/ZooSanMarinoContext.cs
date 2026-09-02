@@ -85,8 +85,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SyncOperacion> SyncOperaciones => Set<SyncOperacion>();
 
         // Guía genética Ecuador (tablas mixto/hembra/macho por empresa + raza + año)
-        public DbSet<GuiaGeneticaEcuadorHeader> GuiaGeneticaEcuadorHeader => Set<GuiaGeneticaEcuadorHeader>();
-        public DbSet<GuiaGeneticaEcuadorDetalle> GuiaGeneticaEcuadorDetalle => Set<GuiaGeneticaEcuadorDetalle>();
+        public DbSet<GuiaGeneticaEngordeHeader> GuiaGeneticaEngordeHeader => Set<GuiaGeneticaEngordeHeader>();
+        public DbSet<GuiaGeneticaEngordeDetalle> GuiaGeneticaEngordeDetalle => Set<GuiaGeneticaEngordeDetalle>();
         
         // Sistema de Inventario de Aves
         public DbSet<InventarioAves> InventarioAves => Set<InventarioAves>();
@@ -110,7 +110,6 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteBaseEngordeGranja> LoteBaseEngordeGranja => Set<LoteBaseEngordeGranja>();
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
-        public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();

@@ -32,7 +32,7 @@ public partial class PuentePanamaService : IPuentePanamaService
     private readonly IValidacionSeguimientoService? _validacion;
     private readonly ILoteReproductoraAveEngordeService _loteReproService;
     private readonly ISeguimientoDiarioLoteReproductoraService _seguimientoReproService;
-    private readonly IGuiaGeneticaEcuadorService _guiaGeneticaService;
+    private readonly IGuiaGeneticaEngordeService _guiaGeneticaService;
 
     public PuentePanamaService(
         ZooSanMarinoContext ctx,
@@ -48,7 +48,7 @@ public partial class PuentePanamaService : IPuentePanamaService
         ISeguimientoAvesEngordeService seguimientoEngordeService,
         ILoteReproductoraAveEngordeService loteReproService,
         ISeguimientoDiarioLoteReproductoraService seguimientoReproService,
-        IGuiaGeneticaEcuadorService guiaGeneticaService,
+        IGuiaGeneticaEngordeService guiaGeneticaService,
         IValidacionSeguimientoService? validacion = null)
     {
         _validacion = validacion;
@@ -90,7 +90,7 @@ public partial class PuentePanamaService : IPuentePanamaService
             .Select(p => new { p.Raza, p.AnioGuia })
             .Distinct().ToListAsync(ct);
 
-        var ecuador = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
+        var ecuador = await _ctx.GuiaGeneticaEngordeHeader.AsNoTracking()
             .Where(h => h.CompanyId == companyId && h.DeletedAt == null && h.Estado == "active")
             .Select(h => new { h.Raza, h.AnioGuia })
             .Distinct().ToListAsync(ct);

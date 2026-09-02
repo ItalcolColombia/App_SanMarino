@@ -1,8 +1,8 @@
 // src/ZooSanMarino.Infrastructure/Services/RetiroAvesEngordeAplicador.cs
 // Descuento de AVES del lote pollo engorde por las bajas del seguimiento diario (mortalidad +
 // selección + error de sexaje). Vive acá, y no dentro de un service, porque los DOS caminos de
-// captura lo necesitan idénticos: el formulario diario (SeguimientoAvesEngordeEcuadorService, que
-// atiende /api/SeguimientoAvesEngordeEcuador) y la carga masiva (SeguimientoAvesEngordeService, que
+// captura lo necesitan idénticos: el formulario diario (SeguimientoDiarioEngordeService, que
+// atiende /api/SeguimientoDiarioEngorde) y la carga masiva (SeguimientoAvesEngordeService, que
 // usa MigracionService). Un lote tiene que quedar igual sin importar por dónde se cargó el día.
 //
 // Antes de esto el alta/edición de un seguimiento de ENGORDE llamaba a
