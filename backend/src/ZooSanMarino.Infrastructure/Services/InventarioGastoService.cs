@@ -452,7 +452,16 @@ public class InventarioGastoService : IInventarioGastoService
         );
     }
 
-    public async Task<InventarioGastoDto> CreateAsync(CreateInventarioGastoRequest req, CancellationToken ct = default)
+    /// <summary>
+    /// Crea el gasto y descuenta su consumo del inventario.
+    ///
+    /// <para>
+    /// <paramref name="sinDescontarStock"/> es H4/F7 y <b>sólo lo usa el push offline</b>: registra
+    /// el gasto sin mover inventario cuando la captura llega tarde y el ítem ya no está. Ver el
+    /// doc-comment de <c>IInventarioGastoService.CreateAsync</c>.
+    /// </para>
+    /// </summary>
+    public async Task<InventarioGastoDto> CreateAsync(CreateInventarioGastoRequest req, CancellationToken ct = default, bool sinDescontarStock = false)
     {
         if (req.Lineas == null || req.Lineas.Count == 0)
             throw new InvalidOperationException("Debe agregar al menos una línea de gasto.");
@@ -524,7 +533,14 @@ public class InventarioGastoService : IInventarioGastoService
         var now = DateTimeOffset.UtcNow;
         var uid = CurrentUserIdString();
 
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Transacción CONDICIONAL: el push offline (SyncPushService) llama a este mismo método
+        // dentro de SU transacción —la que hace que el efecto y el registro de idempotencia
+        // commiteen juntos— y anidar `BeginTransactionAsync` lanza. Mismo patrón que ya aplican
+        // levante, producción y engorde para entrar al push.
+        var txPropia = _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(ct)
+            : null;
+        await using var _ = txPropia;
 
         var gasto = new InventarioGasto
         {
@@ -566,11 +582,24 @@ public class InventarioGastoService : IInventarioGastoService
             var refStr = $"Gasto inventario #{gasto.Id} {gasto.Fecha:yyyy-MM-dd}" + (loteNombre != null ? $" · Lote {loteNombre}" : "");
             var reason = gasto.Observaciones;
 
-            // El silo viaja al movimiento: `RegistrarConsumoAsync` valida el modo de la empresa
-            // (obligatorio con el flag, rechazado sin él) y que el silo sea de esta granja.
-            var stockDto = await _inventario.RegistrarConsumoAsync(
-                new InventarioGestionConsumoRequest(req.FarmId, null, null, item.Id, linea.Cantidad, item.Unidad, refStr, reason, SiloId: linea.SiloId),
-                ct);
+            decimal? stockDespues;
+            if (sinDescontarStock)
+            {
+                // H4/F7: la captura offline se registra igual, pero el inventario NO se mueve — por
+                // eso el "después" es el mismo "antes". Escribir el descuento acá dejaría el saldo
+                // en negativo y sin rastro de por qué; el faltante se corrige cargando el ingreso
+                // desde inventario, y la bandeja de cuadre es la que lo hace visible.
+                stockDespues = stockAntes;
+            }
+            else
+            {
+                // El silo viaja al movimiento: `RegistrarConsumoAsync` valida el modo de la empresa
+                // (obligatorio con el flag, rechazado sin él) y que el silo sea de esta granja.
+                var stockDto = await _inventario.RegistrarConsumoAsync(
+                    new InventarioGestionConsumoRequest(req.FarmId, null, null, item.Id, linea.Cantidad, item.Unidad, refStr, reason, SiloId: linea.SiloId),
+                    ct);
+                stockDespues = stockDto.Quantity;
+            }
 
             detalles.Add(new InventarioGastoDetalle
             {
@@ -581,7 +610,7 @@ public class InventarioGastoService : IInventarioGastoService
                 Unidad = item.Unidad,
                 SiloId = linea.SiloId,
                 StockAntes = stockAntes,
-                StockDespues = stockDto.Quantity
+                StockDespues = stockDespues
             });
         }
 
@@ -607,7 +636,8 @@ public class InventarioGastoService : IInventarioGastoService
         });
         await _db.SaveChangesAsync(ct);
 
-        await tx.CommitAsync(ct);
+        // Sólo commitea quien abrió: dentro del push, el dueño de la transacción es SyncPushService.
+        if (txPropia is not null) await txPropia.CommitAsync(ct);
 
         return await GetByIdAsync(gasto.Id, ct);
     }

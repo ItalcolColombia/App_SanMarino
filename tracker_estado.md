@@ -5833,20 +5833,39 @@ usuario eligió cerrar 4). Orden de entrega: **H1 → H3 → H4**, con **H2** en
 
 ## H4 · Gastos de inventario se guarda sin red (nivel 2, con `requiere_cuadre`)
 
-- [ ] H4.1 Tipo `gasto_inventario_crear` en `SyncPushCalculos.Tipos` + `Tipos.Todos`
-- [ ] H4.2 `SyncPushService.Gastos.cs` — partial nuevo, **namespace plano**, que llama al **mismo**
+- [x] H4.1 Tipo `gasto_inventario_crear` en `SyncPushCalculos.Tipos` + `Tipos.Todos`
+- [x] H4.2 `SyncPushService.Gastos.cs` — partial nuevo, **namespace plano**, que llama al **mismo**
       `IInventarioGastoService.CreateAsync` que usa el controller (nunca reimplementar reglas)
-- [ ] H4.3 `InventarioGastoService.CreateAsync` con **transacción condicional**
-- [ ] H4.4 Sin stock ⇒ **se registra el gasto sin descontar**, `requiere_cuadre` + `detalle`. En un
+- [x] H4.3 `InventarioGastoService.CreateAsync` con **transacción condicional**
+- [x] H4.4 Sin stock ⇒ **se registra el gasto sin descontar**, `requiere_cuadre` + `detalle`. En un
       seguimiento el reintento guarda «el día sin los ítems»; en un gasto **no hay tal separación**:
       el gasto *es* el consumo. ⛔ Nunca descontar «hasta donde alcance» (inventa un número)
-- [ ] H4.5 Ruta en `decidir-encolable.funcion.ts` con `$` para no capturar sub-recursos + spec
-- [ ] H4.6 Toast con `esRespuestaPendiente` en la pantalla de gastos
-- [ ] H4.7 xUnit: stock suficiente ⇒ `aplicada` y descontado · insuficiente ⇒ `requiere_cuadre`, gasto
-      creado, stock **sin cambio** · mismo `clientOpId` dos veces ⇒ una fila y `replay`
-- [ ] H4.8 `dotnet build` + `dotnet test` + `verificar-cuadre-solo-en-sync.js` en verde
-- [ ] H4.9 Smoke HTTP local (JWT minteado + `X-Secret-Up` cifrado) y **limpieza al terminar**, con el
-      puerto libre
+- [i] 🔴 **Copiar el patrón de F7 tal cual habría duplicado el gasto.** Los seguimientos validan el
+      stock **antes** de escribir, así que a engorde le alcanzó con `ChangeTracker.Clear()`.
+      `InventarioGastoService.CreateAsync` hace `SaveChangesAsync` de la **cabecera antes** de
+      recorrer las líneas: cuando una línea lanza, esa cabecera **ya está en la base** dentro de la
+      transacción del push, y `Clear()` no la borra de ahí. Se resolvió con **SAVEPOINT**
+      (`CreateSavepointAsync` / `RollbackToSavepointAsync`), que deshace el intento fallido y deja
+      viva la transacción del push — sin inventar una segunda validación de stock del lado del sync.
+      **Medido en el smoke**: quedaron los gastos **639 y 641**, y el **640 no existe**
+- [x] H4.5 Ruta en `decidir-encolable.funcion.ts` con `$` para no capturar sub-recursos + spec
+      (`items`, `existencias`, `filter-data`, `conceptos`, `export` siguen sin encolarse)
+- [x] H4.6 Toast con `esRespuestaPendiente` en la pantalla de gastos. Sin esto decía «Gasto
+      registrado y stock descontado», que sin red es mentira **dos veces**
+- [x] H4.7 xUnit: `gasto_inventario_crear` reconocido + un test que recorre `Tipos.Todos` y exige que
+      **cada** constante del catálogo pase por `EsConocido` (agregar la constante y olvidar `Todos`
+      compila igual y se rechaza recién en campo). **3.717 verdes** (de 3.715)
+- [x] H4.8 `dotnet build` 0/0 · `dotnet test` 3.717 · `verificar-cuadre-solo-en-sync.js` en verde ·
+      `yarn build` 0 errores · `ng test` **746/746** (de 744) · lista cacheable 89/55/34/0
+- [x] H4.9 **Smoke HTTP local corrido** (JWT minteado + `X-Secret-Up` cifrado + fila en
+      `sesiones_activas`), los 6 caminos: stock suficiente ⇒ `aplicada` y stock **4250 → 4240** ·
+      replay del mismo `clientOpId` ⇒ `replay: true`, sin segundo gasto · stock insuficiente ⇒
+      `requiere_cuadre` con `divergencia_stock`, gasto creado y `stock_antes == stock_despues`
+      (**el inventario no se movió**) · bandeja lo lista · `resolver` 204 y desaparece · resolver dos
+      veces **404, no 500**
+- [x] H4.10 **Limpieza verificada**: 0 gastos, 0 `sync_operaciones` y 0 sesiones del smoke; stock
+      devuelto a 4250; y la fila del histórico unificado quedó **`anulado = true`, no borrada** (la
+      dejó así el trigger `AFTER DELETE`, que es la regla dura del repo). Puerto **5002 libre**
 
 ## Fuera de alcance (elegido), queda anotado
 

@@ -51,6 +51,21 @@ describe('decidirEncolable', () => {
         .toBe('seguimiento_reproductora_engorde_crear');
     });
 
+    it('reconoce el alta de GASTO DE INVENTARIO (H4)', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/inventario-gastos'))
+        .toBe('gasto_inventario_crear');
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/inventario-gastos/'))
+        .toBe('gasto_inventario_crear');
+    });
+
+    it('🔑 NO encola los sub-recursos de gastos de inventario', () => {
+      // Son LECTURAS que alimentan el formulario. Encolar una devolveria un 202 sintetico en vez de
+      // la lista de items, y el formulario se quedaria vacio creyendo que guardo algo.
+      for (const sub of ['items', 'existencias', 'filter-data', 'conceptos', 'export']) {
+        expect(resolverTipoOperacion('POST', `http://localhost:5002/api/inventario-gastos/${sub}`)).toBeNull();
+      }
+    });
+
     it('🔑 engorde y levante NO se confunden aunque compartan el cuerpo', () => {
       // Mismo payload, services distintos: si el tipo se equivocara, el seguimiento entraría en la
       // etapa que no es.

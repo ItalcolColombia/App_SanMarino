@@ -28,6 +28,7 @@ public partial class SyncPushService
             SyncPushCalculos.Tipos.SeguimientoEngordeCrear => await CrearSeguimientoEngordeAsync(op, ct),
             SyncPushCalculos.Tipos.SeguimientoReproductoraEngordeCrear
                 => await CrearSeguimientoReproductoraEngordeAsync(op, ct),
+            SyncPushCalculos.Tipos.GastoInventarioCrear => await CrearGastoInventarioAsync(op, ct),
             // `EvaluarOperacion` ya rechazó los tipos desconocidos; esto es la red de seguridad por si
             // alguien agrega un tipo al catálogo y olvida su rama.
             _ => throw new InvalidOperationException($"Tipo sin despacho: '{op.Tipo}'.")

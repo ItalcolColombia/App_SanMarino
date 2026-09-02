@@ -61,16 +61,28 @@ public static class SyncPushCalculos
         public const string SeguimientoReproductoraEngordeCrear = "seguimiento_reproductora_engorde_crear";
 
         /// <summary>
-        /// Las CUATRO superficies de captura diaria del sistema: postura (levante + producción) y
-        /// engorde (pollo + su reproductora). Un tipo fuera de esta lista se rechaza como contrato
-        /// obsoleto, nunca se adivina a qué service iba.
+        /// H4 — alta de un gasto de inventario (consumo de un ítem que NO es alimento).
+        ///
+        /// Es la primera operación offline que no es una captura diaria, y **sí mueve stock**: su
+        /// alta llama a <c>RegistrarConsumoAsync</c> por línea. El mapeo de F4 lo daba por "nivel 1,
+        /// no mueve stock"; medido contra el código es nivel 2, y por eso necesitaba el
+        /// <c>requiere_cuadre</c> de F7 antes de poder entrar acá.
+        /// </summary>
+        public const string GastoInventarioCrear = "gasto_inventario_crear";
+
+        /// <summary>
+        /// Lo que se puede capturar sin red: las CUATRO superficies de captura diaria —postura
+        /// (levante + producción) y engorde (pollo + su reproductora)— más el alta de gastos de
+        /// inventario. Un tipo fuera de esta lista se rechaza como contrato obsoleto, nunca se
+        /// adivina a qué service iba.
         /// </summary>
         public static readonly IReadOnlyCollection<string> Todos =
         [
             SeguimientoLevanteCrear,
             SeguimientoProduccionCrear,
             SeguimientoEngordeCrear,
-            SeguimientoReproductoraEngordeCrear
+            SeguimientoReproductoraEngordeCrear,
+            GastoInventarioCrear
         ];
 
         public static bool EsConocido(string? tipo) => tipo is not null && Todos.Contains(tipo);

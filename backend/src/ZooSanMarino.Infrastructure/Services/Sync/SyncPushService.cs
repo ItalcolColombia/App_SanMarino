@@ -44,6 +44,8 @@ public partial class SyncPushService : ISyncPushService
     private readonly IProduccionService _produccion;
     private readonly ISeguimientoAvesEngordeEcuadorService _engorde;
     private readonly ISeguimientoDiarioLoteReproductoraService _reproductoraEngorde;
+    /// <summary>H4 — alta de gastos de inventario capturada sin red.</summary>
+    private readonly IInventarioGastoService _gastos;
     private readonly ILogger<SyncPushService>? _logger;
 
     public SyncPushService(
@@ -53,6 +55,7 @@ public partial class SyncPushService : ISyncPushService
         IProduccionService produccion,
         ISeguimientoAvesEngordeEcuadorService engorde,
         ISeguimientoDiarioLoteReproductoraService reproductoraEngorde,
+        IInventarioGastoService gastos,
         ILogger<SyncPushService>? logger = null)
     {
         _ctx = ctx;
@@ -61,6 +64,7 @@ public partial class SyncPushService : ISyncPushService
         _produccion = produccion;
         _engorde = engorde;
         _reproductoraEngorde = reproductoraEngorde;
+        _gastos = gastos;
         _logger = logger;
     }
 
