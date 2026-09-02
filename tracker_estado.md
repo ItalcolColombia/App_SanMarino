@@ -6315,9 +6315,12 @@ después visibles.
 - [x] T4 `.Designer.cs` para las 3, con el `BuildTargetModel` **de la época** (Designer de la
       migración anterior + exactamente las propiedades que introduce cada una), no el snapshot de hoy
 - [x] T5 Auditoría de visibilidad: **0** clases `: Migration` sin id en algún `[Migration(...)]`
-- [ ] T6 `dotnet build` + `has-pending-model-changes` + `migrations list` con las 3
-- [ ] T7 BD local intacta (historial y tipos de columna iguales antes y después)
-- [ ] T8 Commit y merge a `main`
+- [x] T6 `dotnet build` 0 errores / 0 advertencias; `has-pending-model-changes` sin cambios;
+      `migrations list` muestra las 3 **sin `(Pending)`** — o sea EF ahora las ve y ademas las
+      da por aplicadas, que es el resultado seguro
+- [x] T7 BD local intacta: 360 filas en `__EFMigrationsHistory`, ultima sigue siendo
+      `20260902030000`, y los 5 tipos de columna sin moverse (los pesos siguen `numeric`)
+- [x] T8 Commit del codigo + fast-forward de `main`
 
 ### Anotado, no arreglado (sería cambio de comportamiento)
 

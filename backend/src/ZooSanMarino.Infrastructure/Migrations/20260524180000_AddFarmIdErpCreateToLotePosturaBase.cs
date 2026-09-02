@@ -5,7 +5,18 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ZooSanMarino.Infrastructure.Migrations
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// Agrega <c>lote_postura_base.farm_id</c> y <c>erp_create</c> mas su indice.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nació sin su <c>.Designer.cs</c></b>, o sea sin el atributo <c>[Migration]</c>:
+    /// <c>MigrationsAssembly</c> descubre migraciones filtrando por ese atributo, así que para EF
+    /// esta clase no existía —no salía en <c>migrations list</c> ni se aplicaba en ningún deploy—.
+    /// El schema se aplicó a mano con <c>backend/sql/053_sync_produccion_traslados_prod.sql</c>, que
+    /// además insertaba el id en <c>__EFMigrationsHistory</c>. El Designer se le escribió el
+    /// 2-sep-2026; el SQL no se tocó porque ya era idempotente, que es justamente lo que hace que
+    /// volverse visible sea seguro: donde el id no esté registrado, EF la corre y no pasa nada.
+    /// </remarks>
     public partial class AddFarmIdErpCreateToLotePosturaBase : Migration
     {
         /// <inheritdoc />
