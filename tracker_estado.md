@@ -6480,7 +6480,8 @@ Auditoria medida contra el repo y la BD local. **La ejecucion espera decision de
 - [x] F4.5 Verificado (`backend/sql/verificar_paridad_disponibilidad_huevos.sql`): el espejo cuadra
       **exacto** con la formula directa en los 5 LPP con espejo — LPP 6: 2.091.450 / 108.462;
       LPP 7: 1.541.184 / 70.561; **0 diferencias**. Resolucion lote -> LPP **1:1**
-- [ ] ⏸️ F4.6 🔴 **El endpoint SIGUE mostrando cero, por una SEGUNDA causa que no se toco.**
+- [x] F4.6 ✅ **Resuelto en la Fase 5** (ver abajo). Quedaba asi:
+      🔴 **El endpoint SIGUE mostrando cero, por una SEGUNDA causa que no se toco.**
       `ObtenerDisponibilidadLoteAsync` solo entra al camino de huevos si `lote.Fase=='Produccion'`, y
       esa columna **no dice la fase** (anti-patron ya documentado: el paso a produccion no la
       actualiza). Medido: los lotes con huevos (13 y 14, 2,09M y 1,54M) estan en `fase='Levante'`, y
@@ -6490,3 +6491,44 @@ Auditoria medida contra el repo y la BD local. **La ejecucion espera decision de
       lote es de produccion» y `inventario-dashboard.component.ts:1453` arma los validadores del
       retiro sobre `disponibilidad.aves`. Cambio de comportamiento en pantallas que nadie pidio
       tocar: va aparte, con prueba en las dos
+
+## Fase 5 — Disponibilidad a fondo: aves y huevos NO son excluyentes
+
+Plan: seccion «Fase 5» de
+[`fase_de_desarrollo/optimizacion_consultas_backend_plan.md`](fase_de_desarrollo/optimizacion_consultas_backend_plan.md)
+
+- [x] P1 🔴 Causa de raiz: el DTO se usaba como «o aves o huevos» y la rama la elegia `lote.fase`.
+      Un lote en produccion tiene LAS DOS. Peor: `ValidarDisponibilidadAvesAsync` devuelve `false`
+      con `Aves == null`, asi que rutear a huevos **bloqueaba los traslados de aves** — medido,
+      A374A/A374B con 35.372 aves y cero filas de produccion
+- [x] P2 Una sola regla de fase, la canonica (`FaseLoteCalculos.ResolverFaseVisible`: levante
+      cerrado Y LPP viva). El repo tenia TRES; la de `MovimientoAvesService` incluye `etapa>=26`,
+      el anti-patron ya documentado
+- [x] P3 `Aves` se informa SIEMPRE; `Huevos` cuando hay LPP (propia o del lote hijo, con orden
+      determinista). Un solo DTO con los dos bloques
+- [x] P4 🔴 La formula de aves restaba **solo la mortalidad de levante**. Ignoraba la seleccion
+      (11.032 en levante + 12.055 en produccion) y el error de sexaje (834). Medido: el lote 14
+      informaba **10.748 hembras cuando le quedaban 23** (despoblado en mayo-2026), y ese numero
+      autoriza traslados. Ahora usa la composicion canonica de `SaldoAvesLevanteCalculos.BajasNetas`
+- [x] P5 **No se sumaron traslados ni ventas de las columnas del seguimiento**: este service ya
+      cuenta las salidas por `movimiento_aves` y sumar las dos fuentes contaria doble (el patron de
+      la venta que restaba doble). Medido: en produccion esas 3 columnas estan en 0
+- [x] P6 Calculo puro `DisponibilidadLoteCalculos` + `DisponibilidadLoteCalculosTests` (20 casos):
+      composicion de la baja, piso en cero, que ningun termino quede sin restar, regla de fase
+- [x] P7 Front: los **6** gates por `tipoLote` pasan a gatear por la PRESENCIA del bloque
+      (`disponibilidad.aves` / `.huevos`) — 3 de aves, 3 de huevos. Es lo que esas pantallas
+      preguntan de verdad y deja de depender de una columna que miente
+- [x] P8 Verificado: `dotnet build` 0/0, **3.767 tests** verdes, `yarn build` sin errores, y
+      `backend/sql/verificar_disponibilidad_lote_aves_y_huevos.sql` con el delta lote por lote
+- [x] P9 Backend arranca limpio, `/db-ping` OK con el contexto en pool. Apagado, puertos libres
+
+### Lo que quedo SIN verificar (dicho, no escondido)
+
+- [ ] ⏸️ **La traduccion LINQ -> SQL de las consultas nuevas no se probo en ejecucion.** El endpoint
+      devuelve 401: la lista blanca exige un `jti` vivo en `sesiones_activas` y no hay ninguna
+      vigente (513 filas, 0 sin vencer); no se inserto una a mano. Las formas usadas ya corren en
+      produccion en `EspejoHuevoProduccionSyncService`, asi que el riesgo es bajo pero no cero.
+      Por eso la agregacion de `movimiento_aves` **se dejo como estaba**: su filtro cruza una
+      navegacion dentro de un `OR` y es la unica que no se pudo comprobar
+- [ ] ⏸️ **Smoke funcional en las 2 pantallas de aves y las 2 de huevos** con un usuario real, antes
+      de desplegar. El cambio mueve numeros que el usuario ve y que autorizan traslados

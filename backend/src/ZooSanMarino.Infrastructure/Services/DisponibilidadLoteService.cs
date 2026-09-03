@@ -25,6 +25,30 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         _espejoHuevoSync = espejoHuevoSync;
     }
 
+    /// <summary>
+    /// Disponibilidad de un lote de postura: aves y huevos JUNTOS, no una u otra.
+    ///
+    /// <para>
+    /// Antes esto elegía una rama según <c>lote.Fase</c> y devolvía la otra en <c>null</c>. Dos
+    /// defectos encadenados, los dos medidos el 2-sep-2026:
+    /// </para>
+    /// <list type="number">
+    /// <item><c>lote.Fase</c> NO dice en qué fase está el lote: el paso a producción no escribe esa
+    /// columna. Los lotes con huevos (13 y 14, 1,54 M y 2,09 M) estaban en <c>fase='Levante'</c> y
+    /// nunca llegaban al camino de huevos.</item>
+    /// <item>Como la rama de huevos dejaba <c>Aves = null</c>, y
+    /// <see cref="ValidarDisponibilidadAvesAsync"/> devuelve <c>false</c> con <c>Aves == null</c>,
+    /// todo lote ruteado a huevos tenía los traslados de aves <b>bloqueados</b>. Alcanzaba a A374A y
+    /// A374B con 35.372 aves entre las dos y cero filas de producción.</item>
+    /// </list>
+    ///
+    /// <para>
+    /// Ahora: la fase sale de <c>FaseLoteCalculos.ResolverFaseVisible</c> —la regla canónica del
+    /// repo, levante cerrado <b>y</b> LPP viva—, <c>Aves</c> se informa siempre y <c>Huevos</c>
+    /// cuando hay LPP. El front dejó de gatear por <c>TipoLote</c> y gatea por la presencia del
+    /// bloque, que es lo que esas pantallas preguntan de verdad.
+    /// </para>
+    /// </summary>
     public async Task<DisponibilidadLoteDto?> ObtenerDisponibilidadLoteAsync(string loteId)
     {
         // Convertir loteId string a int para buscar en Lotes
@@ -39,9 +63,9 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
             .Include(l => l.Galpon)
-            .FirstOrDefaultAsync(l => 
-                l.LoteId == loteIdInt && 
-                l.CompanyId == _currentUser.CompanyId && 
+            .FirstOrDefaultAsync(l =>
+                l.LoteId == loteIdInt &&
+                l.CompanyId == _currentUser.CompanyId &&
                 l.DeletedAt == null);
 
         if (lote == null)
@@ -49,24 +73,78 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             return null;
         }
 
-        // Opción B: producción = mismo lote con Fase "Produccion" o lote hijo con Fase "Produccion"
-        Lote? loteProd = null;
-        if (lote.Fase == "Produccion" && lote.LoteId.HasValue)
-            loteProd = lote;
-        else if (lote.LoteId.HasValue)
-            loteProd = await _context.Lotes
-                .AsNoTracking()
-                .Include(l => l.Farm)
-                .Include(l => l.Nucleo)
-                .Include(l => l.Galpon)
-                .FirstOrDefaultAsync(l => l.LotePadreId == lote.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+        // La LPP del propio lote y, si no tiene, la del lote hijo (K345A tiene la suya y su hijo
+        // K345B tiene otra: se busca primero la propia para no cruzar los dos ciclos).
+        var lotePosturaProduccionId = await ResolverLotePosturaProduccionIdAsync(lote);
 
-        if (loteProd != null)
+        // Levante cerrado: la otra mitad de la regla canónica.
+        var estadoCierreLevante = await _context.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => l.LoteId == lote.LoteId && l.DeletedAt == null)
+            .Select(l => l.EstadoCierre)
+            .FirstOrDefaultAsync();
+
+        var tipoLote = FaseLoteCalculos.ResolverFaseVisible(
+            estadoCierreLevante,
+            DisponibilidadLoteCalculos.InformaHuevos(lotePosturaProduccionId));
+
+        var aves = await ObtenerAvesDisponiblesAsync(lote, lotePosturaProduccionId);
+
+        var (huevos, historicoEspejo, huevoItems) =
+            DisponibilidadLoteCalculos.InformaHuevos(lotePosturaProduccionId)
+                ? await ObtenerHuevosDisponiblesAsync(lote, lotePosturaProduccionId!.Value)
+                : (null, null, null);
+
+        return new DisponibilidadLoteDto
         {
-            return await ObtenerDisponibilidadHuevosAsync(loteProd);
-        }
-        return await ObtenerDisponibilidadAvesAsync(lote);
+            LoteId = lote.LoteId ?? loteIdInt,
+            LoteNombre = lote.LoteNombre,
+            TipoLote = tipoLote,
+            LotePosturaProduccionId = lotePosturaProduccionId,
+            Aves = aves,
+            Huevos = huevos,
+            HuevosHistoricoEspejo = historicoEspejo,
+            HuevoItemsDisponibles = huevoItems,
+            GranjaId = lote.GranjaId,
+            GranjaNombre = lote.Farm?.Name ?? string.Empty,
+            NucleoId = lote.NucleoId,
+            NucleoNombre = lote.Nucleo?.NucleoNombre,
+            GalponId = lote.GalponId,
+            GalponNombre = lote.Galpon?.GalponNombre
+        };
     }
+
+    /// <summary>
+    /// LPP viva del lote: la propia primero, si no la del lote hijo. Orden determinista para que,
+    /// si algún día hubiera más de una (hoy la relación es 1:1, medido), se elija siempre la misma.
+    /// </summary>
+    private async Task<int?> ResolverLotePosturaProduccionIdAsync(Lote lote)
+    {
+        if (!lote.LoteId.HasValue) return null;
+
+        var propia = await _context.LotePosturaProduccion
+            .AsNoTracking()
+            .Where(l => l.LoteId == lote.LoteId
+                        && l.DeletedAt == null
+                        && (l.EmpresaId == null || l.EmpresaId == _currentUser.CompanyId))
+            .OrderBy(l => l.LotePosturaProduccionId)
+            .Select(l => l.LotePosturaProduccionId)
+            .FirstOrDefaultAsync();
+
+        if (propia.HasValue && propia.Value > 0) return propia;
+
+        return await (
+            from hijo in _context.Lotes.AsNoTracking()
+            join lpp in _context.LotePosturaProduccion.AsNoTracking()
+                on hijo.LoteId equals lpp.LoteId
+            where hijo.LotePadreId == lote.LoteId
+                  && hijo.DeletedAt == null
+                  && lpp.DeletedAt == null
+                  && (lpp.EmpresaId == null || lpp.EmpresaId == _currentUser.CompanyId)
+            orderby lpp.LotePosturaProduccionId
+            select lpp.LotePosturaProduccionId).FirstOrDefaultAsync();
+    }
+
 
     /// <summary>
     /// Lee el espejo de huevos del LPP y, si todavía no existe, lo manda a recalcular una vez.
@@ -118,121 +196,135 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
     };
 
     /// <summary>
-    /// Disponibilidad de huevos de un lote en producción.
+    /// Bloque de huevos del lote, desde el espejo del LPP. Devuelve también el histórico y el
+    /// desglose por ítems, igual que el camino por LPP.
     ///
-    /// ⚠️ Hasta el 2-sep-2026 esto devolvía CERO siempre: sumaba sobre la entidad
-    /// <c>SeguimientoDiario</c>, que por <c>ToTable</c> apunta a <c>seguimiento_diario_levante</c>,
-    /// filtrando <c>TipoSeguimiento == "produccion"</c> — una condición que en esa tabla no puede
-    /// cumplirse (medido: todas sus filas son 'levante'). La producción real vive en
-    /// <c>seguimiento_diario_produccion</c>, indexada por <c>LotePosturaProduccionId</c>.
-    ///
-    /// En vez de re-sumar acá (sería una tercera fórmula del mismo número, justo lo que CLAUDE.md
-    /// prohíbe), se resuelve el LPP del lote y se lee el espejo, que es el mismo origen que ya
-    /// usaba el camino por LPP.
-    ///
-    /// Lo que NO cambia: granja, núcleo, galpón y nombre siguen saliendo del LOTE, no del LPP.
-    /// `TrasladosController` usa `disponibilidad.GranjaId` como granja origen del movimiento, y
-    /// aunque hoy los dos coincidan en los datos, tomarlos del LPP sería apoyarse en eso.
+    /// <para>
+    /// La ubicación del DTO la sigue poniendo el llamador desde el LOTE, no desde el LPP:
+    /// <c>TrasladosController</c> usa ese <c>GranjaId</c> como granja origen del movimiento y,
+    /// aunque hoy los dos coincidan en los datos, apoyarse en eso sería frágil.
+    /// </para>
     /// </summary>
-    private async Task<DisponibilidadLoteDto> ObtenerDisponibilidadHuevosAsync(Lote loteProd)
+    private async Task<(HuevosDisponiblesDto? Huevos, HuevosDisponiblesDto? Historico, IReadOnlyList<HuevoItemSeguimientoDto>? Items)>
+        ObtenerHuevosDisponiblesAsync(Lote loteProd, int lotePosturaProduccionId)
     {
-        if (!loteProd.LoteId.HasValue)
-            throw new InvalidOperationException("Lote sin LoteId.");
-
         var diasEnProduccion = loteProd.FechaInicioProduccion.HasValue && loteProd.FechaInicioProduccion.Value != default
             ? (DateTime.Today - loteProd.FechaInicioProduccion.Value.Date).Days
             : 0;
 
-        // Empresa por datos + orden determinista: si un lote llegara a tener más de un LPP vivo
-        // (hoy la relación es 1:1), se toma siempre el mismo y no uno al azar.
-        var lotePosturaProduccionId = await _context.LotePosturaProduccion
-            .AsNoTracking()
-            .Where(l => l.LoteId == loteProd.LoteId
-                        && l.DeletedAt == null
-                        && (l.EmpresaId == null || l.EmpresaId == _currentUser.CompanyId))
-            .OrderBy(l => l.LotePosturaProduccionId)
-            .Select(l => l.LotePosturaProduccionId)
-            .FirstOrDefaultAsync();
-
-        var espejo = lotePosturaProduccionId.HasValue && lotePosturaProduccionId.Value > 0
-            ? await ObtenerEspejoHuevoAsync(lotePosturaProduccionId.Value)
-            : null;
-
-        HuevosDisponiblesDto huevos;
-        HuevosDisponiblesDto? historicoEspejo = null;
-        IReadOnlyList<HuevoItemSeguimientoDto>? huevoItems = null;
+        var espejo = await ObtenerEspejoHuevoAsync(lotePosturaProduccionId).ConfigureAwait(false);
 
         if (espejo == null)
         {
-            // Sin LPP o sin espejo no hay producción que informar: mismo bloque en cero que antes.
-            huevos = ArmarHuevos(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, diasEnProduccion);
-        }
-        else
-        {
-            // Fecha del último registro: el espejo no la guarda, sale de la tabla de producción.
-            var fechaUltimoRegistro = await _context.SeguimientoProduccion
-                .AsNoTracking()
-                .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId!.Value)
-                .MaxAsync(s => (DateTime?)s.Fecha);
-
-            huevos = ArmarHuevos(
-                espejo.HuevoTotDinamico, espejo.HuevoIncDinamico, espejo.HuevoLimpioDinamico,
-                espejo.HuevoTratadoDinamico, espejo.HuevoSucioDinamico, espejo.HuevoDeformeDinamico,
-                espejo.HuevoBlancoDinamico, espejo.HuevoDobleYemaDinamico, espejo.HuevoPisoDinamico,
-                espejo.HuevoPequenoDinamico, espejo.HuevoRotoDinamico, espejo.HuevoDesechoDinamico,
-                espejo.HuevoOtroDinamico, diasEnProduccion, fechaUltimoRegistro);
-
-            historicoEspejo = ArmarHuevos(
-                espejo.HuevoTotHistorico, espejo.HuevoIncHistorico, espejo.HuevoLimpioHistorico,
-                espejo.HuevoTratadoHistorico, espejo.HuevoSucioHistorico, espejo.HuevoDeformeHistorico,
-                espejo.HuevoBlancoHistorico, espejo.HuevoDobleYemaHistorico, espejo.HuevoPisoHistorico,
-                espejo.HuevoPequenoHistorico, espejo.HuevoRotoHistorico, espejo.HuevoDesechoHistorico,
-                espejo.HuevoOtroHistorico, diasEnProduccion, fechaUltimoRegistro);
-
-            huevoItems = await ObtenerDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId!.Value)
-                .ConfigureAwait(false);
+            // Hay LPP pero el espejo no se pudo materializar: se informa el bloque en cero en vez de
+            // null, porque la producción existe aunque todavía no tenga cifras.
+            return (ArmarHuevos(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, diasEnProduccion), null, null);
         }
 
-        return new DisponibilidadLoteDto
-        {
-            LoteId = loteProd.LoteId ?? 0,
-            LoteNombre = loteProd.LoteNombre,
-            TipoLote = "Produccion",
-            LotePosturaProduccionId = lotePosturaProduccionId,
-            Aves = null,
-            Huevos = huevos,
-            HuevosHistoricoEspejo = historicoEspejo,
-            HuevoItemsDisponibles = huevoItems,
-            GranjaId = loteProd.GranjaId,
-            GranjaNombre = loteProd.Farm?.Name ?? string.Empty,
-            NucleoId = loteProd.NucleoId,
-            NucleoNombre = loteProd.Nucleo?.NucleoNombre,
-            GalponId = loteProd.GalponId,
-            GalponNombre = loteProd.Galpon?.GalponNombre
-        };
+        // Fecha del último registro: el espejo no la guarda, sale de la tabla de producción.
+        var fechaUltimoRegistro = await _context.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
+            .MaxAsync(s => (DateTime?)s.Fecha);
+
+        var huevos = ArmarHuevos(
+            espejo.HuevoTotDinamico, espejo.HuevoIncDinamico, espejo.HuevoLimpioDinamico,
+            espejo.HuevoTratadoDinamico, espejo.HuevoSucioDinamico, espejo.HuevoDeformeDinamico,
+            espejo.HuevoBlancoDinamico, espejo.HuevoDobleYemaDinamico, espejo.HuevoPisoDinamico,
+            espejo.HuevoPequenoDinamico, espejo.HuevoRotoDinamico, espejo.HuevoDesechoDinamico,
+            espejo.HuevoOtroDinamico, diasEnProduccion, fechaUltimoRegistro);
+
+        var historico = ArmarHuevos(
+            espejo.HuevoTotHistorico, espejo.HuevoIncHistorico, espejo.HuevoLimpioHistorico,
+            espejo.HuevoTratadoHistorico, espejo.HuevoSucioHistorico, espejo.HuevoDeformeHistorico,
+            espejo.HuevoBlancoHistorico, espejo.HuevoDobleYemaHistorico, espejo.HuevoPisoHistorico,
+            espejo.HuevoPequenoHistorico, espejo.HuevoRotoHistorico, espejo.HuevoDesechoHistorico,
+            espejo.HuevoOtroHistorico, diasEnProduccion, fechaUltimoRegistro);
+
+        var items = await ObtenerDisponibilidadHuevoItemsLPPAsync(lotePosturaProduccionId).ConfigureAwait(false);
+
+        return (huevos, historico, items);
     }
 
-    private async Task<DisponibilidadLoteDto> ObtenerDisponibilidadAvesAsync(Lote lote)
+    /// <summary>
+    /// Bloque de aves del lote. Se informa SIEMPRE — también en producción, donde antes iba en
+    /// <c>null</c> y por eso <see cref="ValidarDisponibilidadAvesAsync"/> bloqueaba los traslados
+    /// de aves de lotes que tenían decenas de miles.
+    ///
+    /// <para>
+    /// 🔴 Cuando el lote tiene LPP se descuenta además la mortalidad y la selección de
+    /// <c>seguimiento_diario_produccion</c>. La fórmula anterior solo miraba
+    /// <c>seguimiento_diario_levante</c> y sobrestimaba el saldo de todo lote que ya hubiera pasado
+    /// a producción: medido, 620 aves en el lote 13 y 1.411 en el 14. El número autoriza traslados,
+    /// así que la diferencia importaba. Un lote sin LPP pasa 0 en esos dos términos y el resultado
+    /// queda idéntico al de antes.
+    /// </para>
+    /// </summary>
+    private async Task<AvesDisponiblesDto> ObtenerAvesDisponiblesAsync(Lote lote, int? lotePosturaProduccionId)
     {
         var loteIdInt = lote.LoteId ?? 0;
 
-        // Obtener aves iniciales del lote
         var hembrasIniciales = lote.HembrasL ?? 0;
         var machosIniciales = lote.MachosL ?? 0;
 
-        // Calcular mortalidad acumulada desde tabla unificada seguimiento_diario (tipo levante) — alineado con seguimiento diario unificado
-        var seguimientos = await _context.SeguimientoDiario
+        // Bajas de levante — una sola consulta agregada en vez de traer las filas.
+        // Antes solo se sumaba la mortalidad: la selección (11.032 aves medidas) y el error de
+        // sexaje (834) quedaban afuera aunque también salieron del lote.
+        var lev = await _context.SeguimientoDiario
             .AsNoTracking()
             .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteIdInt.ToString())
-            .ToListAsync();
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MortH = g.Sum(s => (int?)s.MortalidadHembras) ?? 0,
+                MortM = g.Sum(s => (int?)s.MortalidadMachos) ?? 0,
+                SelH = g.Sum(s => (int?)s.SelH) ?? 0,
+                SelM = g.Sum(s => (int?)s.SelM) ?? 0,
+                ErrH = g.Sum(s => (int?)s.ErrorSexajeHembras) ?? 0,
+                ErrM = g.Sum(s => (int?)s.ErrorSexajeMachos) ?? 0
+            })
+            .FirstOrDefaultAsync();
 
-        var mortalidadAcumHembras = seguimientos.Sum(s => s.MortalidadHembras ?? 0);
-        var mortalidadAcumMachos = seguimientos.Sum(s => s.MortalidadMachos ?? 0);
+        var bajasLevanteHembras = DisponibilidadLoteCalculos.BajasEtapa(
+            lev?.MortH ?? 0, lev?.SelH ?? 0, lev?.ErrH ?? 0);
+        var bajasLevanteMachos = DisponibilidadLoteCalculos.BajasEtapa(
+            lev?.MortM ?? 0, lev?.SelM ?? 0, lev?.ErrM ?? 0);
 
-        // Obtener retiros acumulados desde movimientos de aves completados
+        // Bajas de producción: solo si el lote llegó a producción.
+        var bajasProdHembras = 0;
+        var bajasProdMachos = 0;
+
+        if (DisponibilidadLoteCalculos.InformaHuevos(lotePosturaProduccionId))
+        {
+            var prod = await _context.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId!.Value)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    MortH = g.Sum(s => (int?)s.MortalidadH) ?? 0,
+                    MortM = g.Sum(s => (int?)s.MortalidadM) ?? 0,
+                    SelH = g.Sum(s => (int?)s.SelH) ?? 0,
+                    SelM = g.Sum(s => (int?)s.SelM) ?? 0,
+                    ErrH = g.Sum(s => (int?)s.ErrorSexajeHembras) ?? 0,
+                    ErrM = g.Sum(s => (int?)s.ErrorSexajeMachos) ?? 0
+                })
+                .FirstOrDefaultAsync();
+
+            bajasProdHembras = DisponibilidadLoteCalculos.BajasEtapa(
+                prod?.MortH ?? 0, prod?.SelH ?? 0, prod?.ErrH ?? 0);
+            bajasProdMachos = DisponibilidadLoteCalculos.BajasEtapa(
+                prod?.MortM ?? 0, prod?.SelM ?? 0, prod?.ErrM ?? 0);
+        }
+
+        // Retiros: movimientos Completados que salieron del lote. Es independiente de la fase.
+        // Se deja tal como estaba (materializa y suma en memoria) a propósito: el filtro cruza una
+        // navegación (`InventarioOrigen`) dentro de un OR, y agregarlo en la BD no se pudo verificar
+        // contra el motor en esta entrega. Son pocas filas por lote (15 en toda la copia local), así
+        // que el costo es despreciable y no se arriesga una traducción que no se probó.
         var retirosCompletados = await _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => 
+            .Where(m =>
                 (m.LoteOrigenId == loteIdInt || m.InventarioOrigen != null && m.InventarioOrigen.LoteId == loteIdInt) &&
                 m.Estado == "Completado")
             .ToListAsync();
@@ -240,37 +332,26 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         var retirosAcumHembras = retirosCompletados.Sum(m => m.CantidadHembras);
         var retirosAcumMachos = retirosCompletados.Sum(m => m.CantidadMachos);
 
-        // Calcular aves vivas
-        var hembrasVivas = Math.Max(0, hembrasIniciales - mortalidadAcumHembras - retirosAcumHembras);
-        var machosVivos = Math.Max(0, machosIniciales - mortalidadAcumMachos - retirosAcumMachos);
-        var totalAves = hembrasVivas + machosVivos;
+        var hembrasVivas = DisponibilidadLoteCalculos.AvesVivas(
+            hembrasIniciales, bajasLevanteHembras, bajasProdHembras, retirosAcumHembras);
+        var machosVivos = DisponibilidadLoteCalculos.AvesVivas(
+            machosIniciales, bajasLevanteMachos, bajasProdMachos, retirosAcumMachos);
 
-        return new DisponibilidadLoteDto
+        return new AvesDisponiblesDto
         {
-            LoteId = loteIdInt,
-            LoteNombre = lote.LoteNombre,
-            TipoLote = "Levante",
-            Aves = new AvesDisponiblesDto
-            {
-                HembrasVivas = hembrasVivas,
-                MachosVivos = machosVivos,
-                TotalAves = totalAves,
-                HembrasIniciales = hembrasIniciales,
-                MachosIniciales = machosIniciales,
-                MortalidadAcumuladaHembras = mortalidadAcumHembras,
-                MortalidadAcumuladaMachos = mortalidadAcumMachos,
-                RetirosAcumuladosHembras = retirosAcumHembras,
-                RetirosAcumuladosMachos = retirosAcumMachos
-            },
-            Huevos = null,
-            GranjaId = lote.GranjaId,
-            GranjaNombre = lote.Farm?.Name ?? string.Empty,
-            NucleoId = lote.NucleoId,
-            NucleoNombre = lote.Nucleo?.NucleoNombre,
-            GalponId = lote.GalponId,
-            GalponNombre = lote.Galpon?.GalponNombre
+            HembrasVivas = hembrasVivas,
+            MachosVivos = machosVivos,
+            TotalAves = hembrasVivas + machosVivos,
+            HembrasIniciales = hembrasIniciales,
+            MachosIniciales = machosIniciales,
+            // Se informa la baja TOTAL de las dos etapas: es la que explica el saldo que se muestra.
+            MortalidadAcumuladaHembras = bajasLevanteHembras + bajasProdHembras,
+            MortalidadAcumuladaMachos = bajasLevanteMachos + bajasProdMachos,
+            RetirosAcumuladosHembras = retirosAcumHembras,
+            RetirosAcumuladosMachos = retirosAcumMachos
         };
     }
+
 
     public async Task<bool> ValidarDisponibilidadAvesAsync(string loteId, int cantidadHembras, int cantidadMachos)
     {

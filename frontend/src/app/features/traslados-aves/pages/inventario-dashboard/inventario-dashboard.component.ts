@@ -1356,12 +1356,19 @@ export class InventarioDashboardComponent implements OnInit {
     this.applyDisponibilidadValidatorsRetiro();
   }
 
-  /** Máximos desde disponibilidad del lote (levante) o, si aún no cargó, desde inventario en pantalla. */
+  /**
+   * Máximos desde disponibilidad del lote o, si aún no cargó, desde inventario en pantalla.
+   *
+   * Antes esto exigía `tipoLote === 'Levante'`, y como el backend dejaba `aves` en null para todo
+   * lote que ruteara a huevos, los lotes en producción caían siempre al inventario de pantalla.
+   * Ahora `aves` viene siempre (también en producción, donde el lote igual tiene gallinas), así que
+   * la condición correcta es que el bloque exista — no en qué fase está el lote.
+   */
   private applyDisponibilidadValidatorsRetiro(): void {
     if (!this.trasladoRetiroForm) return;
     const d = this.disponibilidadLote();
-    const hDisp = d?.tipoLote === 'Levante' ? d.aves?.hembrasVivas : undefined;
-    const mDisp = d?.tipoLote === 'Levante' ? d.aves?.machosVivos : undefined;
+    const hDisp = d?.aves?.hembrasVivas;
+    const mDisp = d?.aves?.machosVivos;
     const inv = this.obtenerInventarioLoteSeleccionado();
     const maxH = hDisp != null && !Number.isNaN(Number(hDisp)) ? Number(hDisp) : (inv?.cantidadHembras ?? 999999);
     const maxM = mDisp != null && !Number.isNaN(Number(mDisp)) ? Number(mDisp) : (inv?.cantidadMachos ?? 999999);

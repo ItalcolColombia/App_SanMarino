@@ -217,3 +217,112 @@ buena de producción es la fila viva en `lote_postura_produccion` (regla canóni
 
 Es un cambio de comportamiento en pantallas que nadie pidió tocar: va aparte, con decisión del
 usuario y prueba en las dos pantallas.
+
+---
+
+## Fase 5 — El arreglo de fondo: `Aves` y `Huevos` no son excluyentes
+
+**Pedido explícito del usuario (2-sep-2026): «analiza todo bien y solucionalo a profundo».**
+
+### El defecto de raíz
+
+`DisponibilidadLoteDto` se usa como **o aves o huevos**, y la rama la elige `lote.Fase`. Pero un lote
+en producción tiene **las dos cosas**: gallinas vivas y huevos. Medido: los lotes en `fase='Produccion'`
+tienen 15.487, 17.639, 11.639 y 11.812 aves, y **sí tienen movimientos de aves** (114 → 4 movimientos,
+115 → 2, 143 → 2, 142 → 1).
+
+La consecuencia no era solo cosmética. `ValidarDisponibilidadAvesAsync` —el gate que autoriza los
+traslados de aves en `TrasladosController`— hace:
+
+```csharp
+if (disponibilidad == null || disponibilidad.Aves == null) return false;
+```
+
+Como la rama de huevos deja `Aves = null`, **todo lote que rutee a huevos tiene los traslados de aves
+bloqueados**, en el back y en el front. Hoy eso alcanza a A374A/A374B con **35.372 aves entre las dos**
+y sin una sola fila de producción.
+
+### Qué hace cada lote hoy y qué hará
+
+| lote | `fase` | LPP | cierre levante | filas prod | hoy | con la regla canónica |
+|---|---|---|---|---|---|---|
+| 13 K345A | Levante | 7 | Cerrado | 301 | Aves | **Producción** → expone 1,54 M huevos |
+| 14 K345B | Levante | 6 | Cerrado | 301 | Aves | **Producción** → expone 2,09 M huevos |
+| 114 A374A | Produccion | — | Abierto | 0 | Huevos = 0, **aves bloqueadas** | **Levante** → destraba 17.733 aves |
+| 115 A374B | Produccion | — | Abierto | 0 | Huevos = 0, **aves bloqueadas** | **Levante** → destraba 17.639 aves |
+| 142 S369A | Produccion | 21 | Cerrado | 0 | Huevos = 0, **aves bloqueadas** | Producción, **destraba 11.639 aves** |
+| 143 S369B | Produccion | 22 | Cerrado | 0 | Huevos = 0, **aves bloqueadas** | Producción, **destraba 11.812 aves** |
+
+### La solución
+
+1. **Una sola regla de fase, la que ya es canónica**: `FaseLoteCalculos.ResolverFaseVisible`
+   (levante cerrado **y** fila viva en `lote_postura_produccion`). No se inventa una cuarta — el repo
+   ya tenía tres (`lote.Fase` acá, `Fase || cierre || etapa>=26` en `MovimientoAvesService`, y la
+   canónica).
+2. **`Aves` se puebla SIEMPRE**, así deja de bloquearse el traslado de aves de un lote en producción.
+3. **`Huevos` se puebla cuando el lote tiene LPP viva** (propio, o el del lote hijo), desde el espejo.
+4. **El front deja de gatear por `tipoLote`** y pasa a gatear por la presencia del bloque de datos
+   (`disponibilidad.aves` / `disponibilidad.huevos`), que es lo que esas pantallas realmente
+   preguntan. Son 6 lugares: 3 de aves y 3 de huevos.
+
+### Un número que sí cambia, y hay que decirlo
+
+La fórmula de aves resta la mortalidad de **`seguimiento_diario_levante`** y no ve la de producción.
+Medido: **lote 13 → 620 aves** (534 H + 86 M) y **lote 14 → 1.411** (738 H + 673 M) que hoy **no** se
+descuentan. Son justo los dos lotes que pasan a Producción. Como el número autoriza traslados, se
+corrige en esta misma entrega: se descuenta también la mortalidad y selección de producción cuando el
+lote tiene LPP. Va en un cálculo puro con tests xUnit, y el delta queda medido lote por lote.
+
+### El número de aves estaba mucho peor de lo que parecía
+
+La primera medición (solo mortalidad de producción) daba 620 y 1.411 aves. Buscando la composición
+**canónica** de una baja —`SaldoAvesLevanteCalculos.BajasNetas`: *mortalidad + selección + error de
+sexaje + salidas + ventas + retiros − ingresos*— apareció que la fórmula del endpoint restaba
+**solo la mortalidad de levante**. Ignoraba:
+
+- la **selección**: 11.032 aves en levante y 12.055 en producción;
+- el **error de sexaje**: 834 en levante.
+
+Resultado medido, lote por lote:
+
+| lote | hembras antes → ahora | machos antes → ahora | faltaba restar |
+|---|---|---|---|
+| 14 K345B | 10.748 → **23** | 1.486 → 30 | 12.181 |
+| 13 K345A | 7.786 → **5.317** | 1.048 → 583 | 2.934 |
+| 143 S369B | 9.984 → 9.534 | 1.106 → 795 | 761 |
+| 142 S369A | 9.805 → 9.484 | 1.206 → 966 | 561 |
+| 115 A374B | 7.314 → 7.261 | 789 → 441 | 401 |
+| 114 A374A | 0 → 0 | 133 → **0** | 143 |
+
+El lote 14 informaba **10.748 hembras disponibles cuando le quedaban 23**: fue despoblado en mayo de
+2026 (selecciones de 2.390, 823 y 4.596). Ese número autoriza traslados.
+
+**Lo que NO se sumó, y por qué.** La composición canónica incluye traslados y ventas de las columnas
+del seguimiento. Este service ya cuenta las salidas por `movimiento_aves`, así que sumar las dos
+fuentes contaría dos veces la misma salida —el patrón exacto de la venta que restaba doble—. Medido:
+en la tabla de producción `traslado_salida`, `traslado_ingreso` y `venta_aves` están **todas en 0**,
+así que hoy no hay diferencia. Queda escrito en el cálculo por si algún día se llenan.
+
+### Casos de prueba
+
+- xUnit del cálculo puro (`DisponibilidadLoteCalculosTests`, 20 casos): composición de la baja, aves
+  vivas con y sin producción, que nunca dé negativo, que ningún término quede sin restar, y que la
+  fase salga de la regla canónica.
+- SQL antes/después con el delta exacto por lote
+  (`backend/sql/verificar_disponibilidad_lote_aves_y_huevos.sql`).
+- `dotnet build` + `dotnet test` + `yarn build`.
+
+### Lo que quedó sin verificar, y hay que decirlo
+
+**Las consultas nuevas no se ejecutaron contra el motor.** El backend arranca limpio y `/db-ping`
+responde con el contexto en pool, pero el endpoint devuelve 401: la lista blanca de sesiones exige un
+`jti` vivo en `sesiones_activas` y no hay ninguna vigente (513 filas, 0 sin vencer). No se insertó
+una a mano para esquivarlo. En consecuencia:
+
+- La aritmética está verificada **a nivel de datos** (SQL fila a fila) y de **cálculo puro** (xUnit).
+- La **traducción LINQ → SQL** no está probada en ejecución. Las formas usadas
+  (`GroupBy(_ => 1)` con agregados, `MaxAsync`, `Select` de una columna) ya corren en producción en
+  `EspejoHuevoProduccionSyncService`, así que el riesgo es bajo — pero no es cero.
+- Por eso la agregación de `movimiento_aves` **se dejó como estaba** (materializa y suma en memoria):
+  su filtro cruza una navegación dentro de un `OR`, es la única cuya traducción no se pudo comprobar,
+  y son 15 filas en toda la copia. No se arriesga lo que no se probó.

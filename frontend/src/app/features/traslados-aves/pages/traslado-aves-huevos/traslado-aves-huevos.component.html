@@ -53,7 +53,7 @@
           </div>
         }
 
-        @if (disponibilidad() && disponibilidad()!.tipoLote === 'Levante') {
+        @if (disponibilidad()?.aves) {
           <div class="disponibilidad-card">
             <h3>Disponibilidad de Aves</h3>
             <div class="disponibilidad-grid">

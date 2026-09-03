@@ -49,7 +49,7 @@
           </div>
         }
 
-        @if (disponibilidad() && disponibilidad()!.tipoLote === 'Produccion') {
+        @if (disponibilidad()?.huevos) {
           <div class="disponibilidad-card">
             <h3>Disponibilidad de Huevos</h3>
             <div class="disponibilidad-grid">

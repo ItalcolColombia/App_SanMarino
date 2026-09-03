@@ -773,8 +773,11 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
         this.disponibilidad.set(disponibilidad);
         this.loadingDisponibilidad.set(false);
 
-        if (disponibilidad.tipoLote !== 'Produccion') {
-          this.error.set('Este lote es de levante, selecciona traslado de aves');
+        // Se gatea por la PRESENCIA del bloque de huevos, no por la fase del lote: `lote.fase` no
+        // dice en qué fase está (el paso a producción no la escribe), y exigir 'Produccion'
+        // escondía la producción de lotes que la tenían — medido, 3,6 M de huevos en K345A/K345B.
+        if (!disponibilidad.huevos) {
+          this.error.set('Este lote no tiene producción de huevos registrada');
         }
 
         // Si estamos editando, no actualizamos el loteId del formulario

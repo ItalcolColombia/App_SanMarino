@@ -189,9 +189,12 @@ export class TrasladoAvesComponent implements OnInit {
         this.disponibilidad.set(disponibilidad);
         this.loadingDisponibilidad.set(false);
 
-        // Validar que el tipo de lote coincida con el tipo de traslado
-        if (disponibilidad.tipoLote !== 'Levante') {
-          this.error.set('Este lote es de producción, selecciona traslado de huevos');
+        // Se gatea por la PRESENCIA del bloque de aves, no por la fase del lote. Un lote en
+        // producción también tiene gallinas y puede trasladarlas: exigir 'Levante' bloqueaba
+        // traslados de lotes con decenas de miles de aves (medido: A374A/A374B, 35.372 entre las
+        // dos, sin una sola fila de producción).
+        if (!disponibilidad.aves) {
+          this.error.set('Este lote no tiene aves disponibles para trasladar');
         }
       },
       error: (error) => {
