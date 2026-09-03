@@ -656,7 +656,12 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     granjaDestino?.updateValueAndValidity();
     plantaDestino?.updateValueAndValidity();
     loteDestino?.updateValueAndValidity();
-    tipoDestino?.updateValueAndValidity();
+    // `tipoDestino` tiene su propio `valueChanges.subscribe(...)` (arriba) que vuelve a llamar a
+    // este mismo método — sin `emitEvent: false` cada pasada dispara la siguiente y nunca corta
+    // (RangeError: Maximum call stack size exceeded, medido 3-sep-2026: Zone.js solo reportaba el
+    // stack overflow, no lo causaba). Igual criterio que `observaciones` dos líneas abajo, que ya
+    // lo tenía bien.
+    tipoDestino?.updateValueAndValidity({ emitEvent: false });
     motivo?.updateValueAndValidity();
     descripcion?.updateValueAndValidity();
     observaciones?.updateValueAndValidity({ emitEvent: false });
