@@ -30,6 +30,15 @@
         @if (!data.preformatted) {
           <p class="modal-message">{{ data.message }}</p>
         }
+        @if (data.input) {
+          <label class="modal-input-label" for="modal-input">{{ data.input.label }}</label>
+          <input id="modal-input"
+            type="text"
+            class="modal-input"
+            [placeholder]="data.input.placeholder || ''"
+            [(ngModel)]="inputValue"
+            (click)="$event.stopPropagation()">
+        }
       </div>
       <!-- Modal Footer -->
       <div class="modal-footer">
@@ -44,6 +53,7 @@
         }
         <button type="button"
           class="btn btn-primary"
+          [disabled]="confirmDeshabilitado"
           (click)="onConfirm($event); $event.stopPropagation()">
           <fa-icon [icon]="faCheck" aria-hidden="true"></fa-icon>
           {{ data.confirmText || 'Confirmar' }}

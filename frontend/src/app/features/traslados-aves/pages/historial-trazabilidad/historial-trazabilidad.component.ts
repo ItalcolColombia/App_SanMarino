@@ -3,13 +3,13 @@ import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
 
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { 
-  TrasladosAvesService, 
-  HistorialInventarioDto, 
-  HistorialInventarioSearchRequest, 
+import { HistorialInventarioService } from '../../services/historial-inventario.service';
+import {
+  HistorialInventarioDto,
+  HistorialInventarioSearchRequest,
   TrazabilidadLoteDto,
   PagedResult
-} from '../../services/traslados-aves.service';
+} from '../../models';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
@@ -47,7 +47,7 @@ export class HistorialTrazabilidadComponent implements OnInit {
   hasTrazabilidad = computed(() => !!this.trazabilidad());
 
   constructor(
-    private trasladosService: TrasladosAvesService,
+    private historialService: HistorialInventarioService,
     private router: Router,
     private route: ActivatedRoute,
     private companyConfig: ActiveCompanyConfigService
@@ -79,7 +79,7 @@ export class HistorialTrazabilidadComponent implements OnInit {
     this.error.set(null);
 
     try {
-      const result = await this.trasladosService.searchHistorial(this.filtros).toPromise();
+      const result = await this.historialService.searchHistorial(this.filtros).toPromise();
       if (result) {
         this.historial.set(result.items);
         this.totalRecords.set(result.total);
@@ -99,7 +99,7 @@ export class HistorialTrazabilidadComponent implements OnInit {
     this.error.set(null);
 
     try {
-      const trazabilidad = await this.trasladosService.getTrazabilidadLote(loteId).toPromise();
+      const trazabilidad = await this.historialService.getTrazabilidadLote(loteId).toPromise();
       this.trazabilidad.set(trazabilidad || null);
     } catch (error: any) {
       console.error('Error al cargar trazabilidad:', error);
@@ -152,10 +152,6 @@ export class HistorialTrazabilidadComponent implements OnInit {
   // Navegación
   navegarADashboard(): void {
     this.router.navigate(['../dashboard'], { relativeTo: this.route });
-  }
-
-  navegarATraslados(): void {
-    this.router.navigate(['../traslados'], { relativeTo: this.route });
   }
 
   navegarAMovimientos(): void {

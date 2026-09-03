@@ -713,11 +713,16 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
 - [~] **F10 · Traslado de huevos** (5h) — bug real encontrado y cerrado (21-ago-2026, sesión de
       continuación) en los 2 formularios oficiales + el listado, F10.1 (UX de bodega de salida) sigue
       sin resolver. Diseño técnico completo en §9 del plan (`santa_reyes_requerimientos_italapp_plan.md`)
-  - [!] **4º lugar con el mismo bug, encontrado pero NO tocado**: `traslados-aves/pages/inventario-
-        dashboard` (~1800 líneas, pantalla de aterrizaje real de `/traslados-aves`) tiene su propia
+  - [x] **4º lugar con el mismo bug — CERRADO el 3-sep-2026**: `traslados-aves/pages/inventario-
+        dashboard` (pantalla de aterrizaje real de `/traslados-aves`) tenía su propia
         reimplementación del formulario de traslado de huevos (sin selector de ítems) — mismo síntoma
-        de disponible 0 para Santa Reyes. Componente grande, sin auditar a fondo; spawneado aparte
-        (`task_b8e26e02`) en vez de arriesgar un edit grande sin dominarlo. Detalle en §9.5 del plan
+        de disponible 0 para Santa Reyes. **No se le agregó soporte de ítems por cuarta vez**: se
+        borró el formulario propio (`procesarTrasladoHuevos` + `initTrasladoHuevosForm` +
+        `actualizarValidadoresHuevos` + `tiposHuevo` + su pestaña, ~230 líneas) y la pestaña Huevos
+        pasó a montar `ModalTrasladoHuevosComponent` —el del módulo `traslados-huevos`, que ya
+        soporta `huevoItems`, ya edita y es el que usa `/traslados-huevos/lista`— con el lote
+        preseleccionado. Mismo endpoint (`POST /api/traslados/huevos`), un solo formulario de huevos
+        en toda la app. Plan: `fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md` (B5)
   - [x] **Bug encontrado auditando F10.1, no era la pregunta de UX que parecía**: la disponibilidad
         de huevos para traslado/venta se calculaba SOLO desde las 11 columnas legacy
         (`espejo_huevo_produccion.huevo_*_dinamico`), que F0.2/F7 dejan en `0` para Santa Reyes
@@ -6532,3 +6537,47 @@ Plan: seccion «Fase 5» de
       navegacion dentro de un `OR` y es la unica que no se pudo comprobar
 - [ ] ⏸️ **Smoke funcional en las 2 pantallas de aves y las 2 de huevos** con un usuario real, antes
       de desplegar. El cambio mueve numeros que el usuario ve y que autorizan traslados
+
+---
+
+## 🚚 Consolidación de traslados/ventas de aves y huevos — Fase 0 + Propuesta B
+
+Plan: [`fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md`](fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md)
+
+Recon previo: el movimiento de aves tenía **4 puntos de entrada de escritura vivos** (no 3) y los
+huevos **3**. Decisión del usuario: Fase 0 + Propuesta B. **Los caminos backend A/C/D no se tocan.**
+
+### Fase 0 — borrar código muerto confirmado
+
+- [x] F0.1 Modal inline "Traslado" del dashboard (`abrirModalTraslado`/`procesarTraslado` + HTML +
+      SCSS + `navegarANuevoTraslado`) — ningún `(click)` lo abría
+- [x] F0.2 `RegistrosTrasladosComponent` completo — sin ruta en `app.config.ts`
+- [x] F0.3 `TrasladoNavigationList` + `TrasladoNavigationCard` — cadena huérfana
+- [x] F0.4 Backend B1/B2: `EjecutarVentaAsync`/`EjecutarTrasladoAsync` + endpoints
+      `ejecutar-venta`/`ejecutar-traslado` + firmas de la interfaz (0 llamadores, re-verificado).
+      ⚠️ `ejecutar-traslado-cierre-levante` (B3) **NO** se toca: lo usa el cierre de levante
+- [x] F0.5 Huérfanos derivados (imports, tipos, specs de lo borrado)
+
+### Propuesta B — consolidación del front
+
+- [x] B1 Partir `TrasladosAvesService` (747 líneas) por dominio, re-exportando para no romper
+      imports externos
+- [!] B2 **NO SE HIZO — el gate encontró divergencia estructural.** Las dos fuentes NO son
+      intercambiables: medido el 3-sep-2026 sobre la copia local, **9 de 15 lotes con actividad
+      divergen**, hasta **19.385 aves** de diferencia. Difieren en 4 dimensiones, no en redondeo:
+      (a) la base (`lote_etapa_levante.aves_inicio_hembras` vs `lotes.hembras_l`), (b) la mortalidad
+      de caja (sólo `resumen-mortalidad` la resta), (c) **las bajas de PRODUCCIÓN (sólo
+      `disponibilidad` las resta)** → lotes 13 y 14, (d) la fuente de los traslados (columnas
+      acumuladas del espejo vs `movimiento_aves`) → lotes receptores 116/124/128/129 dan **0** en
+      `disponibilidad` porque los `TSD-*` viejos tienen `lote_destino_id` NULL.
+      **Ninguna de las dos es correcta en todos los casos**, así que unificar cambiaría números que
+      autorizan traslados. Evidencia reproducible:
+      `backend/sql/verificar_paridad_disponibilidad_aves.sql`. Decide el usuario.
+- [x] B3 Extraer la cascada Granja→Núcleo→Galpón→Lote a
+      `traslados-aves/components/selector-lote-destino/` y usarla en dashboard, `/nuevo` y
+      `movimientos-aves` (mata los 3 `<input type="text">` de "ID del lote destino")
+- [x] B4 Colapsar `/traslados-aves/nuevo` sobre el dashboard sin romper el link del menú
+- [x] B5 Huevos: borrar `/traslados-huevos/nuevo` (0 roles) y montar `ModalTrasladoHuevosComponent`
+      en la pestaña Huevos del dashboard ⇒ **cierra el bloque F10**
+- [x] B6 Primitivas: `window.prompt` → `ConfirmDialogService`; `ToastService`; `Eager` explícito
+- [x] B7 Validación: `yarn build` limpio + `dotnet build` 0 errores + specs puntuales

@@ -1,538 +1,78 @@
+// src/app/features/traslados-aves/services/traslados-aves.service.ts
+// Traslados y ventas de aves y huevos (`/api/traslados`), cohortes y traslado de LOTE completo.
+//
+// El 3-sep-2026 este archivo tenia 747 lineas y mezclaba CUATRO dominios: inventario de aves,
+// movimientos, historial/trazabilidad y traslados. Se partio por dominio:
+//   · `InventarioAvesService`      -> /api/InventarioAves
+//   · `HistorialInventarioService` -> /api/HistorialInventario
+//   · este                          -> /api/traslados (+ cohortes y Lote/trasladar)
+// y las 29 interfaces se movieron a `../models/`. Se RE-EXPORTAN desde aca, asi que los imports
+// que ya existian (`from '.../services/traslados-aves.service'`) siguen compilando sin tocarse.
+//
+// De paso salieron 15 metodos sin un solo llamador (createMovimiento, getInventarioByLote,
+// validarTraslado, procesarMovimiento, searchMovimientos, getLotesDisponibles, ...): eran el resto
+// del modal de traslado del dashboard, que estaba muerto, y del formulario de huevos que se
+// reemplazo por `ModalTrasladoHuevosComponent`.
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
+import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
-import { CohortesLoteDto } from '../models/cohorte-lote.model';
+import { manejarErrorHttp } from '../funciones/manejar-error-http.funcion';
+import {
+  CohortesLoteDto,
+  CrearTrasladoAvesDto,
+  DisponibilidadLoteDto,
+  HistorialTrasladoLoteDto,
+  MovimientoAvesDto,
+  ResultadoMovimientoDto,
+  TrasladoAvesDesdeSegDiarioDto,
+  TrasladoAvesResultSegDto,
+  TrasladoHuevosDto,
+  TrasladoLoteRequest,
+  TrasladoLoteResponse
+} from '../models';
 
-// Re-export por conveniencia: los consumidores del servicio pueden tipar la respuesta
-// de cohortes sin importar de dos rutas distintas.
-export type { CohorteLoteDto, CohortesLoteDto, FilaEdadLote } from '../models/cohorte-lote.model';
-
-// =====================================================
-// INTERFACES PRINCIPALES
-// =====================================================
-
-// Inventario de Aves
-export interface InventarioAvesDto {
-  id: number;
-  companyId: number;
-  loteId: string;
-  granjaId: number;
-  nucleoId: string;
-  galponId?: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  fechaUltimoConteo: Date;
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-export interface CreateInventarioAvesDto {
-  loteId: string;
-  granjaId: number;
-  nucleoId: string;
-  galponId?: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  fechaUltimoConteo: Date;
-}
-
-export interface UpdateInventarioAvesDto extends CreateInventarioAvesDto {
-  id: number;
-}
-
-export interface InventarioAvesSearchRequest {
-  loteId?: string;
-  granjaId?: number;
-  nucleoId?: string;
-  galponId?: string;
-  estado?: string;
-  fechaDesde?: Date;
-  fechaHasta?: Date;
-  soloActivos?: boolean;
-  sortBy?: string;
-  sortDesc?: boolean;
-  page: number;
-  pageSize: number;
-}
-
-// Movimiento de Aves
-export interface UbicacionMovimientoDto {
-  loteId?: number | null;
-  loteNombre?: string | null;
-  granjaId?: number | null;
-  granjaNombre?: string | null;
-  nucleoId?: string | null;
-  nucleoNombre?: string | null;
-  galponId?: string | null;
-  galponNombre?: string | null;
-}
-
-/** Respuesta de cancelar / procesar movimiento (API). */
-export interface ResultadoMovimientoDto {
-  success: boolean;
-  message: string;
-  movimientoId?: number | null;
-  numeroMovimiento?: string | null;
-  errores?: string[];
-  movimiento?: MovimientoAvesDto | null;
-}
-
-export interface MovimientoAvesDto {
-  id: number;
-  numeroMovimiento: string;
-  fechaMovimiento: string | Date;
-  tipoMovimiento: string;
-  origen?: UbicacionMovimientoDto | null;
-  destino?: UbicacionMovimientoDto | null;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  cantidadMixtas: number;
-  totalAves: number;
-  estado: string;
-  motivoMovimiento?: string | null;
-  observaciones?: string | null;
-  usuarioMovimientoId: number;
-  usuarioNombre?: string | null;
-  fechaProcesamiento?: string | Date | null;
-  fechaCancelacion?: string | Date | null;
-  createdAt: string | Date;
-  
-  // Campos adicionales para compatibilidad (si vienen del backend)
-  loteOrigenId?: number | null;
-  loteDestinoId?: number | null;
-  granjaOrigenId?: number | null;
-  granjaDestinoId?: number | null;
-  granjaOrigenNombre?: string | null;
-  granjaDestinoNombre?: string | null;
-}
-
-export interface CreateMovimientoAvesDto {
-  loteOrigenId: string;
-  loteDestinoId: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  tipoMovimiento: string;
-  observaciones?: string;
-  fechaMovimiento: Date;
-}
-
-export interface MovimientoAvesSearchRequest {
-  numeroMovimiento?: string;
-  tipoMovimiento?: string;
-  estado?: string;
-  loteOrigenId?: string;
-  loteDestinoId?: string;
-  granjaOrigenId?: number;
-  granjaDestinoId?: number;
-  fechaDesde?: Date;
-  fechaHasta?: Date;
-  usuarioMovimientoId?: number;
-  sortBy?: string;
-  sortDesc?: boolean;
-  page: number;
-  pageSize: number;
-}
-
-// Historial de Inventario
-export interface HistorialInventarioDto {
-  id: number;
-  companyId: number;
-  loteId: string;
-  cantidadHembrasAntes: number;
-  cantidadMachosAntes: number;
-  cantidadHembrasDespues: number;
-  cantidadMachosDespues: number;
-  tipoEvento: string;
-  referenciaMovimientoId?: string;
-  fechaRegistro: Date;
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-export interface HistorialInventarioSearchRequest {
-  inventarioId?: number;
-  loteId?: string;
-  tipoCambio?: string;
-  movimientoId?: number;
-  granjaId?: number;
-  nucleoId?: string;
-  galponId?: string;
-  fechaDesde?: Date;
-  fechaHasta?: Date;
-  usuarioCambioId?: number;
-  sortBy?: string;
-  sortDesc?: boolean;
-  page: number;
-  pageSize: number;
-}
-
-// Interfaces Auxiliares
-export interface ResumenInventarioDto {
-  totalLotes: number;
-  totalHembras: number;
-  totalMachos: number;
-  totalAves: number;
-  resumenPorGranja: ResumenPorGranjaDto[];
-}
-
-export interface ResumenPorGranjaDto {
-  granjaId: number;
-  granjaNombre: string;
-  nucleoId: string;
-  nucleoNombre?: string;
-  galponId?: string;
-  galponNombre?: string;
-  cantidadLotes: number;
-  totalHembras: number;
-  totalMachos: number;
-  totalAves: number;
-  fechaUltimaActualizacion: Date;
-}
-
-export interface EventoTrazabilidadDto {
-  fecha: Date;
-  tipoEvento: string;
-  descripcion: string;
-  cantidadHembrasAntes: number;
-  cantidadMachosAntes: number;
-  cantidadHembrasDespues: number;
-  cantidadMachosDespues: number;
-  usuario?: string;
-  referenciaMovimiento?: string;
-}
-
-export interface TrazabilidadLoteDto {
-  loteId: string;
-  eventos: EventoTrazabilidadDto[];
-}
-
-export interface AjusteInventarioRequest {
-  cantidadHembras: number;
-  cantidadMachos: number;
-  tipoEvento: string;
-  observaciones?: string;
-}
-
-// Disponibilidad de Lote
-export interface DisponibilidadLoteDto {
-  loteId: number;
-  loteNombre: string;
-  tipoLote: string; // "Levante" o "Produccion"
-  aves?: AvesDisponiblesDto;
-  huevos?: HuevosDisponiblesDto;
-  granjaId: number;
-  granjaNombre: string;
-  nucleoId?: string;
-  nucleoNombre?: string;
-  galponId?: string;
-  galponNombre?: string;
-}
-
-export interface AvesDisponiblesDto {
-  hembrasVivas: number;
-  machosVivos: number;
-  totalAves: number;
-  hembrasIniciales: number;
-  machosIniciales: number;
-  mortalidadAcumuladaHembras: number;
-  mortalidadAcumuladaMachos: number;
-  retirosAcumuladosHembras: number;
-  retirosAcumuladosMachos: number;
-}
-
-export interface HuevosDisponiblesDto {
-  totalHuevos: number;
-  totalHuevosIncubables: number;
-  limpio: number;
-  tratado: number;
-  sucio: number;
-  deforme: number;
-  blanco: number;
-  dobleYema: number;
-  piso: number;
-  pequeno: number;
-  roto: number;
-  desecho: number;
-  otro: number;
-  fechaUltimoRegistro?: Date;
-  diasEnProduccion: number;
-}
-
-// Traslado de Aves
-export interface CrearTrasladoAvesDto {
-  loteId: string;
-  fechaTraslado: Date;
-  tipoOperacion: string; // "Venta" o "Traslado"
-  cantidadHembras: number;
-  cantidadMachos: number;
-  granjaDestinoId?: number;
-  loteDestinoId?: string;
-  tipoDestino?: string; // "Granja" o "Planta"
-  motivo?: string;
-  descripcion?: string;
-  observaciones?: string;
-}
-
-// Traslado de Huevos
-export interface CrearTrasladoHuevosDto {
-  loteId: string;
-  fechaTraslado: Date;
-  tipoOperacion: string; // "Venta" o "Traslado"
-  cantidadLimpio: number;
-  cantidadTratado: number;
-  cantidadSucio: number;
-  cantidadDeforme: number;
-  cantidadBlanco: number;
-  cantidadDobleYema: number;
-  cantidadPiso: number;
-  cantidadPequeno: number;
-  cantidadRoto: number;
-  cantidadDesecho: number;
-  cantidadOtro: number;
-  granjaDestinoId?: number;
-  loteDestinoId?: string;
-  tipoDestino?: string; // "Granja" o "Planta"
-  motivo?: string;
-  descripcion?: string;
-  observaciones?: string;
-}
-
-export interface TrasladoHuevosDto {
-  id: number;
-  numeroTraslado: string;
-  fechaTraslado: Date;
-  tipoOperacion: string;
-  loteId: string;
-  loteNombre: string;
-  granjaOrigenId: number;
-  granjaOrigenNombre: string;
-  granjaDestinoId?: number;
-  granjaDestinoNombre?: string;
-  loteDestinoId?: string;
-  tipoDestino?: string;
-  motivo?: string;
-  descripcion?: string;
-  cantidadLimpio: number;
-  cantidadTratado: number;
-  cantidadSucio: number;
-  cantidadDeforme: number;
-  cantidadBlanco: number;
-  cantidadDobleYema: number;
-  cantidadPiso: number;
-  cantidadPequeno: number;
-  cantidadRoto: number;
-  cantidadDesecho: number;
-  cantidadOtro: number;
-  totalHuevos: number;
-  estado: string;
-  usuarioTrasladoId: number;
-  usuarioNombre?: string;
-  fechaProcesamiento?: Date;
-  fechaCancelacion?: Date;
-  observaciones?: string;
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-// Disponibilidad aves para traslado desde seguimiento diario (R3)
-export interface DisponibilidadAvesSegDto {
-  loteId: number;
-  loteNombre: string;
-  tipoLote: string;
-  avesHActual: number;
-  avesMActual: number;
-  granjaId?: number | null;
-  granjaNombre?: string | null;
-  galponId?: string | null;
-  galponNombre?: string | null;
-}
-
-export interface TrasladoAvesDesdeSegDiarioDto {
-  loteOrigenId: number;
-  tipoOrigen: string;            // "Levante" | "Produccion"
-  fechaSeguimiento: string;      // ISO date
-  trasladoHembras: number;
-  trasladoMachos: number;
-  loteDestinoId: number;
-  tipoDestino: string;           // "Levante" | "Produccion"
-  granjaDestinoId?: number | null;
-  observaciones?: string | null;
-  /** Placa del vehículo de transporte. Opcional (postura, Santa Reyes). */
-  placa?: string | null;
-  /** Nombre del conductor. Opcional (postura, Santa Reyes). */
-  conductor?: string | null;
-  /** Precinto/sellos de seguridad del transporte. Opcional (postura, Santa Reyes). */
-  sellos?: string | null;
-}
-
-export interface TrasladoAvesResultSegDto {
-  exitoso: boolean;
-  mensaje: string;
-  movimientoAvesId?: number | null;
-  avesHActualOrigen: number;
-  avesMActualOrigen: number;
-}
-
-// Resultado paginado
-export interface PagedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-// Traslado de Lote
-export interface TrasladoLoteRequest {
-  loteId: number;
-  granjaDestinoId: number;
-  nucleoDestinoId?: string | null;
-  galponDestinoId?: string | null;
-  observaciones?: string | null;
-  /**
-   * Dia real en que el lote se movio (`yyyy-MM-dd`), que no es el instante en que se registra. Si
-   * se omite, el backend usa hoy. Misma semantica que en `lote.service.ts`.
-   */
-  fechaTraslado?: string | null;
-}
-
-export interface TrasladoLoteResponse {
-  success: boolean;
-  message: string;
-  loteOriginalId?: number;
-  loteNuevoId?: number;
-  loteNombre?: string;
-  granjaOrigen?: string;
-  granjaDestino?: string;
-}
-
-/**
- * Una fila del historial de traslados de lote, tal como la devuelve
- * `GET /Lote/{loteId}/historial-traslados`.
- *
- * Los nombres son los del wire: hasta el 1-sep-2026 esta interfaz declaraba `fechaTraslado: Date` y
- * `usuarioNombre`, dos campos que el backend nunca emitio, asi que las columnas Fecha y Usuario de
- * las 4 tablas que la consumen mostraban siempre `—`.
- */
-export interface HistorialTrasladoLoteDto {
-  id: number;
-  loteOriginalId: number;
-  loteNuevoId: number;
-  granjaOrigenId: number;
-  granjaOrigenNombre?: string;
-  granjaDestinoId: number;
-  granjaDestinoNombre?: string;
-  nucleoDestinoId?: string | null;
-  nucleoDestinoNombre?: string | null;
-  galponDestinoId?: string | null;
-  galponDestinoNombre?: string | null;
-  observaciones?: string | null;
-  createdByUserId: number;
-  /** `firstName + surName` de quien lo registro; null si su id no corresponde a ninguna cedula. */
-  createdByUserName?: string | null;
-  /** Instante en que se DIGITO el registro (ISO con hora). No es el dia del traslado. */
-  createdAt: string;
-  /**
-   * Dia REAL en que el lote se movio (`yyyy-MM-dd`, `DateOnly` del backend), que es el que eligio
-   * quien registro en el modal. Null solo en filas previas a la migracion que agrego la columna.
-   */
-  fechaTraslado?: string | null;
-}
+// Re-export de TODOS los tipos del modulo: los consumidores siguen importando de este archivo.
+export * from '../models';
 
 @Injectable({
   providedIn: 'root'
 })
 export class TrasladosAvesService {
-  private inventarioUrl = `${environment.apiUrl}/InventarioAves`;
   private movimientoUrl = `${environment.apiUrl}/MovimientoAves`;
-  private historialUrl = `${environment.apiUrl}/HistorialInventario`;
   private trasladosUrl = `${environment.apiUrl}/traslados`;
   private apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
   // =====================================================
-  // INVENTARIO DE AVES
+  // DISPONIBILIDAD
   // =====================================================
 
-  // Obtener inventario por ID
-  getInventarioById(id: number): Observable<InventarioAvesDto> {
-    return this.http.get<InventarioAvesDto>(`${this.inventarioUrl}/${id}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener inventario por lote
-  getInventarioByLote(loteId: string): Observable<InventarioAvesDto> {
-    return this.http.get<InventarioAvesDto>(`${this.inventarioUrl}/lote/${loteId}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Búsqueda de inventarios
-  searchInventarios(request: InventarioAvesSearchRequest): Observable<PagedResult<InventarioAvesDto>> {
-    return this.http.post<PagedResult<InventarioAvesDto>>(`${this.inventarioUrl}/search`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Crear inventario
-  createInventario(dto: CreateInventarioAvesDto): Observable<InventarioAvesDto> {
-    return this.http.post<InventarioAvesDto>(this.inventarioUrl, dto)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Actualizar inventario
-  updateInventario(id: number, dto: UpdateInventarioAvesDto): Observable<InventarioAvesDto> {
-    return this.http.put<InventarioAvesDto>(`${this.inventarioUrl}/${id}`, dto)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Eliminar inventario
-  deleteInventario(id: number): Observable<boolean> {
-    return this.http.delete<boolean>(`${this.inventarioUrl}/${id}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Ajustar cantidades
-  ajustarInventario(loteId: string, ajuste: AjusteInventarioRequest): Observable<InventarioAvesDto> {
-    return this.http.post<InventarioAvesDto>(`${this.inventarioUrl}/ajustar/${loteId}`, ajuste)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener resumen
-  getResumenInventario(): Observable<ResumenInventarioDto> {
-    return this.http.get<ResumenInventarioDto>(`${this.inventarioUrl}/resumen`)
+  /** Disponibilidad del lote: informa el bloque `aves` siempre y `huevos` cuando hay LPP. */
+  getDisponibilidadLote(loteId: string): Observable<DisponibilidadLoteDto> {
+    return this.http.get<DisponibilidadLoteDto>(`${this.trasladosUrl}/lote/${loteId}/disponibilidad`)
       .pipe(catchError(this.handleError));
   }
 
   // =====================================================
-  // MOVIMIENTOS DE AVES
+  // TRASLADO / VENTA DE AVES  (Camino A)
   // =====================================================
 
-  // Crear movimiento
-  createMovimiento(dto: CreateMovimientoAvesDto): Observable<MovimientoAvesDto> {
-    return this.http.post<MovimientoAvesDto>(this.movimientoUrl, dto)
+  /** Traslado o venta de aves; la operacion la decide `TipoOperacion` en el DTO. */
+  crearTrasladoAves(dto: CrearTrasladoAvesDto): Observable<MovimientoAvesDto> {
+    return this.http.post<MovimientoAvesDto>(`${this.trasladosUrl}/aves`, dto)
       .pipe(catchError(this.handleError));
   }
 
-  // Obtener movimiento por ID
-  getMovimientoById(id: number): Observable<MovimientoAvesDto> {
-    return this.http.get<MovimientoAvesDto>(`${this.movimientoUrl}/${id}`)
+  /** Movimientos de aves del lote (origen o destino). */
+  getMovimientosAvesPorLote(loteId: number): Observable<MovimientoAvesDto[]> {
+    return this.http.get<MovimientoAvesDto[]>(`${this.apiUrl}/MovimientoAves/lote/${loteId}`)
       .pipe(catchError(this.handleError));
   }
 
-  // Búsqueda de movimientos
-  searchMovimientos(request: MovimientoAvesSearchRequest): Observable<PagedResult<MovimientoAvesDto>> {
-    return this.http.post<PagedResult<MovimientoAvesDto>>(`${this.movimientoUrl}/search`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Procesar movimiento
-  procesarMovimiento(id: number): Observable<MovimientoAvesDto> {
-    return this.http.post<MovimientoAvesDto>(`${this.movimientoUrl}/${id}/procesar`, {})
-      .pipe(catchError(this.handleError));
-  }
-
-  /** Anula el movimiento y devuelve las aves al inventario del lote cuando ya estaba procesado. */
+  /** Anula un movimiento: devuelve las aves al lote si ya se habia aplicado. */
   cancelarMovimiento(id: number, motivo: string): Observable<ResultadoMovimientoDto> {
     return this.http
       .post<ResultadoMovimientoDto>(`${this.movimientoUrl}/${id}/cancelar`, {
@@ -543,141 +83,41 @@ export class TrasladosAvesService {
   }
 
   // =====================================================
-  // HISTORIAL DE INVENTARIO
+  // TRASLADO / VENTA DE HUEVOS
   // =====================================================
 
-  // Obtener historial por ID
-  getHistorialById(id: number): Observable<HistorialInventarioDto> {
-    return this.http.get<HistorialInventarioDto>(`${this.historialUrl}/${id}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Búsqueda en historial
-  searchHistorial(request: HistorialInventarioSearchRequest): Observable<PagedResult<HistorialInventarioDto>> {
-    return this.http.post<PagedResult<HistorialInventarioDto>>(`${this.historialUrl}/search`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener trazabilidad de lote
-  getTrazabilidadLote(loteId: string): Observable<TrazabilidadLoteDto> {
-    return this.http.get<TrazabilidadLoteDto>(`${this.historialUrl}/trazabilidad/${loteId}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // =====================================================
-  // MÉTODOS AUXILIARES
-  // =====================================================
-
-  // Validar traslado
-  validarTraslado(loteOrigenId: string, loteDestinoId: string, cantidadHembras: number, cantidadMachos: number): Observable<boolean> {
-    const request = {
-      loteOrigenId,
-      loteDestinoId,
-      cantidadHembras,
-      cantidadMachos
-    };
-    return this.http.post<boolean>(`${this.movimientoUrl}/validar`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener lotes disponibles
-  getLotesDisponibles(): Observable<string[]> {
-    return this.http.get<string[]>(`${this.inventarioUrl}/lotes-disponibles`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // =====================================================
-  // DISPONIBILIDAD DE LOTES
-  // =====================================================
-
-  // Obtener disponibilidad de un lote
-  getDisponibilidadLote(loteId: string): Observable<DisponibilidadLoteDto> {
-    return this.http.get<DisponibilidadLoteDto>(`${this.trasladosUrl}/lote/${loteId}/disponibilidad`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // =====================================================
-  // TRASLADOS DE AVES
-  // =====================================================
-
-  // Crear traslado de aves
-  crearTrasladoAves(dto: CrearTrasladoAvesDto): Observable<MovimientoAvesDto> {
-    return this.http.post<MovimientoAvesDto>(`${this.trasladosUrl}/aves`, dto)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener movimiento de aves por ID
-  getMovimientoAves(id: number): Observable<MovimientoAvesDto> {
-    return this.http.get<MovimientoAvesDto>(`${this.trasladosUrl}/aves/${id}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener todos los movimientos de aves por lote (sin límite)
-  getMovimientosAvesPorLote(loteId: number): Observable<MovimientoAvesDto[]> {
-    return this.http.get<MovimientoAvesDto[]>(`${this.apiUrl}/MovimientoAves/lote/${loteId}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // =====================================================
-  // TRASLADOS DE HUEVOS
-  // =====================================================
-
-  // Crear traslado de huevos
-  crearTrasladoHuevos(dto: CrearTrasladoHuevosDto): Observable<TrasladoHuevosDto> {
-    return this.http.post<TrasladoHuevosDto>(`${this.trasladosUrl}/huevos`, dto)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener traslado de huevos por ID
-  getTrasladoHuevos(id: number): Observable<TrasladoHuevosDto> {
-    return this.http.get<TrasladoHuevosDto>(`${this.trasladosUrl}/huevos/${id}`)
-      .pipe(catchError(this.handleError));
-  }
-
-  // Obtener traslados de huevos por lote
+  /** Traslados de huevos registrados para el lote. */
   getTrasladosHuevosPorLote(loteId: string): Observable<TrasladoHuevosDto[]> {
     return this.http.get<TrasladoHuevosDto[]>(`${this.trasladosUrl}/huevos/lote/${loteId}`)
       .pipe(catchError(this.handleError));
   }
 
-  // Obtener traslados de huevos por granja
-  getTrasladosHuevosPorGranja(granjaId: number): Observable<TrasladoHuevosDto[]> {
-    return this.http.get<TrasladoHuevosDto[]>(`${this.trasladosUrl}/huevos/granja/${granjaId}`)
-      .pipe(catchError(this.handleError));
-  }
-
   // =====================================================
-  // TRASLADOS DE LOTES
+  // TRASLADO DE LOTE COMPLETO  (reubicar un lote de granja)
   // =====================================================
 
-  // Crear traslado de lote
   crearTrasladoLote(dto: TrasladoLoteRequest): Observable<TrasladoLoteResponse> {
     return this.http.post<TrasladoLoteResponse>(`${environment.apiUrl}/Lote/trasladar`, dto)
       .pipe(catchError(this.handleError));
   }
 
-  // Obtener historial de traslados de un lote
   getHistorialTrasladosLote(loteId: number): Observable<HistorialTrasladoLoteDto[]> {
     return this.http.get<HistorialTrasladoLoteDto[]>(`${environment.apiUrl}/Lote/${loteId}/historial-traslados`)
       .pipe(catchError(this.handleError));
   }
 
-  // Obtener historial de traslados de lotes por granja
-  getHistorialTrasladosLotesPorGranja(granjaId: number): Observable<HistorialTrasladoLoteDto[]> {
-    return this.http.get<HistorialTrasladoLoteDto[]>(`${environment.apiUrl}/Lote/historial-traslados/granja/${granjaId}`)
-      .pipe(catchError(this.handleError));
-  }
-
   // =====================================================
-  // TRASLADO DESDE SEGUIMIENTO DIARIO (R3)
+  // TRASLADO DESDE SEGUIMIENTO DIARIO  (Camino C)
   // =====================================================
 
-  getDisponibilidadAves(loteId: number, tipo: string): Observable<DisponibilidadAvesSegDto> {
-    return this.http.get<DisponibilidadAvesSegDto>(
-      `${this.trasladosUrl}/disponibilidad-aves/${loteId}?tipo=${encodeURIComponent(tipo)}`
-    ).pipe(catchError(this.handleError));
-  }
-
+  /**
+   * Traslado de aves desde el seguimiento diario.
+   *
+   * OJO: `LoteOrigenId`/`LoteDestinoId` de este DTO son ids de ESPEJO
+   * (`lote_postura_levante` / `lote_postura_produccion`), no de `lotes` — al reves que
+   * `crearTrasladoAves`. Es el unico camino con gate de etapa por empresa
+   * (`permite_traslado_aves_cross_etapa`).
+   */
   ejecutarTrasladoDesdeSegDiario(dto: TrasladoAvesDesdeSegDiarioDto): Observable<TrasladoAvesResultSegDto> {
     return this.http.post<TrasladoAvesResultSegDto>(
       `${this.trasladosUrl}/aves-desde-seguimiento`, dto
@@ -685,63 +125,23 @@ export class TrasladosAvesService {
   }
 
   // =====================================================
-  // COHORTES DE AVES DEL LOTE (Fase 3 — edades por cohorte)
+  // COHORTES (edades de las aves dentro de un lote)
   // =====================================================
 
-  /**
-   * Edades del lote: aves propias (desde su encaset) + cohortes recibidas por traslado
-   * (cada una con la fecha de encaset de su lote origen). Las edades vienen calculadas
-   * por el backend.
-   *
-   * @param loteId ID del lote BASE (tabla `lotes`), no el de `lote_postura_levante/produccion`.
-   */
   getCohortesLote(loteId: number): Observable<CohortesLoteDto> {
     return this.http.get<CohortesLoteDto>(
       `${this.trasladosUrl}/cohortes/${loteId}`
     ).pipe(catchError(this.handleError));
   }
 
-  /**
-   * Ídem para la línea de POLLO ENGORDE. Devuelve el mismo DTO, así que el componente de edades y el
-   * armado de filas se reutilizan sin cambios; solo cambia el endpoint y el tipo de id.
-   *
-   * @param loteAveEngordeId ID de `lote_ave_engorde` (no el lote base de postura).
-   */
+  /** @param loteAveEngordeId ID de `lote_ave_engorde` (no el lote base de postura). */
   getCohortesLoteEngorde(loteAveEngordeId: number): Observable<CohortesLoteDto> {
     return this.http.get<CohortesLoteDto>(
       `${environment.apiUrl}/MovimientoPolloEngorde/cohortes/${loteAveEngordeId}`
     ).pipe(catchError(this.handleError));
   }
 
-  // Manejo de errores
   private handleError(error: HttpErrorResponse): Observable<never> {
-    let errorMessage = 'Error desconocido';
-
-    if (error.error instanceof ErrorEvent) {
-      errorMessage = `Error: ${error.error.message}`;
-    } else {
-      switch (error.status) {
-        case 400:
-          errorMessage = 'Datos inválidos en la solicitud';
-          break;
-        case 401:
-          errorMessage = 'No autorizado. Inicie sesión nuevamente';
-          break;
-        case 404:
-          errorMessage = 'Recurso no encontrado';
-          break;
-        case 409:
-          errorMessage = 'Conflicto: No hay suficientes aves para el traslado';
-          break;
-        case 500:
-          errorMessage = 'Error interno del servidor';
-          break;
-        default:
-          errorMessage = `Error ${error.status}: ${error.message}`;
-      }
-    }
-
-    console.error('Error en TrasladosAvesService:', error);
-    return throwError(() => new Error(errorMessage));
+    return manejarErrorHttp(error, 'TrasladosAvesService');
   }
 }

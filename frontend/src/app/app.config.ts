@@ -692,14 +692,14 @@ export const appConfig: ApplicationConfig = {
             title: 'Inventario de Aves - Dashboard'
           },
           {
-            // La pantalla vieja (traslado-form / TrasladoRapidoRequest) tenia el DTO del front
-            // desalineado del backend (loteOrigenId/loteDestinoId vs LoteId+granja/nucleo/galpon
-            // origen-destino: son dos operaciones de negocio distintas, no un rename). Confirmado
-            // con smoke real: 400 "LoteId field is required" en cualquier uso. Redirige a la
-            // pantalla que ya hace lo mismo y funciona (mismo DTO en las 2 puntas, ver
-            // TrasladosController.CrearTrasladoAves).
+            // Ruta historica del menu ("Nuevo Traslado"). Paso por dos pantallas ya retiradas:
+            // primero `traslado-form` (DTO desalineado del backend, borrada) y despues
+            // `traslado-aves-huevos` (formulario duplicado del dashboard, con el lote destino a
+            // mano como ID numerico). Hoy el traslado/venta de aves se crea desde el dashboard,
+            // que filtra el lote por Granja > Nucleo > Galpon y usa el mismo endpoint
+            // (`TrasladosController.CrearTrasladoAves`). El item de menu sigue funcionando.
             path: 'traslados',
-            redirectTo: 'nuevo'
+            redirectTo: 'dashboard'
           },
           {
             path: 'movimientos',
@@ -720,10 +720,9 @@ export const appConfig: ApplicationConfig = {
             title: 'Trazabilidad de Lote'
           },
           {
+            // Conservada como redirect: habia links y marcadores apuntando aca.
             path: 'nuevo',
-            loadComponent: () => import('./features/traslados-aves/pages/traslado-aves-huevos/traslado-aves-huevos.component')
-              .then(m => m.TrasladoAvesComponent),
-            title: 'Nuevo Traslado de Aves'
+            redirectTo: 'dashboard'
           }
         ]
       },
@@ -743,10 +742,12 @@ export const appConfig: ApplicationConfig = {
             title: 'Traslados de Huevos'
           },
           {
+            // `TrasladoHuevosFormComponent` (ruta 'nuevo') se retiro el 3-sep-2026: no estaba en
+            // ningun `role_menus` (0 roles) ni la enlazaba ninguna pantalla — solo se llegaba
+            // tecleando la URL. Duplicaba `ModalTrasladoHuevosComponent`, que es el que si edita y
+            // el que usa el listado. La ruta queda como redirect por si hubiera marcadores.
             path: 'nuevo',
-            loadComponent: () => import('./features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component')
-              .then(m => m.TrasladoHuevosFormComponent),
-            title: 'Nuevo Traslado de Huevos'
+            redirectTo: 'lista'
           }
         ]
       },

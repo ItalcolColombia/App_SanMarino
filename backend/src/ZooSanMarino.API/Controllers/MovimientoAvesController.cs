@@ -1,4 +1,4 @@
-// src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs
+﻿// src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.API.Infrastructure;
@@ -496,41 +496,6 @@ public class MovimientoAvesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al validar movimiento");
-            return StatusCode(500, new { error = "Error interno del servidor" });
-        }
-    }
-
-    /// <summary>
-    /// Obtiene estadísticas de movimientos
-    /// </summary>
-    [HttpPost("ejecutar-venta")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
-    public async Task<IActionResult> EjecutarVenta([FromBody] EjecutarVentaAvesRequest request)
-    {
-        try
-        {
-            var resultado = await _movimientoService.EjecutarVentaAsync(request);
-            return resultado.Success ? Ok(resultado) : BadRequest(resultado);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al ejecutar venta");
-            return StatusCode(500, new { error = "Error interno del servidor" });
-        }
-    }
-
-    [HttpPost("ejecutar-traslado")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
-    public async Task<IActionResult> EjecutarTraslado([FromBody] EjecutarTrasladoAvesRequest request)
-    {
-        try
-        {
-            var resultado = await _movimientoService.EjecutarTrasladoAsync(request);
-            return resultado.Success ? Ok(resultado) : BadRequest(resultado);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al ejecutar traslado");
             return StatusCode(500, new { error = "Error interno del servidor" });
         }
     }

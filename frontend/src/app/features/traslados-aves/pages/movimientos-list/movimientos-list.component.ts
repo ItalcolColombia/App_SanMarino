@@ -174,8 +174,4 @@ export class MovimientosListComponent implements OnInit {
   navegarADashboard(): void {
     this.router.navigate(['../dashboard'], { relativeTo: this.route });
   }
-
-  navegarATraslados(): void {
-    this.router.navigate(['../traslados'], { relativeTo: this.route });
-  }
 }

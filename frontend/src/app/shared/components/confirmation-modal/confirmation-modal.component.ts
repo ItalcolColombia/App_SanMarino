@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
   faCheckCircle, faExclamationTriangle, faTimesCircle, 
@@ -17,12 +18,24 @@ export interface ConfirmationModalData {
   showCancel?: boolean; // Si es false, solo muestra el botón de confirmar
   /** Renderiza el mensaje preservando espacios/saltos (útil para tablas). */
   preformatted?: boolean;
+  /**
+   * Campo de texto opcional. Si viene, el modal pide un dato además de confirmar — es el
+   * reemplazo del `window.prompt()` nativo. Sin él, el modal se comporta EXACTAMENTE como antes.
+   */
+  input?: {
+    label: string;
+    /** Valor inicial del campo. */
+    value?: string;
+    placeholder?: string;
+    /** Con `true`, Confirmar queda deshabilitado mientras el campo esté vacío. */
+    required?: boolean;
+  };
 }
 
 @Component({
   selector: 'app-confirmation-modal',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule],
+  imports: [CommonModule, FormsModule, FontAwesomeModule],
   templateUrl: './confirmation-modal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./confirmation-modal.component.scss']
@@ -37,6 +50,17 @@ export class ConfirmationModalComponent {
     type: 'info',
     showCancel: true
   };
+
+  /**
+   * Texto tipeado en el campo opcional (`data.input`). Lo lee `ConfirmDialogService.askText()`
+   * al confirmar; `confirmed` sigue emitiendo `void` para no romper a los llamadores de siempre.
+   */
+  inputValue = '';
+
+  /** Con `input.required`, Confirmar se bloquea mientras no haya texto. */
+  get confirmDeshabilitado(): boolean {
+    return !!this.data.input?.required && !this.inputValue.trim();
+  }
 
   @Output() confirmed = new EventEmitter<void>();
   @Output() cancelled = new EventEmitter<void>();
