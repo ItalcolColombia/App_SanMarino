@@ -259,6 +259,14 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
     /// así que la diferencia importaba. Un lote sin LPP pasa 0 en esos dos términos y el resultado
     /// queda idéntico al de antes.
     /// </para>
+    ///
+    /// <para>
+    /// 🔴 También se SUMAN los ingresos (3-sep-2026): antes solo se restaban los retiros
+    /// (movimientos Completados con este lote como origen), así que un lote que RECIBÍA un traslado
+    /// no lo veía reflejado acá — su `aves_h_actual`/`aves_m_actual` subía de verdad, pero esta
+    /// disponibilidad seguía calculada desde el `HembrasL`/`MachosL` estático de la creación. Un
+    /// lote que nunca recibió nada pasa 0 en ese término y el resultado queda idéntico al de antes.
+    /// </para>
     /// </summary>
     private async Task<AvesDisponiblesDto> ObtenerAvesDisponiblesAsync(Lote lote, int? lotePosturaProduccionId)
     {
@@ -332,10 +340,25 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         var retirosAcumHembras = retirosCompletados.Sum(m => m.CantidadHembras);
         var retirosAcumMachos = retirosCompletados.Sum(m => m.CantidadMachos);
 
+        // Ingresos: movimientos Completados que ENTRARON al lote (este lote como destino). Sin esto
+        // un lote que recibió un traslado seguía informando su disponibilidad como si nunca lo
+        // hubiera recibido — medido: 50→60 en `aves_h_actual` pero la disponibilidad seguía en 50.
+        // Mismo criterio que retiros: materializa en memoria porque el filtro cruza una navegación
+        // (`InventarioDestino`) dentro de un OR.
+        var ingresosCompletados = await _context.MovimientoAves
+            .AsNoTracking()
+            .Where(m =>
+                (m.LoteDestinoId == loteIdInt || m.InventarioDestino != null && m.InventarioDestino.LoteId == loteIdInt) &&
+                m.Estado == "Completado")
+            .ToListAsync();
+
+        var ingresosAcumHembras = ingresosCompletados.Sum(m => m.CantidadHembras);
+        var ingresosAcumMachos = ingresosCompletados.Sum(m => m.CantidadMachos);
+
         var hembrasVivas = DisponibilidadLoteCalculos.AvesVivas(
-            hembrasIniciales, bajasLevanteHembras, bajasProdHembras, retirosAcumHembras);
+            hembrasIniciales, bajasLevanteHembras, bajasProdHembras, retirosAcumHembras, ingresosAcumHembras);
         var machosVivos = DisponibilidadLoteCalculos.AvesVivas(
-            machosIniciales, bajasLevanteMachos, bajasProdMachos, retirosAcumMachos);
+            machosIniciales, bajasLevanteMachos, bajasProdMachos, retirosAcumMachos, ingresosAcumMachos);
 
         return new AvesDisponiblesDto
         {
@@ -348,7 +371,9 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             MortalidadAcumuladaHembras = bajasLevanteHembras + bajasProdHembras,
             MortalidadAcumuladaMachos = bajasLevanteMachos + bajasProdMachos,
             RetirosAcumuladosHembras = retirosAcumHembras,
-            RetirosAcumuladosMachos = retirosAcumMachos
+            RetirosAcumuladosMachos = retirosAcumMachos,
+            IngresosAcumuladosHembras = ingresosAcumHembras,
+            IngresosAcumuladosMachos = ingresosAcumMachos
         };
     }
 

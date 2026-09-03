@@ -33,7 +33,7 @@ public class DisponibilidadLoteCalculosTests
     public void AvesVivas_SinProduccion_SoloDescuentaLevanteYRetiros()
     {
         var vivas = DisponibilidadLoteCalculos.AvesVivas(
-            iniciales: 10_000, bajasLevante: 250, bajasProduccion: 0, retiros: 300);
+            iniciales: 10_000, bajasLevante: 250, bajasProduccion: 0, retiros: 300, ingresos: 0);
 
         Assert.Equal(9_450, vivas);
     }
@@ -49,34 +49,49 @@ public class DisponibilidadLoteCalculosTests
             mortalidad: 738, seleccion: 9_686, errorSexaje: 0);
 
         var vivas = DisponibilidadLoteCalculos.AvesVivas(
-            iniciales: hembrasTrasLevanteYRetiros, bajasLevante: 0, bajasProduccion: bajasProduccion, retiros: 0);
+            iniciales: hembrasTrasLevanteYRetiros, bajasLevante: 0, bajasProduccion: bajasProduccion, retiros: 0, ingresos: 0);
 
         Assert.Equal(10_424, bajasProduccion);
         Assert.Equal(324, vivas);
     }
 
     [Theory]
-    // iniciales, bajasLevante, bajasProduccion, retiros, esperado
-    [InlineData(100, 0, 0, 0, 100)]     // nada salio
-    [InlineData(100, 100, 0, 0, 0)]     // se murio todo: cero, no negativo
-    [InlineData(100, 60, 30, 40, 0)]    // sobre-descuento: se recorta en cero
-    [InlineData(0, 0, 0, 0, 0)]         // lote sin aves
+    // iniciales, bajasLevante, bajasProduccion, retiros, ingresos, esperado
+    [InlineData(100, 0, 0, 0, 0, 100)]     // nada salio ni entro
+    [InlineData(100, 100, 0, 0, 0, 0)]     // se murio todo: cero, no negativo
+    [InlineData(100, 60, 30, 40, 0, 0)]    // sobre-descuento: se recorta en cero
+    [InlineData(0, 0, 0, 0, 0, 0)]         // lote sin aves
+    [InlineData(0, 0, 0, 0, 50, 50)]       // lote que nace vacio y solo recibe traslados (destino puro)
     public void AvesVivas_NuncaEsNegativa(
-        int iniciales, int bajasLev, int bajasProd, int retiros, int esperado)
+        int iniciales, int bajasLev, int bajasProd, int retiros, int ingresos, int esperado)
     {
-        var vivas = DisponibilidadLoteCalculos.AvesVivas(iniciales, bajasLev, bajasProd, retiros);
+        var vivas = DisponibilidadLoteCalculos.AvesVivas(iniciales, bajasLev, bajasProd, retiros, ingresos);
 
         Assert.Equal(esperado, vivas);
         Assert.True(vivas >= 0);
     }
 
     [Fact]
-    public void AvesVivas_LosTresDescuentosPesanIgual()
+    public void AvesVivas_LosCuatroTerminosPesanIgual()
     {
-        // Que ningun termino quede sin restar por un typo.
-        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 1, 0, 0));
-        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 0, 1, 0));
-        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 0, 0, 1));
+        // Que ningun termino quede sin sumar/restar por un typo.
+        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 1, 0, 0, 0));
+        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 0, 1, 0, 0));
+        Assert.Equal(999, DisponibilidadLoteCalculos.AvesVivas(1_000, 0, 0, 1, 0));
+        Assert.Equal(1_001, DisponibilidadLoteCalculos.AvesVivas(1_000, 0, 0, 0, 1));
+    }
+
+    [Fact]
+    public void AvesVivas_UnLoteQueRecibeUnTrasladoSubeSuDisponibilidad()
+    {
+        // Medido el 3-sep-2026 (validacion de ciclo Levante->cierre->Produccion, Santa Reyes y
+        // Sanmarino): un lote con 50 hembras iniciales que RECIBIO un traslado de 10 seguia
+        // informando 50 disponibles -- `aves_h_actual` en BD ya mostraba 60. La formula vieja
+        // (sin `ingresos`) no tenia forma de reflejar lo que el lote recibio.
+        var vivas = DisponibilidadLoteCalculos.AvesVivas(
+            iniciales: 50, bajasLevante: 0, bajasProduccion: 0, retiros: 0, ingresos: 10);
+
+        Assert.Equal(60, vivas);
     }
 
     // ── InformaHuevos ────────────────────────────────────────────────────────────

@@ -19,6 +19,18 @@ public partial class MovimientoAvesService
         if (movimiento.Estado != "Pendiente")
             return new ResultadoMovimientoDto(false, "El movimiento ya fue procesado o cancelado", null, null, new List<string> { "Estado inválido" }, null);
 
+        // Todo o nada (3-sep-2026): antes, el primer SaveChangesAsync ya dejaba el movimiento
+        // "Completado" en la BD; si algo de lo de abajo reventaba a mitad de camino (ej. stock
+        // insuficiente dentro de ActualizarInventarioPorMovimientoAsync), el catch solo devolvía
+        // Success=false SIN deshacer nada, y el llamador (CreateAsync) ni siquiera revisa ese
+        // resultado — la API respondía 201 con un movimiento "Completado" que nunca movió una sola
+        // ave. Medido en la validación de ciclo Levante->Producción (3-sep-2026, Santa Reyes y
+        // Sanmarino): el gotcha existía, aunque en esa corrida no llegó a dispararse. Mismo patrón
+        // que ya usan TrasladoHuevosService/TrasladoAvesDesdeSegService: envolver en transacción y,
+        // si algo revienta, RollbackAsync + recargar la entidad deja el movimiento realmente
+        // Pendiente. Ver [[ciclo-lote-levante-produccion-validado-api]].
+        await using var transaccion = await _context.Database.BeginTransactionAsync().ConfigureAwait(false);
+
         try
         {
             // Procesar el movimiento (implementación básica)
@@ -60,11 +72,17 @@ public partial class MovimientoAvesService
             // La fase se determina con tres señales: Lote.Fase, EstadoCierre=="Cerrado", semana>=26.
             await ActualizarAvesActualesEnPosturaAsync(movimiento);
 
+            await transaccion.CommitAsync().ConfigureAwait(false);
+
             var movimientoDto = await GetByIdAsync(movimiento.Id);
             return new ResultadoMovimientoDto(true, "Movimiento procesado exitosamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimientoDto);
         }
         catch (Exception ex)
         {
+            await transaccion.RollbackAsync().ConfigureAwait(false);
+            // El objeto en memoria seguía marcando "Completado" tras el rollback; recargarlo desde
+            // la BD (ya revertida) evita que un lector posterior del mismo DbContext lo confunda.
+            await _context.Entry(movimiento).ReloadAsync().ConfigureAwait(false);
             return new ResultadoMovimientoDto(false, "Error al procesar movimiento", movimiento.Id, movimiento.NumeroMovimiento, new List<string> { ex.Message }, null);
         }
     }

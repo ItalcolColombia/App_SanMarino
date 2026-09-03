@@ -45,20 +45,31 @@ public static class DisponibilidadLoteCalculos
         mortalidad + seleccion + errorSexaje;
 
     /// <summary>
-    /// Aves vivas de un sexo: encasetadas menos lo que salió, nunca negativo.
+    /// Aves vivas de un sexo: encasetadas menos lo que salió, más lo que entró, nunca negativo.
     ///
     /// <para>
     /// En <c>lotes</c> (postura) <c>hembras_l</c>/<c>machos_l</c> es la BASE de encasetamiento, no
     /// un saldo vivo —al revés que en engorde—, así que restarle las bajas es correcto y no cuenta
     /// dos veces. Un lote que nunca llegó a producción pasa 0 en <paramref name="bajasProduccion"/>.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué existe <paramref name="ingresos"/> (3-sep-2026).</b> Un lote que RECIBE un traslado
+    /// mueve de verdad <c>lote_postura_levante.aves_h_actual</c>/<c>aves_m_actual</c>, pero
+    /// <paramref name="iniciales"/> es estático (se fija al crear el lote) y la fórmula vieja solo
+    /// restaba <paramref name="retiros"/> —lo que SALIÓ—, nunca sumaba lo que entró. Medido: un lote
+    /// receptor con 50 hembras iniciales que recibió 10 seguía informando 50 disponibles después del
+    /// traslado, cuando en realidad tenía 60. El número autoriza traslados/ventas, así que
+    /// subestimarlo podía rechazar una operación válida por "stock insuficiente".
+    /// </para>
     /// </summary>
     /// <param name="iniciales">Encasetadas del sexo (<c>hembras_l</c> / <c>machos_l</c>).</param>
     /// <param name="bajasLevante">Salida de <see cref="BajasEtapa"/> sobre <c>seguimiento_diario_levante</c>.</param>
     /// <param name="bajasProduccion">Ídem sobre <c>seguimiento_diario_produccion</c>; 0 sin producción.</param>
-    /// <param name="retiros">Movimientos de aves Completados que salieron del lote.</param>
-    public static int AvesVivas(int iniciales, int bajasLevante, int bajasProduccion, int retiros) =>
-        Math.Max(0, iniciales - bajasLevante - bajasProduccion - retiros);
+    /// <param name="retiros">Movimientos de aves Completados que salieron del lote (este lote como origen).</param>
+    /// <param name="ingresos">Movimientos de aves Completados que entraron al lote (este lote como destino).</param>
+    public static int AvesVivas(int iniciales, int bajasLevante, int bajasProduccion, int retiros, int ingresos) =>
+        Math.Max(0, iniciales - bajasLevante - bajasProduccion - retiros + ingresos);
 
     /// <summary>
     /// ¿Hay que informar el bloque de huevos? Solo si el lote tiene una LPP viva; sin ella no hay
