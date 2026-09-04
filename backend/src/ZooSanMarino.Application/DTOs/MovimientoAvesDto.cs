@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Application/DTOs/MovimientoAvesDto.cs
+﻿// src/ZooSanMarino.Application/DTOs/MovimientoAvesDto.cs
 namespace ZooSanMarino.Application.DTOs;
 
 /// <summary>
@@ -205,30 +205,6 @@ public record ResultadoMovimientoDto(
     List<string> Errores,
     MovimientoAvesDto? Movimiento
 );
-
-/// <summary>Request para ejecutar una venta de aves desde el seguimiento diario.</summary>
-public sealed class EjecutarVentaAvesRequest
-{
-    public int LoteOrigenId { get; set; }
-    public long SeguimientoId { get; set; }
-    public DateTime Fecha { get; set; }
-    public int CantidadHembras { get; set; }
-    public int CantidadMachos { get; set; }
-    public string? Motivo { get; set; }
-    public string? Observaciones { get; set; }
-}
-
-/// <summary>Request para ejecutar un traslado de aves entre lotes desde el seguimiento diario.</summary>
-public sealed class EjecutarTrasladoAvesRequest
-{
-    public int LoteOrigenId { get; set; }
-    public long SeguimientoOrigenId { get; set; }
-    public int LoteDestinoId { get; set; }
-    public DateTime Fecha { get; set; }
-    public int CantidadHembras { get; set; }
-    public int CantidadMachos { get; set; }
-    public string? Observaciones { get; set; }
-}
 
 /// <summary>Request para ejecutar el traslado de aves al cerrar un lote levante hacia producción.</summary>
 public sealed class TrasladoCierreLevanteRequest

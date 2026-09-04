@@ -63,7 +63,7 @@
                 }
               </div>
             }
-            @if (disponibilidad() && disponibilidad()!.tipoLote === 'Produccion') {
+            @if (disponibilidad()?.huevos) {
               <div class="traslado-meta-bar__eggs">
                 <span class="traslado-meta-total">Total <strong>{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</strong></span>
                 @if (!clasificacionHuevoPorItems) {

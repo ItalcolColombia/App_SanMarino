@@ -145,9 +145,21 @@ builder.Services.AddCorsFromOrigins("AppCors", allowedOrigins);
 // ─────────────────────────────────────
 /* 6) DbContext */
 // ─────────────────────────────────────
-builder.Services.AddDbContext<ZooSanMarinoContext>(opts =>
+// Pool de contextos: el DbContext solo tiene el ctor de opciones y ningún estado por request
+// (sin campos inyectados, sin SetCommandTimeout), así que reutilizar la instancia es seguro y
+// evita reconstruirla en cada request.
+//
+// ⛔ NO agregar EnableRetryOnFailure acá. La estrategia de reintento no soporta transacciones
+// abiertas por el usuario, y el repo tiene 67 BeginTransaction en ~25 services (inventario,
+// engorde, traslados, cuadre) contra 1 solo CreateExecutionStrategy: activarla haría lanzar
+// InvalidOperationException en runtime en todos esos caminos de escritura. Si algún día se
+// quiere el reintento, primero hay que envolver cada transacción en una execution strategy.
+builder.Services.AddDbContextPool<ZooSanMarinoContext>(opts =>
+{
     opts.UseSnakeCaseNamingConvention()
-        .UseNpgsql(conn));
+        .UseNpgsql(conn);
+    ZooSanMarinoContext.ConfigurarWarnings(opts);
+});
 
 // ─────────────────────────────────────
 // 7) Infra básica
@@ -616,6 +628,34 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ─────────────────────────────────────
+/* 12b) Compresión de respuesta
+   El API viaja sin comprimir: no hay proxy delante (el Dockerfile publica el binario directo) y
+   el ALB no comprime por su cuenta. Los payloads gordos son los reportes en JSON, que comprimen
+   muy bien. Brotli primero, gzip como fallback para clientes viejos.
+   EnableForHttps: el ALB termina TLS y habla HTTP con la tarea, pero cuando se llega por HTTPS
+   directo también queremos comprimir. Los cuerpos con secretos (login) son chicos y no reflejan
+   entrada del atacante, que es lo que haría explotable un BREACH. */
+// ─────────────────────────────────────
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    // Los MimeTypes por defecto no incluyen todo lo que devolvemos.
+    options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults
+        .MimeTypes.Concat(new[]
+        {
+            "application/json",
+            "application/problem+json",
+            "text/csv"
+        });
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(
+    o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
+    o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+
+// ─────────────────────────────────────
 /* 13) Controllers */
 // ─────────────────────────────────────
 builder.Services.AddControllers()
@@ -749,6 +789,10 @@ app.UseExceptionHandler(errApp =>
         await ctx.Response.WriteAsJsonAsync(new { message = mensaje });
     });
 });
+
+// 14.0a Compresión de respuesta. Va antes que todo lo que escribe cuerpo para que alcance
+// también a las respuestas de error y a las de los endpoints mapeados sin controller.
+app.UseResponseCompression();
 
 // 14.0b Routing y CORS (deben ir primero para manejar preflight OPTIONS)
 app.UseRouting();

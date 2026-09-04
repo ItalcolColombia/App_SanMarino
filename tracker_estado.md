@@ -713,11 +713,16 @@ clasificación de huevo, guía genética, `Placa/Conductor/Sellos`) — así lo 
 - [~] **F10 · Traslado de huevos** (5h) — bug real encontrado y cerrado (21-ago-2026, sesión de
       continuación) en los 2 formularios oficiales + el listado, F10.1 (UX de bodega de salida) sigue
       sin resolver. Diseño técnico completo en §9 del plan (`santa_reyes_requerimientos_italapp_plan.md`)
-  - [!] **4º lugar con el mismo bug, encontrado pero NO tocado**: `traslados-aves/pages/inventario-
-        dashboard` (~1800 líneas, pantalla de aterrizaje real de `/traslados-aves`) tiene su propia
+  - [x] **4º lugar con el mismo bug — CERRADO el 3-sep-2026**: `traslados-aves/pages/inventario-
+        dashboard` (pantalla de aterrizaje real de `/traslados-aves`) tenía su propia
         reimplementación del formulario de traslado de huevos (sin selector de ítems) — mismo síntoma
-        de disponible 0 para Santa Reyes. Componente grande, sin auditar a fondo; spawneado aparte
-        (`task_b8e26e02`) en vez de arriesgar un edit grande sin dominarlo. Detalle en §9.5 del plan
+        de disponible 0 para Santa Reyes. **No se le agregó soporte de ítems por cuarta vez**: se
+        borró el formulario propio (`procesarTrasladoHuevos` + `initTrasladoHuevosForm` +
+        `actualizarValidadoresHuevos` + `tiposHuevo` + su pestaña, ~230 líneas) y la pestaña Huevos
+        pasó a montar `ModalTrasladoHuevosComponent` —el del módulo `traslados-huevos`, que ya
+        soporta `huevoItems`, ya edita y es el que usa `/traslados-huevos/lista`— con el lote
+        preseleccionado. Mismo endpoint (`POST /api/traslados/huevos`), un solo formulario de huevos
+        en toda la app. Plan: `fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md` (B5)
   - [x] **Bug encontrado auditando F10.1, no era la pregunta de UX que parecía**: la disponibilidad
         de huevos para traslado/venta se calculaba SOLO desde las 11 columnas legacy
         (`espejo_huevo_produccion.huevo_*_dinamico`), que F0.2/F7 dejan en `0` para Santa Reyes
@@ -6380,3 +6385,223 @@ lugares de DTOs y 6 services.
       (`Database__RunMigrations=true`). CLAUDE.md pide OK explícito para DDL en prod
 - [ ] ⏸️ **`lote_registro_historico_unificado.peso_tara_real` sigue `numeric(18,3)`** — a propósito.
       Ahí el recorte a 3 decimales sí es del histórico y tocarlo es otra entrega
+
+---
+
+# Optimizacion de consultas, carga del backend y codigo sin uso
+
+Plan: [`fase_de_desarrollo/optimizacion_consultas_backend_plan.md`](fase_de_desarrollo/optimizacion_consultas_backend_plan.md)
+
+Auditoria medida contra el repo y la BD local. **La ejecucion espera decision de alcance del usuario**
+(los frentes son independientes; F3 borra cosas y es irreversible).
+
+## Fase 0 — Auditoria (cerrada)
+
+- [x] A1 Detector propio de patrones EF (no grep suelto): entiende el cuerpo del `foreach` y la
+      materializacion temprana. Resultado: **17** bloques con BD dentro de un bucle, **119** sitios que
+      bajan la tabla y agregan en memoria, **72** `ToListAsync` sin `AsNoTracking`
+- [x] A2 Filtros no sargables: **19** `.Date ==`, **17** `.ToString()`, **16** `.ToLower()/.ToUpper()`
+      dentro de `Where(...)` — descartan el indice
+- [x] A3 BD local: **14 FK sin indice** en las tablas mas grandes; `inventario_gasto` con 8.164 seq
+      scans contra 45 index scans; **16 tablas** `_backup_*`/`_migracion_*` vivas
+- [x] A4 Pipeline: **sin compresion de respuesta** (ni en el API ni en un proxy delante),
+      `AddDbContext` sin pool ni `EnableRetryOnFailure`
+- [x] A5 Front: `shareReplay` en **3 de 120** servicios con `HttpClient`; polling fijo 2-5 s en 6 pantallas
+- [x] A6 Cruce rutas-vs-clientes (front + app movil Flutter + backend) sobre **834 endpoints**:
+      **1** controller sin lector (`ServiceTokens`) y **124** sub-paths candidatos **a verificar uno a
+      uno** — el detector no resuelve URLs armadas por concatenacion, no es una sentencia
+- [x] A7 Plan escrito con orden por ganancia/riesgo y casos de prueba
+
+## Fase 1 — Transporte y pipeline (riesgo casi nulo) — PENDIENTE DE OK
+
+- [x] F1.1 `AddResponseCompression` (brotli + gzip) sobre `application/json`, `problem+json`, `text/csv`
+- [x] F1.2 Cuerpo descomprimido **identico**: mismo sha256 (`aac96b64...`); 3.459 -> 1.274 B con br
+      (-63%) y 1.509 B con gzip (-56%); `Content-Encoding` + `Vary` correctos
+- [x] F1.3 `AddDbContextPool`. 🔴 **`EnableRetryOnFailure` NO se activa**: la estrategia de reintento
+      no soporta transacciones del usuario y hay **67 `BeginTransaction`** en ~25 services contra
+      **1** `CreateExecutionStrategy` -> lanzaria en runtime en todo camino de escritura
+- [x] F1.4 🔴 El smoke encontro lo que el build y los tests NO veian: `AddDbContextPool` choca con el
+      `OnConfiguring` del contexto («cannot be used to modify DbContextOptions when pooling is
+      enabled»). Resuelto moviendo la supresion del warning a los 3 sitios que construyen el
+      contexto (Program.cs + las 2 design-time factories)
+- [x] F1.5 Validado: build 0/0, 3.748 tests verdes, `/db-ping` 200 con el contexto pooled, 37
+      requests concurrentes OK antes del rate limiter, 0 excepciones. Backend apagado, puerto libre
+
+## Fase 2 — Consultas (parcial; queda lo que exige decision)
+
+- [x] F2.1 Migracion `20260902173436_IndicesClavesForaneasInventarioYEngorde`: 14 indices, parciales
+      (`WHERE ... IS NOT NULL`) en las columnas NULL, siguiendo la convencion que ya tenia
+      `movimiento_pollo_engorde` — donde justamente faltaba la simetria: los ORIGEN estaban
+      indexados y los DESTINO no
+- [x] F2.2 Idempotencia probada por transaccion con `ROLLBACK`: 0 -> 14 -> 14 (avisa «skipping»)
+      -> 0 -> 0. BD local **intacta**
+- [x] F2.3 Recuento corregido: **14** N+1 reales, no 17 (el detector no manejaba el `foreach` sin
+      llaves). Los 2 «casos claros» resultaron ser **falso positivo** (`AuthService:654`: el
+      `SaveChanges` ya estaba afuera) y **deliberado** (`EmailQueueProcessorService:87`: guarda
+      `processing` antes de enviar para no duplicar el correo) -> ninguno se toca
+- [x] F2.4 `DisponibilidadLoteService`: las 2 lecturas completas + 22 `Sum()` en memoria pasan a
+      2 consultas agregadas (`GroupBy(1)`), un viaje cada una, con `COUNT` y `MAX(fecha)` incluidos
+- [x] F2.5 🔴 Paridad **lote por lote** sobre datos reales
+      (`backend/sql/verificar_paridad_disponibilidad_huevos.sql`): **0 diferencias** en 26 lotes /
+      1.112 filas y en 2 lotes / 424 traslados
+- [x] F2.6 Gate de CI `verificar-sql-llega-por-migracion.js` OK; build 0/0; 3.748 tests verdes
+- [ ] ⏸️ F2.7 Confirmar el volumen de esas tablas **en prod** para dimensionar la ganancia real de
+      los indices (en local la tabla entra en una pagina y el planner elige seq scan igual)
+- [ ] ⏸️ F2.8 Los 4 N+1 de camino de request (`ColombiaInventarioConsumo`, `FarmInventoryReport`,
+      `InventarioGestion.Traslado`, `UserFarmScope`) — entrega propia
+- [ ] ⏸️ F2.9 Los 52 filtros no sargables: mueven el borde de la fecha, hay que medir uno por uno
+
+## Fase 3 — Verificacion de codigo sin uso (hecha; NO se borro nada)
+
+- [x] F3.1 `ServiceTokensController`: **NO es codigo muerto**. Por diseno no tiene cliente en el
+      repo — emite PAT para crones headless que llaman `/api/tickets`, se opera a mano. Conservar
+- [x] F3.2 Recuento corregido: **11** endpoints sin ninguna referencia, no 124 (el detector unia
+      segmentos estaticos NO adyacentes). Los 11 verificados uno por uno, veredicto en el plan
+- [x] F3.3 `POST api/Auth/change-password` es **duplicado superado**: el front usa
+      `PATCH /api/users/{id}/password` (`UsersController.cs:125`)
+- [x] F3.4 `POST api/Auth/change-email`: backend completo que **nunca se conecto a la UI** (sin
+      equivalente en Users, sin pantalla en el front)
+- [x] F3.5 Borrado `POST /api/Auth/change-password` (pedido del usuario). El service, el DTO y la
+      interfaz **quedan**: `UsersController.ChangePassword` llama al mismo
+      `IAuthService.ChangePasswordAsync` con el mismo DTO. Verificado que
+      `AuthService.ChangePasswordAsync` sigue exigiendo la contrasena actual, asi que el camino que
+      sobrevive conserva la garantia
+- [ ] ⏸️ F3.6 Los otros 9 endpoints sin lector — **esperan OK, uno por uno**
+- [ ] ⏸️ F3.7 Borrar tablas `_backup_*`/`_migracion_*` — **OK explicito por tabla**
+
+## Fase 4 — Disponibilidad de huevos (pedido del usuario)
+
+- [x] F4.1 Causa medida: el camino por lote sumaba sobre la entidad `SeguimientoDiario`, que por
+      `ToTable` apunta a `seguimiento_diario_levante`, filtrando `tipo_seguimiento='produccion'` —
+      imposible en esa tabla (1.112 filas, todas 'levante')
+- [x] F4.2 🔴 **No se escribio una tercera formula.** Ya existia `espejo_huevo_produccion`
+      (`*_historico` = producido, `*_dinamico` = disponible tras descontar traslados Completados) y
+      el camino por LPP ya lo usaba. El camino por lote ahora resuelve el LPP y lee el MISMO espejo
+- [x] F4.3 Helper `ObtenerEspejoHuevoAsync` extraido y usado por los DOS caminos (el de LPP se
+      refactorizo para llamarlo) — una sola lectura del numero
+- [x] F4.4 La ubicacion (granja/nucleo/galpon/nombre) se sigue tomando del **LOTE**, no del LPP:
+      `TrasladosController:113` usa ese `GranjaId` como granja origen del movimiento. Hoy coinciden
+      en los datos, pero apoyarse en eso seria fragil
+- [x] F4.5 Verificado (`backend/sql/verificar_paridad_disponibilidad_huevos.sql`): el espejo cuadra
+      **exacto** con la formula directa en los 5 LPP con espejo — LPP 6: 2.091.450 / 108.462;
+      LPP 7: 1.541.184 / 70.561; **0 diferencias**. Resolucion lote -> LPP **1:1**
+- [x] F4.6 ✅ **Resuelto en la Fase 5** (ver abajo). Quedaba asi:
+      🔴 **El endpoint SIGUE mostrando cero, por una SEGUNDA causa que no se toco.**
+      `ObtenerDisponibilidadLoteAsync` solo entra al camino de huevos si `lote.Fase=='Produccion'`, y
+      esa columna **no dice la fase** (anti-patron ya documentado: el paso a produccion no la
+      actualiza). Medido: los lotes con huevos (13 y 14, 2,09M y 1,54M) estan en `fase='Levante'`, y
+      los que estan en `'Produccion'` (142, 143) tienen 0 filas de produccion.
+      **No se cambio el gate a proposito**: haria que 13/14 devuelvan `tipoLote='Produccion'` con
+      `Aves=null`, y eso rompe el lado aves —`traslado-aves-huevos.component.ts:193` corta con «Este
+      lote es de produccion» y `inventario-dashboard.component.ts:1453` arma los validadores del
+      retiro sobre `disponibilidad.aves`. Cambio de comportamiento en pantallas que nadie pidio
+      tocar: va aparte, con prueba en las dos
+
+## Fase 5 — Disponibilidad a fondo: aves y huevos NO son excluyentes
+
+Plan: seccion «Fase 5» de
+[`fase_de_desarrollo/optimizacion_consultas_backend_plan.md`](fase_de_desarrollo/optimizacion_consultas_backend_plan.md)
+
+- [x] P1 🔴 Causa de raiz: el DTO se usaba como «o aves o huevos» y la rama la elegia `lote.fase`.
+      Un lote en produccion tiene LAS DOS. Peor: `ValidarDisponibilidadAvesAsync` devuelve `false`
+      con `Aves == null`, asi que rutear a huevos **bloqueaba los traslados de aves** — medido,
+      A374A/A374B con 35.372 aves y cero filas de produccion
+- [x] P2 Una sola regla de fase, la canonica (`FaseLoteCalculos.ResolverFaseVisible`: levante
+      cerrado Y LPP viva). El repo tenia TRES; la de `MovimientoAvesService` incluye `etapa>=26`,
+      el anti-patron ya documentado
+- [x] P3 `Aves` se informa SIEMPRE; `Huevos` cuando hay LPP (propia o del lote hijo, con orden
+      determinista). Un solo DTO con los dos bloques
+- [x] P4 🔴 La formula de aves restaba **solo la mortalidad de levante**. Ignoraba la seleccion
+      (11.032 en levante + 12.055 en produccion) y el error de sexaje (834). Medido: el lote 14
+      informaba **10.748 hembras cuando le quedaban 23** (despoblado en mayo-2026), y ese numero
+      autoriza traslados. Ahora usa la composicion canonica de `SaldoAvesLevanteCalculos.BajasNetas`
+- [x] P5 **No se sumaron traslados ni ventas de las columnas del seguimiento**: este service ya
+      cuenta las salidas por `movimiento_aves` y sumar las dos fuentes contaria doble (el patron de
+      la venta que restaba doble). Medido: en produccion esas 3 columnas estan en 0
+- [x] P6 Calculo puro `DisponibilidadLoteCalculos` + `DisponibilidadLoteCalculosTests` (20 casos):
+      composicion de la baja, piso en cero, que ningun termino quede sin restar, regla de fase
+- [x] P7 Front: los **6** gates por `tipoLote` pasan a gatear por la PRESENCIA del bloque
+      (`disponibilidad.aves` / `.huevos`) — 3 de aves, 3 de huevos. Es lo que esas pantallas
+      preguntan de verdad y deja de depender de una columna que miente
+- [x] P8 Verificado: `dotnet build` 0/0, **3.767 tests** verdes, `yarn build` sin errores, y
+      `backend/sql/verificar_disponibilidad_lote_aves_y_huevos.sql` con el delta lote por lote
+- [x] P9 Backend arranca limpio, `/db-ping` OK con el contexto en pool. Apagado, puertos libres
+
+### Lo que quedo SIN verificar (dicho, no escondido)
+
+- [ ] ⏸️ **La traduccion LINQ -> SQL de las consultas nuevas no se probo en ejecucion.** El endpoint
+      devuelve 401: la lista blanca exige un `jti` vivo en `sesiones_activas` y no hay ninguna
+      vigente (513 filas, 0 sin vencer); no se inserto una a mano. Las formas usadas ya corren en
+      produccion en `EspejoHuevoProduccionSyncService`, asi que el riesgo es bajo pero no cero.
+      Por eso la agregacion de `movimiento_aves` **se dejo como estaba**: su filtro cruza una
+      navegacion dentro de un `OR` y es la unica que no se pudo comprobar
+- [ ] ⏸️ **Smoke funcional en las 2 pantallas de aves y las 2 de huevos** con un usuario real, antes
+      de desplegar. El cambio mueve numeros que el usuario ve y que autorizan traslados
+
+---
+
+## 🚚 Consolidación de traslados/ventas de aves y huevos — Fase 0 + Propuesta B
+
+Plan: [`fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md`](fase_de_desarrollo/consolidacion_traslados_aves_huevos_plan.md)
+
+Recon previo: el movimiento de aves tenía **4 puntos de entrada de escritura vivos** (no 3) y los
+huevos **3**. Decisión del usuario: Fase 0 + Propuesta B. **Los caminos backend A/C/D no se tocan.**
+
+### Fase 0 — borrar código muerto confirmado
+
+- [x] F0.1 Modal inline "Traslado" del dashboard (`abrirModalTraslado`/`procesarTraslado` + HTML +
+      SCSS + `navegarANuevoTraslado`) — ningún `(click)` lo abría
+- [x] F0.2 `RegistrosTrasladosComponent` completo — sin ruta en `app.config.ts`
+- [x] F0.3 `TrasladoNavigationList` + `TrasladoNavigationCard` — cadena huérfana
+- [x] F0.4 Backend B1/B2: `EjecutarVentaAsync`/`EjecutarTrasladoAsync` + endpoints
+      `ejecutar-venta`/`ejecutar-traslado` + firmas de la interfaz (0 llamadores, re-verificado).
+      ⚠️ `ejecutar-traslado-cierre-levante` (B3) **NO** se toca: lo usa el cierre de levante
+- [x] F0.5 Huérfanos derivados (imports, tipos, specs de lo borrado)
+
+### Propuesta B — consolidación del front
+
+- [x] B1 Partir `TrasladosAvesService` (747 líneas) por dominio, re-exportando para no romper
+      imports externos
+- [!] B2 **NO SE HIZO — el gate encontró divergencia estructural.** Las dos fuentes NO son
+      intercambiables: medido el 3-sep-2026 sobre la copia local, **9 de 15 lotes con actividad
+      divergen**, hasta **19.385 aves** de diferencia. Difieren en 4 dimensiones, no en redondeo:
+      (a) la base (`lote_etapa_levante.aves_inicio_hembras` vs `lotes.hembras_l`), (b) la mortalidad
+      de caja (sólo `resumen-mortalidad` la resta), (c) **las bajas de PRODUCCIÓN (sólo
+      `disponibilidad` las resta)** → lotes 13 y 14, (d) la fuente de los traslados (columnas
+      acumuladas del espejo vs `movimiento_aves`) → lotes receptores 116/124/128/129 dan **0** en
+      `disponibilidad` porque los `TSD-*` viejos tienen `lote_destino_id` NULL.
+      **Ninguna de las dos es correcta en todos los casos**, así que unificar cambiaría números que
+      autorizan traslados. Evidencia reproducible:
+      `backend/sql/verificar_paridad_disponibilidad_aves.sql`. Decide el usuario.
+- [x] B3 Extraer la cascada Granja→Núcleo→Galpón→Lote a
+      `traslados-aves/components/selector-lote-destino/` y usarla en dashboard, `/nuevo` y
+      `movimientos-aves` (mata los 3 `<input type="text">` de "ID del lote destino")
+- [x] B4 Colapsar `/traslados-aves/nuevo` sobre el dashboard sin romper el link del menú
+- [x] B5 Huevos: borrar `/traslados-huevos/nuevo` (0 roles) y montar `ModalTrasladoHuevosComponent`
+      en la pestaña Huevos del dashboard ⇒ **cierra el bloque F10**
+- [x] B6 Primitivas: `window.prompt` → `ConfirmDialogService`; `ToastService`; `Eager` explícito
+- [x] B7 Validación: `yarn build` limpio + `dotnet build` 0 errores + specs puntuales
+
+---
+
+## 🏚️ Gestión de Granjas — el detalle no mostraba departamento/ciudad/regional al crear (3-sep-2026)
+
+Reporte del usuario: *"cuando yo creo una granja le coloco hasta el departamento y todo pero al ver
+el detalle no aparece la informacion en el detalle con la que se creo la granja"*.
+
+- [x] Investigación paralela (2 agentes): flujo CREAR (form → `construirPayloadGranja` →
+      `POST /api/Farm` → `FarmService.CreateAsync` → entidad) confirmado íntegro, nada se pierde ahí.
+      El bug está en el flujo VER DETALLE: `GET /api/Farm/{id}` devuelve `FarmDetailDto`, un DTO
+      distinto al del listado (`FarmDto`), y su proyección (`ProjectToDetail`, `FarmService.cs`)
+      nunca resolvía `DepartamentoNombre`/`CiudadNombre`/`RegionalNombre` — ni el DTO tenía esas
+      propiedades. El template (`farm-list.component.html`) ya las leía bien
+      (`selectedDetail.departamentoNombre`, etc.) pero llegaban `undefined` → siempre `"—"`.
+- [x] Fix backend: `FarmDetailDto` suma `DepartamentoNombre/CiudadNombre/RegionalNombre`;
+      `ProjectToDetail` pasa de `static` a método de instancia y agrega los mismos joins que
+      `ToFarmDtoListAsync` (listado) + el mismo fallback a `MasterListOptions` para `RegionalId`
+      que no matchea `Regionales` (caso real encontrado en el smoke: granja 83 "LA TOSCANA").
+      Sin cambios de frontend — el template ya estaba listo.
+- [x] Validación: `dotnet build` 0/0, `dotnet test` Application.Tests 3769/3769. Smoke HTTP real
+      contra `:5002` (sesión temporal en `sesiones_activas`, borrada al terminar) sobre
+      `GET /api/Farm/83` y `GET /api/Farm/search`: los 3 nombres llegan correctos en ambos
+      endpoints, incluida la granja con el `regionalId` de lista maestra.

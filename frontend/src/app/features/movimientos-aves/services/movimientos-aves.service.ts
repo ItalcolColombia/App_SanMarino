@@ -127,26 +127,6 @@ export interface ResultadoMovimientoDto {
   movimiento?: MovimientoAvesDto;
 }
 
-export interface EjecutarVentaAvesRequest {
-  loteOrigenId: number;
-  seguimientoId: number;
-  fecha: string; // ISO date string
-  cantidadHembras: number;
-  cantidadMachos: number;
-  motivo?: string;
-  observaciones?: string;
-}
-
-export interface EjecutarTrasladoAvesRequest {
-  loteOrigenId: number;
-  seguimientoOrigenId: number;
-  loteDestinoId: number;
-  fecha: string;
-  cantidadHembras: number;
-  cantidadMachos: number;
-  observaciones?: string;
-}
-
 export interface TrasladoCierreLevanteRequest {
   lotePosturaLevanteId: number;
   lotePosturaProduccionId?: number;
@@ -262,16 +242,6 @@ export class MovimientosAvesService {
   // Procesar movimiento de aves
   procesarMovimientoAves(movimientoId: number): Observable<boolean> {
     return this.http.post<boolean>(`${this.movimientosUrl}/${movimientoId}/procesar`, {})
-      .pipe(catchError(this.handleError));
-  }
-
-  ejecutarVenta(request: EjecutarVentaAvesRequest): Observable<ResultadoMovimientoDto> {
-    return this.http.post<ResultadoMovimientoDto>(`${this.movimientosUrl}/ejecutar-venta`, request)
-      .pipe(catchError(this.handleError));
-  }
-
-  ejecutarTraslado(request: EjecutarTrasladoAvesRequest): Observable<ResultadoMovimientoDto> {
-    return this.http.post<ResultadoMovimientoDto>(`${this.movimientosUrl}/ejecutar-traslado`, request)
       .pipe(catchError(this.handleError));
   }
 

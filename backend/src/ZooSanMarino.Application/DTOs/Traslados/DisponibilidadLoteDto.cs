@@ -57,6 +57,10 @@ public record AvesDisponiblesDto
     public int MortalidadAcumuladaMachos { get; init; }
     public int RetirosAcumuladosHembras { get; init; }
     public int RetirosAcumuladosMachos { get; init; }
+
+    /// <summary>Aves recibidas por movimientos Completados donde este lote fue el destino.</summary>
+    public int IngresosAcumuladosHembras { get; init; }
+    public int IngresosAcumuladosMachos { get; init; }
 }
 
 /// <summary>

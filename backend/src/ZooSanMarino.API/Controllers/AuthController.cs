@@ -190,29 +190,12 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>Cambia la contraseña del usuario autenticado.</summary>
-    [Authorize]
-    [HttpPost("change-password")]
-    [Consumes("application/json")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto, CancellationToken ct = default)
-    {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        var userId = GetUserIdOrUnauthorized(out var unauthorized);
-        if (unauthorized is not null) return unauthorized;
-
-        try
-        {
-            await _auth.ChangePasswordAsync(userId!.Value, dto);
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+    // `POST /api/Auth/change-password` se eliminó el 2-sep-2026: era una segunda superficie de
+    // cambio de contraseña que ningún cliente llamaba (verificado contra el front, la app móvil y
+    // el propio backend). El camino vivo es `PATCH /api/users/{id}/password`
+    // (`UsersController.ChangePassword`, usado por `UserProfileService.changeMyPassword`), que
+    // invoca exactamente el mismo `IAuthService.ChangePasswordAsync` con el mismo DTO — así que
+    // el service, el DTO y la interfaz quedan intactos y no cambia ningún comportamiento.
 
     /// <summary>Cambia el email del login (requiere contraseña actual).</summary>
     [Authorize]

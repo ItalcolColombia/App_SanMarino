@@ -7,9 +7,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
-import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
 import {
-  hoyISO as hoyISOFn,
   calcularTotalAves as calcularTotalAvesFn,
   formatearFecha as formatearFechaFn,
   formatearNumero as formatearNumeroFn,
@@ -23,17 +21,18 @@ import {
 import { puedeAnularMovimientoAves as puedeAnularMovimientoAvesFn } from '../../funciones/inventario-dashboard-movimiento.funcion';
 import { fechaTrasladoHistorialLote as fechaTrasladoHistorialLoteFn } from '../../funciones/fecha-traslado-historial-lote.funcion';
 import { ModalTrasladoLoteComponent } from '../../../lote/components/modal-traslado-lote/modal-traslado-lote.component';
+import { ModalTrasladoHuevosComponent } from '../../../traslados-huevos/components/modal-traslado-huevos/modal-traslado-huevos.component';
+import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 
 import { LoteDto } from '../../../lote/services/lote.service';
+import { InventarioAvesService } from '../../services/inventario-aves.service';
 import {
   TrasladosAvesService,
   InventarioAvesDto,
   InventarioAvesSearchRequest,
   ResumenInventarioDto,
-  CreateMovimientoAvesDto,
   DisponibilidadLoteDto,
   CrearTrasladoAvesDto,
-  CrearTrasladoHuevosDto,
   TrasladoLoteRequest,
   TrasladoLoteResponse,
   HistorialTrasladoLoteDto,
@@ -61,7 +60,7 @@ import {
 @Component({
   selector: 'app-inventario-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, HierarchicalFilterComponent, ModalTrasladoLoteComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalTrasladoLoteComponent, ModalTrasladoHuevosComponent, FiltroSelectComponent],
   templateUrl: './inventario-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./inventario-dashboard.component.scss']
@@ -112,20 +111,6 @@ export class InventarioDashboardComponent implements OnInit {
   sortKey: 'edad' | 'fecha' = 'edad';
   sortDir: 'asc' | 'desc' = 'desc';
 
-  // ====== Modal Traslado ======
-  modalTrasladoAbierto = signal<boolean>(false);
-  trasladoForm!: FormGroup;
-
-  loteOrigenSeleccionado = signal<LoteDto | null>(null);
-  loteDestinoSeleccionado = signal<LoteDto | null>(null);
-
-  inventarioOrigen = signal<InventarioAvesDto | null>(null);
-  inventarioDestino = signal<InventarioAvesDto | null>(null);
-
-  procesandoTraslado = signal<boolean>(false);
-  errorTraslado = signal<string | null>(null);
-  exitoTraslado = signal<boolean>(false);
-
   // 🔴 Estado para el filtro de lote (fuera del modal)
   selectedLoteId: string | null = null;
   lotesForGalpon = signal<Array<{ id: string; label: string }>>([]); // lista final de lotes para el select
@@ -167,6 +152,7 @@ export class InventarioDashboardComponent implements OnInit {
 
   constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private trasladosService: TrasladosAvesService,
+    private inventarioAvesService: InventarioAvesService,
     private farmService: FarmService,
     private nucleoService: NucleoService,
     private galponService: GalponService,
@@ -184,14 +170,9 @@ export class InventarioDashboardComponent implements OnInit {
     private userPermService: UserPermissionService,
     private companyConfig: ActiveCompanyConfigService
   ) {
-    this.initTrasladoForm();
     this.companyConfig.getFlags().subscribe({
       next: f => (this.ocultaMachosEnPostura = !!f?.ocultaMachosEnPostura),
       error: () => (this.ocultaMachosEnPostura = false)
-    });
-
-    effect(() => {
-      if (this.inventarioOrigen()) this.validarCantidades();
     });
   }
 
@@ -277,7 +258,7 @@ export class InventarioDashboardComponent implements OnInit {
   async cargarResumen(): Promise<void> {
     try {
       this.error.set(null);
-      const r = await firstValueFrom(this.trasladosService.getResumenInventario());
+      const r = await firstValueFrom(this.inventarioAvesService.getResumenInventario());
       this.resumen.set(r || null);
     } catch (err: any) {
       console.error('Error al cargar resumen:', err);
@@ -289,7 +270,7 @@ export class InventarioDashboardComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const result = await firstValueFrom(this.trasladosService.searchInventarios(this.filtros));
+      const result = await firstValueFrom(this.inventarioAvesService.searchInventarios(this.filtros));
       if (result) {
         this.inventariosBase.set(result.items || []);
         this.totalRecords.set(result.total || 0);
@@ -578,214 +559,6 @@ export class InventarioDashboardComponent implements OnInit {
     }
   }
 
-  // ===================== Modal Traslado ======================
-  private initTrasladoForm(): void {
-    this.trasladoForm = this.fb.group({
-      usuarioRealizaId: [null, [Validators.required, Validators.min(1)]],
-      usuarioRecibeId:  [null, [Validators.required, Validators.min(1)]],
-      fechaMovimiento:  [this.hoyISO(), [Validators.required]],
-      tipoMovimiento:   ['TRASLADO', [Validators.required]],
-      observaciones:    [''],
-      cantidadHembras:  [0, [Validators.required, Validators.min(0)]],
-      cantidadMachos:   [0, [Validators.required, Validators.min(0)]],
-    });
-
-    this.trasladoForm.get('cantidadHembras')?.valueChanges.subscribe(() => this.validarCantidades());
-    this.trasladoForm.get('cantidadMachos')?.valueChanges.subscribe(() => this.validarCantidades());
-  }
-
-  isSubmitEnabled(): boolean {
-    const f = this.trasladoForm;
-    if (!f) return false;
-
-    const h = Number(f.get('cantidadHembras')?.value) || 0;
-    const m = Number(f.get('cantidadMachos')?.value) || 0;
-
-    const hErr = !!f.get('cantidadHembras')?.errors;
-    const mErr = !!f.get('cantidadMachos')?.errors;
-
-    return f.valid
-      && !!this.loteOrigenSeleccionado()
-      && !!this.loteDestinoSeleccionado()
-      && (h + m > 0)
-      && !hErr
-      && !mErr;
-  }
-
-  private hoyISO(): string { return hoyISOFn(); }
-
-  onLoteOrigenSeleccionado(lote: LoteDto | null): void {
-    this.loteOrigenSeleccionado.set(lote);
-    this.inventarioOrigen.set(null);
-    if (lote) this.cargarInventarioOrigen(lote.loteId);
-  }
-
-  onLoteDestinoSeleccionado(lote: LoteDto | null): void {
-    this.loteDestinoSeleccionado.set(lote);
-    this.inventarioDestino.set(null);
-    if (lote) this.cargarInventarioDestino(lote.loteId);
-  }
-
-  private async cargarInventarioOrigen(loteId: number): Promise<void> {
-    try {
-      const inv = await firstValueFrom(this.trasladosService.getInventarioByLote(String(loteId)));
-      this.inventarioOrigen.set(inv || null);
-      this.validarCantidades();
-    } catch (err) {
-      console.error('Error cargando inventario origen:', err);
-      this.inventarioOrigen.set(null);
-      this.errorTraslado.set('Error al cargar el inventario del lote origen');
-    }
-  }
-
-  private async cargarInventarioDestino(loteId: number): Promise<void> {
-    try {
-      const inv = await firstValueFrom(this.trasladosService.getInventarioByLote(String(loteId)));
-      this.inventarioDestino.set(inv || null);
-      this.errorTraslado.set(null);
-    } catch (err: any) {
-      // Si 404, deja inv=null sin bloquear
-      if (err?.status === 404) {
-        this.inventarioDestino.set(null);
-        this.errorTraslado.set(null);
-        return;
-      }
-      console.error('Error cargando inventario DESTINO:', err);
-      this.inventarioDestino.set(null);
-      this.errorTraslado.set('Error al cargar el inventario del lote destino');
-    }
-  }
-
-  private validarCantidades(): void {
-    const inv = this.inventarioOrigen();
-    const hCtrl = this.trasladoForm.get('cantidadHembras');
-    const mCtrl = this.trasladoForm.get('cantidadMachos');
-
-    const clean = (ctrl: any) => {
-      const errs = { ...(ctrl?.errors || {}) };
-      delete (errs as any).exceedsAvailable;
-      ctrl?.setErrors(Object.keys(errs).length ? errs : null);
-    };
-    clean(hCtrl);
-    clean(mCtrl);
-
-    if (!inv) return;
-
-    const h = Number(hCtrl?.value) || 0;
-    const m = Number(mCtrl?.value) || 0;
-
-    if (h > inv.cantidadHembras) {
-      hCtrl?.setErrors({ ...(hCtrl?.errors || {}), exceedsAvailable: { max: inv.cantidadHembras, actual: h } });
-    }
-    if (m > inv.cantidadMachos) {
-      mCtrl?.setErrors({ ...(mCtrl?.errors || {}), exceedsAvailable: { max: inv.cantidadMachos, actual: m } });
-    }
-
-    if (h + m === 0) {
-      this.errorTraslado.set('Debe trasladar al menos una ave');
-    } else if (this.errorTraslado() === 'Debe trasladar al menos una ave') {
-      this.errorTraslado.set(null);
-    }
-  }
-
-  abrirModalTraslado(): void {
-    this.modalTrasladoAbierto.set(true);
-    this.limpiarFormularioTraslado();
-  }
-  cerrarModalTraslado(): void {
-    this.modalTrasladoAbierto.set(false);
-    this.limpiarFormularioTraslado();
-  }
-  private limpiarFormularioTraslado(): void {
-    this.trasladoForm.reset({
-      cantidadHembras: 0,
-      cantidadMachos: 0,
-      usuarioRealizaId: null,
-      usuarioRecibeId: null,
-      fechaMovimiento: this.toYMD(new Date()),
-      tipoMovimiento: 'TRASLADO',
-      observaciones: ''
-    });
-    this.loteOrigenSeleccionado.set(null);
-    this.loteDestinoSeleccionado.set(null);
-    this.inventarioOrigen.set(null);
-    this.inventarioDestino.set(null);
-    this.errorTraslado.set(null);
-    this.exitoTraslado.set(false);
-  }
-
-  async procesarTraslado(): Promise<void> {
-    if (!this.isSubmitEnabled()) return;
-
-    const origen = this.loteOrigenSeleccionado();
-    const destino = this.loteDestinoSeleccionado();
-    if (!origen || !destino) return;
-
-    if (String(origen.loteId) === String(destino.loteId)) {
-      this.errorTraslado.set('El lote origen y destino no pueden ser el mismo');
-      return;
-    }
-
-    this.procesandoTraslado.set(true);
-    this.errorTraslado.set(null);
-
-    try {
-      const f = this.trasladoForm.value as any;
-      const fechaIso = this.ymdToIsoNoon(f.fechaMovimiento);
-
-      const obsExtras = `Realiza:${f.usuarioRealizaId} | Recibe:${f.usuarioRecibeId}`;
-      const observaciones = [String(f.observaciones || '').trim(), obsExtras].filter(Boolean).join(' — ');
-
-      const payload: CreateMovimientoAvesDto = {
-        loteOrigenId: String(origen.loteId),
-        loteDestinoId: String(destino.loteId),
-        cantidadHembras: Number(f.cantidadHembras) || 0,
-        cantidadMachos: Number(f.cantidadMachos) || 0,
-        tipoMovimiento: f.tipoMovimiento || 'TRASLADO',
-        observaciones,
-        fechaMovimiento: new Date(fechaIso)
-      };
-
-      await firstValueFrom(this.trasladosService.createMovimiento(payload));
-
-      this.exitoTraslado.set(true);
-      this.cargarResumen();
-      this.cargarInventarios();
-      setTimeout(() => this.cerrarModalTraslado(), 1000);
-    } catch (err: any) {
-      console.error('Error procesando traslado:', err);
-      this.errorTraslado.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el traslado');
-    } finally {
-      this.procesandoTraslado.set(false);
-    }
-  }
-
-  getTotalAves(): number {
-    const hembras = this.trasladoForm.get('cantidadHembras')?.value || 0;
-    const machos = this.trasladoForm.get('cantidadMachos')?.value || 0;
-    return hembras + machos;
-  }
-
-  trasladarTodasLasHembras(): void {
-    const inv = this.inventarioOrigen();
-    if (inv) this.trasladoForm.get('cantidadHembras')?.setValue(inv.cantidadHembras);
-  }
-  trasladarTodosLosMachos(): void {
-    const inv = this.inventarioOrigen();
-    if (inv) this.trasladoForm.get('cantidadMachos')?.setValue(inv.cantidadMachos);
-  }
-  trasladarTodo(): void {
-    this.trasladarTodasLasHembras();
-    this.trasladarTodosLosMachos();
-  }
-
-  navegarATraslados(): void { this.abrirModalTraslado(); }
-  navegarAMovimientos(): void { this.router.navigate(['historial'], { relativeTo: this.route }); }
-  navegarANuevoTraslado(): void {
-    // Usar ruta absoluta para evitar problemas de navegación
-    this.router.navigate(['/traslados-aves/nuevo']);
-  }
-
   // ===================== Utilidades ==========================
   calcularTotalAves(inv: InventarioAvesDto): number { return calcularTotalAvesFn(inv); }
 
@@ -839,7 +612,7 @@ export class InventarioDashboardComponent implements OnInit {
       const observaciones = window.prompt('Observaciones (opcional):', '') || '';
 
       const ajuste = { cantidadHembras, cantidadMachos, tipoEvento, observaciones };
-      await firstValueFrom(this.trasladosService.ajustarInventario(loteId, ajuste));
+      await firstValueFrom(this.inventarioAvesService.ajustarInventario(loteId, ajuste));
 
       await this.cargarResumen();
       await this.cargarInventarios();
@@ -865,7 +638,7 @@ export class InventarioDashboardComponent implements OnInit {
     if (!(await this.confirmDialog.ask({ title: 'Eliminar inventario', message: '¿Está seguro de que desea eliminar este inventario? Esta acción no se puede deshacer.', type: 'warning', confirmText: 'Eliminar' }))) return;
 
     try {
-      await firstValueFrom(this.trasladosService.deleteInventario(id));
+      await firstValueFrom(this.inventarioAvesService.deleteInventario(id));
       await this.cargarInventarios();
     } catch (err: any) {
       console.error('Error al eliminar inventario:', err);
@@ -1222,29 +995,12 @@ export class InventarioDashboardComponent implements OnInit {
 
   // 🔴 Modal Traslado/Retiro
   modalTrasladoRetiroAbierto = signal<boolean>(false);
-  tabActivo = signal<'aves' | 'huevos'>('aves');
   trasladoRetiroForm!: FormGroup;
-  trasladoHuevosForm!: FormGroup;
   disponibilidadLote = signal<DisponibilidadLoteDto | null>(null);
   loadingDisponibilidad = signal<boolean>(false);
   procesandoRetiro = signal<boolean>(false);
   errorRetiro = signal<string | null>(null);
   exitoRetiro = signal<boolean>(false);
-
-  // Tipos de huevo
-  tiposHuevo = [
-    { key: 'limpio', label: 'Limpio' },
-    { key: 'tratado', label: 'Tratado' },
-    { key: 'sucio', label: 'Sucio' },
-    { key: 'deforme', label: 'Deforme' },
-    { key: 'blanco', label: 'Blanco' },
-    { key: 'dobleYema', label: 'Doble Yema' },
-    { key: 'piso', label: 'Piso' },
-    { key: 'pequeno', label: 'Pequeño' },
-    { key: 'roto', label: 'Roto' },
-    { key: 'desecho', label: 'Desecho' },
-    { key: 'otro', label: 'Otro' }
-  ];
 
   abrirModalTrasladoLote(): void {
     if (!this.tieneLoteSeleccionadoCompleto) return;
@@ -1306,18 +1062,21 @@ export class InventarioDashboardComponent implements OnInit {
     }
   }
 
-  abrirModalTrasladoRetiro(tipo: 'aves' | 'huevos' = 'aves'): void {
+  /**
+   * Traslado / venta de AVES del lote seleccionado. Los huevos ya no entran por acá: van a
+   * `abrirModalTrasladoHuevos()`, que monta el modal del módulo de traslados de huevos.
+   */
+  abrirModalTrasladoRetiro(): void {
     if (!this.tieneLoteSeleccionadoCompleto) return;
 
-    this.tipoTrasladoSeleccionado.set(tipo);
+    this.tipoTrasladoSeleccionado.set('aves');
     const lote = this.loteCompleto();
     if (lote) {
       this.cargarDisponibilidadLote(String(lote.loteId));
     }
 
     this.initTrasladoRetiroForm();
-    this.initTrasladoHuevosForm();
-    this.tabActivo.set(tipo);
+    this.resetDestinoTraslado();
     this.modalTrasladoRetiroAbierto.set(true);
     this.errorRetiro.set(null);
     this.exitoRetiro.set(false);
@@ -1326,12 +1085,130 @@ export class InventarioDashboardComponent implements OnInit {
   cerrarModalTrasladoRetiro(): void {
     this.modalTrasladoRetiroAbierto.set(false);
     this.trasladoRetiroForm.reset();
-    this.trasladoHuevosForm.reset();
+    this.resetDestinoTraslado();
     this.disponibilidadLote.set(null);
-    this.tabActivo.set('aves');
     this.errorRetiro.set(null);
     this.exitoRetiro.set(false);
     this.tipoTrasladoSeleccionado.set(null);
+  }
+
+  // ===================== Traslado / venta de HUEVOS =====================
+  //
+  // El dashboard tenía su PROPIO formulario de huevos (11 columnas legacy, sin selector de ítems):
+  // para las empresas con `clasificacion_huevo_por_items` (Santa Reyes) mostraba 0 disponible en las
+  // 11 categorías y no dejaba trasladar un solo huevo. Era el 4º lugar con ese bug —los otros 3 se
+  // arreglaron en F10— y estaba anotado como pendiente en el tracker. En vez de reimplementar el
+  // soporte de ítems por cuarta vez, se monta `ModalTrasladoHuevosComponent`, que ya lo tiene, ya
+  // edita y ya es el que usa `/traslados-huevos/lista`. Mismo endpoint (`POST /api/traslados/huevos`).
+
+  /** Modal de huevos (componente del módulo `traslados-huevos`) abierto. */
+  modalHuevosAbierto = signal<boolean>(false);
+  /** Lote base cuyo traslado de huevos se está registrando. */
+  loteHuevosId = signal<number | null>(null);
+  /**
+   * Espejo de producción del lote. NO es opcional en la práctica: el traslado por ítems
+   * (`clasificacion_huevo_por_items`, Santa Reyes) lo EXIGE en el backend
+   * (`TrasladoHuevosService`), así que abrir el modal solo con `loteId` dejaría a esas empresas
+   * igual de trabadas que con el formulario viejo. Se resuelve desde la disponibilidad del lote,
+   * que ya lo trae.
+   */
+  loteHuevosLppId = signal<number | null>(null);
+  /** El modal se abre recién cuando se resolvió el LPP (o se supo que no hay). */
+  abriendoModalHuevos = signal<boolean>(false);
+
+  abrirModalTrasladoHuevos(): void {
+    if (!this.tieneLoteSeleccionadoCompleto) return;
+    const lote = this.loteCompleto();
+    if (!lote) return;
+
+    const loteIdNum = Number(lote.loteId);
+    if (!Number.isFinite(loteIdNum)) return;
+
+    this.tipoTrasladoSeleccionado.set('huevos');
+    this.loteHuevosId.set(loteIdNum);
+    this.abriendoModalHuevos.set(true);
+
+    // Fail-open: si la disponibilidad falla se abre igual con el lote base (flujo legacy de 11
+    // columnas), que es exactamente lo que hacía el formulario anterior.
+    this.trasladosService.getDisponibilidadLote(String(lote.loteId)).subscribe({
+      next: (disp) => {
+        this.disponibilidadLote.set(disp);
+        this.loteHuevosLppId.set(disp?.lotePosturaProduccionId ?? null);
+        this.abriendoModalHuevos.set(false);
+        this.modalHuevosAbierto.set(true);
+      },
+      error: () => {
+        this.loteHuevosLppId.set(null);
+        this.abriendoModalHuevos.set(false);
+        this.modalHuevosAbierto.set(true);
+      }
+    });
+  }
+
+  cerrarModalTrasladoHuevos(): void {
+    this.modalHuevosAbierto.set(false);
+    this.loteHuevosId.set(null);
+    this.loteHuevosLppId.set(null);
+    this.tipoTrasladoSeleccionado.set(null);
+  }
+
+  /** El modal guardó: se refresca lo que el traslado de huevos pudo mover. */
+  onTrasladoHuevosGuardado(): void {
+    const lote = this.loteCompleto();
+    this.cerrarModalTrasladoHuevos();
+    if (!lote) return;
+    this.cargarTrasladosHuevosLote(String(lote.loteId));
+    this.cargarDisponibilidadLote(String(lote.loteId));
+  }
+
+  // ===================== Destino del traslado de aves =====================
+  //
+  // Cascada Granja > Nucleo > Galpon > Lote con `app-filtro-select`, la misma primitiva que ya usa
+  // el modal de movimientos-aves. Reemplaza al `<input type="text">` en el que el operario tenia
+  // que tipear el id numerico del lote destino.
+  //
+  // ⚠️ `FiltroSelectComponent` es POLIMORFICO: con `[filterDataUrl]` emite el id de
+  // `lote_postura_produccion` (lo que necesita traslados-huevos) y SIN el emite el id de LOTE BASE
+  // (`/api/Produccion/lotes-produccion` devuelve `LoteDetailDto`). Aca se usa sin URL a proposito:
+  // `CrearTrasladoAvesDto.loteDestinoId` es el lote base.
+
+  selectedGranjaDestinoId: number | null = null;
+  selectedNucleoDestinoId: string | null = null;
+  selectedGalponDestinoId: string | null = null;
+  selectedLoteDestinoId: number | null = null;
+
+  onGranjaDestinoChange(granjaId: number | null): void {
+    this.selectedGranjaDestinoId = granjaId;
+    this.selectedNucleoDestinoId = null;
+    this.selectedGalponDestinoId = null;
+    this.selectedLoteDestinoId = null;
+    this.trasladoRetiroForm?.patchValue({ granjaDestinoId: granjaId, loteDestinoId: null });
+  }
+
+  onNucleoDestinoChange(nucleoId: string | null): void {
+    this.selectedNucleoDestinoId = nucleoId;
+    this.selectedGalponDestinoId = null;
+    this.selectedLoteDestinoId = null;
+    this.trasladoRetiroForm?.patchValue({ loteDestinoId: null });
+  }
+
+  onGalponDestinoChange(galponId: string | null): void {
+    this.selectedGalponDestinoId = galponId;
+    this.selectedLoteDestinoId = null;
+    this.trasladoRetiroForm?.patchValue({ loteDestinoId: null });
+  }
+
+  onLoteDestinoChange(loteId: number | null): void {
+    this.selectedLoteDestinoId = loteId;
+    this.trasladoRetiroForm?.patchValue({ loteDestinoId: loteId });
+  }
+
+  /** Limpia la cascada de destino (al abrir y al cerrar el modal). */
+  private resetDestinoTraslado(): void {
+    this.selectedGranjaDestinoId = null;
+    this.selectedNucleoDestinoId = null;
+    this.selectedGalponDestinoId = null;
+    this.selectedLoteDestinoId = null;
   }
 
   private initTrasladoRetiroForm(): void {
@@ -1356,12 +1233,19 @@ export class InventarioDashboardComponent implements OnInit {
     this.applyDisponibilidadValidatorsRetiro();
   }
 
-  /** Máximos desde disponibilidad del lote (levante) o, si aún no cargó, desde inventario en pantalla. */
+  /**
+   * Máximos desde disponibilidad del lote o, si aún no cargó, desde inventario en pantalla.
+   *
+   * Antes esto exigía `tipoLote === 'Levante'`, y como el backend dejaba `aves` en null para todo
+   * lote que ruteara a huevos, los lotes en producción caían siempre al inventario de pantalla.
+   * Ahora `aves` viene siempre (también en producción, donde el lote igual tiene gallinas), así que
+   * la condición correcta es que el bloque exista — no en qué fase está el lote.
+   */
   private applyDisponibilidadValidatorsRetiro(): void {
     if (!this.trasladoRetiroForm) return;
     const d = this.disponibilidadLote();
-    const hDisp = d?.tipoLote === 'Levante' ? d.aves?.hembrasVivas : undefined;
-    const mDisp = d?.tipoLote === 'Levante' ? d.aves?.machosVivos : undefined;
+    const hDisp = d?.aves?.hembrasVivas;
+    const mDisp = d?.aves?.machosVivos;
     const inv = this.obtenerInventarioLoteSeleccionado();
     const maxH = hDisp != null && !Number.isNaN(Number(hDisp)) ? Number(hDisp) : (inv?.cantidadHembras ?? 999999);
     const maxM = mDisp != null && !Number.isNaN(Number(mDisp)) ? Number(mDisp) : (inv?.cantidadMachos ?? 999999);
@@ -1375,60 +1259,11 @@ export class InventarioDashboardComponent implements OnInit {
     cm?.updateValueAndValidity({ emitEvent: false });
   }
 
-  private initTrasladoHuevosForm(): void {
-    const huevosControls: any = {
-      tipoOperacion: ['Venta', [Validators.required]], // Venta, Traslado
-      fechaTraslado: [new Date().toISOString().split('T')[0], [Validators.required]],
-      granjaDestinoId: [null],
-      loteDestinoId: [null],
-      tipoDestino: [null],
-      motivo: ['', []],
-      descripcion: ['', []],
-      observaciones: ['']
-    };
-
-    // Agregar controles para cada tipo de huevo
-    this.tiposHuevo.forEach(tipo => {
-      huevosControls[`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`] = [0, [Validators.min(0)]];
-    });
-
-    this.trasladoHuevosForm = this.fb.group(huevosControls);
-
-    // Actualizar validadores según tipo de operación
-    this.trasladoHuevosForm.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
-      this.actualizarValidadoresHuevos(tipo);
-    });
-  }
-
   private actualizarValidadoresAves(tipo: string): void {
     const granjaDestino = this.trasladoRetiroForm.get('granjaDestinoId');
     const tipoDestino = this.trasladoRetiroForm.get('tipoDestino');
     const motivo = this.trasladoRetiroForm.get('motivo');
     const descripcion = this.trasladoRetiroForm.get('descripcion');
-
-    if (tipo === 'Venta') {
-      granjaDestino?.clearValidators();
-      tipoDestino?.clearValidators();
-      motivo?.setValidators([Validators.required]);
-      descripcion?.setValidators([Validators.required]);
-    } else {
-      granjaDestino?.setValidators([Validators.required]);
-      tipoDestino?.setValidators([Validators.required]);
-      motivo?.clearValidators();
-      descripcion?.clearValidators();
-    }
-
-    granjaDestino?.updateValueAndValidity();
-    tipoDestino?.updateValueAndValidity();
-    motivo?.updateValueAndValidity();
-    descripcion?.updateValueAndValidity();
-  }
-
-  private actualizarValidadoresHuevos(tipo: string): void {
-    const granjaDestino = this.trasladoHuevosForm.get('granjaDestinoId');
-    const tipoDestino = this.trasladoHuevosForm.get('tipoDestino');
-    const motivo = this.trasladoHuevosForm.get('motivo');
-    const descripcion = this.trasladoHuevosForm.get('descripcion');
 
     if (tipo === 'Venta') {
       granjaDestino?.clearValidators();
@@ -1470,12 +1305,18 @@ export class InventarioDashboardComponent implements OnInit {
 
   async anularMovimientoAves(m: TrasladoUnificado): Promise<void> {
     if (!this.puedeAnularMovimientoAves(m)) return;
-    const motivo = window.prompt(
-      'Motivo de anulación (las aves vuelven al inventario del lote si el movimiento ya había sido aplicado):',
-      'Anulado por usuario'
-    );
+    // Primitiva del sistema de diseño en vez del `window.prompt()` nativo (CLAUDE.md §diseño).
+    // `askText` devuelve `null` si el usuario cancela, y el texto si confirma — misma semántica
+    // que tenía el prompt, así que el motivo que se guarda en la auditoría no cambia.
+    const motivo = await this.confirmDialog.askText({
+      title: 'Anular movimiento de aves',
+      message: 'Las aves vuelven al inventario del lote si el movimiento ya había sido aplicado.',
+      type: 'warning',
+      confirmText: 'Anular movimiento',
+      input: { label: 'Motivo de anulación', value: 'Anulado por usuario', placeholder: 'Motivo' }
+    });
     if (motivo === null) return;
-    const motivoFinal = motivo.trim() || 'Anulado por usuario';
+    const motivoFinal = motivo || 'Anulado por usuario';
     try {
       const res = await firstValueFrom(this.trasladosService.cancelarMovimiento(m.id, motivoFinal));
       if (!res?.success) {
@@ -1586,88 +1427,6 @@ export class InventarioDashboardComponent implements OnInit {
     } catch (err: any) {
       console.error('Error al procesar retiro/traslado de aves:', err);
       this.errorRetiro.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el retiro/traslado de aves');
-    } finally {
-      this.procesandoRetiro.set(false);
-    }
-  }
-
-  // 🔴 Procesar traslado de huevos
-  async procesarTrasladoHuevos(): Promise<void> {
-    if (!this.trasladoHuevosForm.valid || !this.tieneLoteSeleccionadoCompleto) return;
-
-    const lote = this.loteCompleto();
-    if (!lote) return;
-
-    const formValue = this.trasladoHuevosForm.value;
-
-    // Validar que haya al menos un huevo seleccionado
-    let totalHuevos = 0;
-    this.tiposHuevo.forEach(tipo => {
-      const cantidad = formValue[`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`] || 0;
-      totalHuevos += cantidad;
-    });
-
-    if (totalHuevos <= 0) {
-      this.errorRetiro.set('Debe especificar al menos un huevo a trasladar');
-      return;
-    }
-
-    this.procesandoRetiro.set(true);
-    this.errorRetiro.set(null);
-
-    try {
-      const fechaTraslado = typeof formValue.fechaTraslado === 'string'
-        ? new Date(formValue.fechaTraslado)
-        : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
-
-      const dto: CrearTrasladoHuevosDto = {
-        loteId: String(lote.loteId),
-        fechaTraslado: fechaTraslado,
-        tipoOperacion: formValue.tipoOperacion,
-        cantidadLimpio: formValue.cantidadLimpio || 0,
-        cantidadTratado: formValue.cantidadTratado || 0,
-        cantidadSucio: formValue.cantidadSucio || 0,
-        cantidadDeforme: formValue.cantidadDeforme || 0,
-        cantidadBlanco: formValue.cantidadBlanco || 0,
-        cantidadDobleYema: formValue.cantidadDobleYema || 0,
-        cantidadPiso: formValue.cantidadPiso || 0,
-        cantidadPequeno: formValue.cantidadPequeno || 0,
-        cantidadRoto: formValue.cantidadRoto || 0,
-        cantidadDesecho: formValue.cantidadDesecho || 0,
-        cantidadOtro: formValue.cantidadOtro || 0,
-        granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
-        loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
-        tipoDestino: formValue.tipoDestino,
-        motivo: formValue.motivo,
-        descripcion: formValue.descripcion,
-        observaciones: formValue.observaciones
-      };
-
-      await firstValueFrom(this.trasladosService.crearTrasladoHuevos(dto));
-
-      this.exitoRetiro.set(true);
-      await this.cargarInventarios();
-      await this.cargarResumen();
-
-      if (this.loteCompleto()) {
-        const loteIdNum = parseInt(String(this.loteCompleto()!.loteId), 10);
-        if (!isNaN(loteIdNum)) {
-          this.cargarMovimientosLote(loteIdNum);
-        }
-        // Recargar disponibilidad
-        this.cargarDisponibilidadLote(String(this.loteCompleto()!.loteId));
-        // Recargar traslados de huevos
-        this.cargarTrasladosHuevosLote(String(this.loteCompleto()!.loteId));
-      }
-
-      // Mantener modal abierto por 3 segundos mostrando éxito, luego cerrar automáticamente
-      setTimeout(() => {
-        this.cerrarModalTrasladoRetiro();
-      }, 3000);
-
-    } catch (err: any) {
-      console.error('Error al procesar traslado de huevos:', err);
-      this.errorRetiro.set(err?.error?.message || err?.error?.error || err?.message || 'Error al procesar el traslado de huevos');
     } finally {
       this.procesandoRetiro.set(false);
     }

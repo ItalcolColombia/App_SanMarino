@@ -1,6 +1,9 @@
-// MovimientoAves/Funciones/MovimientoAvesService.EjecucionDirecta.cs
-// Ejecución directa de movimientos desde el seguimiento diario: venta, traslado entre lotes y
-// traslado por cierre de lote levante → producción.
+﻿// MovimientoAves/Funciones/MovimientoAvesService.EjecucionDirecta.cs
+// Traslado de aves por CIERRE de lote levante → producción.
+// Los métodos EjecutarVentaAsync/EjecutarTrasladoAsync (endpoints `ejecutar-venta` y
+// `ejecutar-traslado`) se eliminaron el 3-sep-2026: quedaron sin un solo llamador en todo el
+// repo — la venta y el traslado manuales van por `POST /api/traslados/aves` (Camino A) y por
+// `POST /api/traslados/aves-desde-seguimiento` (Camino C).
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.DTOs;
@@ -9,97 +12,6 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class MovimientoAvesService
 {
-    public async Task<ResultadoMovimientoDto> EjecutarVentaAsync(EjecutarVentaAvesRequest request)
-    {
-        try
-        {
-            if (request.CantidadHembras <= 0 && request.CantidadMachos <= 0)
-                return new ResultadoMovimientoDto(false, "Debe indicar al menos una ave para vender", null, null, new List<string> { "Cantidades inválidas" }, null);
-
-            var lote = await _context.Lotes.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.LoteOrigenId &&
-                                          l.CompanyId == _currentUser.CompanyId &&
-                                          l.DeletedAt == null);
-            if (lote is null)
-                return new ResultadoMovimientoDto(false, $"Lote {request.LoteOrigenId} no encontrado", null, null, new List<string> { "Lote no existe" }, null);
-
-            var dto = new CreateMovimientoAvesDto
-            {
-                FechaMovimiento    = request.Fecha,
-                TipoMovimiento     = "Venta",
-                LoteOrigenId       = request.LoteOrigenId,
-                GranjaOrigenId     = lote.GranjaId,
-                NucleoOrigenId     = lote.NucleoId,
-                GalponOrigenId     = lote.GalponId,
-                CantidadHembras    = request.CantidadHembras,
-                CantidadMachos     = request.CantidadMachos,
-                CantidadMixtas     = 0,
-                MotivoMovimiento   = request.Motivo ?? "Venta desde seguimiento diario",
-                Observaciones      = request.Observaciones,
-                UsuarioMovimientoId = _currentUser.UserId
-            };
-
-            var movimiento = await CreateAsync(dto);
-            return new ResultadoMovimientoDto(true, "Venta registrada correctamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimiento);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al ejecutar venta para lote {LoteId}", request.LoteOrigenId);
-            return new ResultadoMovimientoDto(false, ex.Message, null, null, new List<string> { ex.Message }, null);
-        }
-    }
-
-    public async Task<ResultadoMovimientoDto> EjecutarTrasladoAsync(EjecutarTrasladoAvesRequest request)
-    {
-        try
-        {
-            if (request.CantidadHembras <= 0 && request.CantidadMachos <= 0)
-                return new ResultadoMovimientoDto(false, "Debe indicar al menos una ave para trasladar", null, null, new List<string> { "Cantidades inválidas" }, null);
-
-            var loteOrigen = await _context.Lotes.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.LoteOrigenId &&
-                                          l.CompanyId == _currentUser.CompanyId &&
-                                          l.DeletedAt == null);
-            if (loteOrigen is null)
-                return new ResultadoMovimientoDto(false, $"Lote origen {request.LoteOrigenId} no encontrado", null, null, new List<string> { "Lote origen no existe" }, null);
-
-            var loteDestino = await _context.Lotes.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.LoteDestinoId &&
-                                          l.CompanyId == _currentUser.CompanyId &&
-                                          l.DeletedAt == null);
-            if (loteDestino is null)
-                return new ResultadoMovimientoDto(false, $"Lote destino {request.LoteDestinoId} no encontrado", null, null, new List<string> { "Lote destino no existe" }, null);
-
-            var dto = new CreateMovimientoAvesDto
-            {
-                FechaMovimiento    = request.Fecha,
-                TipoMovimiento     = "Traslado",
-                LoteOrigenId       = request.LoteOrigenId,
-                GranjaOrigenId     = loteOrigen.GranjaId,
-                NucleoOrigenId     = loteOrigen.NucleoId,
-                GalponOrigenId     = loteOrigen.GalponId,
-                LoteDestinoId      = request.LoteDestinoId,
-                GranjaDestinoId    = loteDestino.GranjaId,
-                NucleoDestinoId    = loteDestino.NucleoId,
-                GalponDestinoId    = loteDestino.GalponId,
-                CantidadHembras    = request.CantidadHembras,
-                CantidadMachos     = request.CantidadMachos,
-                CantidadMixtas     = 0,
-                MotivoMovimiento   = "Traslado desde seguimiento diario",
-                Observaciones      = request.Observaciones,
-                UsuarioMovimientoId = _currentUser.UserId
-            };
-
-            var movimiento = await CreateAsync(dto);
-            return new ResultadoMovimientoDto(true, "Traslado registrado correctamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimiento);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al ejecutar traslado {LoteOrigen}→{LoteDestino}", request.LoteOrigenId, request.LoteDestinoId);
-            return new ResultadoMovimientoDto(false, ex.Message, null, null, new List<string> { ex.Message }, null);
-        }
-    }
-
     public async Task<ResultadoMovimientoDto> EjecutarTrasladoCierreLevanteAsync(TrasladoCierreLevanteRequest request)
     {
         try
