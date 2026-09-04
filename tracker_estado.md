@@ -6873,30 +6873,54 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       explícita. **No aplica a la plantilla nueva** (Santa Reyes ya no recibe esa columna); queda para
       un archivo viejo. Pendiente.
 
-### F5 · Silo: cerrar el camino que no existe
+### F5 · Silo real en la carga masiva (espejo del seguimiento diario)
 
-- [i] El módulo **no menciona silos ni una vez**. Hoja `Alimento`: cada fila revienta ⇒ 0 kg entran.
-      Consumo: el día se guarda y el inventario NO se toca. El dry-run es ciego al silo y aprueba.
-- [x] F5.1 La plantilla de una empresa con `maneja_inventario_por_silo` no emite la hoja `Alimento`
-      ni las columnas `Alimento 1/2 H-M`. `Consumo H (kg)` (consumo directo) se conserva.
-- [x] F5.2 Instrucciones y hoja `Ejemplo` explican el porqué y qué hacer en su lugar.
-- [x] F5.3 **Fail-closed en el importador**: un archivo con la hoja `Alimento` o las columnas de
-      inventario se rechaza con mensaje accionable, ANTES de la simulación ciega y ANTES de insertar.
-- [ ] F5.4 **Pendiente (fase propia):** soporte real de silo — columna `Silo`, `SiloId` en
-      `ItemSeguimientoDto` y en los 3 requests, silo en `PosicionAlimento`, `ValidarStockConsumoAsync`.
+- [i] El módulo **no mencionaba silos ni una vez**. Hoja `Alimento`: cada fila reventaba ⇒ 0 kg.
+      Consumo: el día se guardaba y el inventario NO se tocaba. El dry-run era ciego al silo y aprobaba.
+- [i] Patrón mapeado con file:line contra el alta manual (25 agentes, 15 trampas verificadas):
+      `InventarioUbicacionSiloCalculos` + `ConsumoSiloCalculos.ValidarClaves` sobre `lote_silos` +
+      `ItemConsumoKey.SiloId` + `metadata.siloId` solo cuando existe.
+- [x] F5.1 Columnas `Silo` / `Silo Origen` (hoja Alimento) y `Silo Alimento 1/2 H-M` (hoja Datos) en el
+      esquema. El silo va **por ítem**, no por fila: es como lo pide el formulario diario.
+- [x] F5.2 Se emiten SOLO con `maneja_inventario_por_silo`. En modo clásico el servicio rechaza un
+      movimiento con silo, así que ofrecerlas rompería el archivo. Sanmarino sigue con sus 43.
+- [x] F5.3 Resolución por nombre/código **entre los silos activos de la granja de esa ubicación**
+      (criterio del backend, no el del selector, que omite `fs.Activo`), + lista blanca `lote_silos`
+      con el mensaje del alta manual — todo **antes de insertar nada**.
+- [x] F5.4 Propagación: `SiloId` (ingreso/consumo), `FromSiloId`/`ToSiloId` (traslado),
+      `ItemSeguimientoDto.SiloId` → `ItemConsumoKey(itemId, true, siloId)` → `AplicarConsumoAsync`.
+- [x] F5.5 El consumo se acumula sobre `ItemConsumoKey`, no sobre `int`: aplanar antes era
+      irreversible (dos filas del mismo alimento en silos distintos se descontaban todas del primero).
+- [x] F5.6 `PosicionAlimento` con silo ⇒ la simulación del dry-run mide el silo real.
+- [x] F5.7 Idempotencia intacta: el segmento de silo se agrega a la clave **solo cuando hay silo**.
+- [x] F5.8 `SerializarItem` pasa a ser espejo exacto de `ItemAMetadata` (`siloId` solo cuando > 0).
+- [i] `ReplicarPorSilo` no se duplica: se reusa `AplicarConsumoAsync`, que ya lo aplica.
+      `RegistrarConsumoNivelGranjaAsync` es **fail-open** con el silo; los 3 agujeros los cierra el parseo.
 
 ### F6 · Validación
 
-- [x] F6.1 `dotnet build` 0 errores · **0 advertencias en los 2 proyectos tocados** · `dotnet test`
-      **3.876 verdes, 0 fallos**.
-- [x] F6.2 **Smoke flags OFF (Sanmarino, lotes 14 y 143):** Levante y Producción salen con las **43
-      columnas** de siempre, `Alimento` 14, `Movimientos Aves` 8, `Movimientos Huevos` 18. Delta cero;
-      lo único nuevo es la hoja `Ejemplo`.
-- [x] F6.3 **Smoke flags ON (Santa Reyes, lote 152):** Levante y Producción bajan con **16 columnas**
-      (de 43), sin machos, sin huevo de columnas fijas, sin hoja `Alimento`.
-- [x] F6.4 **Smoke funcional:** el archivo copiado del ejemplo valida **`Validado`, 0 errores**; el
-      mismo archivo con hoja `Alimento` se rechaza con el mensaje del silo. Backend apagado, puertos
-      5501/5002 libres, sesiones de smoke borradas.
+- [x] F6.1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **3.899 verdes, 0 fallos**
+      (subieron de 3.876 con los tests nuevos de silo).
+- [x] F6.2 **Smoke flags OFF (Sanmarino, lotes 14 y 143):** Levante y Producción siguen con las **43
+      columnas**, hoja `Alimento` con sus 14 (sin `Silo`/`Silo Origen`), `Movimientos Aves` 8,
+      `Movimientos Huevos` 18. Delta cero; lo único nuevo es la hoja `Ejemplo`.
+- [x] F6.3 **Smoke flags ON (Santa Reyes, lote 152):** 22 columnas (de 47), sin machos, sin huevo de
+      columnas fijas, con `Silo Alimento 1/2 H`; hoja `Alimento` con `Silo` y `Silo Origen`;
+      `Referencias` con el silo asignado al lote (`Silo 7` / `BS60107`); y el `Ejemplo` con el silo
+      REAL en cada slot.
+- [x] F6.4 **Smoke funcional del silo, 4 casos contra el backend real:**
+      1. consumo sin entrada ⇒ rechazado por stock **del silo** (0,009 kg en Silo 7), antes de insertar
+         — antes la simulación sumaba los 39 silos y daba luz verde;
+      2. hoja `Alimento` sin la columna Silo ⇒ rechazado con el mensaje del alta manual;
+      3. hoja `Alimento` con `Silo 7` + 5.000 kg ⇒ **`Validado`**, con el saldo proyectado por silo
+         (0,009 + 5.000 − 638,5 = 4.361,509 kg);
+      4. `Silo 20` (existe en la granja, no asignado al lote) ⇒ rechazado con
+         `MensajeSiloNoAsignadoAlLote`.
+- [x] F6.5 Backend del smoke apagado, puertos 5501/5002 libres, sesiones de smoke borradas.
+- [i] **Defecto que solo vio el smoke:** el generador pasaba `SiloNombre: null` al ejemplo, así que la
+      plantilla traía la columna de silo y el ejemplo la dejaba vacía. Cada pieza estaba bien por
+      separado; el defecto vivía en la junta. Corregido: el ejemplo usa el primer silo de
+      `Referencias`, o sea un valor que el importador acepta.
 
 ### Fuera de alcance (registrado)
 
@@ -6999,3 +7023,83 @@ sin vía de escalamiento a desarrollo.
 - [x] T4.2 En transacción revertida contra la copia de producción: Santa Reyes 0 → 6 filas; las otras
       4 empresas **14 → 14 idénticas**; `Up` dos veces sigue en 6; los asignables de DESARROLLO
       pasan de vacío a 2.
+
+---
+
+# Santa Reyes — múltiples seguimientos diarios de producción el mismo día
+
+Plan: [seguimiento_produccion_multiples_registros_dia_plan.md](fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md)
+
+Pedido (04-sep-2026): Santa Reyes necesita cargar más de un registro de seguimiento diario de
+producción/postura el mismo día para un mismo lote, controlado por flag de empresa. Investigación
+cerrada (workflow de 4 agentes): hay **dos escritores** de `seguimiento_diario_produccion` (uno vivo
+usado por el front, uno huérfano de UI con ruta activa), un **índice único en BD**
+(`ux_seguimiento_diario_produccion_lote_dia_utc`) y, lo central, la función canónica
+`fn_seguimiento_diario_produccion` que hoy ante 2+ filas del mismo lote+día **no suma ni duplica: se
+queda con la de timestamp más temprano y la otra desaparece en silencio** de la grilla, las 3 fns
+semanales derivadas y el espejo C#. Además 3 consumidores (dashboard, header del lote, Reporte
+Técnico Producción) leen la tabla cruda sin pasar por la función y hoy se comportarían distinto
+entre sí ante duplicados. Detalle completo con file:line en el plan.
+
+## S0 · Decisiones del usuario — BLOQUEAN el resto (ver plan §0)
+
+- [!] S0.1 Semántica: ¿los registros del día se SUMAN (lectura del pedido original) o el último
+      reemplaza al anterior?
+- [!] S0.2 Regla por campo para lo no aditivo (peso promedio, uniformidad, CV%, observaciones) —
+      tabla propuesta en el plan §3, a confirmar/editar.
+- [!] S0.3 Manejo del índice único de BD — DDL, sin OK no se toca: (A) parcial con el `company_id`
+      de Santa Reyes hardcodeado en el predicado (recomendado, ya hay precedente en el repo), (B)
+      bajar el índice único para todas las empresas, o (C) columna de secuencia dentro del día.
+- [!] S0.4 ¿Gatear el flag en los DOS escritores (incluye el huérfano de UI con ruta HTTP activa) o
+      solo en el vivo (`ProduccionService.Seguimiento.cs`)?
+- [!] S0.5 Rollout: ¿todo en un commit (recomendado, incluye el fix del Reporte Técnico Producción
+      para que no duplique renglones) o en fases?
+
+## S1 · Flag por empresa (una vez resueltas las decisiones)
+
+- [ ] S1.1 Columna `permite_multiples_seguimientos_diarios_produccion` en `companies` — migración
+      `ADD COLUMN IF NOT EXISTS` + `Company.cs` + `CompanyConfiguration.cs`, patrón de
+      `20260820220012_AddFlagLimitaTiposInventarioAlimentoYAves.cs`.
+- [ ] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
+      Create+Update, `CompanyResolver` x2) + `CreateCompanyDto`/`UpdateCompanyDto`.
+- [ ] S1.3 Seed: `UPDATE companies SET ... WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`
+      (misma migración o una `Seed*` posterior, después del seed que crea la empresa).
+- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed).
+
+## S2 · Alta — sacar la validación de duplicado (gateada)
+
+- [ ] S2.1 `ProduccionService.Seguimiento.cs` Create (~L51-69) y Update (~L508-516): no lanzar la
+      excepción de duplicado cuando el flag está ON.
+- [ ] S2.2 `SeguimientoProduccionService.cs` Create/Update — según S0.4.
+- [ ] S2.3 Índice(s) de BD — según S0.3.
+
+## S3 · Función canónica v3 — agregación real, no solo "dejar pasar el alta"
+
+- [ ] S3.1 `fn_seguimiento_diario_produccion.sql` v3: bifurcar `seg_dias` por el flag de la empresa
+      (join ya existe a `lotes`/`companies`) — flag OFF idéntico byte a byte (gate), flag ON agrupa
+      por día con la regla de S0.1/S0.2.
+- [ ] S3.2 Migración EF de la fn v3 (Designer clonado, `Down` = v2 verbatim) — **en el mismo commit**
+      que el `.sql` (regla del espejo, `CLAUDE.md` §🗄️).
+- [ ] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + tests xUnit (paridad con
+      SQL en ambos modos).
+- [ ] S3.4 Gate multipaís: `verificar_paridad_seguimiento_produccion.sql` antes/después en TODAS las
+      empresas — 0 diffs en las que no son Santa Reyes.
+
+## S4 · Los 3 consumidores que bypasean la función
+
+- [ ] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header) — agrupar por día
+      antes de sumar/contar.
+- [ ] S4.2 `ReporteTecnicoProduccionService.Diario.cs` / `.Tabs.cs` — agrupar por día antes de la
+      iteración que decrementa el saldo en cascada (hoy duplicaría el renglón visualmente).
+- [ ] S4.3 `DashboardService.Postura.cs` — revisar si necesita tocarse (hoy ya suma por día a nivel
+      empresa, verificar que coincida con la nueva regla de agregación de S3).
+- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` — `consumoRealGrAveDiaH/M` debe
+      dividir por días únicos, no por `totalRegistros` (conteo de filas).
+
+## S5 · Validación
+
+- [ ] S5.1 `dotnet build` + `dotnet test` verdes.
+- [ ] S5.2 `yarn build`.
+- [ ] S5.3 Smoke con el flag ON en Santa Reyes: 2 registros mismo lote+día → grilla, header,
+      dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
+- [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).

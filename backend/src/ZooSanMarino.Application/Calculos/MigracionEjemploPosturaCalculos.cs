@@ -75,8 +75,7 @@ public static class MigracionEjemploPosturaCalculos
     {
         var bloques = new List<BloqueEjemplo> { BloqueDatos(esLevante, flags, columnasDatos, datos) };
 
-        // Solo se ilustran las hojas que la plantilla realmente emitió.
-        if (PlantillaPosturaCalculos.EmiteHojaAlimento(flags)) bloques.Add(BloqueAlimento(datos));
+        bloques.Add(BloqueAlimento(datos, flags));
         bloques.Add(BloqueMovimientosAves(flags, datos));
         if (incluyeHojaHuevos) bloques.Add(BloqueHuevos(datos));
 
@@ -107,12 +106,13 @@ public static class MigracionEjemploPosturaCalculos
 
         var notas = new List<string>();
         if (usaAlimentoDelInventario)
+        {
             notas.Add("«Consumo H (kg)» va VACÍO a propósito: la fila usa «Alimento 1 H» + «Consumo Alimento 1 H», "
                     + "que descuentan el stock real. Si ponés los dos, el consumo directo se ignora.");
-        else if (flags.ManejaInventarioPorSilo)
-            notas.Add("Esta empresa ubica el alimento en SILOS. La carga masiva todavía no mueve inventario por silo, "
-                    + "así que el consumo va en «Consumo H (kg)»: se guarda en el día y NO descuenta stock. "
-                    + "Las entradas de alimento se cargan por pantalla.");
+            if (flags.ManejaInventarioPorSilo)
+                notas.Add("«Silo Alimento 1 H» dice de qué silo sale ESE alimento. Es obligatorio, y solo se aceptan "
+                        + "los silos asignados a este lote (los de la hoja «Referencias»).");
+        }
         else
             notas.Add("«Consumo H (kg)» es el consumo directo: se guarda en el día pero NO toca el inventario. "
                     + "Para que descuente stock, usá «Alimento 1 H» + «Consumo Alimento 1 H».");
@@ -156,6 +156,9 @@ public static class MigracionEjemploPosturaCalculos
             "Unidad Consumo" => "kg",
 
             "Alimento 1 H" => datos.AlimentoNombre ?? "",
+            // El silo va por ÍTEM: es la ubicación real de la que sale ESE alimento.
+            "Silo Alimento 1 H" or "Silo Alimento 1 M" => datos.SiloNombre ?? "",
+            "Silo Alimento 2 H" or "Silo Alimento 2 M" => "",
             "Consumo Alimento 1 H" => usaAlimentoDelInventario ? Serie(dia, "320.5", "318.0", "325.4") : "",
             "Alimento 1 M" => datos.AlimentoNombre ?? "",
             "Consumo Alimento 1 M" => usaAlimentoDelInventario ? Serie(dia, "41.2", "40.8", "42.0") : "",
@@ -202,9 +205,11 @@ public static class MigracionEjemploPosturaCalculos
 
     // ── Hoja "Alimento" ──────────────────────────────────────────────────────────────────────────
 
-    private static BloqueEjemplo BloqueAlimento(DatosEjemploPostura datos)
+    private static BloqueEjemplo BloqueAlimento(DatosEjemploPostura datos, FlagsPlantillaPostura flags)
     {
-        var columnas = MigracionEsquemas.AlimentoPostura.Columnas.Select(c => c.Titulo).ToList();
+        var ocultas = PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(flags.ManejaInventarioPorSilo);
+        var columnas = MigracionEsquemas.AlimentoPostura.Columnas
+            .Where(c => !ocultas.Contains(c.Titulo)).Select(c => c.Titulo).ToList();
         var alimento = datos.AlimentoNombre ?? "(elegí uno de la hoja Referencias)";
 
         var filas = new List<IReadOnlyList<string>>
@@ -217,6 +222,7 @@ public static class MigracionEjemploPosturaCalculos
                 "Cantidad" => "5000",
                 "Unidad" => "kg",
                 "Origen" => "planta",
+                "Silo" => datos.SiloNombre ?? "",
                 "Referencia" => "REM-00123",
                 "Observaciones" => "Entrada del período",
                 _ => "",
@@ -230,6 +236,9 @@ public static class MigracionEjemploPosturaCalculos
             "Si el archivo consume más de lo que hay, se rechaza ENTERO indicando cuánto falta.",
             "Ubicación vacía = la del lote seleccionado en pantalla, que es el caso normal.",
         };
+        if (flags.ManejaInventarioPorSilo)
+            notas.Add("«Silo» es obligatorio: esta empresa ubica el alimento en silos y bodegas. "
+                    + "Para 'Traslado' y 'Recepción' completá además «Silo Origen».");
 
         return new BloqueEjemplo(MigracionEsquemas.AlimentoPostura.Hoja, columnas, filas, notas);
     }

@@ -33,10 +33,15 @@ public class PlantillaPosturaCalculosTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Sanmarino_NoOcultaNingunaColumna(bool esLevante)
+    public void Sanmarino_SoloOcultaLasColumnasDeSilo(bool esLevante)
     {
+        // Sin inventario por silo, lo UNICO que se omite son las 4 columnas de silo por slot: el
+        // parseo las rechaza en modo clasico, asi que ofrecerlas romperia el archivo.
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante, Sanmarino);
-        Assert.Empty(ocultas);
+
+        Assert.Equal(
+            new[] { "Silo Alimento 1 H", "Silo Alimento 1 M", "Silo Alimento 2 H", "Silo Alimento 2 M" },
+            ocultas.OrderBy(t => t, StringComparer.Ordinal).ToArray());
     }
 
     [Theory]
@@ -48,7 +53,10 @@ public class PlantillaPosturaCalculosTests
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante, Sanmarino);
 
         var emitidas = esquema.Columnas.Where(c => !ocultas.Contains(c.Titulo)).ToList();
-        Assert.Equal(esquema.Columnas.Count, emitidas.Count);
+        // El esquema crecio con las 4 columnas de silo, pero una empresa sin silo sigue emitiendo
+        // exactamente las 43 de siempre: delta cero.
+        Assert.Equal(43, emitidas.Count);
+        Assert.DoesNotContain(emitidas, c => c.Titulo.StartsWith("Silo ", StringComparison.Ordinal));
     }
 
     // ── Santa Reyes: la lista exacta ─────────────────────────────────────────────────────────────
@@ -76,14 +84,18 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Huevo Otro", ocultas);
         Assert.Contains("Peso Huevo (g)", ocultas);
 
-        // El alimento del INVENTARIO tampoco se ofrece: esta empresa ubica el alimento por silo y
-        // la carga masiva no mueve inventario por silo (ver EmiteHojaAlimento).
-        Assert.Contains("Alimento 1 H", ocultas);
-        Assert.Contains("Consumo Alimento 2 H", ocultas);
+        // El alimento del INVENTARIO si se ofrece, con su silo apareado a cada slot.
+        Assert.DoesNotContain("Alimento 1 H", ocultas);
+        Assert.DoesNotContain("Consumo Alimento 2 H", ocultas);
+        Assert.DoesNotContain("Silo Alimento 1 H", ocultas);
+        Assert.DoesNotContain("Silo Alimento 2 H", ocultas);
+        // Los silos de los slots de MACHOS se van junto con sus slots.
+        Assert.Contains("Silo Alimento 1 M", ocultas);
+        Assert.Contains("Silo Alimento 2 M", ocultas);
 
-        // Lo de hembras que SÍ se digita se conserva entero.
+        // Lo de hembras que SI se digita se conserva entero.
         Assert.DoesNotContain("Mort H", ocultas);
-        Assert.DoesNotContain("Consumo H (kg)", ocultas);   // consumo directo: es su único camino
+        Assert.DoesNotContain("Consumo H (kg)", ocultas);
         Assert.DoesNotContain("Coef. Variación H", ocultas);
         // Y todo lo que no depende del sexo tampoco se toca.
         Assert.DoesNotContain("Fecha", ocultas);
@@ -138,6 +150,7 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Alimento 1 M", ocultas);
         Assert.DoesNotContain("Mort M", ocultas);
         Assert.DoesNotContain("Peso M (g)", ocultas);
+        Assert.DoesNotContain("Alimento 1 H", ocultas);
     }
 
     [Fact]
@@ -150,30 +163,25 @@ public class PlantillaPosturaCalculosTests
             ClasificacionHuevoPorItems: true, CapturaHuevosEnLevante: true);
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante: true, flags);
 
-        Assert.Empty(ocultas);
+        // Lo unico omitido son las columnas de silo, que esta empresa no maneja.
+        Assert.DoesNotContain(ocultas, t => !t.StartsWith("Silo ", StringComparison.Ordinal));
     }
 
     // ── Hoja "Alimento": solo donde el inventario se puede mover ─────────────────────────────────
 
     [Fact]
-    public void ConInventarioPorSilo_NoSeEmiteLaHojaAlimentoNiLosSlotsDelInventario()
+    public void ConInventarioPorSilo_LaHojaAlimentoLlevaSusColumnasDeSilo()
     {
-        // El módulo de migraciones no conoce los silos: cada fila de la hoja "Alimento" termina en
-        // «Debe indicar el silo o la bodega…» y no entra un kilo. Ofrecerla es prometer un camino
-        // que no existe; el consumo directo, que sí funciona, se conserva.
-        Assert.False(PlantillaPosturaCalculos.EmiteHojaAlimento(SantaReyes));
-
-        var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante: false, SantaReyes);
-        Assert.Contains("Alimento 1 H", ocultas);
-        Assert.Contains("Consumo Alimento 1 H", ocultas);
-        Assert.DoesNotContain("Consumo H (kg)", ocultas);
+        Assert.Empty(PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(manejaInventarioPorSilo: true));
     }
 
     [Fact]
-    public void SinInventarioPorSilo_LaHojaAlimentoSeSigueEmitiendo()
+    public void SinInventarioPorSilo_LaHojaAlimentoNoOfreceElSilo()
     {
-        Assert.True(PlantillaPosturaCalculos.EmiteHojaAlimento(Sanmarino));
-        Assert.DoesNotContain("Alimento 1 H", PlantillaPosturaCalculos.ColumnasOcultas(esLevante: true, Sanmarino));
+        // En modo clasico el servicio de inventario RECHAZA un movimiento que traiga silo, asi que
+        // emitir la columna seria ofrecer una que hace fallar el archivo.
+        var ocultas = PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(manejaInventarioPorSilo: false);
+        Assert.Equal(new[] { "Silo", "Silo Origen" }, ocultas.OrderBy(t => t, StringComparer.Ordinal).ToArray());
     }
 
     // ── El invariante que protege al importador ──────────────────────────────────────────────────

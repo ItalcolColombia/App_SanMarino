@@ -169,42 +169,50 @@ El importador **ignora toda hoja que no sea** `Datos` / `Alimento` / `Movimiento
       (su gemela `Huevo Incubable` sí emite Error). Fix: advertencia explícita «manda el desglose»,
       con su caso en `MigracionPosturaCalculosTests`.
 
-### F5 · Silo: cerrar el camino que no existe, en vez de fingir que existe  🔴 BLOQUEANTE
+### F5 · Silo real en la carga masiva, espejando el seguimiento diario  🔴 BLOQUEANTE
 
-Santa Reyes ubica el alimento **por silo** (Fases B/C/D, ya en producción: `ItemConsumoKey.SiloId`,
-`ColombiaInventarioConsumoService`, `metadata.siloId`). El módulo de migraciones **no menciona silos
-ni una vez** (grep `silo` ⇒ 0 en 16 archivos). Consecuencias medidas:
+Santa Reyes ubica el alimento **por silo** (Fases B/C/D, en producción). El módulo de migraciones no
+mencionaba silos ni una vez: la hoja `Alimento` reventaba fila por fila y el consumo del seguimiento
+se mandaba con `SiloId = null`, así que **el día se guardaba y el inventario quedaba intacto**, con la
+simulación del dry-run dando luz verde porque sumaba todos los silos en una posición.
 
-- Hoja `Alimento`: **cada fila** revienta con «Debe indicar el silo o la bodega…» ⇒ 0 kg entran.
-- Consumo del seguimiento: se manda con `SiloId = null` ⇒ el día **se guarda** y el inventario **no
-  se toca**, con el mensaje engañoso «Stock insuficiente» aunque el silo esté lleno.
-- La **simulación del dry-run es ciega al silo**: suma todos los silos en una posición y da luz verde
-  a un archivo que después no se puede aplicar.
+**El patrón que se espeja** (mapeado con file:line contra el alta manual, 25 agentes):
+`InventarioUbicacionSiloCalculos.ResolverModo/ValidarUbicacion/NormalizarUbicacion` +
+`ConsumoSiloCalculos.ValidarClaves` sobre `lote_silos` + `ItemConsumoKey.SiloId` +
+`metadata.siloId` solo cuando existe.
 
-**Decisión de alcance.** Implementar el silo de punta a punta (columna + resolución nombre→id +
-`SiloId` en los 3 requests + `PosicionAlimento` con silo + `ValidarStockConsumoAsync`) es una cirugía
-sobre el camino de inventario que ya tiene historial de romperse en las juntas
-(`ReplicarPorSilo`: cada pieza correcta por separado y el defecto en el empalme, visible solo con un
-smoke end-to-end con el flag encendido). Meterla a medias es peor que no meterla.
-
-Lo que SÍ funciona hoy para Santa Reyes es el **consumo directo** (`Consumo H (kg)`): se guarda en el
-día y no toca inventario — que es exactamente el comportamiento correcto para un histórico cuyo
-alimento ya se movió en la realidad. Así que esta fase **cierra el camino roto y deja abierto el que
-funciona**:
-
-- [x] F5.1 La plantilla de una empresa con `maneja_inventario_por_silo` **no emite la hoja
-      `Alimento`** ni las columnas `Alimento 1/2 H-M` + sus consumos
-      (`PlantillaPosturaCalculos.EmiteHojaAlimento` / `ColumnasOcultas`). `Consumo H (kg)` se conserva.
-- [x] F5.2 `Instrucciones` y la hoja `Ejemplo` explican el porqué y qué hacer: consumo directo en el
-      Excel, entradas de alimento por pantalla (Inventario → Gestión de inventario).
-- [x] F5.3 **Fail-closed en el importador** (`EjecutarHistoricoPosturaAsync`): un archivo viejo que
-      traiga la hoja `Alimento` o las columnas de alimento del inventario se rechaza con un mensaje de
-      datos accionable, ANTES de la simulación ciega al silo y ANTES de insertar. Hoy ese archivo
-      guardaba los días y dejaba el inventario intacto sin una sola señal.
-- [ ] F5.4 **Pendiente (fase propia):** soporte real de silo en la carga masiva — columna `Silo` en la
-      hoja `Alimento`, `SiloId` en `ItemSeguimientoDto` y en los 3 requests de inventario, silo en
-      `PosicionAlimento` para que la simulación mida el silo real, y `ValidarStockConsumoAsync` como
-      única guarda de `lote_silos`. Requiere su propio smoke con el flag encendido.
+- [x] F5.1 **Columnas nuevas en el esquema** (fuente única de lectura): `Silo` y `Silo Origen` en la
+      hoja `Alimento`; `Silo Alimento 1/2 H-M` en la hoja `Datos` — el silo va **por ítem**, no por
+      fila, igual que el formulario diario (dos alimentos del mismo día pueden salir de silos
+      distintos y el backend los descuenta por separado).
+- [x] F5.2 **Emisión por flag**: solo las empresas con `maneja_inventario_por_silo` ven esas columnas.
+      En modo clásico el servicio de inventario **rechaza** un movimiento que traiga silo
+      (`MensajeSiloNoAplica`), así que ofrecerlas rompería el archivo. Sanmarino sigue con sus 43.
+- [x] F5.3 **Resolución por nombre, fail-closed**: el silo se busca entre los **activos de la granja de
+      esa misma ubicación** (`fs.Activo && fs.DeletedAt == null`, el criterio del BACKEND y no el del
+      selector, que omite `fs.Activo`). En la hoja `Datos` se valida además contra `lote_silos` con el
+      mensaje del alta manual (`MensajeSiloNoAsignadoAlLote`), **antes de insertar nada**.
+- [x] F5.4 **Propagación**: `SiloId` en el ingreso, `FromSiloId`/`ToSiloId` en el traslado, `SiloId` en
+      el consumo; y `ItemSeguimientoDto.SiloId` → `ItemConsumoKey(itemId, true, siloId)` →
+      `AplicarConsumoAsync`. Con silo, el consumo va por `RegistrarConsumoNivelGranjaAsync` (el stock
+      vive a nivel granja con núcleo/galpón en NULL, decisión de la Fase B).
+- [x] F5.5 **La clave del consumo se acumula CON el silo** (`Dictionary<ItemConsumoKey, decimal>`).
+      Aplanar antes a `Dictionary<int, decimal>` era irreversible: dos filas del mismo alimento en
+      silos distintos llegaban sumadas y se descontaban todas del primero.
+- [x] F5.6 **`PosicionAlimento` con silo**: la simulación del balance y el stock que la alimenta
+      discriminan por silo, así que el dry-run mide el silo real. Con silo `null` la posición es
+      idéntica a la de hoy.
+- [x] F5.7 **Idempotencia intacta**: el segmento del silo se agrega a `ClaveIdempotencia` **solo cuando
+      hay silo**, así que la clave de toda fila ya cargada por una empresa sin silo rinde el mismo
+      string y un reimport no vuelve a aplicar nada.
+- [x] F5.8 **`metadata.siloId`**: `SerializarItem` pasa a ser espejo exacto de `ItemAMetadata` (la clave
+      solo cuando es > 0). Sin esto, editar un día migrado devolvería el alimento a «sin silo».
+- [i] `ReplicarPorSilo` no hace falta duplicarlo: la carga masiva reusa `AplicarConsumoAsync`, que ya
+      lo aplica dentro de `ResolverItemsBAsync`. Cualquier código nuevo que reconstruya ese mapeo
+      tiene que repetirlo, o todo consumo con silo muere con «el ítem no existe».
+- [i] `RegistrarConsumoNivelGranjaAsync` es **fail-open** con el silo (no valida granja ni actividad).
+      Los tres agujeros (silo de otra granja, silo inactivo, silo con el flag apagado) los cierra el
+      PARSEO, que resuelve el nombre solo entre los silos activos de esa granja.
 
 ### F6 · Validación
 

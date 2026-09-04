@@ -168,11 +168,17 @@ public partial class MigracionService
     /// (aplica la Unidad Consumo de la fila). Alimento sin consumo &gt; 0, consumo sin alimento y
     /// alimento inexistente/ambiguo son errores de fila.
     /// </summary>
+    /// <param name="silo">
+    /// Silo de ESTE slot, ya resuelto por el llamador (empresas con <c>maneja_inventario_por_silo</c>).
+    /// El silo va por ÍTEM y no por fila: el formulario diario también lo pide así, y el backend
+    /// descuenta cada ítem de su propio silo. <c>null</c> en el modo clásico.
+    /// </param>
     private static void LeerAlimentoSlot(
         FilaCruda fila, List<MigracionErrorDto> errores,
         Dictionary<string, List<(int Id, string Nombre)>> alimentos, string unidadConsumo,
         List<ItemSeguimientoDto> destino,
-        string colAlimentoCanonico, string[] headersAlimento, string colConsumoCanonico, string[] headersConsumo)
+        string colAlimentoCanonico, string[] headersAlimento, string colConsumoCanonico, string[] headersConsumo,
+        int? silo = null)
     {
         // Los mensajes citan la columna TAL COMO figura en el archivo del usuario. En la plantilla
         // MIXTA de Panamá las columnas se llaman "Alimento 1 Mixto"/"Consumo Alimento 1 Mixto" (alias
@@ -208,7 +214,8 @@ public partial class MigracionService
             ItemInventarioEcuadorId = matches[0].Id, // inventario unificado (camino 2 en todos los países)
             Nombre = matches[0].Nombre,
             Cantidad = (double)kg,
-            Unidad = "kg"
+            Unidad = "kg",
+            SiloId = silo
         });
     }
 
@@ -686,7 +693,11 @@ public partial class MigracionService
         // Hoja "Alimento": movimientos de inventario (entradas al galpón, traslados, recepciones) que
         // se aplican antes del consumo. Opcional — se puede dejar vacía y el archivo funciona igual.
         var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoEngorde.Hoja);
-        PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoEngorde);
+        // Las columnas de SILO no se emiten acá: engorde no tiene empresas con inventario por silo, y
+        // en modo clásico el servicio de inventario rechaza un movimiento que traiga silo.
+        var titulosAlim = PonerEncabezadosSin(wsAlim, MigracionEsquemas.AlimentoEngorde,
+                PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(manejaInventarioPorSilo: false))
+            .Select(c => c.Titulo).ToList();
 
         // Hoja "Reproductora": la primera semana del lote (días 1-7), que cruza sola a engorde.
         // También opcional — el lote entero (semana 1 + días 8+ + inventario) cabe en UN archivo.
@@ -719,7 +730,7 @@ public partial class MigracionService
                 : new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" };
             foreach (var titulo in columnasAlimento)
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, titulo) + 1), rangoAlimentos);
-            DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoEngorde, "Alimento") + 1), rangoAlimentos);
+            DropdownRango(wsAlim, ColumnaLetra(titulosAlim.IndexOf("Alimento") + 1), rangoAlimentos);
         }
         if (lotesUbicados.Count > 0)
             DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");

@@ -63,11 +63,19 @@ public static class PlantillaPosturaCalculos
         "Alimento 1 M", "Consumo Alimento 1 M", "Alimento 2 M", "Consumo Alimento 2 M",
     };
 
-    /// <summary>Slots de alimento del inventario para hembras.</summary>
-    private static readonly string[] AlimentoHembras =
+    /// <summary>
+    /// Columnas de SILO apareadas a cada slot de alimento. Solo se emiten en empresas con
+    /// <c>maneja_inventario_por_silo</c>: para las demás son ruido, y peor —el parseo RECHAZA un silo
+    /// en modo clásico (<c>ConsumoSiloCalculos.MensajeSiloNoAplica</c>), así que ofrecerlas sería
+    /// ofrecer una columna que hace fallar el archivo.
+    /// </summary>
+    private static readonly string[] SilosPorSlot =
     {
-        "Alimento 1 H", "Consumo Alimento 1 H", "Alimento 2 H", "Consumo Alimento 2 H",
+        "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 1 M", "Silo Alimento 2 M",
     };
+
+    /// <summary>Columnas de silo de la hoja <c>Alimento</c> (destino y origen del movimiento).</summary>
+    private static readonly string[] SilosHojaAlimento = { "Silo", "Silo Origen" };
 
     /// <summary>
     /// Las 11 categorías de la clasificadora fija, con el mismo título que emite
@@ -103,15 +111,16 @@ public static class PlantillaPosturaCalculos
             ocultas.Add("Consumo M (kg)");
         }
 
-        // 🔴 Empresas con el alimento ubicado en SILOS: la carga masiva todavía no mueve inventario
-        // por silo (ver EmiteHojaAlimento). Ofrecer los slots de alimento del inventario sería
-        // ofrecer el único camino que falla — el consumo se digita en "Consumo H/M (kg)", que es
-        // consumo directo y no toca inventario. Las columnas siguen siendo válidas al importar: lo
-        // que cambia es que la plantilla ya no las propone.
-        if (flags.ManejaInventarioPorSilo)
+        // El SILO por slot de alimento solo aplica a las empresas que ubican el inventario por silo.
+        // En las demás el parseo lo RECHAZA (modo clásico ⇒ MensajeSiloNoAplica), así que emitir la
+        // columna sería invitar a romper el archivo.
+        if (!flags.ManejaInventarioPorSilo)
+            foreach (var t in SilosPorSlot) ocultas.Add(t);
+        // Y en las que sí lo manejan, el silo de un slot de MACHOS se va junto con el slot.
+        else if (flags.ConsumoAlimentoSoloHembras || flags.OcultaMachosEnPostura)
         {
-            foreach (var t in AlimentoHembras) ocultas.Add(t);
-            foreach (var t in AlimentoMachos) ocultas.Add(t);
+            ocultas.Add("Silo Alimento 1 M");
+            ocultas.Add("Silo Alimento 2 M");
         }
 
         if (esLevante)
@@ -139,24 +148,14 @@ public static class PlantillaPosturaCalculos
     }
 
     /// <summary>
-    /// ¿La plantilla emite la hoja <c>Alimento</c> (movimientos de inventario del período)?
-    ///
-    /// <para>
-    /// 🔴 <b>No, para empresas que ubican el alimento en SILOS.</b> El módulo de migraciones no conoce
-    /// los silos: no tiene columna, ni DTO, ni clave con silo. Medido en el camino real: cada fila de
-    /// la hoja termina en «Debe indicar el silo o la bodega donde queda el movimiento» —
-    /// <c>ValidarUbicacion</c> del servicio de inventario— así que no entra un solo kilo; y la
-    /// simulación previa del dry-run, que suma todos los silos en una sola posición, da luz verde
-    /// igual. Emitir la hoja es prometer un camino que no existe.
-    /// </para>
-    ///
-    /// <para>
-    /// Lo que SÍ funciona para esas empresas es el consumo DIRECTO (<c>Consumo H/M (kg)</c>): se
-    /// guarda en el día y no toca inventario, que es el comportamiento correcto para un histórico
-    /// cuyo alimento ya se movió en la realidad. Las entradas de inventario se cargan por pantalla.
-    /// </para>
+    /// Columnas de la hoja <c>Alimento</c> que NO se emiten. Solo las de silo, y solo para empresas
+    /// que ubican el inventario por núcleo/galpón: ahí el servicio de inventario rechaza un
+    /// movimiento que traiga silo (<c>InventarioUbicacionSiloCalculos.MensajeSiloNoAplica</c>).
     /// </summary>
-    public static bool EmiteHojaAlimento(FlagsPlantillaPostura flags) => !flags.ManejaInventarioPorSilo;
+    public static IReadOnlySet<string> ColumnasOcultasHojaAlimento(bool manejaInventarioPorSilo)
+        => manejaInventarioPorSilo
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(SilosHojaAlimento, StringComparer.Ordinal);
 
     /// <summary>
     /// Los títulos que este cálculo puede llegar a ocultar, para el test que verifica que NINGUNO sea
@@ -170,7 +169,10 @@ public static class PlantillaPosturaCalculos
             ConsumoAlimentoSoloHembras: true,
             ClasificacionHuevoPorItems: true,
             CapturaHuevosEnLevante: false,
-            ManejaInventarioPorSilo: true);
-        return ColumnasOcultas(esLevante, todos);
+            ManejaInventarioPorSilo: false);
+        var sinSilo = ColumnasOcultas(esLevante, todos);
+        // Y las de silo, que se ocultan con el flag en el otro sentido.
+        var conSilo = ColumnasOcultas(esLevante, todos with { ManejaInventarioPorSilo = true });
+        return new HashSet<string>(sinSilo.Concat(conSilo), StringComparer.Ordinal);
     }
 }

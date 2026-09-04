@@ -164,16 +164,13 @@ public partial class MigracionService
 
         // Hoja "Alimento": las entradas de inventario del período. Sin ella el archivo se procesa
         // igual que siempre, pero el consumo por ítem no encontraría stock que descontar.
-        // 🔴 No se emite en empresas con el alimento ubicado en SILOS: el módulo de migraciones no
-        // conoce los silos, así que cada fila terminaría en «Debe indicar el silo o la bodega…» y no
-        // entraría un solo kilo. Ver PlantillaPosturaCalculos.EmiteHojaAlimento.
-        var emiteAlimento = PlantillaPosturaCalculos.EmiteHojaAlimento(flagsPlantilla);
-        ExcelWorksheet? wsAlim = null;
-        if (emiteAlimento)
-        {
-            wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
-            PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoPostura);
-        }
+        // Las columnas de SILO solo se emiten donde el inventario se ubica por silo: en modo clásico
+        // el servicio las rechaza (MensajeSiloNoAplica), así que ofrecerlas rompería el archivo.
+        var porSilo = ctxInv?.PorSilo == true;
+        var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
+        var columnasAlim = PonerEncabezadosSin(wsAlim, MigracionEsquemas.AlimentoPostura,
+            PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(porSilo));
+        var titulosAlim = columnasAlim.Select(c => c.Titulo).ToList();
 
         // Hoja "Movimientos Aves" (las dos fases): movimientos UNILATERALES del lote — Salida valida
         // el destino sin acreditarlo; Ingreso acredita las aves en tránsito; Venta descuenta.
@@ -238,6 +235,21 @@ public partial class MigracionService
             wsRef.Cells[i + 2, 9].Value = lotesFaseRef[i].LoteBaseId;
             wsRef.Cells[i + 2, 10].Value = lotesFaseRef[i].Granja;
         }
+        // Silos/bodegas ASIGNADOS al lote: son los únicos que el importador acepta en las columnas de
+        // silo (misma lista blanca que aplica el formulario diario sobre `lote_silos`).
+        var silosRef = porSilo
+            ? await CargarSilosElegiblesDelLoteAsync(ctxInv!, loteId, ct)
+            : new List<(int Id, string Nombre, string? Codigo)>();
+        if (silosRef.Count > 0)
+        {
+            wsRef.Cells[1, 12].Value = "Silo / bodega del lote";
+            wsRef.Cells[1, 13].Value = "Código ERP";
+            for (int i = 0; i < silosRef.Count; i++)
+            {
+                wsRef.Cells[i + 2, 12].Value = silosRef[i].Nombre;
+                wsRef.Cells[i + 2, 13].Value = silosRef[i].Codigo;
+            }
+        }
         wsRef.Cells[wsRef.Dimension?.Address ?? "A1"].AutoFitColumns();
 
         if (alimentos.Count > 0)
@@ -250,8 +262,21 @@ public partial class MigracionService
                 var i = titulosDatos.IndexOf(titulo);
                 if (i >= 0) DropdownRango(ws, ColumnaLetra(i + 1), rango);
             }
-            if (wsAlim is not null)
-                DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoPostura, "Alimento") + 1), rango);
+            DropdownRango(wsAlim, ColumnaLetra(titulosAlim.IndexOf("Alimento") + 1), rango);
+        }
+        if (silosRef.Count > 0)
+        {
+            var rangoSilos = $"Referencias!$L$2:$L${silosRef.Count + 1}";
+            foreach (var titulo in new[] { "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 1 M", "Silo Alimento 2 M" })
+            {
+                var i = titulosDatos.IndexOf(titulo);
+                if (i >= 0) DropdownRango(ws, ColumnaLetra(i + 1), rangoSilos);
+            }
+            foreach (var titulo in new[] { "Silo", "Silo Origen" })
+            {
+                var i = titulosAlim.IndexOf(titulo);
+                if (i >= 0) DropdownRango(wsAlim, ColumnaLetra(i + 1), rangoSilos);
+            }
         }
         if (lotesFaseRef.Count > 0)
             DropdownRango(wsMovAves, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosAvesLevante, "Lote Contraparte") + 1),
@@ -273,7 +298,7 @@ public partial class MigracionService
             "",
             "ALIMENTO E INVENTARIO",
         };
-        if (emiteAlimento)
+        if (!porSilo)
             instrucciones.AddRange(new[]
             {
                 $"• Este lote maneja el alimento a nivel {nivel}.",
@@ -287,12 +312,16 @@ public partial class MigracionService
         else
             instrucciones.AddRange(new[]
             {
-                "• Esta empresa ubica el alimento en SILOS. La carga masiva todavía NO mueve inventario por",
-                "  silo, así que la plantilla no trae las columnas 'Alimento 1/2 H-M' ni la hoja 'Alimento'.",
-                "• Cargá el consumo del día en 'Consumo H (kg)': se guarda en el registro diario y NO",
-                "  descuenta stock, que es lo correcto para un histórico cuyo alimento ya se movió.",
-                "• Las entradas de alimento y sus traslados entre silos se registran por pantalla, en",
-                "  Inventario → Gestión de inventario.",
+                "• Esta empresa ubica el alimento en SILOS y bodegas: el galpón no mueve alimento.",
+                "• Cada alimento del inventario lleva SU silo: completá 'Alimento N H' + 'Consumo Alimento N H'",
+                "  + 'Silo Alimento N H'. Dos alimentos del mismo día pueden salir de silos distintos.",
+                "• El desplegable de silo trae SOLO los silos asignados a este lote. Si falta alguno,",
+                "  asignalo en «Silos de consumo del lote» y volvé a descargar la plantilla.",
+                "• Si solo ponés 'Consumo H/M (kg)' sin alimento, se guarda como consumo directo y NO toca",
+                "  el inventario (sirve para un histórico cuyo alimento ya se movió por fuera).",
+                "• La hoja 'Alimento' carga las ENTRADAS del período con su columna 'Silo' (y 'Silo Origen'",
+                "  para Traslado/Recepción). Se aplican ANTES del seguimiento, para que haya stock que descontar.",
+                "• Si el archivo consume más de lo que hay EN ESE SILO, se rechaza ENTERO indicando cuánto falta.",
             });
         instrucciones.AddRange(new[]
         {
@@ -361,7 +390,9 @@ public partial class MigracionService
                 ItemHuevoNombre: huevoItems.Count > 0 ? huevoItems[0].Nombre : null,
                 ItemHuevoNombre2: huevoItems.Count > 1 ? huevoItems[1].Nombre : null,
                 LoteContraparte: lotesFaseRef.FirstOrDefault()?.Nombre,
-                SiloNombre: null),
+                // Un silo REAL de los asignados al lote: es el mismo valor que ofrece el desplegable,
+                // así que el ejemplo se puede copiar tal cual y valida.
+                SiloNombre: silosRef.Count > 0 ? silosRef[0].Nombre : null),
             incluyeHojaHuevos: wsHuevos is not null));
 
         // Instrucciones y Ejemplo primero: el archivo tiene que abrir por donde se explica, no por una
@@ -381,6 +412,11 @@ public partial class MigracionService
 
         var loteCtx = await ResolverLotePosturaCtxAsync(loteId, ct);
         var ctxInv = await ResolverContextoInventarioPosturaAsync(loteId, ct);
+        // Silos de la granja del lote + la lista blanca de `lote_silos`. En modo clásico vuelve vacío
+        // y no se consulta nada: las empresas sin el flag no pagan estas queries.
+        var silosLote = ctxInv is null
+            ? (PorClave: new Dictionary<string, List<(int Id, string Nombre)>>(), Asignados: new HashSet<int>())
+            : await CargarSilosDelLoteAsync(ctxInv, loteId, ct);
 
         var errores = new List<MigracionErrorDto>();
         List<FilaCruda> filas;
@@ -451,7 +487,8 @@ public partial class MigracionService
             var aguaTemp = DobleOpc(fila, errores, "Temperatura Agua (°C)", ClavesPostura(tipo, "Temperatura Agua (°C)"));
 
             var unidad = LeerUnidadConsumo(fila, errores);
-            var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad);
+            var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad,
+                ctxInv?.Modo ?? ModoUbicacionInventario.Clasico, silosLote.PorClave, silosLote.Asignados);
             (consH, consM) = ResolverConsumoPostura(tipo, fila, errores, itemsH, itemsM, consH, consM, unidad);
 
             var (huevos, pesoHuevo) = LeerHuevosPostura(tipo, fila, errores);
@@ -500,8 +537,7 @@ public partial class MigracionService
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_levante({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId.ToString(), json).FirstAsync(ct), ct,
-            movimientosAves,
-            manejaInventarioPorSilo: loteCtx?.ManejaInventarioPorSilo ?? false);
+            movimientosAves);
     }
 
     private async Task<MigracionResultDto> ProcesarSeguimientoProduccionAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
@@ -512,6 +548,11 @@ public partial class MigracionService
 
         var loteCtx = await ResolverLotePosturaCtxAsync(loteId, ct);
         var ctxInv = await ResolverContextoInventarioPosturaAsync(loteId, ct);
+        // Silos de la granja del lote + la lista blanca de `lote_silos`. En modo clásico vuelve vacío
+        // y no se consulta nada: las empresas sin el flag no pagan estas queries.
+        var silosLote = ctxInv is null
+            ? (PorClave: new Dictionary<string, List<(int Id, string Nombre)>>(), Asignados: new HashSet<int>())
+            : await CargarSilosDelLoteAsync(ctxInv, loteId, ct);
 
         var errores = new List<MigracionErrorDto>();
         List<FilaCruda> filas;
@@ -596,7 +637,8 @@ public partial class MigracionService
             var aguaTemp = DobleOpc(fila, errores, "Temperatura Agua (°C)", ClavesPostura(tipo, "Temperatura Agua (°C)"));
 
             var unidad = LeerUnidadConsumo(fila, errores);
-            var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad);
+            var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad,
+                ctxInv?.Modo ?? ModoUbicacionInventario.Clasico, silosLote.PorClave, silosLote.Asignados);
             (consH, consM) = ResolverConsumoPostura(tipo, fila, errores, itemsH, itemsM, consH, consM, unidad);
 
             var (categorias, pesoHuevo) = LeerHuevosPostura(tipo, fila, errores);
@@ -683,8 +725,7 @@ public partial class MigracionService
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_produccion({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId, json).FirstAsync(ct), ct,
-            movimientosAves, movimientosHuevos,
-            manejaInventarioPorSilo: loteCtx?.ManejaInventarioPorSilo ?? false);
+            movimientosAves, movimientosHuevos);
     }
 
     // ── Parseo compartido ────────────────────────────────────────────────────
@@ -707,19 +748,93 @@ public partial class MigracionService
         return true;
     }
 
-    /// <summary>Los cuatro slots de alimento del inventario (2 por sexo), reusando el parseo de engorde.</summary>
+    /// <summary>
+    /// Los cuatro slots de alimento del inventario (2 por sexo), reusando el parseo de engorde.
+    /// <para>
+    /// En empresas que ubican el inventario por SILO, cada slot lleva además su columna
+    /// <c>Silo Alimento N X</c>: el silo va por ÍTEM, igual que en el formulario diario, porque dos
+    /// alimentos del mismo día pueden salir de silos distintos y el backend los descuenta por separado.
+    /// </para>
+    /// </summary>
+    /// <param name="silos">Silos de la granja del lote indexados por clave normalizada; vacío en modo clásico.</param>
     private static (List<ItemSeguimientoDto> H, List<ItemSeguimientoDto> M) LeerAlimentosPostura(
         TipoMigracion tipo, FilaCruda fila, List<MigracionErrorDto> errores,
-        Dictionary<string, List<(int Id, string Nombre)>> alimentos, string unidad)
+        Dictionary<string, List<(int Id, string Nombre)>> alimentos, string unidad,
+        ModoUbicacionInventario modo,
+        IReadOnlyDictionary<string, List<(int Id, string Nombre)>> silos,
+        IReadOnlySet<int> silosDelLote)
     {
         var itemsH = new List<ItemSeguimientoDto>();
         var itemsM = new List<ItemSeguimientoDto>();
         foreach (var (destino, sexo) in new[] { (itemsH, "H"), (itemsM, "M") })
             foreach (var n in new[] { 1, 2 })
+            {
+                var colSilo = $"Silo Alimento {n} {sexo}";
+                var usaSlot = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, $"Alimento {n} {sexo}"))) is not null;
+                var (silo, ok) = ResolverSiloSlotPostura(tipo, fila, errores, modo, silos, silosDelLote, colSilo, usaSlot);
+                // Slot con alimento pero sin silo resoluble en modo por silo: el error ya se reportó y
+                // descarta la fila. Agregarlo igual dejaría un ítem que se aplicaría SIN silo.
+                if (!ok) continue;
+
                 LeerAlimentoSlot(fila, errores, alimentos, unidad, destino,
                     $"Alimento {n} {sexo}", ClavesPostura(tipo, $"Alimento {n} {sexo}"),
-                    $"Consumo Alimento {n} {sexo}", ClavesPostura(tipo, $"Consumo Alimento {n} {sexo}"));
+                    $"Consumo Alimento {n} {sexo}", ClavesPostura(tipo, $"Consumo Alimento {n} {sexo}"),
+                    silo);
+            }
         return (itemsH, itemsM);
+    }
+
+    /// <summary>
+    /// Silo de un slot de alimento de la hoja "Datos". Aplica la misma regla que el alta manual
+    /// (<see cref="ConsumoSiloCalculos"/>): en modo por silo es obligatorio cuando el slot se usa; en
+    /// modo clásico se rechaza si viene. Devuelve <c>Ok = false</c> cuando el slot no se puede resolver.
+    /// </summary>
+    private static (int? Silo, bool Ok) ResolverSiloSlotPostura(
+        TipoMigracion tipo, FilaCruda fila, List<MigracionErrorDto> errores,
+        ModoUbicacionInventario modo,
+        IReadOnlyDictionary<string, List<(int Id, string Nombre)>> silos,
+        IReadOnlySet<int> silosDelLote,
+        string columna, bool usaSlot)
+    {
+        var texto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, columna)));
+
+        if (modo == ModoUbicacionInventario.Clasico)
+        {
+            if (texto is null) return (null, true);
+            errores.Add(new(fila.Numero, columna, texto, ConsumoSiloCalculos.MensajeSiloNoAplica));
+            return (null, false);
+        }
+
+        if (!usaSlot) return (null, true);   // slot vacío: no hay nada que ubicar
+
+        if (texto is null)
+        {
+            errores.Add(new(fila.Numero, columna, null,
+                $"{ConsumoSiloCalculos.MensajeSiloRequerido} Completá «{columna}» con un silo de la hoja Referencias."));
+            return (null, false);
+        }
+        if (!silos.TryGetValue(MigracionCalculos.NormalizarClave(texto), out var matches) || matches.Count == 0)
+        {
+            errores.Add(new(fila.Numero, columna, texto,
+                $"El silo o bodega '{texto}' no existe en la granja de este lote (activo). Usá el nombre o el código de la hoja Referencias."));
+            return (null, false);
+        }
+        if (matches.Count > 1)
+        {
+            errores.Add(new(fila.Numero, columna, texto,
+                $"'{texto}' coincide con {matches.Count} silos de la granja; usá el código ERP."));
+            return (null, false);
+        }
+        // La lista blanca del LOTE: el silo existe y es de la granja, pero si el lote no consume de
+        // él, descontar de ahí sería «válido» para el inventario y falso para la operación. Es la
+        // misma regla y el mismo mensaje que aplica el formulario diario.
+        if (!silosDelLote.Contains(matches[0].Id))
+        {
+            errores.Add(new(fila.Numero, columna, texto, ConsumoSiloCalculos.MensajeSiloNoAsignadoAlLote(matches[0].Id)));
+            return (null, false);
+        }
+
+        return (matches[0].Id, true);
     }
 
     /// <summary>
@@ -812,15 +927,24 @@ public partial class MigracionService
 
         jsonFila["metadata"] = meta;
 
-        static Dictionary<string, object?> SerializarItem(ItemSeguimientoDto i) => new()
+        // Espejo EXACTO de CreateSeguimientoLoteLevanteRequest.ItemAMetadata: `siloId` solo cuando
+        // existe. Escribirlo en null cambiaría el JSON guardado de TODAS las empresas, y omitirlo
+        // cuando existe haría que editar un día migrado devolviera el alimento a «sin silo» (el
+        // metadata es la fuente del diff al editar).
+        static Dictionary<string, object?> SerializarItem(ItemSeguimientoDto i)
         {
-            ["tipoItem"] = i.TipoItem,
-            ["catalogItemId"] = i.CatalogItemId,
-            ["itemInventarioEcuadorId"] = i.ItemInventarioEcuadorId,
-            ["nombre"] = i.Nombre,
-            ["cantidad"] = i.Cantidad,
-            ["unidad"] = i.Unidad
-        };
+            var item = new Dictionary<string, object?>
+            {
+                ["tipoItem"] = i.TipoItem,
+                ["catalogItemId"] = i.CatalogItemId,
+                ["itemInventarioEcuadorId"] = i.ItemInventarioEcuadorId,
+                ["nombre"] = i.Nombre,
+                ["cantidad"] = i.Cantidad,
+                ["unidad"] = i.Unidad
+            };
+            if (i.SiloId is > 0) item["siloId"] = i.SiloId.Value;
+            return item;
+        }
     }
 
     /// <summary>
@@ -916,31 +1040,11 @@ public partial class MigracionService
         ContextoInventarioPostura? ctxInv, int loteId, Func<long, DateTime, string> referencia,
         Func<string, Task<int>> invocarFn, CancellationToken ct,
         IReadOnlyList<MovimientoAvesMigFila>? movimientosAves = null,
-        IReadOnlyList<MovimientoHuevosMigFila>? movimientosHuevos = null,
-        bool manejaInventarioPorSilo = false)
+        IReadOnlyList<MovimientoHuevosMigFila>? movimientosHuevos = null)
     {
         if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0
             && (movimientosAves?.Count ?? 0) == 0 && (movimientosHuevos?.Count ?? 0) == 0)
             return ResultadoVacio(tipo, dryRun);
-
-        // 🔴 FAIL-CLOSED del inventario por SILO. Este módulo no conoce los silos: manda los
-        // movimientos sin silo y el servicio de inventario los rechaza uno por uno, mientras que el
-        // consumo del seguimiento no encuentra stock y el día se guarda IGUAL con el inventario
-        // intacto — la enfermedad exacta que este módulo se escribió para curar. Peor: la simulación
-        // de balance de más abajo suma todos los silos en una sola posición, así que da luz verde.
-        // Hasta que la hoja tenga columna de silo, se corta ACÁ, con un mensaje de datos que dice
-        // qué hacer, en vez de dejar pasar un archivo que descuadra el inventario en silencio.
-        if (manejaInventarioPorSilo)
-        {
-            var diasConAlimentoDeInventario = consumos.Count(c => c.Items.Count > 0);
-            if (movimientosAlimento.Count > 0 || diasConAlimentoDeInventario > 0)
-                errores.Add(new(0, "Alimento", null,
-                    "Esta empresa ubica el alimento en SILOS y la carga masiva todavía no mueve inventario por silo. "
-                    + "Quitá la hoja 'Alimento' y las columnas 'Alimento 1/2 H-M' con su consumo, y cargá el consumo del día "
-                    + "en 'Consumo H (kg)' (se guarda en el registro diario y no descuenta stock). Las entradas de alimento "
-                    + "y los traslados entre silos se registran por pantalla, en Inventario → Gestión de inventario. "
-                    + "Descargá de nuevo la plantilla: la versión actual ya no trae esas columnas."));
-        }
 
         // Fechas ya cargadas: la función SQL las omite, así que su consumo NO debe descontarse otra
         // vez (reimportar el mismo archivo descontaba el inventario dos veces) y además son las que

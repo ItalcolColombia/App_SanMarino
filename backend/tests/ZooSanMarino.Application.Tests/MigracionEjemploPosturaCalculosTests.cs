@@ -71,6 +71,7 @@ public class MigracionEjemploPosturaCalculosTests
         {
             var datos = Armar(esLevante, SantaReyes, hojaHuevos: !esLevante).Single(b => b.Hoja == "Datos");
             Assert.DoesNotContain(datos.Encabezados, h => h.EndsWith(" M", StringComparison.Ordinal));
+            Assert.DoesNotContain("Silo Alimento 1 M", datos.Encabezados);
             Assert.DoesNotContain(datos.Encabezados, h => h.EndsWith(" M (g)", StringComparison.Ordinal));
             Assert.DoesNotContain("Consumo M (kg)", datos.Encabezados);
         }
@@ -124,15 +125,39 @@ public class MigracionEjemploPosturaCalculosTests
     }
 
     [Fact]
-    public void SantaReyes_ElEjemploUsaElConsumoDirectoPorqueNoOfreceElInventario()
+    public void SantaReyes_ElEjemploLlenaElSiloDelSlotDeAlimento()
     {
-        // Su plantilla no trae "Alimento 1 H": el único camino que le queda es el consumo directo,
-        // y el ejemplo tiene que enseñárselo lleno, no vacío.
+        // Con inventario por silo el ejemplo tiene que mostrar el trio completo: alimento, consumo y
+        // SILO. Sin el silo, el archivo copiado del ejemplo se rechazaria.
         var bloque = Armar(esLevante: true, SantaReyes, hojaHuevos: false).Single(b => b.Hoja == "Datos");
         var h = bloque.Encabezados.ToList();
 
-        Assert.DoesNotContain("Alimento 1 H", h);
-        Assert.Contains(bloque.Filas, f => f[h.IndexOf("Consumo H (kg)")] != "");
+        Assert.Contains("Silo Alimento 1 H", h);
+        Assert.All(bloque.Filas, f => Assert.Equal("Silo 4", f[h.IndexOf("Silo Alimento 1 H")]));
+        Assert.All(bloque.Filas, f => Assert.Equal("ALIMENTO POSTURA 1", f[h.IndexOf("Alimento 1 H")]));
+        // Y el silo de MACHOS no aparece: esa empresa no digita alimento de machos.
+        Assert.DoesNotContain("Silo Alimento 1 M", h);
+    }
+
+    [Fact]
+    public void SantaReyes_LaHojaAlimentoDelEjemploTraeElSilo()
+    {
+        var alim = Armar(esLevante: true, SantaReyes, hojaHuevos: false)
+            .Single(b => b.Hoja == MigracionEsquemas.AlimentoPostura.Hoja);
+        var h = alim.Encabezados.ToList();
+
+        Assert.Contains("Silo", h);
+        Assert.All(alim.Filas, f => Assert.Equal("Silo 4", f[h.IndexOf("Silo")]));
+    }
+
+    [Fact]
+    public void Sanmarino_LaHojaAlimentoDelEjemploNoNombraElSilo()
+    {
+        var alim = Armar(esLevante: true, Sanmarino, hojaHuevos: false)
+            .Single(b => b.Hoja == MigracionEsquemas.AlimentoPostura.Hoja);
+
+        Assert.DoesNotContain("Silo", alim.Encabezados);
+        Assert.DoesNotContain("Silo Origen", alim.Encabezados);
     }
 
     [Fact]
