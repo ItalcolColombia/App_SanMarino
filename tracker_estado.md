@@ -6951,29 +6951,29 @@ sin vía de escalamiento a desarrollo.
 
 ## T1 · Cálculo puro + tests
 
-- [ ] T1.1 `Application/Calculos/TicketPerfilAtencionSiembraCalculos.cs`: qué rol es el resolutor
+- [x] T1.1 `Application/Calculos/TicketPerfilAtencionSiembraCalculos.cs`: qué rol es el resolutor
       global (nombre EXACTO `admin`/`administrador`, nunca substring) y qué filas le faltan a una
       empresa.
-- [ ] T1.2 `TicketPerfilAtencionSiembraCalculosTests.cs` (8 casos): `Admin Panama` /
+- [x] T1.2 `TicketPerfilAtencionSiembraCalculosTests.cs` (8 casos): `Admin Panama` /
       `Santa Reyes Administrador` NO son el rol global; sin rol global ⇒ 0 filas (fail-closed); no
       duplica lo ya sembrado; null/vacío/blanco no lanzan.
 
 ## T2 · Migración data-only para Santa Reyes
 
-- [ ] T2.1 `20260904170000_SeedPerfilAtencionTicketsSantaReyes` (+ Designer): `Admin` → DESARROLLO,
+- [x] T2.1 `20260904170000_SeedPerfilAtencionTicketsSantaReyes` (+ Designer): `Admin` → DESARROLLO,
       REQUERIMIENTO · `Santa Reyes Implementador` → los 4 tipos. `pais_id = NULL`, localizado por
       `companies.identifier` + `roles.name`.
-- [ ] T2.2 Idempotente por `NOT EXISTS` con `pais_id IS NULL` explícito (el índice único **no**
+- [x] T2.2 Idempotente por `NOT EXISTS` con `pais_id IS NULL` explícito (el índice único **no**
       protege: dos NULL no chocan en Postgres) + `UPDATE activo = true` (fila apagada = ausente).
 
 ## T3 · La empresa nueva nace con el resolutor global
 
-- [ ] T3.1 `CompanyService.PerfilAtencionTickets.cs` (partial nuevo) + una línea en `CreateAsync`.
+- [x] T3.1 `CompanyService.PerfilAtencionTickets.cs` (partial nuevo) + una línea en `CreateAsync`.
       Sólo siembra si la empresa está vacía, mismo criterio que `SembrarCatalogoCompletoSiVaciaAsync`.
 
 ## T4 · Validación
 
-- [ ] T4.1 `dotnet build` 0 errores · `dotnet test` verde.
-- [ ] T4.2 En transacción revertida contra la copia de producción: Santa Reyes 0 → 6 filas; las otras
+- [x] T4.1 `dotnet build` 0 errores · `dotnet test` verde.
+- [x] T4.2 En transacción revertida contra la copia de producción: Santa Reyes 0 → 6 filas; las otras
       4 empresas **14 → 14 idénticas**; `Up` dos veces sigue en 6; los asignables de DESARROLLO
       pasan de vacío a 2.
