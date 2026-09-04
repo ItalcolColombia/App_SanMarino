@@ -24,13 +24,25 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class MigracionService
 {
-    /// <summary>Datos del lote de postura que condicionan el parseo (gates de fecha y de huevos).</summary>
+    /// <summary>
+    /// Datos del lote de postura que condicionan el parseo (gates de fecha y de huevos) y la
+    /// GENERACIÓN de la plantilla (qué columnas se emiten, ver <see cref="PlantillaPosturaCalculos"/>).
+    /// </summary>
     private sealed record LotePosturaCtx(
         int LoteId,
         string LoteNombre,
         DateTime? FechaEncaset,
         bool CapturaHuevosLevante,
-        bool ClasificacionHuevoPorItems);
+        bool ClasificacionHuevoPorItems,
+        bool OcultaMachosEnPostura = false,
+        bool ConsumoAlimentoSoloHembras = false,
+        bool ManejaInventarioPorSilo = false)
+    {
+        /// <summary>Los mismos flags, en la forma que consume el cálculo puro de la plantilla.</summary>
+        public FlagsPlantillaPostura Flags => new(
+            OcultaMachosEnPostura, ConsumoAlimentoSoloHembras,
+            ClasificacionHuevoPorItems, CapturaHuevosLevante, ManejaInventarioPorSilo);
+    }
 
     /// <summary>Consumo por ítem de un día ya parseado, para descontarlo del inventario al importar.</summary>
     private sealed record ConsumoDiaPostura(DateTime Fecha, IReadOnlyList<ItemSeguimientoDto> Items);
@@ -93,12 +105,22 @@ public partial class MigracionService
         var flags = await _ctx.Farms.AsNoTracking()
             .Where(f => f.Id == lote.GranjaId)
             .Join(_ctx.Set<Company>().AsNoTracking(), f => f.CompanyId, c => c.Id,
-                (f, c) => new { c.CapturaHuevosEnLevante, c.ClasificacionHuevoPorItems })
+                (f, c) => new
+                {
+                    c.CapturaHuevosEnLevante,
+                    c.ClasificacionHuevoPorItems,
+                    c.OcultaMachosEnPostura,
+                    c.ConsumoAlimentoSoloHembras,
+                    c.ManejaInventarioPorSilo,
+                })
             .FirstOrDefaultAsync(ct);
 
         return new LotePosturaCtx(loteId, lote.LoteNombre, lote.FechaEncaset,
             flags?.CapturaHuevosEnLevante ?? false,
-            flags?.ClasificacionHuevoPorItems ?? false);
+            flags?.ClasificacionHuevoPorItems ?? false,
+            flags?.OcultaMachosEnPostura ?? false,
+            flags?.ConsumoAlimentoSoloHembras ?? false,
+            flags?.ManejaInventarioPorSilo ?? false);
     }
 
     /// <summary>Claves de lectura (título + alias) de una columna del esquema de postura.</summary>
@@ -119,18 +141,39 @@ public partial class MigracionService
         var lotePosturaCtx = await ResolverLotePosturaCtxAsync(loteId, ct);
         var ctxInv = await ResolverContextoInventarioPosturaAsync(loteId, ct);
         var (alimentos, _) = await CargarAlimentosEmpresaAsync(companyId, ct);
+
+        // Los tipos de huevo que se ofrecen son los DECLARADOS POR EL LOTE, no los de la empresa: es
+        // la misma consulta que hace el parseo (LeerHojaHuevosPosturaAsync). Ofrecer el catálogo
+        // entero hacía que el usuario eligiera del desplegable un ítem que el importador rechaza.
         var huevoItems = lotePosturaCtx?.ClasificacionHuevoPorItems == true && !esLevante
-            ? await CargarItemsHuevoEmpresaAsync(companyId, ct)
+            ? await CargarItemsHuevoDelLoteAsync(companyId, loteId, ct)
             : new List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>();
+
+        // Columnas que NO se emiten para esta empresa (machos, huevo por columnas fijas…). Con todos
+        // los flags apagados el conjunto es vacío ⇒ la plantilla sale idéntica a la histórica.
+        var flagsPlantilla = lotePosturaCtx?.Flags ?? default;
+        var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante, flagsPlantilla);
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, MigracionEsquemas.Para(tipo));
+        // 🔴 Las columnas emitidas son la referencia para TODO lo que venga después (letras de
+        // dropdown, hoja "Ejemplo"): calcular índices sobre el esquema completo pondría los
+        // desplegables en la columna equivocada apenas se omita una columna.
+        var columnasDatos = PonerEncabezadosSin(ws, MigracionEsquemas.Para(tipo), ocultas);
+        var titulosDatos = columnasDatos.Select(c => c.Titulo).ToList();
 
         // Hoja "Alimento": las entradas de inventario del período. Sin ella el archivo se procesa
         // igual que siempre, pero el consumo por ítem no encontraría stock que descontar.
-        var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
-        PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoPostura);
+        // 🔴 No se emite en empresas con el alimento ubicado en SILOS: el módulo de migraciones no
+        // conoce los silos, así que cada fila terminaría en «Debe indicar el silo o la bodega…» y no
+        // entraría un solo kilo. Ver PlantillaPosturaCalculos.EmiteHojaAlimento.
+        var emiteAlimento = PlantillaPosturaCalculos.EmiteHojaAlimento(flagsPlantilla);
+        ExcelWorksheet? wsAlim = null;
+        if (emiteAlimento)
+        {
+            wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
+            PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoPostura);
+        }
 
         // Hoja "Movimientos Aves" (las dos fases): movimientos UNILATERALES del lote — Salida valida
         // el destino sin acreditarlo; Ingreso acredita las aves en tránsito; Venta descuenta.
@@ -138,7 +181,11 @@ public partial class MigracionService
         PonerEncabezados(wsMovAves, MigracionEsquemas.MovimientosAvesLevante);
 
         // Hoja "Movimientos Huevos" (solo producción): traslados a planta y ventas de huevos.
-        if (!esLevante)
+        // 🔴 No se emite con clasificación por ÍTEMS: esa hoja solo entiende las 11 categorías fijas,
+        // que en esas empresas quedan en cero, así que la validación de disponibilidad rechazaría el
+        // ARCHIVO ENTERO. Mientras no exista la versión por ítem, esos movimientos van por pantalla.
+        var emiteMovimientosHuevos = !esLevante && lotePosturaCtx?.ClasificacionHuevoPorItems != true;
+        if (emiteMovimientosHuevos)
             PonerEncabezados(
                 pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosHuevosProduccion.Hoja),
                 MigracionEsquemas.MovimientosHuevosProduccion);
@@ -197,8 +244,14 @@ public partial class MigracionService
         {
             var rango = $"Referencias!$A$2:$A${alimentos.Count + 1}";
             foreach (var titulo in new[] { "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" })
-                DropdownRango(ws, ColumnaLetra(IndiceColumna(MigracionEsquemas.Para(tipo), titulo) + 1), rango);
-            DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoPostura, "Alimento") + 1), rango);
+            {
+                // El índice se calcula sobre las columnas EMITIDAS: si la empresa oculta los slots de
+                // machos, las letras de los demás se corren y el desplegable caería en otra columna.
+                var i = titulosDatos.IndexOf(titulo);
+                if (i >= 0) DropdownRango(ws, ColumnaLetra(i + 1), rango);
+            }
+            if (wsAlim is not null)
+                DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoPostura, "Alimento") + 1), rango);
         }
         if (lotesFaseRef.Count > 0)
             DropdownRango(wsMovAves, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosAvesLevante, "Lote Contraparte") + 1),
@@ -219,18 +272,48 @@ public partial class MigracionService
             "• Consumo: en kg salvo que uses la columna 'Unidad Consumo' con 'qq' (1 qq = 45,36 kg).",
             "",
             "ALIMENTO E INVENTARIO",
-            $"• Este lote maneja el alimento a nivel {nivel}.",
-            "• Si completás 'Alimento 1/2 H-M' + su consumo, ese consumo DESCUENTA el stock real (igual",
-            "  que el registro diario). Si además ponés 'Consumo H/M (kg)', ese número se ignora.",
-            "• Si solo ponés 'Consumo H/M (kg)', se guarda como consumo directo y NO toca el inventario.",
-            "• La hoja 'Alimento' carga las ENTRADAS del período (Ingreso / Traslado / Recepción) y",
-            "  consumos sueltos. Se aplican ANTES del seguimiento, para que haya stock que descontar.",
-            "• Si el archivo consume más de lo que hay, se rechaza ENTERO indicando cuánto falta.",
+        };
+        if (emiteAlimento)
+            instrucciones.AddRange(new[]
+            {
+                $"• Este lote maneja el alimento a nivel {nivel}.",
+                "• Si completás 'Alimento 1/2 H-M' + su consumo, ese consumo DESCUENTA el stock real (igual",
+                "  que el registro diario). Si además ponés 'Consumo H/M (kg)', ese número se ignora.",
+                "• Si solo ponés 'Consumo H/M (kg)', se guarda como consumo directo y NO toca el inventario.",
+                "• La hoja 'Alimento' carga las ENTRADAS del período (Ingreso / Traslado / Recepción) y",
+                "  consumos sueltos. Se aplican ANTES del seguimiento, para que haya stock que descontar.",
+                "• Si el archivo consume más de lo que hay, se rechaza ENTERO indicando cuánto falta.",
+            });
+        else
+            instrucciones.AddRange(new[]
+            {
+                "• Esta empresa ubica el alimento en SILOS. La carga masiva todavía NO mueve inventario por",
+                "  silo, así que la plantilla no trae las columnas 'Alimento 1/2 H-M' ni la hoja 'Alimento'.",
+                "• Cargá el consumo del día en 'Consumo H (kg)': se guarda en el registro diario y NO",
+                "  descuenta stock, que es lo correcto para un histórico cuyo alimento ya se movió.",
+                "• Las entradas de alimento y sus traslados entre silos se registran por pantalla, en",
+                "  Inventario → Gestión de inventario.",
+            });
+        instrucciones.AddRange(new[]
+        {
             "",
             esLevante
                 ? "• Peso/Uniformidad: opcionales."
-                : "• Huevos: podés cargar Total/Incubable o las 11 categorías (si cargás categorías, el total y los incubables se calculan de ellas). Etapa: 1, 2 o 3.",
-        };
+                : lotePosturaCtx?.ClasificacionHuevoPorItems == true
+                    // Sin ítems declarados la hoja "Huevos" no se emite (ver más abajo): no se puede
+                    // remitir a una hoja que no está, o la instrucción se contradice sola.
+                    ? wsHuevos is not null
+                        ? "• Huevos: el desglose va en la hoja 'Huevos', por ítem del catálogo. El total del día se calcula de esas filas. Etapa: 1, 2 o 3."
+                        : "• Huevos: esta empresa los clasifica por ítem del catálogo. Etapa: 1, 2 o 3."
+                    : "• Huevos: podés cargar Total/Incubable o las 11 categorías (si cargás categorías, el total y los incubables se calculan de ellas). Etapa: 1, 2 o 3.",
+        });
+
+        // Lo que esta empresa NO digita: se dice explícitamente para que nadie busque una columna que
+        // la plantilla no trae (y para que no la agregue a mano creyendo que falta).
+        if (lotePosturaCtx?.OcultaMachosEnPostura == true)
+            instrucciones.Add("• Esta empresa no maneja machos en postura: la plantilla no trae ninguna columna de machos. No las agregues a mano.");
+        else if (lotePosturaCtx?.ConsumoAlimentoSoloHembras == true)
+            instrucciones.Add("• Esta empresa digita el consumo de alimento solo para hembras: la plantilla no trae las columnas de consumo de machos.");
         if (esLevante)
             instrucciones.Add("• Pesaje y agua: 'Coef. Variación H/M' (0-100), 'Observaciones Pesaje', 'Consumo Agua (L)', 'pH Agua' (0-14), 'ORP Agua (mV)' y 'Temperatura Agua (°C)' son opcionales y se guardan tal cual en el registro del día. El C.V. es el que alimenta la columna 'C.V.%' del reporte semanal de levante.");
         if (esLevante && lotePosturaCtx?.CapturaHuevosLevante == true)
@@ -239,15 +322,52 @@ public partial class MigracionService
         instrucciones.Add("• No cargues en 'Movimientos Aves' movimientos que ya se registraron por pantalla, ni repitas la misma fila: se duplicarían. Dos movimientos iguales el mismo día van como una sola fila sumada.");
         if (!esLevante)
         {
-            instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote por las 11 categorías. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción'). Descuentan de la disponibilidad del lote (espejo); si no alcanzan, el archivo se rechaza.");
+            if (emiteMovimientosHuevos)
+                instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote por las 11 categorías. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción'). Descuentan de la disponibilidad del lote (espejo); si no alcanzan, el archivo se rechaza.");
+            else
+                instrucciones.Add("• Los traslados a planta y las ventas de huevo de esta empresa se cargan por pantalla, no por Excel: la hoja 'Movimientos Huevos' solo entiende las 11 categorías fijas, que acá no se usan.");
             instrucciones.Add("• Pesaje y agua: 'Peso H/M (g)', 'Uniformidad', 'Coef. Variación', 'Observaciones Pesaje', 'Consumo Agua (L)', 'pH Agua' (0-14), 'ORP Agua (mV)' y 'Temperatura Agua (°C)' son opcionales y se guardan tal cual en el registro del día.");
         }
         if (wsHuevos is not null)
+        {
             instrucciones.Add("• Hoja 'Huevos': clasificación por ítem del catálogo (una fila por fecha e ítem). No la combines con las 11 categorías de la hoja 'Datos'.");
+            instrucciones.Add("• El desplegable de 'Ítem' trae SOLO los tipos de huevo declarados por este lote. Cada fecha de la hoja 'Huevos' tiene que existir también en 'Datos'.");
+        }
+        else if (!esLevante && lotePosturaCtx?.ClasificacionHuevoPorItems == true)
+        {
+            // Sin ítems declarados la hoja no se emite: emitirla vacía haría que el archivo entero se
+            // rechace por una precondición de configuración que nadie le contó al usuario.
+            instrucciones.Add("⚠ Este lote todavía NO declaró qué tipos de huevo produce, así que la plantilla no trae la hoja 'Huevos'. Editá el lote, declará sus tipos de huevo y volvé a descargar la plantilla.");
+        }
+
+        instrucciones.Add("");
+        instrucciones.Add("ORDEN DE CARGA (importa)");
+        instrucciones.Add("• El consumo de alimento descuenta de la ubicación ACTUAL del lote, no de donde ocurrió el histórico.");
+        instrucciones.Add("• Si el lote cambió de granja al pasar a producción, el orden es: cargar LEVANTE → cerrar/liquidar → trasladar → cargar PRODUCCIÓN. Trasladar antes deja el alimento del levante descontado en la granja destino, que nunca lo entregó.");
+        instrucciones.Add("");
         instrucciones.Add("La carga es idempotente: reimportar el mismo archivo no duplica filas ni vuelve a descontar inventario.");
+        instrucciones.Add("Mirá la hoja 'Ejemplo': tiene tres días ya resueltos con estos mismos encabezados.");
 
         HojaInstrucciones(pkg, $"Migración Seguimiento {(esLevante ? "Levante" : "Producción")} — Lote {lote.LoteNombre} (id {loteId})",
             instrucciones.ToArray());
+
+        // Hoja "Ejemplo": el importador ignora toda hoja que no sea Datos/Alimento/Movimientos Aves/
+        // Movimientos Huevos/Huevos, así que es guía pura y no puede alterar una carga.
+        HojaEjemplo(pkg, MigracionEjemploPosturaCalculos.Bloques(
+            esLevante, flagsPlantilla, titulosDatos,
+            new DatosEjemploPostura(
+                FechaBase: (lote.FechaEncaset ?? DateTime.UtcNow).Date,
+                AlimentoNombre: alimentos.FirstOrDefault().Nombre,
+                ItemHuevoNombre: huevoItems.Count > 0 ? huevoItems[0].Nombre : null,
+                ItemHuevoNombre2: huevoItems.Count > 1 ? huevoItems[1].Nombre : null,
+                LoteContraparte: lotesFaseRef.FirstOrDefault()?.Nombre,
+                SiloNombre: null),
+            incluyeHojaHuevos: wsHuevos is not null));
+
+        // Instrucciones y Ejemplo primero: el archivo tiene que abrir por donde se explica, no por una
+        // grilla de 40 encabezados.
+        pkg.Workbook.Worksheets.MoveToStart("Ejemplo");
+        pkg.Workbook.Worksheets.MoveToStart("Instrucciones");
 
         return (Finalizar(pkg), $"Seguimiento_{(esLevante ? "Levante" : "Produccion")}_Lote{loteId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
     }
@@ -380,7 +500,8 @@ public partial class MigracionService
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_levante({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId.ToString(), json).FirstAsync(ct), ct,
-            movimientosAves);
+            movimientosAves,
+            manejaInventarioPorSilo: loteCtx?.ManejaInventarioPorSilo ?? false);
     }
 
     private async Task<MigracionResultDto> ProcesarSeguimientoProduccionAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
@@ -562,7 +683,8 @@ public partial class MigracionService
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_produccion({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId, json).FirstAsync(ct), ct,
-            movimientosAves, movimientosHuevos);
+            movimientosAves, movimientosHuevos,
+            manejaInventarioPorSilo: loteCtx?.ManejaInventarioPorSilo ?? false);
     }
 
     // ── Parseo compartido ────────────────────────────────────────────────────
@@ -794,11 +916,31 @@ public partial class MigracionService
         ContextoInventarioPostura? ctxInv, int loteId, Func<long, DateTime, string> referencia,
         Func<string, Task<int>> invocarFn, CancellationToken ct,
         IReadOnlyList<MovimientoAvesMigFila>? movimientosAves = null,
-        IReadOnlyList<MovimientoHuevosMigFila>? movimientosHuevos = null)
+        IReadOnlyList<MovimientoHuevosMigFila>? movimientosHuevos = null,
+        bool manejaInventarioPorSilo = false)
     {
         if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0
             && (movimientosAves?.Count ?? 0) == 0 && (movimientosHuevos?.Count ?? 0) == 0)
             return ResultadoVacio(tipo, dryRun);
+
+        // 🔴 FAIL-CLOSED del inventario por SILO. Este módulo no conoce los silos: manda los
+        // movimientos sin silo y el servicio de inventario los rechaza uno por uno, mientras que el
+        // consumo del seguimiento no encuentra stock y el día se guarda IGUAL con el inventario
+        // intacto — la enfermedad exacta que este módulo se escribió para curar. Peor: la simulación
+        // de balance de más abajo suma todos los silos en una sola posición, así que da luz verde.
+        // Hasta que la hoja tenga columna de silo, se corta ACÁ, con un mensaje de datos que dice
+        // qué hacer, en vez de dejar pasar un archivo que descuadra el inventario en silencio.
+        if (manejaInventarioPorSilo)
+        {
+            var diasConAlimentoDeInventario = consumos.Count(c => c.Items.Count > 0);
+            if (movimientosAlimento.Count > 0 || diasConAlimentoDeInventario > 0)
+                errores.Add(new(0, "Alimento", null,
+                    "Esta empresa ubica el alimento en SILOS y la carga masiva todavía no mueve inventario por silo. "
+                    + "Quitá la hoja 'Alimento' y las columnas 'Alimento 1/2 H-M' con su consumo, y cargá el consumo del día "
+                    + "en 'Consumo H (kg)' (se guarda en el registro diario y no descuenta stock). Las entradas de alimento "
+                    + "y los traslados entre silos se registran por pantalla, en Inventario → Gestión de inventario. "
+                    + "Descargá de nuevo la plantilla: la versión actual ya no trae esas columnas."));
+        }
 
         // Fechas ya cargadas: la función SQL las omite, así que su consumo NO debe descontarse otra
         // vez (reimportar el mismo archivo descontaba el inventario dos veces) y además son las que

@@ -48,6 +48,28 @@ public partial class MigracionService
     }
 
     /// <summary>
+    /// Ítems de huevo que este LOTE declaró producir (F7.3), ya cruzados con el catálogo de la
+    /// empresa. Es la lista que el parseo acepta, y por eso es también la que la PLANTILLA ofrece:
+    /// mientras la plantilla mostraba el catálogo entero, el usuario elegía del desplegable un ítem
+    /// que el importador rechazaba con «no existe en el catálogo de huevo». Lista vacía = el lote no
+    /// declaró ninguno todavía.
+    /// </summary>
+    private async Task<List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>> CargarItemsHuevoDelLoteAsync(
+        int companyId, int loteId, CancellationToken ct)
+    {
+        var permitidos = await _ctx.LoteHuevoItems.AsNoTracking()
+            .Where(lhi => lhi.LoteId == loteId && lhi.Activo)
+            .Select(lhi => lhi.CatalogItemId)
+            .ToListAsync(ct);
+        if (permitidos.Count == 0) return new List<(int, string?, string, string?)>();
+
+        var permitidosSet = permitidos.ToHashSet();
+        return (await CargarItemsHuevoEmpresaAsync(companyId, ct))
+            .Where(i => permitidosSet.Contains(i.Id))
+            .ToList();
+    }
+
+    /// <summary>
     /// Lee y valida la hoja "Huevos". Devuelve los ítems agrupados por FECHA; los problemas se
     /// acumulan en <paramref name="errores"/>. Si el archivo no trae la hoja, devuelve vacío sin error
     /// (es opcional: un archivo anterior se procesa exactamente igual).
@@ -73,25 +95,17 @@ public partial class MigracionService
         // (el otro es el alta/edición manual) y produce exactamente el mismo jsonb, así que si no
         // aplicara la misma regla la carga masiva sería la puerta de atrás de la restricción.
         // Fail-closed igual que el formulario: sin declaración no se acepta ni una fila.
-        var permitidos = await _ctx.LoteHuevoItems.AsNoTracking()
-            .Where(lhi => lhi.LoteId == loteCtx.LoteId && lhi.Activo)
-            .Select(lhi => lhi.CatalogItemId)
-            .ToListAsync(ct);
+        // El catálogo que indexa la hoja se ACOTA a los ítems declarados por el lote: así un nombre
+        // o código que exista en la empresa pero que el lote no produzca cae en el mismo mensaje de
+        // «no existe en el catálogo de huevo» que ya conoce el usuario, en vez de pasar silencioso.
+        // Es la MISMA consulta con la que la plantilla arma su desplegable.
+        var catalogo = await CargarItemsHuevoDelLoteAsync(companyId, loteCtx.LoteId, ct);
 
-        if (permitidos.Count == 0)
+        if (catalogo.Count == 0)
         {
             errores.Add(new(0, "Ítem", null, HuevoItemsCalculos.MensajeLoteSinItemsDeclarados));
             return porFecha;
         }
-
-        var permitidosSet = permitidos.ToHashSet();
-
-        // El catálogo que indexa la hoja se ACOTA a los ítems declarados por el lote: así un nombre
-        // o código que exista en la empresa pero que el lote no produzca cae en el mismo mensaje de
-        // «no existe en el catálogo de huevo» que ya conoce el usuario, en vez de pasar silencioso.
-        var catalogo = (await CargarItemsHuevoEmpresaAsync(companyId, ct))
-            .Where(i => permitidosSet.Contains(i.Id))
-            .ToList();
         var porClave = new Dictionary<string, List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>>();
         foreach (var i in catalogo)
         {

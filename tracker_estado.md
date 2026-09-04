@@ -6786,3 +6786,104 @@ aparecieron dos bloqueantes que hay que cerrar ANTES de limitar a Sanmarino.
 - [ ] S4.5 Smoke funcional: `POST /swagger/token` devuelve JWT y un GET real responde 200
       (no 401 platform-secret).
 - [ ] S4.6 Backend local apagado y puerto :5002 libre al terminar.
+
+---
+
+## 📦 Carga masiva de Levante y Producción para Santa Reyes (4-sep-2026)
+
+Plan: [`fase_de_desarrollo/carga_masiva_santa_reyes_plan.md`](fase_de_desarrollo/carga_masiva_santa_reyes_plan.md)
+
+Pedido: validar todo lo de Santa Reyes para poder hacer la carga masiva de Levante y Producción,
+dejar la plantilla de descarga **parametrizada para esa empresa** y que traiga un **ejemplo lleno**.
+
+Auditoría previa: 10 dimensiones con verificación adversarial + consultas reales contra
+`sanmarinoapplocal:5433`. 26 hallazgos confirmados, 3 refutados. Lo que ya estaba resuelto (hoja
+`Huevos` por ítem con paridad aritmética exacta, lista blanca F7.3 del lote, ventana de fecha que a
+propósito NO corta el histórico, parseo que tolera archivos sin columnas de machos, permisos ya
+asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
+
+### F1 · Habilitar el módulo para Santa Reyes
+
+- [i] Medido con `fn_menu_usuario` sobre los 2 usuarios reales de la empresa 6: `ve_migraciones_masivas
+      = false`. La causa es UNA sola capa (el MENÚ): los permisos ya están. Faltaban **exactamente 3
+      filas** — 1 en `company_menus` + 2 en `role_menus`. El grupo padre `carga_masiva` no necesita
+      fila propia (`fn_menu_usuario` sube los ancestros, D3).
+- [x] F1.1 Migración EF data-only `20260904160000_HabilitarMigracionesMasivasSantaReyes` **con su
+      `.Designer.cs`**.
+- [x] F1.2 Lookups por `menus.key` / `companies.identifier`, nunca por id ni por `route`;
+      `INSERT … NOT EXISTS` + `UPDATE … IS DISTINCT FROM`.
+- [x] F1.3 Apagado `carga_masiva_pollo_engorde` en `company_permissions` de Santa Reyes (0 lotes de
+      engorde ⇒ 4 tiles que no le aplican). No se borran las filas de `role_permissions`.
+- [x] F1.4 **Verificado en transacción revertida contra la BD real:** los 2 usuarios pasan de `f/f` a
+      `t/t` (ítem + grupo padre); segunda corrida inserta 0 filas (idempotente); el conteo de
+      `company_menus` de Sanmarino y Demo no cambia y **ningún usuario de otra empresa gana el ítem**.
+
+### F2 · Plantilla parametrizada por empresa
+
+- [x] F2.1 `Application/Calculos/PlantillaPosturaCalculos.cs` puro: `ColumnasOcultas(esLevante, flags)`
+      + `EmiteHojaAlimento(flags)`. Espejo exacto de lo que oculta el formulario vivo.
+- [x] F2.2 Tests xUnit (11): flags OFF ⇒ conjunto VACÍO; Santa Reyes ⇒ lista exacta; **ninguna columna
+      ocultable puede ser `Requerida:true`** y ninguna puede quedar huérfana del esquema.
+- [x] F2.3 `ResolverLotePosturaCtxAsync` proyecta los 3 flags nuevos (mismo fail-closed `?? false`,
+      misma consulta, por la empresa dueña de la GRANJA).
+- [x] F2.4 Generador con `PonerEncabezadosSin` + letras de dropdown calculadas sobre las columnas
+      EMITIDAS (la trampa: con `IndiceColumna` sobre el esquema completo caían en otra columna).
+- [x] F2.5 Instrucciones ramificadas + orden «levante → cerrar → trasladar → producción» con su motivo.
+
+### F3 · Hoja «Ejemplo» llena
+
+- [x] F3.1 `MigracionEjemploPosturaCalculos` puro: 3 días resueltos, **derivados de las columnas
+      emitidas**, con alimento / ítem de huevo / lote contraparte reales de la empresa.
+- [x] F3.2 Tests xUnit (16): los encabezados del ejemplo son exactamente los emitidos; toda fila tiene
+      un valor por encabezado; Santa Reyes no ve ni una columna de machos ni de huevo fijo.
+- [x] F3.3 Helper `HojaEjemplo` + bloques para `Datos`, `Alimento`, `Movimientos Aves` y `Huevos`,
+      cada uno con sus notas (por qué una celda va vacía, qué se deriva de qué).
+- [x] F3.4 Rótulo «ESTA HOJA NO SE IMPORTA» + `Instrucciones` y `Ejemplo` movidas al frente.
+
+### F4 · Hojas de huevo de Santa Reyes
+
+- [x] F4.1 `Referencias` y el dropdown de `Huevos` se arman con la MISMA consulta que el parseo
+      (`CargarItemsHuevoDelLoteAsync`, ítems declarados por el LOTE). Lote sin declarar ⇒ la hoja no
+      se emite y las Instrucciones dicen qué hacer, en vez de ofrecer una hoja que rechaza el archivo.
+- [x] F4.2 `Movimientos Huevos` no se emite con `clasificacion_huevo_por_items` (sus 11 categorías
+      quedan en 0 y la validación de disponibilidad rechazaría el archivo entero).
+- [ ] F4.3 `Huevo Total` ignorado en silencio cuando el día trae ítems ⇒ falta la Advertencia
+      explícita. **No aplica a la plantilla nueva** (Santa Reyes ya no recibe esa columna); queda para
+      un archivo viejo. Pendiente.
+
+### F5 · Silo: cerrar el camino que no existe
+
+- [i] El módulo **no menciona silos ni una vez**. Hoja `Alimento`: cada fila revienta ⇒ 0 kg entran.
+      Consumo: el día se guarda y el inventario NO se toca. El dry-run es ciego al silo y aprueba.
+- [x] F5.1 La plantilla de una empresa con `maneja_inventario_por_silo` no emite la hoja `Alimento`
+      ni las columnas `Alimento 1/2 H-M`. `Consumo H (kg)` (consumo directo) se conserva.
+- [x] F5.2 Instrucciones y hoja `Ejemplo` explican el porqué y qué hacer en su lugar.
+- [x] F5.3 **Fail-closed en el importador**: un archivo con la hoja `Alimento` o las columnas de
+      inventario se rechaza con mensaje accionable, ANTES de la simulación ciega y ANTES de insertar.
+- [ ] F5.4 **Pendiente (fase propia):** soporte real de silo — columna `Silo`, `SiloId` en
+      `ItemSeguimientoDto` y en los 3 requests, silo en `PosicionAlimento`, `ValidarStockConsumoAsync`.
+
+### F6 · Validación
+
+- [x] F6.1 `dotnet build` 0 errores · **0 advertencias en los 2 proyectos tocados** · `dotnet test`
+      **3.876 verdes, 0 fallos**.
+- [x] F6.2 **Smoke flags OFF (Sanmarino, lotes 14 y 143):** Levante y Producción salen con las **43
+      columnas** de siempre, `Alimento` 14, `Movimientos Aves` 8, `Movimientos Huevos` 18. Delta cero;
+      lo único nuevo es la hoja `Ejemplo`.
+- [x] F6.3 **Smoke flags ON (Santa Reyes, lote 152):** Levante y Producción bajan con **16 columnas**
+      (de 43), sin machos, sin huevo de columnas fijas, sin hoja `Alimento`.
+- [x] F6.4 **Smoke funcional:** el archivo copiado del ejemplo valida **`Validado`, 0 errores**; el
+      mismo archivo con hoja `Alimento` se rechaza con el mensaje del silo. Backend apagado, puertos
+      5501/5002 libres, sesiones de smoke borradas.
+
+### Fuera de alcance (registrado)
+
+- [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
+      `permissionGuard`: el gate del módulo es 100 % de UI. No es fuga entre empresas
+      (`ActiveCompanyMiddleware` valida la empresa efectiva), pero la «restricción a Sanmarino» de
+      ago-2026 nunca fue real. Deuda conocida.
+- [i] `Movimientos Huevos` por ítem del catálogo; `AplicarMovimientosHuevosAsync` no escribe
+      `TotalHuevos`; la pantalla no reacciona al cambio de empresa activa; el error de descarga se
+      pierde por llegar como `Blob`; todas las plantillas de un mismo tipo bajan con el mismo nombre.
+- [i] **El lote 152 de Santa Reyes no tiene tipos de huevo declarados** (`lote_huevo_items` vacío):
+      hasta que se declaren al editar el lote, su plantilla de Producción no trae la hoja `Huevos`.
