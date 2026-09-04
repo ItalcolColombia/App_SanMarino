@@ -6887,3 +6887,50 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       pierde por llegar como `Blob`; todas las plantillas de un mismo tipo bajan con el mismo nombre.
 - [i] **El lote 152 de Santa Reyes no tiene tipos de huevo declarados** (`lote_huevo_items` vacío):
       hasta que se declaren al editar el lote, su plantilla de Producción no trae la hoja `Huevos`.
+
+---
+
+# El «Día 1» lo manda el primer día CON registro (reproductora + pollo engorde)
+
+Plan: [numeracion_dia_primer_registro_plan.md](fase_de_desarrollo/numeracion_dia_primer_registro_plan.md)
+
+Reporte 04sep26 (granja DOÑA MARIA, lote reproductora `LR-0023649715` «156», encaset 30/08): sus
+registros del 31/08, 01/09 y 02/09 salen como **Día 2, 3 y 4**. Causa raíz: la numeración se corría
+**solo si el lote traía hora de encasetamiento ≥ 13:00**, y la hora la tienen **0 de 142**
+reproductoras (26 de 248 lotes de engorde). El fix del 31-ago (`1191b39`) se validó contra el único
+lote que sí tenía hora. Regla nueva: el corrimiento lo manda **la menor edad con registro**, con
+tope de 1 día. Sin DDL, sin migración: es presentación del front.
+
+## N1 · Función pura + tests
+
+- [x] N1.1 `dia-negocio-engorde.funcion.ts`: `DESPLAZAMIENTO_MAX_NUMERACION`,
+      `menorEdadRegistrada(edades)` y `desplazamientoNumeracion(edadMin, hora)`.
+- [x] N1.2 `dia-negocio-engorde.funcion.spec.ts` (nuevo, 15 casos): sin registros ⇒ cae a la hora;
+      sin hora + edad 1 ⇒ 1 (caso reportado); edad 0 con hora tardía ⇒ 0 (históricos 131/132);
+      tope en 1; basura/negativos ⇒ 0.
+
+## N2 · Reproductora (pantalla reportada)
+
+- [x] N2.1 `seguimiento-diario-lote-reproductora-list.component.ts`: el getter pasa a
+      `desplazamientoNumeracion`; `nextSuggestedFecha` y el guarda siguen con la hora.
+- [x] N2.2 Queda alineado con `construir-bloques-reproductora.funcion.ts` (que ya numeraba por dato).
+- [x] N2.3 Spec del componente con los datos REALES del lote reportado ⇒ días 1, 2, 3 (6 verdes).
+
+## N3 · Pollo engorde (mismo criterio)
+
+- [x] N3.1 `tabs-principal-engorde.component.ts`: `diaNegocio()`/`semanaNegocio()` por edad mínima de
+      `tablaFilas` (sin filtrar: filtrar la tabla no puede renumerar el lote).
+- [x] N3.2 `indicadores-diarios-engorde-compute.service.ts` (columna «Día» + CSV).
+- [x] N3.3 `productividad-engorde-compute.service.ts` (gráficas diaria y semanal, Panamá).
+- [x] N3.4 `indicadores-diarios-engorde-compute.service.spec.ts`: 5 casos actualizados a la
+      numeración nueva + 2 casos nuevos (sin hora desde la edad 1; hueco de 3 días).
+- [i] NO se toca la regla de **pesaje obligatorio** (bloquea el guardado) ni el guarda de captura ni
+      la EDAD que cruza con la guía genética.
+
+## N4 · Validación
+
+- [x] N4.1 `yarn build` 0 errores.
+- [x] N4.2 `yarn test` de los 3 specs tocados: **25 + 6 verdes, 0 fallos**.
+- [x] N4.3 **Smoke visual del lote `LR-0023649715`** con sus datos reales sobre el front local: la
+      fila del **31/08 dice «día 1»**, 01/09 «día 2» y 02/09 «día 3». Dev server y Chrome headless
+      apagados; puertos 4200/9344/5002 libres.

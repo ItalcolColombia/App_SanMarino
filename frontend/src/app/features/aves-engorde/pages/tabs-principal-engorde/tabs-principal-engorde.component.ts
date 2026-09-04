@@ -16,8 +16,9 @@ import { TabReproductoraEngordeComponent } from '../../components/tab-reproducto
 import { CuadrarSaldosEngordeApi } from '../../../engorde-comun/services/cuadrar-saldos-engorde.api';
 import { SeguimientoAvesEngordeService } from '../../services/seguimiento-aves-engorde.service';
 import {
-  desplazamientoPrimerDia,
+  desplazamientoNumeracion,
   diaDeNegocioDesdeEdad,
+  menorEdadRegistrada,
   semanaDeNegocio
 } from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 import {
@@ -179,9 +180,16 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   // los indicadores, el informe semanal y la liquidación. Acá se muestra el DÍA DE NEGOCIO: el
   // primer día con registro del lote es el día 1, igual que en reproductora.
 
-  /** Días que se corre el primer día con registro por la hora de llegada: 0 o 1. */
+  /**
+   * Días que se corre el primer día con registro: 0 o 1. Lo manda el DATO —la menor edad con
+   * registro del lote—, no la hora de llegada, que casi nadie carga (04-sep-2026: 26 de 248 lotes
+   * de engorde la tienen) y dejaba el primer registro de un lote que arrancó al día siguiente del
+   * encaset numerado como «Día 2». Se calcula sobre TODAS las filas, no las filtradas: filtrar la
+   * tabla no puede renumerar el lote.
+   */
   private get desplazamientoPrimerDia(): number {
-    return desplazamientoPrimerDia(this.horaEncasetamiento);
+    const edades = (this.tablaFilas ?? []).map(f => f.edadDia);
+    return desplazamientoNumeracion(menorEdadRegistrada(edades), this.horaEncasetamiento);
   }
 
   /** Número de día que se muestra en la columna «Edad»: 1 el primer día con registro. */

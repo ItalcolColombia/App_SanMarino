@@ -9,7 +9,11 @@ import {
 } from '../../config/guia-genetica-engorde/guia-genetica-engorde.service';
 import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engorde.models';
 import { ymdSinTz } from '../../../shared/utils/format';
-import { desplazamientoPrimerDia, diaDeNegocioDesdeEdad } from '../funciones/dia-negocio-engorde.funcion';
+import {
+  desplazamientoNumeracion,
+  diaDeNegocioDesdeEdad,
+  menorEdadRegistrada
+} from '../funciones/dia-negocio-engorde.funcion';
 
 interface MetadataItem {
   unidad?: string;
@@ -91,10 +95,17 @@ export class IndicadoresDiariosEngordeComputeService {
     const pesoIni = this.pesoInicialMixtoLote(selectedLote);
 
     // Numeración de negocio de la columna «Día»: el primer día con registro es el día 1 (no hay
-    // día 0); en un lote que llegó a las 13:00 o después ese primer día es el siguiente al encaset.
-    // La EDAD (0 el día del encaset) se conserva para el cruce con la guía genética y para la
-    // aritmética de ganancia, que no cambian.
-    const desplazamiento = desplazamientoPrimerDia(horaEncasetamiento);
+    // día 0). Quién es ese día lo dice el DATO —la menor edad con registro—, no la hora de llegada:
+    // casi ningún lote la trae y sin ella el primer registro de un lote que arrancó al día
+    // siguiente del encaset se numeraba «Día 2». La EDAD (0 el día del encaset) se conserva para el
+    // cruce con la guía genética y para la aritmética de ganancia, que no cambian.
+    const edadesConRegistro = diasOrdenados.map(d =>
+      this.calcularEdadDias(selectedLote, d.regs[0]?.fechaRegistro ?? d.ymd)
+    );
+    const desplazamiento = desplazamientoNumeracion(
+      menorEdadRegistrada(edadesConRegistro),
+      horaEncasetamiento
+    );
 
     let acumMix = 0;
     let ultimoPesoMedido = pesoIni;

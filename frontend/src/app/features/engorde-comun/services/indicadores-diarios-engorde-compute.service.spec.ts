@@ -16,6 +16,10 @@ import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engord
  * registro es el dia 1; no existe el dia 0, y en un lote que llego a las 13:00 o despues ese
  * primer dia es el siguiente al encaset). La EDAD (0-based) se conserva internamente para el
  * cruce con la guia genetica y para la aritmetica de ganancia, que no cambian.
+ *
+ * Reporte DONA MARIA (04-sep-2026): quien es el primer dia lo dice el DATO (la menor edad con
+ * registro), NO la hora de llegada — que casi ningun lote trae. Por eso los fixtures que arrancan
+ * en la edad 1 ahora numeran desde el dia 1: antes decian dia 2, que es justamente el bug.
  */
 describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
   const ENCASET = '2026-01-01';
@@ -111,8 +115,8 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     const { filas, guiaOk } = await service.compute(seguimientos, lote());
 
     expect(guiaOk).toBe(true);
-    // Sin hora: dia mostrado = edad + 1 (edades 1..7 → dias 2..8).
-    for (const dia of [2, 3, 4, 5, 6, 7, 8]) {
+    // El lote arranca en la edad 1 ⇒ ese es su dia 1 (edades 1..7 → dias 1..7).
+    for (const dia of [1, 2, 3, 4, 5, 6, 7]) {
       expect(filaDia(filas, dia).gananciaDiariaRealG).toBe(5);
     }
   });
@@ -126,7 +130,7 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 12).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 11).gananciaDiariaRealG).toBe(5);
   });
 
   it('intervalo distinto de 4 dias: ganancia = delta / dias reales transcurridos', async () => {
@@ -138,7 +142,7 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 17).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 16).gananciaDiariaRealG).toBe(5);
   });
 
   it('dia sin peso registrado en medio de un tramo: null y no mueve el ultimo pesaje', async () => {
@@ -151,8 +155,8 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     const { filas } = await service.compute(seguimientos, lote());
 
-    expect(filaDia(filas, 14).gananciaDiariaRealG).toBeNull();
-    expect(filaDia(filas, 17).gananciaDiariaRealG).toBe(5);
+    expect(filaDia(filas, 13).gananciaDiariaRealG).toBeNull();
+    expect(filaDia(filas, 16).gananciaDiariaRealG).toBe(5);
   });
 
   it('primer pesaje del lote: compara contra el peso inicial del dia del encaset', async () => {
@@ -162,7 +166,7 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
     const { filas } = await service.compute(seguimientos, lote());
 
     // (45 - PESO_INI) / (edad 1 - edad 0) = 5 — la aritmetica sigue en EDADES.
-    expect(filaDia(filas, 2).gananciaDiariaRealG).toBe(45 - PESO_INI);
+    expect(filaDia(filas, 1).gananciaDiariaRealG).toBe(45 - PESO_INI);
   });
 
   // ─── Numeracion de negocio (ticket Panama 31-ago-2026: no existe el dia 0) ───
@@ -175,6 +179,25 @@ describe('IndicadoresDiariosEngordeComputeService — ganancia diaria', () => {
 
     expect(filas.map(f => f.dia)).toEqual([1, 2, 3]);
     expect(filas.every(f => f.dia >= 1)).toBe(true);
+  });
+
+  it('SIN hora y primer registro en la edad 1: tambien se numera dia 1 (reporte DONA MARIA)', async () => {
+    const service = new IndicadoresDiariosEngordeComputeService(guiaFake());
+    // Mismo lote que el tardio pero sin hora cargada: es el caso real (nadie carga la hora).
+    const seguimientos = [reg(1, 45, 45), reg(2, 50, 50), reg(3, 55, 55)];
+
+    const { filas } = await service.compute(seguimientos, lote());
+
+    expect(filas.map(f => f.dia)).toEqual([1, 2, 3]);
+  });
+
+  it('hueco de 3 dias al arrancar: el tope de 1 dia deja el hueco a la vista', async () => {
+    const service = new IndicadoresDiariosEngordeComputeService(guiaFake());
+    const seguimientos = [reg(3, 55, 55), reg(4, 60, 60)];
+
+    const { filas } = await service.compute(seguimientos, lote());
+
+    expect(filas.map(f => f.dia)).toEqual([3, 4]);
   });
 
   it('lote tardio (hora >= 13:00): el primer dia con registro (edad 1) se numera dia 1', async () => {
