@@ -596,7 +596,28 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "ItalGranja API",
         Version = "v1",
-        Description = "API ItalGranja — gestión avícola (roles, usuarios, granjas, lotes, inventario, producción, etc.)"
+        Description = """
+            API ItalGranja — gestión avícola (roles, usuarios, granjas, lotes, inventario, producción, etc.)
+
+            ### Cómo probar desde acá
+
+            1. **Token** — `POST /swagger/token` con `{ "email": "...", "password": "..." }` (texto plano,
+               sólo en ambientes de desarrollo). Devuelve el JWT. `POST /api/Auth/login` **no sirve desde
+               Swagger**: recibe el cuerpo cifrado por el front.
+            2. **Authorize** — pegá el token en el candado de arriba (sólo el token, sin `Bearer `).
+            3. **Try it out** — ya funciona: esta UI agrega sola la firma de plataforma (`X-Secret-Up`)
+               que el backend exige en todo `/api/*`.
+
+            ### Alcance por empresa
+
+            Casi todo endpoint responde **según la empresa activa**. Cada operación acepta tres cabeceras
+            opcionales para elegirla: `X-Active-Company` (nombre), `X-Active-Company-Id` (id) y
+            `X-Active-Pais`. Sin ellas se usa la empresa del token.
+
+            Son una petición, no una orden: el backend sólo la acepta si el usuario pertenece a esa
+            empresa (o es super admin). Pedir una empresa ajena **no** amplía el alcance — se cae al
+            del token.
+            """
     });
 
     // 🔐 Bearer
@@ -636,9 +657,16 @@ builder.Services.AddSwaggerGen(c =>
     // ✅ Configuración para multipart/form-data
     c.OperationFilter<FileUploadOperationFilter>();
 
-    // (Opcional) XML comments
-    // var xml = Path.Combine(AppContext.BaseDirectory, "ZooSanMarino.API.xml");
-    // if (File.Exists(xml)) c.IncludeXmlComments(xml, includeControllerXmlComments: true);
+    // 🏢 Cabeceras de empresa/país activas: son el filtro multiempresa de casi todo el API y hasta
+    // el 4-sep-2026 no estaban declaradas en el contrato, así que desde Swagger no se podía cambiar
+    // de empresa — o sea, no se podía probar el escenario que más importa en este sistema.
+    c.OperationFilter<EmpresaActivaHeadersOperationFilter>();
+
+    // 📖 Los doc-comments de los controllers (79 de 94 los tienen, varios explican justamente el
+    // alcance por empresa) sólo llegan a la UI si el .csproj emite el XML y se incluye acá. Estuvo
+    // comentado desde siempre: la documentación existía escrita y no la veía nadie.
+    var xml = Path.Combine(AppContext.BaseDirectory, "ZooSanMarino.API.xml");
+    if (File.Exists(xml)) c.IncludeXmlComments(xml, includeControllerXmlComments: true);
 });
 
 // ─────────────────────────────────────
@@ -844,52 +872,59 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
 .swagger-ui .response-control-media-type__accept-message { color:#9ca3af; }
 .swagger-ui .opblock-tag { background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:8px 12px; }
 """;
-    app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"));
+    app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"))
+       .ExcludeFromDescription();
 
     app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config) =>
     {
         var form = await context.Request.ReadFormAsync();
-        var password = form["password"].ToString();
-        var expectedPassword = config["Swagger:Password"] ?? "Swagger2024!SanMarino#API";
-        var cookieName = config["Swagger:SessionCookieName"] ?? "SwaggerAuth";
+        var expectedPassword = config[SwaggerPasswordMiddleware.ConfigPassword];
+        var cookieName = config[SwaggerPasswordMiddleware.ConfigCookie]
+                         ?? SwaggerPasswordMiddleware.CookiePorDefecto;
 
-        if (password == expectedPassword)
+        // La comparación y la emisión de la cookie viven en un solo lugar cada una
+        // (SwaggerAccesoCalculos + SwaggerPasswordMiddleware.EmitirSesion). Antes se repetían acá,
+        // y el hash duplicado significaba que tocar un lado dejaba a todos afuera de Swagger.
+        if (SwaggerAccesoCalculos.PasswordCorrecta(form["password"].ToString(), expectedPassword))
         {
-            var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-            var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
-            var isSecure = context.Request.IsHttps || isHttpsViaProxy;
-
-            var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(
-                System.Text.Encoding.UTF8.GetBytes(expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
-            var hashString = Convert.ToBase64String(hash);
-
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = isSecure,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(6),
-                Path = "/"
-            };
-
-            context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
-
-            var lastActivityKey = $"{cookieName}_LastActivity";
-            var lastActivityOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = isSecure,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(6),
-                Path = "/"
-            };
-            context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
+            SwaggerPasswordMiddleware.EmitirSesion(context, expectedPassword!, cookieName);
             context.Response.Redirect("/swagger");
             return;
         }
 
         context.Response.Redirect("/swagger?error=Contraseña incorrecta");
-    });
+    })
+    .ExcludeFromDescription();
+
+    // Token para probar desde Swagger. POST /api/Auth/login recibe el cuerpo CIFRADO por el front,
+    // así que desde la UI no había forma de conseguir un JWT y el botón Authorize quedaba inútil.
+    // Vive fuera de /api y bajo /swagger a propósito: sólo se monta fuera de Production y la
+    // contraseña de Swagger lo protege igual que al resto de la documentación.
+    app.MapPost("/swagger/token", async (SwaggerTokenRequest req, IAuthService auth) =>
+    {
+        if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
+            return Results.BadRequest(new { message = "email y password son obligatorios" });
+
+        try
+        {
+            var r = await auth.LoginAsync(
+                new ZooSanMarino.Application.DTOs.LoginDto { Email = req.Email, Password = req.Password });
+            return Results.Ok(r);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Mismo mensaje y mismo código que /api/Auth/login: este atajo no afloja la
+            // autenticación, sólo se saltea el cifrado del cuerpo que hace el front.
+            return Results.Json(new { message = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
+        }
+    })
+    .WithTags("00 · Pruebas (solo desarrollo)")
+    .WithSummary("Token de prueba (email/password en texto plano)")
+    .WithDescription(
+        "Devuelve el JWT para pegar en Authorize. Existe porque `POST /api/Auth/login` recibe el " +
+        "cuerpo cifrado por el front y no se puede llamar desde esta UI. Sólo se monta fuera de " +
+        "Production y está detrás de la contraseña de Swagger. Valida las credenciales igual que " +
+        "el login real — no es un bypass.");
 
     app.UseMiddleware<SwaggerPasswordMiddleware>();
 
@@ -901,7 +936,28 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
         doc.SerializeAsV3(w);
         var bytes = Encoding.UTF8.GetBytes(sw.ToString());
         return Results.File(bytes, "application/json", "swagger-v1.json");
-    });
+    })
+    .ExcludeFromDescription();
+
+    // 🔑 Firma de plataforma para el "Try it out".
+    //
+    // PlatformSecretMiddleware exige X-Secret-Up (AES) en TODO /api/*. Swagger UI no la mandaba,
+    // así que hasta el 4-sep-2026 cada "Try it out" devolvía 401 platform-secret y la UI servía
+    // sólo para leer. Se calcula una vez al arrancar y la inyecta un interceptor de la UI.
+    //
+    // No agrega exposición: el front ya lleva el secreto EN CLARO en su bundle (environment.ts),
+    // que va a todos los navegadores; acá viaja cifrado, sólo fuera de Production y sólo detrás de
+    // la contraseña de Swagger. El gate del backend queda intacto: se sigue exigiendo a todo /api/*.
+    string? firmaPlataforma = null;
+    var secretUpPlano = app.Configuration["PlatformSecret:SecretUpFrontend"];
+    var claveFirma = app.Configuration["PlatformSecret:EncryptionKey"];
+    if (!string.IsNullOrWhiteSpace(secretUpPlano) && !string.IsNullOrWhiteSpace(claveFirma))
+    {
+        using var scopeFirma = app.Services.CreateScope();
+        firmaPlataforma = scopeFirma.ServiceProvider
+            .GetRequiredService<EncryptionService>()
+            .Encrypt(secretUpPlano, claveFirma);
+    }
 
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -915,6 +971,13 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
         c.DefaultModelsExpandDepth(-1);
         c.DocExpansion(DocExpansion.List);
         c.InjectStylesheet("/swagger-ui/dark.css");
+
+        if (firmaPlataforma is not null)
+        {
+            // Base64: no lleva comillas, así que no puede romper el literal de JS.
+            c.UseRequestInterceptor(
+                $"(req) => {{ req.headers['X-Secret-Up'] = '{firmaPlataforma}'; return req; }}");
+        }
     });
 }
 
@@ -1042,6 +1105,14 @@ if (runMigrations || runSeed)
     await app.MigrateAndSeedAsync(runMigrations, runSeed);
 }
 app.Run();
+
+
+/// <summary>
+/// Credenciales para <c>POST /swagger/token</c>, el atajo de pruebas de la UI de Swagger.
+/// En texto plano porque el punto es justamente poder llamarlo a mano: el login real
+/// (<c>POST /api/Auth/login</c>) recibe el cuerpo cifrado y no se puede escribir desde ahí.
+/// </summary>
+public record SwaggerTokenRequest(string Email, string Password);
 
 
 // ─────────────────────────────────────

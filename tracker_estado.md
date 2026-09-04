@@ -6786,6 +6786,13 @@ aparecieron dos bloqueantes que hay que cerrar ANTES de limitar a Sanmarino.
 - [ ] S4.5 Smoke funcional: `POST /swagger/token` devuelve JWT y un GET real responde 200
       (no 401 platform-secret).
 - [ ] S4.6 Backend local apagado y puerto :5002 libre al terminar.
+- [!] **S4 BLOQUEADA por el entorno, no por el codigo (4-sep-2026).** Ningun `dotnet build` de esta
+      maquina termina: cuatro builds concurrentes (tres de otras sesiones) quedaron trabados con la
+      CPU congelada en ~54 s y 6 MB de RSS durante 20+ min. Se descarto que fuera el repo: un
+      `dotnet new console` + `dotnet build` en un proyecto vacio del scratchpad tambien se colgo
+      (exit 124). Probado con `--artifacts-path` aislado, `--no-restore` y `-m:1`: igual.
+      ⇒ El codigo de S1-S3 esta commiteado **sin la compuerta de build/test**. Rehacer S4 completa
+      cuando la maquina compile de nuevo (matar los dotnet colgados antes).
 
 ---
 

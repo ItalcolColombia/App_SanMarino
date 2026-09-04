@@ -38,6 +38,17 @@ public class RateLimitingCalculosTests
     public void EsRutaSync_OtrasRutas_False(string path) =>
         Assert.False(RateLimitingCalculos.EsRutaSync(path));
 
+    [Fact]
+    public void ElTokenDePruebasDeSwagger_cuentaComoAuth_noComoSwagger()
+    {
+        // Valida credenciales de usuario igual que el login. Con el límite de Swagger tendría 50
+        // intentos por minuto en vez de 15: el atajo de pruebas sería el camino más flojo para
+        // adivinar una contraseña.
+        Assert.True(RateLimitingCalculos.EsRutaAuth("/swagger/token"));
+        Assert.Equal(15, RateLimitingCalculos.LimiteParaRuta("/swagger/token", 100, 15, 50, 300));
+        Assert.Equal(AlcanceRateLimit.Auth, RateLimitingCalculos.AlcanceDeRuta("/swagger/token"));
+    }
+
     [Theory]
     [InlineData("/api/auth/login", 15)]     // auth
     [InlineData("/api/auth/register", 15)]  // auth

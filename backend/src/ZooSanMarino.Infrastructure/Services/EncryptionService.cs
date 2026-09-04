@@ -95,9 +95,11 @@ public class EncryptionService
     }
 
     /// <summary>
-    /// Encripta un string usando AES-256-CBC
+    /// Encripta un string usando AES-256-CBC con una llave específica.
+    /// Simétrico con <see cref="Decrypt"/>, que ya era público: lo usa la UI de Swagger para
+    /// firmar sus propias peticiones con el SECRET_UP y poder ejecutar "Try it out".
     /// </summary>
-    private string Encrypt(string plaintext, string keyString)
+    public string Encrypt(string plaintext, string keyString)
     {
         using (var aes = Aes.Create())
         {

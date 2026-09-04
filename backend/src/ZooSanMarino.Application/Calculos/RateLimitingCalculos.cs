@@ -29,9 +29,18 @@ public static class RateLimitingCalculos
     /// <summary>Cabecera con la que un dispositivo se identifica al sincronizar.</summary>
     public const string DeviceIdHeader = "X-Device-Id";
 
-    /// <summary>Rutas de autenticación pública (login/registro). Se evalúa sobre el path en minúsculas.</summary>
+    /// <summary>
+    /// Rutas de autenticación pública (login/registro). Se evalúa sobre el path en minúsculas.
+    ///
+    /// <para>
+    /// <c>/swagger/token</c> entra acá aunque viva bajo <c>/swagger</c>: valida credenciales de
+    /// usuario igual que el login. Clasificado como Swagger tendría 50 intentos por minuto en vez de
+    /// 15 — o sea, el atajo de pruebas sería el camino más flojo para adivinar una contraseña.
+    /// El orden de <see cref="LimiteParaRuta"/> ya lo garantiza: auth se evalúa antes que Swagger.
+    /// </para>
+    /// </summary>
     public static bool EsRutaAuth(string path) =>
-        path.Contains("/auth/login") || path.Contains("/auth/register");
+        path.Contains("/auth/login") || path.Contains("/auth/register") || path == "/swagger/token";
 
     public static bool EsRutaSwagger(string path) =>
         path.StartsWith("/swagger") || path.StartsWith("/swagger-ui");
