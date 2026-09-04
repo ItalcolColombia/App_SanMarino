@@ -6777,22 +6777,37 @@ aparecieron dos bloqueantes que hay que cerrar ANTES de limitar a Sanmarino.
 
 ## S4 - Validacion
 
-- [ ] S4.1 `dotnet build` 0 errores / sin advertencias nuevas.
-- [ ] S4.2 `dotnet test` verde (incluye los casos nuevos).
-- [ ] S4.3 Smoke HTTP en :5002: sin cookie ⇒ formulario; `swagger.json` bloqueado; contrasena mala
-      ⇒ vuelve; contrasena buena ⇒ 302 + cookie; `error=` con etiquetas ⇒ escapado.
-- [ ] S4.4 Smoke del contrato: el `swagger.json` trae las 3 cabeceras de empresa y las descripciones
-      de los XML comments.
-- [ ] S4.5 Smoke funcional: `POST /swagger/token` devuelve JWT y un GET real responde 200
-      (no 401 platform-secret).
-- [ ] S4.6 Backend local apagado y puerto :5002 libre al terminar.
-- [!] **S4 BLOQUEADA por el entorno, no por el codigo (4-sep-2026).** Ningun `dotnet build` de esta
-      maquina termina: cuatro builds concurrentes (tres de otras sesiones) quedaron trabados con la
-      CPU congelada en ~54 s y 6 MB de RSS durante 20+ min. Se descarto que fuera el repo: un
-      `dotnet new console` + `dotnet build` en un proyecto vacio del scratchpad tambien se colgo
-      (exit 124). Probado con `--artifacts-path` aislado, `--no-restore` y `-m:1`: igual.
-      ⇒ El codigo de S1-S3 esta commiteado **sin la compuerta de build/test**. Rehacer S4 completa
-      cuando la maquina compile de nuevo (matar los dotnet colgados antes).
+- [x] S4.1 `dotnet build` de la solucion: **0 errores, 0 advertencias**. El XML de doc encendia 11
+      CS1573 nuevas (doc-comments preexistentes sin `<param name="ct">`) ⇒ `NoWarn` 1573 junto a 1591.
+- [x] S4.2 `dotnet test`: **3898 verdes, 0 fallas**; 91 en los dos modulos tocados.
+- [x] S4.3 Smoke HTTP en :5002: sin cookie ⇒ formulario; `swagger.json` bloqueado; contrasena mala
+      ⇒ 302 de vuelta sin cookie; correcta ⇒ 302 + cookie; `error=` con etiquetas ⇒ sale `&lt;img`.
+- [x] S4.4 Contrato: `openapi 3.0.4`, **698 rutas**; **844 de 844** operaciones `/api/*` con las 3
+      cabeceras de empresa; **572** operaciones con summary/description (los XML comments llegaron).
+- [x] S4.5 Funcional: sin firma `GET /api/Company` ⇒ 401 `X-Auth-Failure: platform-secret`; con la
+      firma que inyecta la UI ⇒ 401 `WWW-Authenticate: Bearer`, o sea **paso el gate de plataforma**.
+      `POST /swagger/token`: sin cookie ⇒ formulario; sin campos ⇒ 400; credenciales malas ⇒ 401
+      "Credenciales invalidas"; `X-RateLimit-Limit: 15` (auth, no los 50 de Swagger).
+- [x] S4.6 Backend apagado y :5002 libre.
+
+## S5 - Dos bugs PREVIOS que el smoke destapo (la puerta nunca habia funcionado)
+
+- [x] S5.1 **Nadie podia entrar a Swagger.** `POST /swagger/login` devolvia **401
+      `WWW-Authenticate: Bearer`**: el `FallbackPolicy = RequireAuthenticatedUser` (commit `025ec85`,
+      hardening de login) alcanza a los minimal APIs, y los 3 endpoints bajo `/swagger` no tenian
+      `.AllowAnonymous()`. Se veia la pantalla de login y la contrasena correcta fallaba igual que la
+      incorrecta. Pedir JWT para entrar a la documentacion ademas es un circulo: el token se saca
+      desde adentro. ⇒ `.AllowAnonymous()` en los 4 endpoints de `/swagger`.
+- [x] S5.2 **El `swagger.json` nunca se genero.** `ItemInventarioController.CargaMasivaExcel` usaba
+      `[FromForm] IFormFile`; Swashbuckle lo rechaza en `GenerateParametersAsync` —antes de correr
+      ningun operation filter— y **aborta el documento entero**: un solo parametro dejaba toda la API
+      en 500. Quitado el `[FromForm]`; el binding no cambia (ASP.NET liga `IFormFile` del multipart
+      igual) y el `[Consumes("multipart/form-data")]` ya declaraba el contenido.
+- [x] S5.3 **500 con la contrasena incorrecta.** El `Redirect("...?error=Contraseña incorrecta")`
+      mete una ñ en un header y Kestrel rechaza bytes fuera de ASCII. Escapado con
+      `Uri.EscapeDataString`. Nunca se habia visto porque S5.1 cortaba antes.
+- [i] Los tres son **anteriores a este trabajo** y se tapaban entre si: S5.1 impedia llegar a S5.3, y
+      con S5.1 vivo nadie llegaba a ver S5.2. Se destaparon en cadena al arreglar el primero.
 
 ---
 

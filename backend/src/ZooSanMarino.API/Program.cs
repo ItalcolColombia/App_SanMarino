@@ -872,7 +872,13 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
 .swagger-ui .response-control-media-type__accept-message { color:#9ca3af; }
 .swagger-ui .opblock-tag { background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:8px 12px; }
 """;
+    // .AllowAnonymous() en TODO endpoint bajo /swagger: hay un FallbackPolicy que exige sesion a
+    // cualquier endpoint sin el atributo (Program.cs, bloque 11). Sin esto el POST del formulario
+    // devolvia 401 y NADIE podia entrar a Swagger — se veia la pantalla de login y la contrasena
+    // correcta fallaba igual que la incorrecta. La puerta la hace la contrasena, no el JWT: pedir
+    // token para entrar a la documentacion es un circulo (el token se saca desde adentro).
     app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"))
+       .AllowAnonymous()
        .ExcludeFromDescription();
 
     app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config) =>
@@ -892,8 +898,11 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
             return;
         }
 
-        context.Response.Redirect("/swagger?error=Contraseña incorrecta");
+        // Escapado: la ñ no es ASCII y Kestrel rechaza un header con bytes fuera de ese rango, así
+        // que el redirect crudo tiraba 500. El middleware lee Request.Query, que ya viene decodificado.
+        context.Response.Redirect("/swagger?error=" + Uri.EscapeDataString("Contraseña incorrecta"));
     })
+    .AllowAnonymous()
     .ExcludeFromDescription();
 
     // Token para probar desde Swagger. POST /api/Auth/login recibe el cuerpo CIFRADO por el front,
@@ -918,6 +927,7 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
             return Results.Json(new { message = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
         }
     })
+    .AllowAnonymous()
     .WithTags("00 · Pruebas (solo desarrollo)")
     .WithSummary("Token de prueba (email/password en texto plano)")
     .WithDescription(
@@ -937,6 +947,7 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
         var bytes = Encoding.UTF8.GetBytes(sw.ToString());
         return Results.File(bytes, "application/json", "swagger-v1.json");
     })
+    .AllowAnonymous()
     .ExcludeFromDescription();
 
     // 🔑 Firma de plataforma para el "Try it out".

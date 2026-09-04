@@ -101,7 +101,11 @@ public class ItemInventarioController : ControllerBase
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ItemInventarioCargaMasivaResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CargaMasivaExcel([FromForm] IFormFile file, CancellationToken ct = default)
+    // Sin [FromForm]: Swashbuckle rechaza combinarlo con IFormFile y ABORTA la generación del
+    // documento entero — un solo parámetro dejaba el swagger.json en 500 para toda la API. El
+    // binding no cambia: ASP.NET Core liga IFormFile desde el multipart igual sin el atributo, y
+    // el [Consumes("multipart/form-data")] de arriba ya declara el contenido.
+    public async Task<IActionResult> CargaMasivaExcel(IFormFile file, CancellationToken ct = default)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Debe adjuntar un archivo Excel (.xlsx)." });
