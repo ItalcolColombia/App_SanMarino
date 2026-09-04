@@ -6605,3 +6605,184 @@ el detalle no aparece la informacion en el detalle con la que se creo la granja"
       contra `:5002` (sesión temporal en `sesiones_activas`, borrada al terminar) sobre
       `GET /api/Farm/83` y `GET /api/Farm/search`: los 3 nombres llegan correctos en ambos
       endpoints, incluida la granja con el `regionalId` de lista maestra.
+
+---
+
+## 🔐 Soporte Sanmarino + separación del administrador global (4-sep-2026)
+
+Plan: [`fase_de_desarrollo/soporte_sanmarino_y_admin_global_plan.md`](fase_de_desarrollo/soporte_sanmarino_y_admin_global_plan.md)
+
+Pedido: un encargado de soporte **solo para Agroavicola Sanmarino**, que no vea lo del
+administrador global; y limpiar los módulos que «no van a la causa» en Sanmarino.
+
+**Veredicto:** NO se crea una «empresa administrador». El eje global ya existe fuera de
+`companies` (`users.is_super_admin` + rol de aplicación por nombre exacto). Al validarlo
+aparecieron dos bloqueantes que hay que cerrar ANTES de limitar a Sanmarino.
+
+### F1 · Cerrar la escritura del módulo Empresas
+
+- [i] **Hallazgo bloqueante.** `CompanyController` no tiene **ni un `[Authorize]`**: solo lo cubre
+      la `FallbackPolicy` (= token válido). Cualquier sesión autenticada puede hoy crear, editar y
+      borrar empresas, y hacer `PUT /api/Company/{id}/menus` y `/permissions` sobre **cualquier**
+      empresa — o sea, reasignarse módulos a sí misma. Mismo agujero que tenía `PermissionController`
+      antes del 15-ago. Esconder el ítem de menú sin esto sería teatro.
+- [x] F1.1 `Application/Calculos/AdministracionEmpresasAutorizacionCalculos.cs` (puro): super admin
+      **o** rol de aplicación (`admin`/`administrador`, comparación exacta). Fail-closed.
+- [x] F1.2 Tests xUnit (8 casos): incluyen la frontera del substring (`Admin Panama`, `Santa Reyes
+      Administrador`, `ADMINISTRADOR DE GRANJA` ⇒ false).
+- [x] F1.3 Policy `AdminEmpresas` en `Program.cs` (claim `is_super_admin` + claims de rol).
+- [x] F1.4 `[Authorize(Policy = "AdminEmpresas")]` en las 6 escrituras de `CompanyController`.
+      ⛔ Las LECTURAS quedan abiertas: `GET /api/Company/global` **lo usa el filtro de tickets**
+      (`ticket-filtros.component.ts:101`) y cerrarlo lo rompe para todos.
+
+### F2 · Bypass de super admin en `fn_menu_usuario`
+
+- [i] **Segundo bloqueante.** La fn arma el menú del super admin con `company_menus` igual que el de
+      todos, y `/config/companies` + `/config/db-studio` están habilitados en **una sola empresa:
+      Sanmarino**. Quitárselos deja al super admin sin el módulo Empresas en TODA la app, sin ruta
+      de vuelta por la UI (para rehabilitarlo hay que entrar al menú que se quitó). El fail-open D2
+      no cubre este caso: aplica a la empresa sin ninguna fila, y las cinco tienen.
+- [x] F2.1 `MenuVisibilidadCalculos` (D5) + 3 tests nuevos: super admin saltea el gate de `company_menus`;
+      `role_menus` / `is_active` / `menu_permissions` intactos.
+- [x] F2.2 Espejo `backend/sql/fn_menu_usuario.sql` + migración `FnMenuUsuarioSuperAdmin` **con su
+      `.Designer.cs`** (sin Designer, EF no la ve y nunca se aplica).
+- [x] F2.3 Verificador propio `backend/sql/verificar_menu_super_admin_bypass.sql` (patrón congela /
+      compara). **Línea base tomada antes del cambio: 867 pares (usuario, empresa, menú).**
+- [x] F2.4 **Probado contra datos reales en transacción reversible**: apagados Empresas y db_studio
+      en Sanmarino, el super admin los SIGUE viendo (49 menús) y un usuario común de Sanmarino no los
+      ve ni antes ni después (13 menús). Con la fn vieja el super admin quedaba en `ve_empresas = 0`
+      — el lockout, confirmado.
+
+### F3 · Rol «Soporte Sanmarino»
+
+- [x] F3.1 Migración data-only idempotente (lookups por `companies.name` / `menus.route` /
+      `permissions.key`, nunca por id). ⚠️ El nombre del rol **no puede ser `Admin` ni
+      `Administrador`**: esos strings son la llave de los catálogos globales.
+- [x] F3.2 `role_menus` (18 rutas): Usuarios, Roles y permisos, Tickets (Mis solicitudes + Bandeja de gestión)
+      y lo operativo de Sanmarino. ⛔ Sin `/config/companies`, `/config/db-studio`,
+      `/config/countries`, `/config/master-lists`.
+- [x] F3.3 `role_permissions`: `usuarios.gestionar`, `usuarios.revocar_sesion`, `tickets.crear`,
+      `tickets.gestionar`. ⛔ Sin `tickets.admin` (es «todos los países»). Los 4 están habilitados
+      en `company_permissions` de Sanmarino ⇒ los 4 llegan a la sesión.
+- [x] F3.5 **Probado en transacción reversible**: rol creado con su empresa, 18 menús, 4 permisos, e
+      **idempotente** (segunda corrida no duplica nada).
+- [~] F3.4 Alta del usuario y asignación del rol: se hace desde Configuración → Usuarios (no hay
+      identidad definida todavía).
+
+### F4 · Limpiar `company_menus` de Sanmarino (49 de 68 menús)
+
+- [x] F4.1 **Decisión del usuario: limpieza completa (los 17).** Impacto medido antes de decidir — apagar un menú se lo saca a TODOS los
+      usuarios de Sanmarino, no solo al soporte. Depende de F2 para no provocar el lockout.
+- [x] F4.2 Migración `AcotaMenusSanmarino`, data-only e idempotente. **Apaga 20** (16 hojas + los 4
+      grupos que quedan vacíos: ItalJira, Implementación, Mapas, Vacunación); Sanmarino pasa de
+      **49 a 29** menús, en línea con Demo (27), Ecuador (25), Santa Reyes (24) y Panamá (23).
+      Los grupos NO se nombran por `label` —un acento mal leído volvería el UPDATE un no-op
+      silencioso—: se deducen de sus hijos, con un criterio que da el mismo conjunto en Up y Down.
+- [i] 🔴 **Colisión entre las dos decisiones del usuario, resuelta.** `/tickets/gestion` estaba en
+      la limpieza completa, pero el menú efectivo es `role_menus ∩ company_menus`: apagarlo en la
+      empresa dejaba al rol «Soporte Sanmarino» —creado en F3 justamente para atender esa bandeja—
+      sin poder verla. Se **sacó de F4**: es la única combinación que cumple las dos decisiones. El
+      rol `Sistemas sanmarino`, que también la tiene, la conserva; sacársela a él es tocar su
+      `role_menus`, no `company_menus`.
+- [x] F4.3 **Probado en transacción reversible**: Up apaga 20 · la bandeja sigue habilitada ·
+      **idempotencia** (2ª corrida = 0 filas) · **Down revierte exacto** (vuelve a 49, 0 apagados).
+
+### Validación
+
+- [x] F5.1 **`dotnet build` EXIT=0, los 6 proyectos, 0 errores** (warnings: solo `CS1573` de doc XML
+      preexistentes, en archivos que no se tocaron) + **`dotnet test` 3841/3841 verdes, 0 fallas**.
+- [x] F5.2 **Las 3 migraciones aplicadas a la BD local** con `dotnet-ef 10` (tool-path). Estado final
+      medido: Sanmarino **29** menús (Demo 27 · Ecuador 25 · Santa Reyes 24 · Panamá 23) — deja de
+      ser la excepción; rol `Soporte Sanmarino` id 37 con 18 menús y 4 permisos, 0 usuarios (se
+      asigna a mano); **super admin en Sanmarino: 49 menús, conserva Empresas, db_studio y bandeja**.
+- [x] F5.3 **Verificador de paridad, segunda corrida contra la línea base de 867 filas**:
+      · **Invariante 2 (D5) perfecto**: el super admin **no perdió ni un menú** y no ganó ninguno
+        que su rol no le diera.
+      · **Cero menús GANADOS por no-super-admins** — el invariante crítico: D5 no se filtró a nadie.
+      · Invariante 1: **5 filas, todas PERDIDO, y son exactamente el efecto declarado de F4** — 1
+        usuario perdió Geografía (rol `Sistemas sanmarino`) y 1 perdió Backlog/Roadmap/Panel + el
+        grupo ItalJira (rol `Lider Demanda & Delivery`); los dos predichos antes de decidir. La
+        Bandeja de gestión NO aparece: la corrección de la colisión funcionó.
+- [x] F5.4 Gate del `.sql` que corta el CI (`verificar-sql-llega-por-migracion.js`) en verde.
+- [x] F5.5 Sin procesos huérfanos: puertos `:5002`/`:5501` libres, tabla de línea base del
+      verificador borrada de la BD local.
+- [~] F5.6 **Paso manual pendiente tuyo**: crear el usuario del encargado de soporte en
+      Configuración → Usuarios y asignarle el rol `Soporte Sanmarino` con empresa Agroavicola
+      Sanmarino. Los permisos viajan en la sesión ⇒ necesita re-login para verlos.
+
+### Hallazgos colaterales (registrados, fuera de alcance)
+
+- [i] **8 asignaciones de permiso huérfanas en Sanmarino**: `seguimiento_levante.validar` y
+      `seguimiento_produccion.validar` están en los roles `Admin`, `Colombia Administrativa` e
+      `Implementador Sanmarino Colombia` pero **no existen en `company_permissions` de Sanmarino**
+      ⇒ fail-closed los deja fuera de la sesión. Si en Sanmarino «no se puede validar el
+      seguimiento», la causa está acá. Ídem `vacunacion.plantillas.{ver,administrar}` en `Admin`.
+- [i] `GET /api/Company/debug` devuelve **todos los headers** de la request (incluido
+      `Authorization`). Marcado «temporal» en su propio doc-comment. Candidato a borrar.
+
+---
+
+# Swagger: puerta de acceso, filtros de empresa y banco de pruebas
+
+> Plan: [swagger_acceso_y_pruebas_plan.md](fase_de_desarrollo/swagger_acceso_y_pruebas_plan.md)
+> Auditoria + correccion del acceso a Swagger. **No toca contratos de API ni el front.**
+
+## S0 - Auditoria (hecha)
+
+- [x] S0.1 Leidos `Program.cs` (bloques 12 y 14.1-14.4), `SwaggerPasswordMiddleware`,
+      `PlatformSecretMiddleware`, `ActiveCompanyMiddleware`, `HttpCurrentUser`, el `.csproj`,
+      `appsettings*.json` y los 94 controllers.
+- [x] S0.2 **Hallazgo bloqueante B1**: `X-Secret-Up` es obligatorio en todo `/api/*` y Swagger UI
+      no lo mandaba ⇒ **todo Try it out daba 401** `platform-secret`.
+- [x] S0.3 **Hallazgo bloqueante B2**: `POST /api/Auth/login` recibe el cuerpo CIFRADO ⇒ desde
+      Swagger no habia forma de obtener un JWT; el boton Authorize no tenia que pegar.
+- [x] S0.4 **Hallazgo C1**: las 3 cabeceras de empresa (`X-Active-Company`, `-Id`, `X-Active-Pais`)
+      **no estaban en el swagger.json** ⇒ el escenario multiempresa no se podia probar desde la UI.
+- [x] S0.5 **Hallazgo D1**: `GenerateDocumentationFile` ausente + `IncludeXmlComments` comentado ⇒
+      79 de 94 controllers tienen `/// <summary>` y **ninguno se veia**.
+- [x] S0.6 **Hallazgo A1**: XSS reflejado en la pagina de login (el `error=` se interpolaba crudo).
+- [x] S0.7 **Hallazgos A2-A5**: contrasena hardcodeada de respaldo en 2 archivos, comparacion no
+      constante en tiempo, hash de la cookie duplicado, y vigencia en una cookie que el cliente
+      reescribe (el timeout de 6 min no vencia nunca).
+- [i] Contexto que baja la severidad de A1-A5: el bloque Swagger vive dentro de
+      `if (!app.Environment.IsProduction())` y el Dockerfile fija `ASPNETCORE_ENVIRONMENT=Production`
+      ⇒ **en produccion no hay /swagger**. La puerta protege dev/local.
+
+## S1 - La puerta: decision pura + tests
+
+- [x] S1.1 `Application/Calculos/SwaggerAccesoCalculos.cs` (puro): rutas protegidas/exentas,
+      comparacion en tiempo fijo, cookie firmada con el vencimiento adentro, fail-closed sin config.
+- [x] S1.2 `tests/.../SwaggerAccesoCalculosTests.cs` (24 casos): incluye que el vencimiento firmado
+      no se puede estirar desde el cliente y que sin contrasena configurada no entra nadie.
+- [x] S1.3 `SwaggerPasswordMiddleware` delega en el calculo puro + `HtmlEncode` del error (cierra A1).
+- [x] S1.4 `POST /swagger/login` de `Program.cs` usa las MISMAS funciones (cierra A3 y A4).
+
+## S2 - Filtros de empresa en el contrato
+
+- [x] S2.1 `Infrastructure/EmpresaActivaHeadersOperationFilter.cs`: declara las 3 cabeceras como
+      parametros opcionales en toda operacion `/api/*`, con su descripcion.
+- [x] S2.2 Registrado en `AddSwaggerGen`. ⛔ El comportamiento del backend NO cambia: siguen siendo
+      opcionales y `ActiveCompanyMiddleware` sigue fail-closed.
+
+## S3 - Documentacion y banco de pruebas
+
+- [x] S3.1 `.csproj`: `GenerateDocumentationFile` + `NoWarn 1591`; `IncludeXmlComments` activado.
+- [x] S3.2 Descripcion del documento con el instructivo de prueba (token -> Authorize -> Try it out)
+      y la explicacion del alcance por empresa.
+- [x] S3.3 `POST /swagger/token`: JWT desde email/password en texto plano. Fuera de `/api`, solo
+      fuera de Production, detras de la contrasena de Swagger. Valida igual que el login real.
+- [x] S3.4 `UseRequestInterceptor` inyecta `X-Secret-Up` cifrado ⇒ Try it out ejecuta de verdad.
+      `EncryptionService.Encrypt` pasa a public (simetrico con `Decrypt`).
+- [x] S3.5 `/swagger-ui/dark.css`, `/swagger/login` y `/swagger/download` fuera del documento.
+
+## S4 - Validacion
+
+- [ ] S4.1 `dotnet build` 0 errores / sin advertencias nuevas.
+- [ ] S4.2 `dotnet test` verde (incluye los casos nuevos).
+- [ ] S4.3 Smoke HTTP en :5002: sin cookie ⇒ formulario; `swagger.json` bloqueado; contrasena mala
+      ⇒ vuelve; contrasena buena ⇒ 302 + cookie; `error=` con etiquetas ⇒ escapado.
+- [ ] S4.4 Smoke del contrato: el `swagger.json` trae las 3 cabeceras de empresa y las descripciones
+      de los XML comments.
+- [ ] S4.5 Smoke funcional: `POST /swagger/token` devuelve JWT y un GET real responde 200
+      (no 401 platform-secret).
+- [ ] S4.6 Backend local apagado y puerto :5002 libre al terminar.

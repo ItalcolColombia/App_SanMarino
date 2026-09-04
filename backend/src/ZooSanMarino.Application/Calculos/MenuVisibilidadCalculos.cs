@@ -39,6 +39,10 @@ public sealed record MenuPlano(
 ///         submenú entero desaparece.</item>
 ///   <item><b>D4</b> — el orden sale de <c>menus."order"</c>, nunca de
 ///         <c>company_menus.sort_order</c>. Empate de <c>order</c> ⇒ desempata el <c>id</c>.</item>
+///   <item><b>D5</b> — el gate de empresa <b>no aplica al super admin</b>. Es el único que se para
+///         en cualquier empresa, y los ítems que administran el sistema entero viven habilitados en
+///         una sola: sin esta excepción, limpiarle los menús a esa empresa lo encierra fuera de la
+///         pantalla que sirve para revertirlo. Ver <see cref="EmpresaFiltra"/>.</item>
 /// </list>
 /// </summary>
 public static class MenuVisibilidadCalculos
@@ -58,12 +62,32 @@ public static class MenuVisibilidadCalculos
     public static readonly StringComparer ComparadorKeys = StringComparer.OrdinalIgnoreCase;
 
     /// <summary>
-    /// D2 — ¿el gate por empresa está activo? Sólo si hay una empresa Y alguien la configuró.
+    /// D2 — ¿el gate por empresa está activo? Sólo si hay una empresa Y alguien la configuró, y el
+    /// usuario no es super admin (D5).
     /// </summary>
     /// <param name="companyId">Empresa efectiva; <c>null</c> = consulta sin empresa (administración).</param>
     /// <param name="filasEnCompanyMenus">Cuántas filas tiene la empresa en <c>company_menus</c>.</param>
-    public static bool EmpresaFiltra(int? companyId, int filasEnCompanyMenus) =>
-        companyId is not null && filasEnCompanyMenus > 0;
+    /// <param name="esSuperAdmin">
+    /// Marca <c>users.is_super_admin</c>. <b>D5</b>: al super admin no se le aplica el gate de
+    /// empresa. El resto del cálculo no cambia — sigue viendo sólo lo que le dan sus
+    /// <c>role_menus</c>, dentro de <c>menus.is_active</c> y pasando <c>menu_permissions</c>.
+    ///
+    /// <para>
+    /// <b>Por qué</b>: el super admin es el único que puede pararse en cualquier empresa, y su menú
+    /// se armaba con el <c>company_menus</c> de la empresa activa como el de cualquiera. Los ítems
+    /// que administran el sistema entero —Empresas y db_studio— están habilitados en <b>una sola
+    /// empresa</b>, así que quitárselos a esa empresa lo dejaba sin el módulo Empresas en TODA la
+    /// app y sin ruta de vuelta por la UI: para rehabilitarlo hay que entrar a
+    /// Configuración → Empresas → Menús, que es justo el menú que desapareció. El fail-open de D2 no
+    /// cubre el caso, porque aplica a la empresa sin ninguna fila y todas tienen.
+    /// </para>
+    ///
+    /// <para>
+    /// Por defecto <c>false</c>: sin la marca, el resultado es <b>idéntico</b> al previo.
+    /// </para>
+    /// </param>
+    public static bool EmpresaFiltra(int? companyId, int filasEnCompanyMenus, bool esSuperAdmin = false) =>
+        !esSuperAdmin && companyId is not null && filasEnCompanyMenus > 0;
 
     /// <summary>
     /// Los ítems que el usuario ve, planos y ordenados, listos para <see cref="ConstruirArbol"/>.

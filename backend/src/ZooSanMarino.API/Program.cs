@@ -570,6 +570,20 @@ builder.Services.AddAuthorization(opt =>
     opt.AddPolicy("AdminAplicacion", p => p.RequireAssertion(ctx =>
         CatalogoGlobalAutorizacionCalculos.PuedeEscribirCatalogoGlobal(
             ctx.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))));
+
+    // ESCRITURA sobre las EMPRESAS: crearlas, editarlas, borrarlas y decidir qué menús y permisos
+    // tiene cada una. Hasta el 4-sep-2026 CompanyController no tenía un solo [Authorize], así que
+    // cualquier sesión válida podía hacer PUT /api/Company/{id}/menus sobre CUALQUIER empresa — o
+    // sea, reasignarse módulos a sí misma o tocar los de otro país.
+    // Dos ejes: el DATO (users.is_super_admin, que viaja como claim) o el rol de administrador de
+    // la aplicación. Las LECTURAS quedan abiertas a propósito: GET /api/Company alimenta el selector
+    // de empresa activa y GET /api/Company/global alimenta el filtro del módulo de Tickets.
+    // La regla vive en Application/Calculos (pura y con tests), no acá.
+    opt.AddPolicy("AdminEmpresas", p => p.RequireAssertion(ctx =>
+        AdministracionEmpresasAutorizacionCalculos.PuedeAdministrarEmpresas(
+            AdministracionEmpresasAutorizacionCalculos.LeerMarcaSuperAdmin(
+                ctx.User.FindFirst("is_super_admin")?.Value),
+            ctx.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))));
 });
 
 // ─────────────────────────────────────
