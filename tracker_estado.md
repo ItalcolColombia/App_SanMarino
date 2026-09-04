@@ -6934,3 +6934,46 @@ tope de 1 día. Sin DDL, sin migración: es presentación del front.
 - [x] N4.3 **Smoke visual del lote `LR-0023649715`** con sus datos reales sobre el front local: la
       fila del **31/08 dice «día 1»**, 01/09 «día 2» y 02/09 «día 3». Dev server y Chrome headless
       apagados; puertos 4200/9344/5002 libres.
+
+---
+
+# Santa Reyes no puede crear tickets — perfil de atención vacío
+
+Plan: [perfil_atencion_tickets_santa_reyes_plan.md](fase_de_desarrollo/perfil_atencion_tickets_santa_reyes_plan.md)
+
+Reporte 04sep26: «Santa Reyes no deja crear el ticket para asignarlo a desarrollo». **No es permiso,
+ni menú, ni rol** — los tres ya estaban. La empresa no tiene **una sola fila** en
+`ticket_resolutor_rol` ni en `ticket_resolutores`, y `GetTiposPermitidosAsync` **oculta todo tipo sin
+resolutor** ⇒ el `<select>` de Tipo queda vacío y el form, que lo pide `required`, no se puede
+enviar. Causa de fondo: `CompanyService.CreateAsync` siembra `company_permissions` pero **no** la
+fila del rol global `Admin → DESARROLLO` que las otras 4 empresas sí tienen ⇒ toda empresa nueva nace
+sin vía de escalamiento a desarrollo.
+
+## T1 · Cálculo puro + tests
+
+- [ ] T1.1 `Application/Calculos/TicketPerfilAtencionSiembraCalculos.cs`: qué rol es el resolutor
+      global (nombre EXACTO `admin`/`administrador`, nunca substring) y qué filas le faltan a una
+      empresa.
+- [ ] T1.2 `TicketPerfilAtencionSiembraCalculosTests.cs` (8 casos): `Admin Panama` /
+      `Santa Reyes Administrador` NO son el rol global; sin rol global ⇒ 0 filas (fail-closed); no
+      duplica lo ya sembrado; null/vacío/blanco no lanzan.
+
+## T2 · Migración data-only para Santa Reyes
+
+- [ ] T2.1 `20260904170000_SeedPerfilAtencionTicketsSantaReyes` (+ Designer): `Admin` → DESARROLLO,
+      REQUERIMIENTO · `Santa Reyes Implementador` → los 4 tipos. `pais_id = NULL`, localizado por
+      `companies.identifier` + `roles.name`.
+- [ ] T2.2 Idempotente por `NOT EXISTS` con `pais_id IS NULL` explícito (el índice único **no**
+      protege: dos NULL no chocan en Postgres) + `UPDATE activo = true` (fila apagada = ausente).
+
+## T3 · La empresa nueva nace con el resolutor global
+
+- [ ] T3.1 `CompanyService.PerfilAtencionTickets.cs` (partial nuevo) + una línea en `CreateAsync`.
+      Sólo siembra si la empresa está vacía, mismo criterio que `SembrarCatalogoCompletoSiVaciaAsync`.
+
+## T4 · Validación
+
+- [ ] T4.1 `dotnet build` 0 errores · `dotnet test` verde.
+- [ ] T4.2 En transacción revertida contra la copia de producción: Santa Reyes 0 → 6 filas; las otras
+      4 empresas **14 → 14 idénticas**; `Up` dos veces sigue en 6; los asignables de DESARROLLO
+      pasan de vacío a 2.
