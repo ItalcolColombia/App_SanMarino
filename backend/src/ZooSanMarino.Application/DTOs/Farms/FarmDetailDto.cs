@@ -17,6 +17,12 @@ public sealed record FarmDetailDto(
     int        GalponesCount,
     int        LotesCount,
     // ────────────────────────────────────────────────────────────────
+    // Nombres resueltos de ubicación (el listado ya los traía; el detalle no)
+    // ────────────────────────────────────────────────────────────────
+    string?    DepartamentoNombre = null,
+    string?    CiudadNombre       = null,
+    string?    RegionalNombre     = null,
+    // ────────────────────────────────────────────────────────────────
     // NUEVOS CAMPOS (Panamá): cliente, zona, certificación GAB y geo
     // ────────────────────────────────────────────────────────────────
     int?       ClienteId       = null,

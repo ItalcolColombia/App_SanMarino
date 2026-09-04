@@ -137,6 +137,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+            items = await ResolverRegionalesFaltantesAsync(items);
 
             return new CommonDtos.PagedResult<FarmDetailDto>
             {
@@ -158,7 +159,36 @@ namespace ZooSanMarino.Infrastructure.Services
                          && f.Id == id
                          && f.DeletedAt == null);
 
-            return await ProjectToDetail(q).SingleOrDefaultAsync();
+            var item = await ProjectToDetail(q).SingleOrDefaultAsync();
+            if (item is null) return null;
+
+            var resueltos = await ResolverRegionalesFaltantesAsync(new List<FarmDetailDto> { item });
+            return resueltos[0];
+        }
+
+        /// <summary>
+        /// Igual que <see cref="ToFarmDtoListAsync"/>: cuando `RegionalId` no matchea ninguna fila de
+        /// `Regionales` (empresas que lo cargaron como id de lista maestra en vez de regional real),
+        /// resuelve el nombre desde `MasterListOptions`.
+        /// </summary>
+        private async Task<List<FarmDetailDto>> ResolverRegionalesFaltantesAsync(List<FarmDetailDto> items)
+        {
+            var idsSinNombre = items.Where(x => x.RegionalNombre == null && x.RegionalId.HasValue)
+                .Select(x => x.RegionalId!.Value).Distinct().ToList();
+            if (idsSinNombre.Count == 0) return items;
+
+            var nombresOpcion = await _ctx.MasterListOptions
+                .AsNoTracking()
+                .Where(o => idsSinNombre.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.Value ?? "");
+
+            return items.Select(f =>
+            {
+                if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
+                if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
+                    return f with { RegionalNombre = nombre };
+                return f;
+            }).ToList();
         }
 
         // ======================================================
@@ -1026,7 +1056,7 @@ namespace ZooSanMarino.Infrastructure.Services
             return c;
         }
 
-        private static IQueryable<FarmDetailDto> ProjectToDetail(IQueryable<Farm> q)
+        private IQueryable<FarmDetailDto> ProjectToDetail(IQueryable<Farm> q)
         {
             return q.Select(f => new FarmDetailDto(
                 f.Id,
@@ -1043,6 +1073,9 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.Nucleos.Count(),
                 f.Nucleos.SelectMany(n => n.Galpones).Count(),
                 f.Lotes.Count(),
+                _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
+                _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
+                f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
                 f.ClienteId,
                 f.Zona,
                 f.CertificadoGab,
