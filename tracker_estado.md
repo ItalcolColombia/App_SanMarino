@@ -6581,3 +6581,27 @@ huevos **3**. Decisión del usuario: Fase 0 + Propuesta B. **Los caminos backend
       en la pestaña Huevos del dashboard ⇒ **cierra el bloque F10**
 - [x] B6 Primitivas: `window.prompt` → `ConfirmDialogService`; `ToastService`; `Eager` explícito
 - [x] B7 Validación: `yarn build` limpio + `dotnet build` 0 errores + specs puntuales
+
+---
+
+## 🏚️ Gestión de Granjas — el detalle no mostraba departamento/ciudad/regional al crear (3-sep-2026)
+
+Reporte del usuario: *"cuando yo creo una granja le coloco hasta el departamento y todo pero al ver
+el detalle no aparece la informacion en el detalle con la que se creo la granja"*.
+
+- [x] Investigación paralela (2 agentes): flujo CREAR (form → `construirPayloadGranja` →
+      `POST /api/Farm` → `FarmService.CreateAsync` → entidad) confirmado íntegro, nada se pierde ahí.
+      El bug está en el flujo VER DETALLE: `GET /api/Farm/{id}` devuelve `FarmDetailDto`, un DTO
+      distinto al del listado (`FarmDto`), y su proyección (`ProjectToDetail`, `FarmService.cs`)
+      nunca resolvía `DepartamentoNombre`/`CiudadNombre`/`RegionalNombre` — ni el DTO tenía esas
+      propiedades. El template (`farm-list.component.html`) ya las leía bien
+      (`selectedDetail.departamentoNombre`, etc.) pero llegaban `undefined` → siempre `"—"`.
+- [x] Fix backend: `FarmDetailDto` suma `DepartamentoNombre/CiudadNombre/RegionalNombre`;
+      `ProjectToDetail` pasa de `static` a método de instancia y agrega los mismos joins que
+      `ToFarmDtoListAsync` (listado) + el mismo fallback a `MasterListOptions` para `RegionalId`
+      que no matchea `Regionales` (caso real encontrado en el smoke: granja 83 "LA TOSCANA").
+      Sin cambios de frontend — el template ya estaba listo.
+- [x] Validación: `dotnet build` 0/0, `dotnet test` Application.Tests 3769/3769. Smoke HTTP real
+      contra `:5002` (sesión temporal en `sesiones_activas`, borrada al terminar) sobre
+      `GET /api/Farm/83` y `GET /api/Farm/search`: los 3 nombres llegan correctos en ambos
+      endpoints, incluida la granja con el `regionalId` de lista maestra.
