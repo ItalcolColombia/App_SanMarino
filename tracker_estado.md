@@ -7655,12 +7655,27 @@ cuadrados en cero y venta final que deja el lote en 0 aves.
       `galpones.galpon_id` es PK global). Probada contra Postgres real en transacción revertida:
       crea las 5 cosas con los valores esperados, **3 corridas seguidas no duplican nada**, `Down()`
       limpia sin huérfanos y `Down()` con un seguimiento cargado **se niega** y deja el lote vivo.
-- [i] 🔴 **El peso corporal va en GRAMOS.** La columna del Excel se llama `Peso H (g)` y el
-      importador **no convierte**; los datos reales están en gramos (levante 1,3 a 3.039; producción
-      3.307 a 4.669). Pero la grilla del lote y el modal de detalle lo rotulan **«kg»**
-      (`tabs-principal.component.html`, `modal-detalle-seguimiento.component.html`), y un `<small>`
-      del form de levante dice «Peso promedio en gramos». Es un error de RÓTULO de la pantalla, no
-      del dato. No se tocó — es de otro módulo.
+- [i] 🔴 **El peso corporal va en KILOS; la que está mal rotulada es la columna del EXCEL.**
+      (Corrige una lectura anterior de este mismo bloque, que decía lo contrario.) La cadena
+      completa, verificada: el formulario diario pide **«Peso promedio (kg)»** con `step="0.01"` en
+      las DOS líneas — `lote-levante/pages/modal-create-edit/modal-create-edit.component.html:426-427`
+      (`pesoPromH`) y `lote-produccion/pages/modal-seguimiento-diario/…component.html:283-284`
+      (`pesoH`) —; el payload viaja **sin conversión** (`toNumOrNull(raw.pesoPromH)`,
+      `Number(raw.pesoH)`; los `×1000` de esos archivos son del CONSUMO de alimento); y la grilla y
+      el modal de detalle lo muestran en kg. El único lugar del sistema que dice gramos para el peso
+      corporal es `MigracionEsquemas` → **`Peso H (g)`**.
+      ⚠️ No confundir con el **peso del HUEVO**, que sí va en gramos y es otro campo (`Peso Huevo (g)`,
+      «Peso promedio en gramos») — esa fue la confusión que originó la lectura equivocada.
+- [i] **Dos consecuencias medidas, ninguna tocada** (son de otro módulo y de otra empresa):
+      (a) los históricos de peso de **Sanmarino** están en gramos (levante 144 a 3.039; producción
+      3.307 a 4.669) y entraron por esa columna mal rotulada; su guía
+      (`guia_genetica_sanmarino_colombia.peso_h`, 150 a 4.390) también está en gramos, así que entre
+      sí cuadran y `dif_peso_pct_hembras` de `fn_indicadores_levante_postura.sql:640` da bien —
+      lo que no cuadra es contra lo que pide el formulario;
+      (b) **Santa Reyes no tiene ni una fila con peso** y su guía (`guia_genetica_santa_reyes`) **no
+      tiene columna de peso**, así que ahí el peso no se compara contra nada y arrancar en kg no
+      rompe ningún cálculo. Los archivos generados van en kg (levante 0,07→1,455; producción
+      1,52→2,00).
 - [ ] P6 Dry-run real de los dos archivos contra el importador. **Pendiente**: necesita el lote
       creado, que ahora lo deja la migración de P5. Es lo único que falta para pasar de «estructura
       verificada» a «probado de punta a punta».
