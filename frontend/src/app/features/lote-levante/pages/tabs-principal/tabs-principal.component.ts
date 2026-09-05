@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { exportarTablaExcel, exportarAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
+import { posicionesEnElDia } from '../../funciones/registros-por-dia.funcion';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -65,6 +66,15 @@ export interface RegistroDiarioTablaFila {
   /** % Retiro (Mort+Sel) de la SEMANA sobre aves al inicio de la semana (REQ-007d). Mismo valor en
    *  todas las filas de la semana. null si el saldo al inicio de semana es <= 0 (nunca 100% sintético). */
   pctRetiroSemana: number | null;
+  /**
+   * Lugar del registro dentro de su día calendario (1 de 1 en el caso normal). Con
+   * `companies.permite_multiples_seguimientos_diarios` un día puede traer varios registros: se
+   * siguen pintando como filas separadas —cada una con sus botones Editar/Eliminar— pero sólo la
+   * primera rotula fecha, semana y edad. Ver `funciones/registros-por-dia.funcion.ts`.
+   */
+  ordinalDelDia: number;
+  registrosDelDia: number;
+  esPrimeraDelDia: boolean;
 }
 
 /**
@@ -158,6 +168,20 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    */
   private soloConMachos<T>(valor: T): T[] {
     return this.ocultaMachosEnPostura ? [] : [valor];
+  }
+
+  /** ¿Algún día del lote tiene más de un registro? (empresas con `permite_multiples_seguimientos_diarios`). */
+  get hayVariosRegistrosEnAlgunDia(): boolean {
+    return (this.diarioFilas ?? []).some(f => f.registrosDelDia > 1);
+  }
+
+  /**
+   * Celda del Excel que sólo existe si el lote tiene algún día con varios registros. Mismo patrón
+   * (y misma garantía de no desalinearse) que {@link soloConMachos}: sin días repetidos la columna
+   * no se emite y el archivo sale idéntico al de siempre para el resto de las empresas.
+   */
+  private soloConVariosPorDia<T>(valor: T): T[] {
+    return this.hayVariosRegistrosEnAlgunDia ? [valor] : [];
   }
 
   constructor(
@@ -258,6 +282,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     });
 
     const histPorFecha = this.enriquecerTablaConHistoricoInventario ? this.aggregateHistoricoPorFecha() : null;
+    // Posición de cada registro dentro de su día. Con un registro por día —toda empresa sin
+    // `permite_multiples_seguimientos_diarios`— sale 1 de 1 en todas las filas y nada cambia.
+    const posiciones = posicionesEnElDia(list.map(s => this.toYMD(s.fechaRegistro)));
+    let indiceFila = 0;
 
     const inicial = this.avesInicialesLote();
     const iniciales = this.avesInicialesPorGenero();
@@ -279,6 +307,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     const out: RegistroDiarioTablaFila[] = [];
 
     for (const seg of list) {
+      const posicion = posiciones[indiceFila++];
       const mh = seg.mortalidadHembras ?? 0;
       const mm = seg.mortalidadMachos ?? 0;
       const selh = seg.selH ?? 0;
@@ -326,7 +355,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const semana = edadDia == null ? null : Math.max(1, Math.ceil(edadDia / 7));
 
       const ymd = this.toYMD(seg.fechaRegistro);
-      const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
+      // 🔴 El agregado del historial unificado es POR DÍA, así que sólo puede colgar de la PRIMERA
+      // fila del día: repetirlo en cada registro mostraba (y exportaba al Excel) el mismo ingreso
+      // de alimento y el mismo despacho una vez por registro, como si hubieran entrado dos veces.
+      const agg = ymd && histPorFecha && posicion.esPrimero ? histPorFecha.get(ymd) : undefined;
 
       const metaIng = this.metaStr(seg, 'ingresoAlimento', 'ingreso_alimento', 'ingresoAlimentoKg');
       const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
@@ -384,7 +416,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         despachoX,
         consumoBodegaKg,
         tipoAlimentoCorto: this.tipoAlimentoCorto(seg.tipoAlimento),
-        pctRetiroSemana: null // se completa abajo, agrupado por semana (REQ-007d)
+        pctRetiroSemana: null, // se completa abajo, agrupado por semana (REQ-007d)
+        ordinalDelDia: posicion.ordinal,
+        registrosDelDia: posicion.total,
+        esPrimeraDelDia: posicion.esPrimero
       });
     }
 
@@ -641,6 +676,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     // ─── Encabezados de tabla ──────────────────────────────────────────
     const headers = [
       'Fecha',
+      // Con varios registros el mismo día la fecha ya no identifica la fila: sin esta columna el
+      // Excel muestra dos renglones idénticos en fecha/semana/edad y no se sabe cuál es cuál.
+      ...this.soloConVariosPorDia('Registro del día'),
       'Semana',
       'Edad (días vida)',
       'Mortalidad hembras',
@@ -691,6 +729,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const s: any = f.seg;
       return [
         this.formatDMY(s.fechaRegistro),
+        ...this.soloConVariosPorDia(`${f.ordinalDelDia} de ${f.registrosDelDia}`),
         f.semana ?? '—',
         f.edadDia ?? '—',
         s.mortalidadHembras ?? 0,

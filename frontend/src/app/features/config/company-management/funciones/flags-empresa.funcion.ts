@@ -104,6 +104,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     grupo: 'Postura'
   },
   {
+    key: 'permiteMultiplesSeguimientosDiarios',
+    titulo: 'Varios seguimientos diarios el mismo día',
+    descripcion: 'Un lote puede tener más de un registro diario por día (dos turnos), en levante y en producción. Los registros del día se suman para la grilla, los indicadores y los reportes; el peso se promedia y la uniformidad y el C.V. los toma el último registro. Apagado, guardar un segundo registro del día se rechaza, como siempre.',
+    grupo: 'Postura'
+  },
+  {
     key: 'semanasCicloPosturaPorRaza',
     titulo: 'Etapas del ciclo por raza',
     descripcion: 'La etapa del seguimiento diario (alistamiento/levante/levante en producción/postura) se calcula por semana de vida y por raza, en vez de los cortes fijos. Apagado, sigue mostrando Etapa 1/2/3 como siempre.',
