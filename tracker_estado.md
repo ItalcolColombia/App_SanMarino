@@ -7215,34 +7215,58 @@ entre sí ante duplicados. Detalle completo con file:line en el plan.
       dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
 - [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).
 
-## S6 · LEVANTE — mismo flag, arquitectura sin función canónica (plan §5)
+## S6 · LEVANTE — backend CERRADO, verificado contra Postgres real (05-sep-2026)
 
-Sin punto único de verdad: hay que decidir agregación en 6 consumidores independientes en vez de
-una sola función. Hoy NINGUNO dedupea — todos `SUM`/`COUNT(*)` fila cruda, así que 2+ filas/día
-sobre-cuentan en cascada (opuesto al bug de producción, que descarta en silencio).
+Decisión S6.0 tomada: función canónica nueva SOLO para lo que realmente la necesitaba
+(`sp_recalcular_seguimiento_levante`, cuyo `LAG()` compara fila consecutiva, no día — bug real de
+orden). Para las 3 fns semanales, medido que SUM es asociativa (sumar 2 filas del mismo día o el
+día ya agrupado da el MISMO total): lo único roto era `COUNT(*)` contando filas en vez de días —
+fix quirúrgico `COUNT(DISTINCT reg_date)`, sin reapuntar esas 3 fns (multi-lote/edge-cases finos ya
+parchados — REQ-002B36, matriz Verenice — no valía el riesgo de tocar más que el conteo).
 
-- [!] S6.0 Decisión de arquitectura pendiente: ¿construir una función canónica nueva para levante
-      (mismo patrón que produccion — más trabajo inicial, deja a levante con "una sola fórmula por
-      número") o ajustar los 6 consumidores uno por uno (menos trabajo ahora, deuda que se repite)?
-- [ ] S6.1 `SeguimientoDiarioService.CreateAsync` rama `levante` (L252-286, con su lógica de MERGE
-      sobre traslado, Feature 13) y `UpdateAsync` (L537-546) — gatear el flag preservando el merge.
-- [ ] S6.2 Índice único `ux_sdlr_tipo_lote_rep_dia_utc` (`20260828120000_IndiceUnicoDiaSeguimientos.cs`)
-      — mismo criterio que S2.2 (parcial con `company_id` de Santa Reyes).
-- [ ] S6.3 `fn_indicadores_levante_postura` (`Migrations/20260710012849...:169-267`) — `dias_con_registro`
-      debe contar días distintos, no filas; sumas deben agrupar por día primero.
-- [ ] S6.4 `fn_reporte_semanal_levante_extras.sql:150-262` — mismo ajuste.
-- [ ] S6.5 `fn_resumen_semanal_ra_pesadas_levante.sql:120-152,232-251` — mismo ajuste.
-- [ ] S6.6 `sp_recalcular_seguimiento_levante` (`Migrations/20260710012849...:736-918`) — acumulados
-      `SUM(...) OVER (ORDER BY fecha)` y `gr_ave_dia_h/m` deben operar sobre días agrupados, no filas.
-- [ ] S6.7 `LiquidacionCierreLoteLevanteService.cs:94-111,223-235,285` — agrupar antes de sumar;
-      `TotalRegistrosSeguimiento` debe contar días, no filas.
+- [x] S6.1 `SeguimientoDiarioService.CreateAsync` rama `levante`: gate del flag preservando el
+      MERGE sobre traslado (Feature 13) — ya commiteado junto con producción (`ead0692`), más
+      `CompanyId` poblado en el alta (`lote?.CompanyId ?? _current.CompanyId`).
+- [x] S6.2 Índice único `ux_sdlr_tipo_lote_rep_dia_utc` — parcial con `company_id` excluido
+      dinámicamente, MISMA migración que produccion (`20260905015934_...`). Trata NULL (filas
+      históricas sin backfill) como protegido — solo excluye `tipo_seguimiento='levante'`;
+      reproductora no cambia.
+- [x] Columna `seguimiento_diario_levante.company_id` (nullable, sin backfill histórico) — hacía
+      falta para el índice parcial, la tabla no tenía denormalizada la empresa como sí la tiene
+      producción (migración `20260905015522_AddCompanyIdSeguimientoDiarioLevante`).
+- [x] **`fn_seguimiento_diario_levante` — función nueva** (`backend/sql/fn_seguimiento_diario_levante.sql`):
+      mismo patrón dedup/agrupado que producción v3, sin la complejidad de rama LPP/legacy ni saldo
+      de aves (eso lo sigue calculando cada consumidor con sus propios acumuladores, ahora sobre
+      una fila por día). Devuelve `fecha_ts` (TIMESTAMPTZ, preserva la aritmética exacta de quien
+      restaba fechas) además de `reg_date`.
+- [x] S6.6 `sp_recalcular_seguimiento_levante`: su CTE `base` ahora lee de la fn nueva — arregla el
+      `LAG(peso_prom_h)` que comparaba fila consecutiva en vez de día consecutivo.
+- [x] S6.3/S6.4/S6.5 `fn_indicadores_levante_postura` / `fn_reporte_semanal_levante_extras.sql` /
+      `fn_resumen_semanal_ra_pesadas_levante.sql`: `COUNT(*)` → `COUNT(DISTINCT reg_date)` (fix
+      quirúrgico, ver decisión arriba — NO se reapuntaron a la fn canónica).
+- [x] S6.7 `LiquidacionCierreLoteLevanteService.cs`: `TotalRegistrosSeguimiento` cuenta días
+      distintos (`segs.Select(s => s.Fecha.Date).Distinct().Count()`), no filas.
+- [x] Migración `20260905035704_FnSeguimientoDiarioLevanteYFixesConteoDias` (`CREATE OR REPLACE`
+      en los 4 objetos, firmas sin cambios, `Down` restaura las 4 versiones previas verbatim).
+- [x] Espejo C# `SeguimientoDiarioLevanteCalculos.AgruparPorDia` + 4 tests xUnit (incluye el caso
+      testigo real de abajo).
+- [x] **Smoke real contra Postgres local** (transacción revertida, lote 152 Santa Reyes,
+      `company_id=6`): insertado un 2º registro el mismo día (2026-08-21) sobre una fila real
+      preexistente (consumo 999.991 kg, sin peso) → tras `sp_recalcular_seguimiento_levante`,
+      `produccion_resultado_levante` muestra **una sola fila** para ese día con
+      `mort_h=3` (0+3), `cons_kg_h=1004.991` (999.991+5.0), `peso_h=0.22` (AVG ignorando el NULL
+      original) — y `fn_indicadores_levante_postura` reporta `dias_con_registro=2`, no 3.
 - [ ] S6.8 Front `tabs-principal.component.ts:250-393,576-750` (`buildDiarioFilas` +
       `exportSeguimientoDiarioExcel`) — evitar el renglón duplicado con mismo `edadDia`/semana.
-- [ ] S6.9 Front: agregar el flag a `CompanyFlags` si no se comparte con S1.4.
+      **Pendiente.**
+- [ ] S6.9 Front: agregar el flag a `CompanyFlags` (compartido con S1.4/S4.4). **Pendiente.**
 
 ## S7 · Validación (levante)
 
-- [ ] S7.1 `dotnet build` + `dotnet test` verdes · `yarn build`.
-- [ ] S7.2 Smoke con el flag ON en Santa Reyes sobre LEVANTE: 2 registros mismo lote+día → grilla,
-      indicadores semanales, Reporte Técnico Semanal, RA Pesadas y cierre de lote consistentes.
+- [x] S7.1 `dotnet build` 0/0 · `dotnet test` 3891 verdes (worktree aislado
+      `App_SanMarino_seg_multiples`, rama `feature/seguimiento-multiples-registros-dia`, commit
+      `392cf3c`).
+- [x] S7.2 Smoke con el flag ON en Santa Reyes sobre LEVANTE — ver arriba (grilla vía SP +
+      indicadores semanales consistentes; Reporte Técnico Semanal y RA Pesadas heredan el mismo
+      fix de conteo, no probados end-to-end con datos reales todavía).
 - [ ] S7.3 Smoke con el flag OFF: cero cambios visibles en el resto de empresas.
