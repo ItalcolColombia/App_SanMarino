@@ -145,6 +145,69 @@ public partial class ValidacionSeguimientoService
             await _ctx.SaveChangesAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<int> LiberarDelLoteEngordeAsync(int loteAveEngordeId, CancellationToken ct = default)
+    {
+        // Los seguimientos del lote siguen existiendo cuando el lote se borra (soft-delete), así que
+        // la reserva se localiza por ellos y no por el lote: es la misma clave que usa LiberarAsync.
+        var seguimientos = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteAveEngordeId)
+            .Select(s => (long)s.Id)
+            .ToListAsync(ct);
+
+        // Los seguimientos de REPRODUCTORA del lote también separan, y cuelgan del sub-lote, no del
+        // lote de engorde: si solo se miraran los de engorde quedarían igual de huérfanos. Son los
+        // que produjeron los 508 kg del ticket de Panamá.
+        var seguimientosReproductora = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+            .Where(s => _ctx.LoteReproductoraAveEngorde
+                            .Where(l => l.LoteAveEngordeId == loteAveEngordeId)
+                            .Select(l => l.Id)
+                            .Contains(s.LoteReproductoraAveEngordeId))
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        if (seguimientos.Count == 0 && seguimientosReproductora.Count == 0) return 0;
+
+        // Los dos literales de engorde: `Canonico()` colapsa ENGORDE_EC a ENGORDE desde
+        // `20260815140000`, pero una reserva escrita antes de esa migración pudo quedar con el
+        // literal viejo y no la ve ningún otro método.
+        var engorde = ModuloSeguimiento.Engorde;
+        var engordeEc = ModuloSeguimiento.EngordeEcuador;
+        var reproductora = ModuloSeguimiento.Reproductora;
+        var ahora = DateTimeOffset.UtcNow;
+
+        var alimento = await _ctx.SeguimientoReservaAlimento
+            .Where(r => r.Estado == EstadoReservaSeguimiento.Activa
+                     && (((r.OrigenModulo == engorde || r.OrigenModulo == engordeEc)
+                          && seguimientos.Contains(r.OrigenSeguimientoId))
+                         || (r.OrigenModulo == reproductora
+                             && seguimientosReproductora.Contains(r.OrigenSeguimientoId))))
+            .ToListAsync(ct);
+        foreach (var r in alimento)
+        {
+            r.Estado = EstadoReservaSeguimiento.Liberada;
+            r.LiberadaAt = ahora;
+        }
+
+        var aves = await _ctx.SeguimientoReservaAves
+            .Where(r => r.Estado == EstadoReservaSeguimiento.Activa
+                     && (((r.OrigenModulo == engorde || r.OrigenModulo == engordeEc)
+                          && seguimientos.Contains(r.OrigenSeguimientoId))
+                         || (r.OrigenModulo == reproductora
+                             && seguimientosReproductora.Contains(r.OrigenSeguimientoId))))
+            .ToListAsync(ct);
+        foreach (var r in aves)
+        {
+            r.Estado = EstadoReservaSeguimiento.Liberada;
+            r.LiberadaAt = ahora;
+        }
+
+        if (alimento.Count > 0 || aves.Count > 0)
+            await _ctx.SaveChangesAsync(ct);
+
+        return alimento.Count + aves.Count;
+    }
+
     /// <summary>
     /// ¿El registro pasó alguna vez por la separación? Mira los tres estados, no solo el activo: una
     /// reserva <c>LIBERADA</c> también prueba que el registro nació bajo doble validación.

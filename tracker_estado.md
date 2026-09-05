@@ -7062,6 +7062,56 @@ efectiva), pero sí escritura masiva sin autorización.
 - [x] F10.8 `dotnet build` 0/0 · `dotnet test` **3.936 verdes** · `yarn build` OK (solo el warning de
       *bundle budget* preexistente). Compilado con `--artifacts-path` propio: hay otras sesiones
       construyendo sobre el mismo `bin/`.
+- [x] F10.9 **403 probado en vivo contra el backend local** (5-sep, backend propio en `:5501` con
+      content root aparte). No con un token vacío: se minteó el token de un usuario REAL —ALEX
+      ALTAMIRANO, `4efb520a…`, ItalcolEcuador, activo, 3 roles— **con sus 14 permisos efectivos
+      reales**, ninguno de carga masiva. Así el 403 prueba que faltan *esas dos keys*, no que el
+      token venga pelado. Matriz de 4 escenarios × 16 endpoints = **64/64**:
+      - **A (sin ninguna key)**: los 16 endpoints gateados devuelven 403 con `{ message, error }` y
+        el texto del cálculo puro. `GET /tipos` devuelve **200** con el catálogo estático — control
+        interno: mismo token, misma sesión, misma empresa ⇒ lo único que separa 200 de 403 es el
+        filtro.
+      - **B (ALEX + `carga_masiva_postura`)**: pasan levante/producción/historial/estructura/sin
+        tipo; **403 en los 4 endpoints de engorde**.
+      - **C (ALEX + `carga_masiva_pollo_engorde`)**: exactamente el espejo.
+      - **D (usuario real con ambas, Santa Reyes)**: pasan los 16.
+      `/importar` se probó **sin archivo** (el controller corta con 400 antes de tocar datos), así
+      que la prueba no escribió una sola fila. Las 4 sesiones de smoke se borraron de
+      `sesiones_activas` (verificado: 0 restantes) y el puerto quedó libre.
+- [x] F10.10 **11 intentos de evasión, ninguno pasó.** El que importaba: mandar
+      `POST /validar?tipo=SeguimientoLevante` con el formulario en `Tipo=SeguimientoPolloEngorde`
+      —si el filtro leyera la QUERY y el controller el FORMULARIO, se correría una importación de
+      engorde con permiso de postura—. El filtro lee el **formulario**, que es lo que el controller
+      ejecuta: **403 pidiendo la key de engorde**. Igual de cerrados: `?TIPO=` en otra caja, el valor
+      en minúsculas, con espacios, con coma (que `Enum.TryParse` interpreta como flags), y el
+      formulario sin `Tipo` con el tipo en la query. `tipo=0` resuelve a `Granjas` **en los dos
+      lados** (mismo parseo ⇒ no pueden discrepar) y `tipo=99` cae a «sin tipo» ⇒ pide cualquiera de
+      las dos y muere en el 400 del controller.
+- [x] F10.11 **Lockout re-verificado por la cadena COMPLETA**, no solo por `role_permissions`. El
+      claim `permission` solo se emite si la key está en `role_permissions` **y además** habilitada
+      en `company_permissions` para la empresa del rol (`AuthService.PermisosEfectivosAsync`) — una
+      key asignada en la UI de roles puede no llegar nunca al token. Medido: de los 9 usuarios que
+      ven el módulo (Sanmarino 4, Demo 3, Santa Reyes 2) los **9 tienen `carga_masiva_postura`
+      efectivo** y **0 tienen el de engorde**; **0 encerrados**. Los 8 que sí tienen engorde efectivo
+      son todos de ItalcolPanamá y **no ven el módulo**. La conclusión de F10.7 se sostiene, ahora
+      medida donde importa.
+
+### 🔴 Hallazgo fuera de alcance: la key que este gate exige es AUTO-ASIGNABLE
+
+- [i] **El gate funciona y aun así se puede anular, por un agujero preexistente que no es suyo.**
+      `POST /api/Roles/{id}/permissions/assign` está protegido por la policy `CanManageRoles`, que en
+      `Program.cs:559` está declarada como `RequireAuthenticatedUser()` — token válido y nada más,
+      con un `TODO(seguridad)` al lado admitiendo que no verifica ningún permiso. **Verificado en
+      vivo con el mismo token que recibe 403 en el módulo**: `GET /api/Roles` → **200** (lista todos
+      los roles con sus permisos), `GET /api/Roles/permissions` → **200** (catálogo completo de
+      keys), y `POST /api/Roles/999999/permissions/assign` → **404, no 403** ⇒ la autorización
+      **pasó**; solo lo frenó que el rol no existiera. Con un `roleId` real, escribía. Después basta
+      re-loguearse (los permisos se hornean en el token al login) y el gate deja pasar.
+      La única barrera que queda es `EnsurePermisosHabilitadosPorEmpresaAsync`, que exige que la key
+      esté habilitada en `company_permissions` de **todas** las empresas del rol destino — acota la
+      población atacante a roles de una sola empresa habilitada, no cierra el agujero.
+      ⚠️ **No se tocó**: `CanManageRoles` cubre también Menús y Usuarios, y endurecerla es
+      exactamente el problema anti-lockout ya documentado. Va en su propia tarea.
 
 ---
 
@@ -7315,3 +7365,113 @@ parchados — REQ-002B36, matriz Verenice — no valía el riesgo de tocar más 
       indicadores semanales consistentes; Reporte Técnico Semanal y RA Pesadas heredan el mismo
       fix de conteo, no probados end-to-end con datos reales todavía).
 - [ ] S7.3 Smoke con el flag OFF: cero cambios visibles en el resto de empresas.
+
+---
+
+# TK Panamá · DOÑA MARÍA / A / 4 lote 95 — saldo de alimento heredado, 32 kg separados y 508 kg faltantes
+
+Plan: [`fase_de_desarrollo/tk_panama_saldo_alimento_lote_sin_seguimiento_plan.md`](fase_de_desarrollo/tk_panama_saldo_alimento_lote_sin_seguimiento_plan.md)
+
+Ticket de operación (04-sep-2026). Diagnóstico hecho sobre la copia de producción del 04-sep 02:24
+restaurada en `sanmarino_tk95`; **ningún dato de producción tocado**.
+
+## P0 · Diagnóstico (cerrado)
+
+- [x] P0.1 Reproducido al decimal en transacción revertida: lote nuevo en G0475 **sin seguimiento** ⇒
+      la fn devuelve 1 fila, `edad_dia 2`, `saldo_alimento_kg 176246.967`, `ingreso 11740`,
+      `saldo_aves 19110` — idéntico a la captura del ticket.
+- [x] P0.2 Causa raíz: `hist_full` (625), `hist_alimento` (768) y `docs_por_fecha` (796) de
+      `fn_seguimiento_diario_engorde` acotan con `(rs.fecha_min IS NULL OR ...)`; sin seguimientos
+      `fecha_min` es NULL ⇒ **el saldo pierde la cota inferior** y suma todo el histórico del galpón
+      (G0475: 173.296,967 kg desde el 02-jul, ciclo anterior lote 165 «94 - 2» liquidado el 27-ago).
+      `fechas_universo` (836) **sí** acota con `fecha_corte_alimento`: por eso se ve UNA fila con un
+      saldo de toda la historia. Incoherencia interna de la fn.
+- [x] P0.3 Los 32 kg «separados» = reserva `seguimiento_reserva_alimento` id **425**, ACTIVA, del
+      seguimiento 12944 (`validado=false`) del lote **238 «PRUEBA - 1»**, borrado el 28-ago 09:17
+      — 18 min después de crearse la reserva. Borrar el lote **no** libera las reservas.
+- [x] P0.4 Los 508 kg «faltantes» = consumo real y validado de esa misma prueba (reproductora
+      #890-#896 del lote 145, 150+100+125+34+56+31+12) sobre el ítem 223.
+- [x] P0.5 Alcance medido: lotes vivos sin un solo seguimiento cuyo galpón tiene movimientos ⇒
+      **1 en la copia**, y es de **ItalcolEcuador** (lote 229 «2605», G0039, 304.470 kg). El defecto
+      NO es de Panamá. Reservas ACTIVA en toda la base: 4 (1.937,12 kg, todas Panamá), **1 huérfana**.
+
+## P1 · Arreglo de la función (F1)
+
+- [x] P1.1 `backend/sql/fn_seguimiento_diario_engorde.sql` → **v18**: `hist_full`, `hist_alimento` y
+      `docs_por_fecha` acotan con `COALESCE(rs.fecha_min, li.fecha_corte_alimento,
+      DATE(h.fecha_operacion))` — el mismo piso que `fechas_universo` ya usaba. Firma sin cambios.
+- [x] P1.2 Migración `20260904190000_FnSeguimientoEngordeV18SaldoSinSeguimiento` (+ `.Fn.cs` con la
+      v18 y la v17 verbatim + `.Designer.cs` clonado del último real). `Down` = v17.
+- [x] P1.3 T1 sobre la copia de prod: el lote del ticket simulado en G0475 pasa de **176.246,967 a
+      11.740**; T2 escenario con seguimiento el 04-sep = 11.740 y el del 05-sep = 11.120 (sin cambio).
+- [x] P1.4 **Gate de identidad multipaís** sobre las 7.102 filas de los 178 lotes vivos de TODAS las
+      empresas (`EXCEPT` en los dos sentidos, todas las columnas): **0 / 0**. El lote 229 de Ecuador
+      que el censo marcaba no llega a emitir filas (no tiene movimientos dentro de su ventana), así
+      que el caso roto solo se prueba con el lote simulado.
+- [x] P1.5 `fn_cuadre_alimento_engorde(NULL)` v17 vs v18: **0 filas distintas** en los 68 galpones
+      (Ecuador 37/0; Panamá 31/11 y −48.472,56 kg, preexistentes e idénticos antes y después).
+- [ ] P1.6 `dotnet build` + `dotnet test` — build lanzado con `--artifacts-path`, la máquina está
+      con varias sesiones compilando a la vez.
+
+## P2 · Reservas huérfanas (F2)
+
+- [x] P2.1 `IValidacionSeguimientoService.LiberarDelLoteEngordeAsync(loteId)` + llamada desde
+      `LoteAveEngordeService.DeleteAsync` (después del SaveChanges) y `HardDeleteAsync` (antes del
+      Remove, que se lleva los seguimientos por FK). Solo toca `ACTIVA`, igual que `LiberarAsync`.
+      Inyección opcional; verificado que no hay ciclo de DI (ni `InventarioGestionService` ni
+      `ColombiaInventarioConsumoService` dependen de `ILoteAveEngordeService`).
+- [ ] P2.2 Sin test: los proyectos de test son solo `Application`/`Domain` (cálculo puro) y esto es
+      EF. Queda cubierto por el smoke de P3.1 cuando se aplique.
+
+## P3 · Dato de producción — aprobado por el usuario el 04-sep, va por migración
+
+- [x] P3.1 Migración data-only `20260904200000_RemediacionTkPanamaLote95DonaMaria` (+ `.Seed.cs` +
+      `.Designer.cs`). **Parte 1**: libera las reservas `ACTIVA` de cualquier lote de engorde borrado
+      (criterio general; hoy = 1 fila, los 32 kg). **Parte 2**: devuelve los 508 kg con un
+      `AjusteStock` **fail-closed** (solo si los 7 movimientos de consumo siguen ahí y suman 508) e
+      idempotente por `reference`.
+- [x] P3.2 Instrumento elegido y **medido**: `AjusteStock`, no `Ingreso`. La tabla diaria del ciclo
+      nuevo ya está bien (11.740: el consumo es de un lote borrado y la fn no lo cuenta); el corto es
+      el STOCK. Un `Ingreso` movería los dos y dejaría la grilla en 12.248 — el mismo descuadre del
+      otro lado. `AjusteStock` se espeja como `INV_OTRO` (verificado: `fn_tipo_evento_inventario`)
+      ⇒ mueve stock y solo stock. Simulado en transacción revertida: stock 11.232 → 11.740,
+      disponible 11.200 → 11.740, grilla **11.740 antes y después**, `esperado_kg` del cuadre
+      **−508 → 0**.
+- [x] P3.3 Up/Down/idempotencia de la migración probados en transacción revertida sobre la copia:
+      Up deja 4→3 reservas activas y stock +508 con su espejo en el histórico; segunda corrida no
+      repite; Down devuelve 3→4, resta los 508 y el trigger `_del` anula el espejo.
+- [x] P3.4 Espejos verificados byte a byte: la constante v18 del `.Fn.cs` == `backend/sql/…​.sql`
+      (66.843 chars) y la v17 del `Down` == `git show HEAD:…​.sql` (63.822).
+- [x] P3.5 La guarda ahora mira también el **efecto**: si aparece un `AjusteStock`/`EliminacionStock`
+      en G0475 posterior al 04-sep (alguien lo corrigió con el lápiz), la migración se abstiene y
+      avisa por NOTICE en vez de sumar los kilos dos veces. Igual conviene no tocarlo a mano.
+- [x] P3.6 El `INSERT` toma `company_id`/`pais_id` de la fila de stock, no de literales.
+
+## P3bis · Revisión adversarial (5 lentes) y lo que cambió por ella
+
+- [x] P3bis.1 🔴 **El piso nuevo no llevaba los guards v11/v12.** `corte_apertura` exigía
+      `fecha_min IS NOT NULL`, así que el lote sin seguimientos entraba con la ventana CRUDA de v9 y
+      podía heredar la limpieza de cierre del ciclo anterior — el defecto exacto que v11/v12 tapan.
+      Corregido: `corte_apertura` cae de vuelta en el **encaset** cuando no hay seguimientos y las
+      tres CTE usan `(SELECT desde FROM corte_apertura)` como segundo término. **Medido**: con un
+      encaset hipotético del 15-ago en G0475 la ventana cruda se comía **21.772 kg** del lote
+      anterior (ingresos del 06 y 08-ago); con el corte da **0**.
+- [x] P3bis.2 Lote sin encaset NI seguimientos: el tercer término era `DATE(fecha_operacion)` (o sea
+      «pasa todo»). Ahora es `DATE 'infinity'` ⇒ no pasa nada. Hoy no hay ninguno (0 de 203), pero la
+      columna es nullable.
+- [x] P3bis.3 🔴 **Dato falso en la cabecera**: decía que Ecuador tenía un caso vivo (lote 229, G0039,
+      304.470 kg). La fn devuelve **0 filas** para ese lote. Reemplazado por la medición real: 26
+      lotes sin seguimientos (25 Panamá, 1 Ecuador), de los cuales solo uno produce filas hoy
+      (Panamá 131, saldo 0). El defecto es **latente**, se despierta con el primer movimiento.
+- [x] P3bis.4 `HardDeleteAsync` liberaba ANTES del `Remove`. Las FK son **RESTRICT**: solo prospera
+      si no hay seguimientos ⇒ nunca hay nada que liberar, y si lo hubiera, el `Remove` fallaría
+      dejando reservas sueltas de un lote vivo. Se quitó la llamada.
+- [x] P3bis.5 `DeleteAsync` prometía en el doc-comment «no propaga» y no tenía `try/catch`. Ahora sí.
+- [x] P3bis.6 La liberación no cubría las reservas de **REPRODUCTORA** del lote —justo las que
+      produjeron los 508 kg— ni el literal legado `ENGORDE_EC`. Ahora cubre las dos cosas.
+- [x] P3bis.7 Re-verificado todo tras los cambios: gate multipaís **0/7.102**, cuadre **0/68**, caso
+      del ticket 11.740, migración Up/idempotencia/Down, espejo `.Fn.cs` == `.sql` byte a byte.
+
+## P4 · Respuesta al ticket
+
+- [x] P4.1 Redactada la respuesta para operación (qué pasó, qué hacer hoy, qué se arregla en el sistema).

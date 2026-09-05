@@ -81,6 +81,26 @@ public interface IValidacionSeguimientoService
     Task LiberarAsync(string modulo, long seguimientoId, CancellationToken ct = default);
 
     /// <summary>
+    /// Libera lo que quedó separado por TODOS los seguimientos de un lote de pollo engorde.
+    ///
+    /// <para>
+    /// Existe porque borrar el lote no borra sus seguimientos, y las reservas se suman por
+    /// <b>ubicación</b> —no por lote— al calcular el disponible del galpón: una reserva de un lote
+    /// borrado sigue restando kilos al ciclo siguiente sin que nadie pueda liberarla desde la
+    /// pantalla, porque el lote ya no se abre. Caso real: DOÑA MARIA / A / 4, 32 kg del lote
+    /// «PRUEBA - 1» borrado el 28-ago-2026, restándole disponible al lote 95 una semana después.
+    /// </para>
+    ///
+    /// <para>
+    /// Solo toca las <c>ACTIVA</c>, igual que <see cref="LiberarAsync"/>: una <c>APLICADA</c> ya
+    /// descontó stock y devolverla es otra operación (ver la migración
+    /// <c>20260831150000_DevolverAlimentoDeReproductorasBorradas</c>).
+    /// </para>
+    /// </summary>
+    /// <returns>Cuántas reservas quedaron liberadas (alimento + aves).</returns>
+    Task<int> LiberarDelLoteEngordeAsync(int loteAveEngordeId, CancellationToken ct = default);
+
+    /// <summary>
     /// Aplica el efecto real: descuenta el alimento del inventario y las aves del maestro del lote,
     /// marca las reservas como aplicadas y el registro como validado. Todo en una transacción.
     /// </summary>
