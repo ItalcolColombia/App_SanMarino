@@ -7209,6 +7209,21 @@ sin vía de escalamiento a desarrollo.
 
 Plan: [seguimiento_produccion_multiples_registros_dia_plan.md](fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md)
 
+> **En `main` desde el 05-sep-2026** (`bf28282` · `64200e2` · `ecdd77c`). La rama
+> `feature/seguimiento-multiples-registros-dia` se rebasó sobre `main` —sin conflictos: los únicos
+> archivos que se cruzaban eran `Program.cs` y el hunk no colisionó— y se bajó por fast-forward.
+> **Revalidado DESPUÉS del rebase**, porque el código pasó a apoyarse en 12 commits ajenos:
+> `dotnet build` 0/0, `dotnet test` **3.967 verdes** (subieron de 3.891 al entrar los tests de esos
+> commits), `yarn build` 0 errores y `dotnet ef migrations has-pending-model-changes` → *"No changes
+> have been made to the model since the last migration"*.
+> El working tree de la otra sesión en la raíz quedó **byte a byte igual** que antes del merge
+> (`diff` de los dos `status --porcelain`).
+>
+> ⚠️ **Todavía NO está en producción.** `main-produccion` no tiene las 5 migraciones: el deploy sigue
+> siendo un paso explícito del usuario. Cuando se haga, `20260905015025` **ya deja el flag prendido
+> para Santa Reyes** (`UPDATE … WHERE name = 'Santa Reyes'` en su propio `Up()`), así que **no hace
+> falta ninguna migración adicional para habilitarlo**.
+
 Pedido (04-sep-2026): Santa Reyes necesita cargar más de un registro de seguimiento diario de
 producción/postura el mismo día para un mismo lote, controlado por flag de empresa. Investigación
 cerrada (workflow de 4 agentes): hay **dos escritores** de `seguimiento_diario_produccion` (uno vivo
