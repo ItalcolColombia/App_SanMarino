@@ -6922,6 +6922,23 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       separado; el defecto vivía en la junta. Corregido: el ejemplo usa el primer silo de
       `Referencias`, o sea un valor que el importador acepta.
 
+### F7 · Manual actualizado a v1.1
+
+- [x] F7.1 Manual `Manual_Carga_Masiva_Postura.docx/.pdf` actualizado de v1.0 a **v1.1** (20 → 25 pág.)
+      por edición quirúrgica sobre el .docx (se clonan filas y párrafos existentes para heredar el
+      formato directo: el documento no tiene estilos con nombre).
+- [x] F7.2 Contenido nuevo: §1.3 (la plantilla se adapta a la empresa + hoja `Ejemplo`), fila
+      `Silo Alimento 1/2 H-M` en las dos tablas de la hoja `Datos`, filas `Silo` y `Silo Origen` en la
+      de `Alimento`, §7.4 (huevo por ítems y `Movimientos Huevos` que no se emite), 6 mensajes de silo
+      en §9, Anexo A por configuración y **Anexo C — «Empresas con configuración propia»**.
+- [x] F7.3 Se agregan al material las plantillas **reales** de Santa Reyes descargadas del backend
+      (lote 152): son una medición, no un diseño.
+- [x] F7.4 PDF regenerado con el índice (campo TOC) actualizado; verificado por render de páginas.
+      Corregido de paso: la tabla del Anexo C salía toda en negrita por clonar la fila de encabezado.
+- [x] F7.5 El material vigente queda versionado en `fase_de_desarrollo/manual_carga_masiva_postura/`
+      con su README. ⚠️ No se pisa `fase_de_desarrollo/Manual_Carga_Masiva_Postura.docx`: es otro
+      documento, anterior y distinto («ITALGRANJA · de punta a punta»).
+
 ### Fuera de alcance (registrado)
 
 - [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
