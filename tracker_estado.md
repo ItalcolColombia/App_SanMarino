@@ -7475,3 +7475,79 @@ restaurada en `sanmarino_tk95`; **ningún dato de producción tocado**.
 ## P4 · Respuesta al ticket
 
 - [x] P4.1 Redactada la respuesta para operación (qué pasó, qué hacer hoy, qué se arregla en el sistema).
+
+---
+
+# Gate de Roles y Menús — cerrar la escalada de privilegios de `CanManageRoles`
+
+Plan: [`fase_de_desarrollo/gate_roles_y_menus_plan.md`](fase_de_desarrollo/gate_roles_y_menus_plan.md)
+
+Probado en vivo el 5-sep-2026: con el JWT de un usuario sin ningún permiso de administración,
+`POST /api/Roles/{id}/permissions/assign` devuelve **404, no 403** — la autorización pasa y sólo lo
+frena que el rol no exista. Con un `roleId` real, cualquier sesión autenticada se asigna permisos,
+vuelve a loguearse (las keys se hornean como claims al login) y se salta todos los demás gates por
+permiso del sistema.
+
+## A · Auditoría anti-lockout (con datos, antes de tocar código)
+
+- [x] A.1 Localizar el módulo por **route** (nunca por id): `/config/role-management`.
+- [x] A.2 Medir qué roles/usuarios ven hoy el módulo de Roles y cuáles quedarían afuera.
+- [x] A.3 Medir los consumidores reales de `GET /api/Roles` en el front (no sólo la pantalla de Roles).
+- [x] A.4 Medir los consumidores del árbol global de menús (`CanManageMenus`).
+- [x] A.5 Verificar que `CanManageUsers` no se rompe: quién llama `menus/user/{id}` y `Menu/user/{id}`.
+- [x] A.6 Cuantificar el blast radius antes/después y confirmar **0 usuarios** perdiendo acceso.
+
+## B · Cálculo puro + tests (gate de CI)
+
+- [x] B.1 `Application/Calculos/RolesAutorizacionCalculos.cs`: `PuedeGestionarRoles`, `PuedeLeerRoles`,
+      `PuedeLeerCatalogoMenus`, `EsLectura` y los mensajes. Reusa los ejes super admin / admin de
+      aplicación de `AdministracionEmpresasAutorizacionCalculos` (comparación de roles EXACTA).
+- [x] B.2 `tests/…/RolesAutorizacionCalculosTests.cs`: fail-closed, ordinal, la válvula del super
+      admin, y el caso que evita el lockout (`usuarios.gestionar` sólo ⇒ lee, no escribe).
+
+## C · Filtro de clase (capa API)
+
+- [x] C.1 `API/Infrastructure/RolesGestionFilter.cs` + marcadores `[RolesPermisoNoRequerido]` y
+      `[CatalogoMenusLectura]`, patrón de `GestionUsuariosEscrituraFilter`/`CargaMasivaPermisoFilter`.
+- [x] C.2 Aplicarlo en `RolesController` (clase) y en `MenuController.GetTree` (método), marcando las
+      excepciones: `menus/me`, `menus/user/{id}` y las 3 escrituras de menús (`AdminAplicacion`).
+- [x] C.3 `Program.cs`: reemplazar el `TODO(seguridad)` por dónde vive el gate real y por qué no puede
+      vivir en la policy.
+
+## D · Migración data-only idempotente
+
+- [x] D.1 Keys `roles.gestionar` y `menus.gestionar` (`WHERE NOT EXISTS`).
+- [x] D.2 `company_permissions` habilitadas **por cada empresa** (sin esto la key no llega al token).
+- [x] D.3 Anti-lockout por route: `/config/role-management` (ambas keys) y `/config/companies`
+      (`menus.gestionar`), más el rol `Admin`.
+- [x] D.4 `Down` que borra sólo lo que la migración crea. Designer clonado, ModelSnapshot intacto.
+- [x] D.5 Probar Up / idempotencia / Down en transacción revertida sobre la copia local.
+
+## E · Validación
+
+- [x] E.1 `dotnet build` con `--artifacts-path` propio (hay sesiones en paralelo) — 0 errores.
+- [x] E.2 `dotnet test` verde.
+- [x] E.3 Smoke HTTP: el usuario sin permisos pasa de 200/404 a **403** en las 4 rutas; el que sólo
+      tiene `usuarios.gestionar` sigue leyendo `GET /api/Roles` (**200**) y no puede escribir (**403**);
+      el admin hace las dos cosas.
+- [x] E.4 Backend de smoke apagado y puerto libre verificado.
+
+## F · Hallazgos que quedan FUERA de este cambio (reportados, no tocados)
+
+- [x] F.1 🔴 **`MenuController` está muerto en `main`: `IMenuService` no está registrado en el DI.**
+      Descubierto por el smoke: `GET /api/Menu/tree` responde **500**
+      (`Unable to resolve service for type 'IMenuService' while attempting to activate 'MenuController'`),
+      y con él **todos** los endpoints de ese controller. La interfaz existe y `MenuService` la
+      implementa, pero `Program.cs` no la registra: `AuthService.cs:25` dice literal
+      *«IRoleCompositeService ← reemplaza a IMenuService»*. Es previo a este trabajo (mi diff en ese
+      archivo son 8 líneas de atributos y comentario). **Consecuencia para este gate:** el 500 ocurre
+      al ACTIVAR el controller, o sea ANTES de que corra ningún action filter ⇒ el
+      `[RolesGestionFilter]` que le puse a `Menu/tree` queda **inerte** hasta que alguien registre el
+      servicio. Se deja puesto a propósito: el día que lo registren, nace cerrado en vez de abierto.
+      El gemelo vivo (`GET /api/Roles/menus/tree`, el que sí usa el front) sí queda cerrado —
+      verificado 403/200 en el smoke. No se arregla acá: registrar el servicio **abriría** un
+      endpoint hoy inalcanzable, que es lo contrario de endurecer.
+- [x] F.2 `CanManageUsers` sigue siendo «token válido y nada más», tal como pedía el enunciado. La
+      usan `RolesController.MenusForUser` y `MenuController.GetForUser` — devuelven el menú de OTRO
+      usuario. Verificado con grep: **ningún componente del front los llama**. El de `MenuController`
+      además está muerto por F.1. Quedan marcados con `[RolesPermisoNoRequerido]` y comentados.

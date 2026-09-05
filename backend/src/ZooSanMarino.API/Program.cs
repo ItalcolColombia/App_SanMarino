@@ -555,7 +555,24 @@ builder.Services.AddAuthorization(opt =>
 
     // Políticas con nombre usadas por los controllers (Menu/Role/...). Antes las "resolvía"
     // el AllowAllPolicyProvider dejándolas pasar; ahora exigen, como mínimo, usuario autenticado.
-    // TODO(seguridad): endurecer a permisos específicos (claim "permission") por política.
+    //
+    // 🔴 Estas tres NO son el gate de nada por sí solas: son "token válido y nada más". Se conservan
+    // porque los atributos [Authorize(Policy = ...)] las nombran, pero el permiso real se exige así:
+    //
+    //   - CanManageRoles / CanManageMenus (RolesController, MenuController.GetTree)
+    //       => RolesGestionFilterAttribute (API/Infrastructure/RolesGestionFilter.cs), con la regla
+    //          pura en RolesAutorizacionCalculos. Keys `roles.gestionar` y `menus.gestionar`.
+    //          Medido el 5-sep-2026: sin ese filtro, cualquier sesión autenticada podía hacer
+    //          POST /api/Roles/{id}/permissions/assign — o sea asignarse permisos, volver a loguearse
+    //          (las keys se hornean como claims al login) y saltarse todos los demás gates.
+    //
+    //   - CanManageUsers => sigue siendo sólo "autenticado", a propósito y fuera de alcance: la
+    //       comparten RolesController.MenusForUser y MenuController.GetForUser, ajenos al módulo de
+    //       usuarios; el módulo en sí lo cierra GestionUsuariosEscrituraFilterAttribute.
+    //
+    // Por qué el gate no puede vivir acá: una policy no distingue lectura de escritura, y la LECTURA
+    // de roles necesita una OR con `usuarios.gestionar` que la escritura no debe tener (el modal de
+    // usuarios consume GET /api/Roles para su desplegable). Ver RolesAutorizacionCalculos.
     foreach (var policyName in new[] { "CanManageMenus", "CanManageUsers", "CanManageRoles" })
         opt.AddPolicy(policyName, p => p.RequireAuthenticatedUser());
 

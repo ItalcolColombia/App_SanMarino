@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.API.Infrastructure;
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -19,7 +20,13 @@ public class MenuController : ControllerBase
 
     /// <summary>Árbol completo de menús (sin filtrar). Útil para administración.</summary>
     [HttpGet("tree")]
-    [Authorize(Policy = "CanManageMenus")] // quítalo si no usas policies
+    [Authorize(Policy = "CanManageMenus")]
+    // `CanManageMenus` es, hasta hoy, `RequireAuthenticatedUser()`: cualquier sesión podía enumerar
+    // el árbol de módulos de todos los países. El gate real es el filtro, acá a nivel de método
+    // porque es el único endpoint de este controller que lo necesita (los demás son AdminAplicacion
+    // o el menú propio). Gemelo de RolesController.MenusTree.
+    [RolesGestionFilter]
+    [CatalogoMenusLectura]
     [ProducesResponseType(typeof(IEnumerable<MenuItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTree() => Ok(await _svc.GetTreeAsync());
 
