@@ -1,75 +1,21 @@
--- ============================================================================
--- fn_reporte_semanal_levante_extras(p_lote_id)
--- COMPLEMENTO por SEXO para el "Reporte Técnico Semanal" de LEVANTE (Sanmarino).
---
--- HERMANA de fn_indicadores_levante_postura(p_lote_id): MISMO parámetro
--- (lotes.lote_id), MISMA fuente (seguimiento_diario_levante tipo='levante'),
--- MISMA fórmula de semana (floor((fecha_bogota - encaset)/7)+1, LEAST(25,…)),
--- MISMOS guards (encaset NULL/futuro ⇒ cero filas; exclusión de filas de PURO
--- traslado posteriores a la semana 25) y MISMO saldo Feature-13 por sexo
--- (aves_fin = aves_ini - mort - sel - err - tras_sal - venta + tras_ing).
--- ⇒ la columna `semana` casa 1:1 con la fn base y el servicio puede hacer zip.
---
--- Qué agrega (la fn base emite % y promedios; el Excel del reporte necesita
--- CONTEOS/KG por sexo con base FIJA de aves iniciales):
---   * Conteos semanales por sexo: mortalidad / selección(descarte) / error sexaje
---     + traslados (las % y acumulados con base fija los computa el C# puro
---     ReporteTecnicoSemanalCalculos — Excel: F7 = E7/$C$7, base inicial fija).
---   * Consumo kg por sexo por semana (la base solo expone g/ave/día).
---   * Bases resueltas de aves por sexo (mismo fallback que la fn base:
---     hembras_l/machos_l → primer traslado_ingreso → 0) y saldos inicio/fin.
---   * Nutrición REAL hembras: kcal_al_h / prot_al_h promedio de la semana
---     (la tabla no tiene kcal/prot de machos; el Excel solo la pide en hembras).
---   * Uniformidad y C.V. POR SEXO del registro de pesaje de la semana (misma
---     regla de selección de fila que la fn base: último registro con peso>0,
---     si no, el último registro de la semana). Sin arrastre (la uniformidad no
---     se arrastra en la fn base).
---   * fecha_fin_semana = encaset + (semana-1)*7 + 6 (columna FECHA del Excel).
---
--- IMPORTANTE (mapeo EF): nombres de columnas = snake_case EXACTO de las props
--- del DTO ReporteSemanalLevanteExtrasRow (…HembrasSem → …_hembras_sem).
---
--- TEMP TABLE con nombre PROPIO (_seg_sem_rx) + DROP IF EXISTS para no chocar
--- con _seg_sem de la fn base si ambas corren en la misma transacción.
--- Zona horaria: America/Bogota (idéntico a la fn base).
--- ============================================================================
-DROP FUNCTION IF EXISTS fn_reporte_semanal_levante_extras(integer);
-CREATE OR REPLACE FUNCTION fn_reporte_semanal_levante_extras(p_lote_id integer)
-RETURNS TABLE(
-    semana                          integer,
-    fecha_fin_semana                date,
-    dias_con_registro               integer,
-    base_hembras                    double precision,
-    base_machos                     double precision,
-    aves_hembras_inicio             double precision,
-    aves_hembras_fin                double precision,
-    aves_machos_inicio              double precision,
-    aves_machos_fin                 double precision,
-    mortalidad_hembras_sem          integer,
-    mortalidad_machos_sem           integer,
-    seleccion_hembras_sem           integer,
-    seleccion_machos_sem            integer,
-    error_hembras_sem               integer,
-    error_machos_sem                integer,
-    traslado_ingreso_hembras_sem    integer,
-    traslado_ingreso_machos_sem     integer,
-    traslado_salida_hembras_sem     integer,
-    traslado_salida_machos_sem      integer,
-    consumo_kg_hembras_sem          double precision,
-    consumo_kg_machos_sem           double precision,
-    kcal_alimento_hembras           double precision,
-    prot_alimento_hembras           double precision,
-    uniformidad_hembras             double precision,
-    uniformidad_machos              double precision,
-    cv_hembras                      double precision,
-    cv_machos                       double precision,
-    -- Peso prom por sexo del pesaje de la semana con ARRASTRE del último
-    -- conocido (misma regla que peso_hembras/peso_machos de la fn base).
-    -- NULL si el sexo nunca tuvo pesaje.
-    peso_hembras_sem                double precision,
-    peso_machos_sem                 double precision
-)
-LANGUAGE plpgsql VOLATILE AS $$
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- fn_reporte_semanal_levante_extras — complemento por sexo del Reporte Técnico Semanal LEVANTE
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- Fix 2026-09-05 (plan seguimiento_produccion_multiples_registros_dia_plan.md, §5/S6):
+--   dias_con_registro contaba FILAS (COUNT(*)), no DIAS calendario. Con el flag
+--   companies.permite_multiples_seguimientos_diarios ON para LEVANTE, 2 registros el mismo
+--   dia inflarian 'dias' y, con el, el denominador de consumo diario g/ave/dia. Las SUMAS
+--   (mortalidad, consumo, traslados) NO cambian: SUM es asociativa, sumar 2 filas del mismo
+--   dia o sumar el dia ya agrupado da el MISMO total semanal. Fix quirurgico: COUNT(DISTINCT
+--   reg_date) en vez de restructurar la fuente (funcion multi-lote/otros edge-cases finos,
+--   no vale la pena el riesgo de tocar mas que el conteo).
+-- Espejo exacto de pg_get_functiondef (ground truth) + este fix, no reformateado.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.fn_reporte_semanal_levante_extras(p_lote_id integer)
+ RETURNS TABLE(semana integer, fecha_fin_semana date, dias_con_registro integer, base_hembras double precision, base_machos double precision, aves_hembras_inicio double precision, aves_hembras_fin double precision, aves_machos_inicio double precision, aves_machos_fin double precision, mortalidad_hembras_sem integer, mortalidad_machos_sem integer, seleccion_hembras_sem integer, seleccion_machos_sem integer, error_hembras_sem integer, error_machos_sem integer, traslado_ingreso_hembras_sem integer, traslado_ingreso_machos_sem integer, traslado_salida_hembras_sem integer, traslado_salida_machos_sem integer, consumo_kg_hembras_sem double precision, consumo_kg_machos_sem double precision, kcal_alimento_hembras double precision, prot_alimento_hembras double precision, uniformidad_hembras double precision, uniformidad_machos double precision, cv_hembras double precision, cv_machos double precision, peso_hembras_sem double precision, peso_machos_sem double precision)
+ LANGUAGE plpgsql
+AS $function$
 DECLARE
     v_hembras_l   integer;
     v_machos_l    integer;
@@ -229,7 +175,7 @@ BEGIN
                COALESCE(SUM(x.tras_sal_h),0)::int, COALESCE(SUM(x.tras_sal_m),0)::int,
                COALESCE(SUM(x.venta_h),0)::int, COALESCE(SUM(x.venta_m),0)::int,
                COALESCE(SUM(x.cons_kg_h),0), COALESCE(SUM(x.cons_kg_m),0),
-               COUNT(*)::int,
+               COUNT(DISTINCT x.reg_date)::int,
                AVG(x.kcal_h) FILTER (WHERE x.kcal_h IS NOT NULL AND x.kcal_h > 0),
                AVG(x.prot_h) FILTER (WHERE x.prot_h IS NOT NULL AND x.prot_h > 0)
           INTO r_mort_h, r_mort_m, r_sel_h, r_sel_m, r_err_h, r_err_m,
@@ -297,4 +243,5 @@ BEGIN
 
     RETURN;
 END;
-$$;
+$function$
+

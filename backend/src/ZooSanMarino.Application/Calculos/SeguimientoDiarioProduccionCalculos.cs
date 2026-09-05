@@ -55,6 +55,73 @@ public static class SeguimientoDiarioProduccionCalculos
             .Select(g => g.OrderBy(f => f.Ts).First().Fila)
             .ToList();
 
+    /// <summary>
+    /// Registro crudo del día — subconjunto de columnas de <c>seguimiento_diario_produccion</c>
+    /// relevante para <see cref="AgruparPorDia"/>. Espejo de las columnas <c>c_*</c> de
+    /// <c>seg_dias_agrupado</c> en <c>fn_seguimiento_diario_produccion.sql</c> (v3).
+    /// </summary>
+    public sealed record RegistroCrudo(
+        long? SegId,
+        int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM,
+        double ConsKgH, double ConsKgM,
+        int HuevoTot, int HuevoInc,
+        decimal? PesoH, decimal? PesoM,
+        decimal? Uniformidad, decimal? CoeficienteVariacion,
+        string? TipoAlimento, string? Observaciones,
+        bool EsTraslado);
+
+    /// <summary>
+    /// Agrupa por día calendario cuando la empresa tiene <c>permite_multiples_seguimientos_diarios</c>
+    /// ON — espejo de <c>seg_dias_agrupado</c> (fn v3). Con UN solo registro el día, cada regla de
+    /// abajo devuelve exactamente el valor de esa fila (mismo resultado que <see cref="DedupPorDia"/>).
+    ///
+    /// Reglas (plan seguimiento_produccion_multiples_registros_dia, §3):
+    ///  • Aditivos (mortalidad, selección, error de sexaje, consumo, huevos) → SUMA.
+    ///  • Peso promedio (ave) → PROMEDIO simple (equivalente a ponderar por aves vivas, que es un
+    ///    valor de DÍA constante entre los registros del mismo día).
+    ///  • Uniformidad, CV%, observaciones, tipo de alimento → gana el ÚLTIMO registro del día.
+    ///  • es_traslado → TRUE si CUALQUIER registro del día lo fue.
+    ///  • seg_id → el primero no nulo (mínimo), para no tapar un registro real con un stub.
+    /// </summary>
+    public static IReadOnlyList<(DateOnly Dia, RegistroCrudo Fila)> AgruparPorDia(
+        IEnumerable<(DateOnly Dia, DateTime Ts, RegistroCrudo Fila)> filas)
+        => filas
+            .GroupBy(f => f.Dia)
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var ordenadas = g.OrderBy(f => f.Ts).ToList();
+                var ultima = ordenadas[^1].Fila;
+                var agregada = new RegistroCrudo(
+                    SegId: ordenadas.Select(f => f.Fila.SegId).Where(id => id.HasValue).DefaultIfEmpty().Min(),
+                    MortH: ordenadas.Sum(f => f.Fila.MortH),
+                    MortM: ordenadas.Sum(f => f.Fila.MortM),
+                    SelH: ordenadas.Sum(f => f.Fila.SelH),
+                    SelM: ordenadas.Sum(f => f.Fila.SelM),
+                    ErrH: ordenadas.Sum(f => f.Fila.ErrH),
+                    ErrM: ordenadas.Sum(f => f.Fila.ErrM),
+                    ConsKgH: ordenadas.Sum(f => f.Fila.ConsKgH),
+                    ConsKgM: ordenadas.Sum(f => f.Fila.ConsKgM),
+                    HuevoTot: ordenadas.Sum(f => f.Fila.HuevoTot),
+                    HuevoInc: ordenadas.Sum(f => f.Fila.HuevoInc),
+                    PesoH: PromedioONulo(ordenadas.Select(f => f.Fila.PesoH)),
+                    PesoM: PromedioONulo(ordenadas.Select(f => f.Fila.PesoM)),
+                    Uniformidad: ultima.Uniformidad,
+                    CoeficienteVariacion: ultima.CoeficienteVariacion,
+                    TipoAlimento: ultima.TipoAlimento,
+                    Observaciones: ultima.Observaciones,
+                    EsTraslado: ordenadas.Any(f => f.Fila.EsTraslado));
+                return (g.Key, agregada);
+            })
+            .ToList();
+
+    /// <summary>AVG ignorando nulos, igual que SQL — null si ningún valor de la serie lo trae.</summary>
+    private static decimal? PromedioONulo(IEnumerable<decimal?> valores)
+    {
+        var noNulos = valores.Where(v => v.HasValue).Select(v => v!.Value).ToList();
+        return noNulos.Count == 0 ? null : noNulos.Average();
+    }
+
     /// <summary>Edad en días desde la fecha de referencia, con piso 0 (≙ GREATEST(0, fecha − ref)).</summary>
     public static int EdadDias(DateOnly fecha, DateOnly refDate)
         => Math.Max(0, fecha.DayNumber - refDate.DayNumber);

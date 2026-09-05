@@ -372,6 +372,23 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public string GuiaGeneticaPerfil { get; set; } = "sanmarino";
 
+        /// <summary>
+        /// <c>true</c> = el seguimiento diario de PRODUCCIÓN y de LEVANTE aceptan más de un
+        /// registro por lote y día calendario UTC. Los registros del mismo día se AGRUPAN para
+        /// reportes/indicadores (campos aditivos se suman, peso promedio se pondera por aves vivas,
+        /// uniformidad/CV%/observaciones toman el último registro del día) — es lo mismo que ve el
+        /// usuario, no una fila nueva sin fusionar.
+        /// <para>
+        /// Nace de Santa Reyes (opera con varias capturas del mismo día). El índice único de BD que
+        /// protege "un registro por lote+día" para el resto de empresas queda parcial, excluyendo
+        /// explícitamente el <c>company_id</c> de las empresas con este flag — Postgres no admite
+        /// una subconsulta a <c>companies</c> en el predicado de un índice.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual: como máximo un registro por lote+día,
+        /// bloqueado por índice único y por el pre-check en el service.
+        /// </summary>
+        public bool PermiteMultiplesSeguimientosDiarios { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

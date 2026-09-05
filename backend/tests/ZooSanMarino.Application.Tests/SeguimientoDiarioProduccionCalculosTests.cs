@@ -160,6 +160,113 @@ public class SeguimientoDiarioProduccionCalculosTests
         Assert.Equal(new[] { "temprano", "otro-dia" }, dedup);
     }
 
+    // ── AgruparPorDia (flag permite_multiples_seguimientos_diarios) ────────────────────────
+
+    private static RegistroCrudo Reg(
+        long? segId, int mortH, int mortM, int huevoTot, int huevoInc,
+        double consH, double consM, decimal? pesoH, decimal? pesoM,
+        decimal? unif, string? alimento, bool esTraslado = false)
+        => new(segId, mortH, mortM, 0, 0, 0, 0, consH, consM, huevoTot, huevoInc,
+            pesoH, pesoM, unif, null, alimento, null, esTraslado);
+
+    [Fact]
+    public void AgruparPorDia_ConUnSoloRegistro_EsIdenticoAEseRegistro()
+    {
+        var reg = Reg(9, mortH: 1, mortM: 0, huevoTot: 33, huevoInc: 0,
+            consH: 0, consM: 0, pesoH: null, pesoM: null, unif: null, alimento: "Alimento A");
+        var filas = new[] { (D(16), new DateTime(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc), reg) };
+
+        var agrupado = AgruparPorDia(filas);
+
+        Assert.Single(agrupado);
+        Assert.Equal(reg, agrupado[0].Fila);
+    }
+
+    [Fact]
+    public void AgruparPorDia_DosRegistrosMismoDia_SumaAditivosYPromediaPeso()
+    {
+        // Caso testigo validado contra Postgres real (lote 152/LPP 20, empresa Santa Reyes,
+        // flag ON, 2 filas insertadas en transacción revertida) — mismos números.
+        var temprano = Reg(680, mortH: 1, mortM: 0, huevoTot: 100, huevoInc: 90,
+            consH: 10.0, consM: 3.0, pesoH: 1.50m, pesoM: 1.90m, unif: 80.00m, alimento: "Alimento A");
+        var tarde = Reg(681, mortH: 2, mortM: 1, huevoTot: 150, huevoInc: 140,
+            consH: 12.0, consM: 4.0, pesoH: 1.60m, pesoM: 2.00m, unif: 82.00m, alimento: "Alimento B");
+        var filas = new[]
+        {
+            (D(1), new DateTime(2026, 6, 1, 5, 0, 0, DateTimeKind.Utc), temprano),
+            (D(1), new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc), tarde),
+        };
+
+        var agrupado = AgruparPorDia(filas);
+
+        Assert.Single(agrupado);
+        var f = agrupado[0].Fila;
+        Assert.Equal(3, f.MortH);              // 1 + 2
+        Assert.Equal(1, f.MortM);               // 0 + 1
+        Assert.Equal(250, f.HuevoTot);           // 100 + 150
+        Assert.Equal(230, f.HuevoInc);           // 90 + 140
+        Assert.Equal(22.0, f.ConsKgH);            // 10 + 12
+        Assert.Equal(7.0, f.ConsKgM);             // 3 + 4
+        Assert.Equal(1.55m, f.PesoH);             // avg(1.50, 1.60)
+        Assert.Equal(1.95m, f.PesoM);             // avg(1.90, 2.00)
+        Assert.Equal(82.00m, f.Uniformidad);      // gana el ÚLTIMO registro del día
+        Assert.Equal("Alimento B", f.TipoAlimento); // ídem
+        Assert.Equal(680, f.SegId);               // el primero (MIN) no nulo
+    }
+
+    [Fact]
+    public void AgruparPorDia_PesoNuloEnUnaFila_PromediaSoloLasNoNulas()
+    {
+        var sinPeso = Reg(1, mortH: 0, mortM: 0, huevoTot: 10, huevoInc: 0,
+            consH: 1.0, consM: 1.0, pesoH: null, pesoM: null, unif: null, alimento: "A");
+        var conPeso = Reg(2, mortH: 0, mortM: 0, huevoTot: 10, huevoInc: 0,
+            consH: 1.0, consM: 1.0, pesoH: 1.70m, pesoM: null, unif: null, alimento: "A");
+        var filas = new[]
+        {
+            (D(1), new DateTime(2026, 6, 1, 5, 0, 0, DateTimeKind.Utc), sinPeso),
+            (D(1), new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc), conPeso),
+        };
+
+        var agrupado = AgruparPorDia(filas);
+
+        Assert.Equal(1.70m, agrupado[0].Fila.PesoH); // promedia ignorando el nulo, no lo cuenta como 0
+        Assert.Null(agrupado[0].Fila.PesoM);          // las dos filas traen null ⇒ sigue null
+    }
+
+    [Fact]
+    public void AgruparPorDia_EsTraslado_TrueSiCualquierRegistroDelDiaLoFue()
+    {
+        var manual = Reg(1, 0, 0, 0, 0, 0, 0, null, null, null, null, esTraslado: false);
+        var traslado = Reg(2, 0, 0, 0, 0, 0, 0, null, null, null, null, esTraslado: true);
+        var filas = new[]
+        {
+            (D(1), new DateTime(2026, 6, 1, 5, 0, 0, DateTimeKind.Utc), manual),
+            (D(1), new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc), traslado),
+        };
+
+        Assert.True(AgruparPorDia(filas)[0].Fila.EsTraslado);
+    }
+
+    [Fact]
+    public void AgruparPorDia_VariosDias_AgrupaCadaDiaPorSeparado()
+    {
+        var d1a = Reg(1, 1, 0, 10, 0, 0, 0, null, null, null, "A");
+        var d1b = Reg(2, 1, 0, 10, 0, 0, 0, null, null, null, "A");
+        var d2 = Reg(3, 5, 0, 20, 0, 0, 0, null, null, null, "A");
+        var filas = new[]
+        {
+            (D(1), new DateTime(2026, 6, 1, 5, 0, 0, DateTimeKind.Utc), d1a),
+            (D(1), new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc), d1b),
+            (D(2), new DateTime(2026, 6, 2, 5, 0, 0, DateTimeKind.Utc), d2),
+        };
+
+        var agrupado = AgruparPorDia(filas);
+
+        Assert.Equal(2, agrupado.Count);
+        Assert.Equal(2, agrupado[0].Fila.MortH);  // día 1: 1 + 1
+        Assert.Equal(5, agrupado[1].Fila.MortH);  // día 2: sin duplicar, solo su fila
+    }
+
     [Theory]
     [InlineData(0, 1)]   // el mismo día de la referencia = semana 1
     [InlineData(6, 1)]

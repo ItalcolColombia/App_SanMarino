@@ -97,5 +97,8 @@ public record CompanyDto(
     /// valor que estuvo hardcodeado en <c>fn_indicadores_produccion_postura</c>. Santa Reyes usa
     /// <c>18</c> (postura comercial: pone mucho antes que una reproductora).
     /// </summary>
-    int SemanaInicioIndicadoresProduccion = 25
+    int SemanaInicioIndicadoresProduccion = 25,
+    /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día;
+    /// los registros del mismo día se agrupan para reportes/indicadores.</summary>
+    bool PermiteMultiplesSeguimientosDiarios = false
 );

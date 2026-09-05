@@ -2,6 +2,7 @@
 // Reporte de clasificacion de huevo para comercio, leyendo desde produccion_diaria.
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -185,7 +186,11 @@ public partial class ReporteTecnicoProduccionService
     }
 
     /// <summary>
-    /// Lee seguimientos desde produccion_diaria (SeguimientoProduccion) filtrando por LotePosturaProduccionId.
+    /// Lee la serie diaria de producción vía <c>fn_seguimiento_diario_produccion</c> (única
+    /// fórmula — antes leía <c>_ctx.SeguimientoProduccion</c> crudo, sin pasar por la fn: con el
+    /// flag <c>permite_multiples_seguimientos_diarios</c> ON eso duplicaba el renglón del día en
+    /// vez de mostrar el total agrupado). Filas movimiento-only (<c>SegId == null</c>) se excluyen
+    /// — no son un registro editable, igual que en la grilla de <c>ListarSeguimientoAsync</c>.
     /// </summary>
     private async Task<List<SegProduccionParaReporte>> ObtenerSeguimientosDesdePDAsync(
         int lotePosturaProduccionId,
@@ -193,43 +198,46 @@ public partial class ReporteTecnicoProduccionService
         DateTime? fechaFin,
         CancellationToken ct)
     {
-        var query = _ctx.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId);
-
-        if (fechaInicio.HasValue)
-            query = query.Where(s => s.Fecha >= fechaInicio.Value);
-        if (fechaFin.HasValue)
-            query = query.Where(s => s.Fecha <= fechaFin.Value);
-
-        return await query
-            .OrderBy(s => s.Fecha)
-            .Select(s => new SegProduccionParaReporte
-            {
-                Fecha        = s.Fecha,
-                MortalidadH  = s.MortalidadH,
-                MortalidadM  = s.MortalidadM,
-                SelH         = s.SelH,
-                SelM         = s.SelM,
-                ConsKgH      = s.ConsKgH,
-                ConsKgM      = s.ConsKgM,
-                HuevoTot     = s.HuevoTot,
-                HuevoInc     = s.HuevoInc,
-                HuevoLimpio  = s.HuevoLimpio,
-                HuevoTratado = s.HuevoTratado,
-                HuevoSucio   = s.HuevoSucio,
-                HuevoDeforme = s.HuevoDeforme,
-                HuevoBlanco  = s.HuevoBlanco,
-                HuevoDobleYema = s.HuevoDobleYema,
-                HuevoPiso    = s.HuevoPiso,
-                HuevoPequeno = s.HuevoPequeno,
-                HuevoRoto    = s.HuevoRoto,
-                HuevoDesecho = s.HuevoDesecho,
-                HuevoOtro    = s.HuevoOtro,
-                PesoH        = s.PesoH,
-                PesoM        = s.PesoM,
-                PesoHuevo    = s.PesoHuevo ?? 0
-            })
+        var filas = await _ctx.Database
+            .SqlQueryRaw<SeguimientoProduccionTablaFilaDto>(
+                "SELECT * FROM fn_seguimiento_diario_produccion({0}::int, NULL::int)",
+                lotePosturaProduccionId)
             .ToListAsync(ct);
+
+        IEnumerable<SeguimientoProduccionTablaFilaDto> visibles = filas.Where(f => f.SegId != null);
+        if (fechaInicio.HasValue)
+            visibles = visibles.Where(f => f.Fecha >= fechaInicio.Value);
+        if (fechaFin.HasValue)
+            visibles = visibles.Where(f => f.Fecha <= fechaFin.Value);
+
+        return visibles
+            .OrderBy(f => f.Fecha)
+            .Select(f => new SegProduccionParaReporte
+            {
+                Fecha        = f.Fecha,
+                MortalidadH  = f.MortalidadHembras ?? 0,
+                MortalidadM  = f.MortalidadMachos ?? 0,
+                SelH         = f.SelH ?? 0,
+                SelM         = f.SelM ?? 0,
+                ConsKgH      = (decimal)(f.ConsKgH ?? 0),
+                ConsKgM      = (decimal)(f.ConsKgM ?? 0),
+                HuevoTot     = f.HuevoTot ?? 0,
+                HuevoInc     = f.HuevoInc ?? 0,
+                HuevoLimpio  = f.HuevoLimpio ?? 0,
+                HuevoTratado = f.HuevoTratado ?? 0,
+                HuevoSucio   = f.HuevoSucio ?? 0,
+                HuevoDeforme = f.HuevoDeforme ?? 0,
+                HuevoBlanco  = f.HuevoBlanco ?? 0,
+                HuevoDobleYema = f.HuevoDobleYema ?? 0,
+                HuevoPiso    = f.HuevoPiso ?? 0,
+                HuevoPequeno = f.HuevoPequeno ?? 0,
+                HuevoRoto    = f.HuevoRoto ?? 0,
+                HuevoDesecho = f.HuevoDesecho ?? 0,
+                HuevoOtro    = f.HuevoOtro ?? 0,
+                PesoH        = f.PesoH,
+                PesoM        = f.PesoM,
+                PesoHuevo    = (decimal)(f.PesoHuevo ?? 0)
+            })
+            .ToList();
     }
 }

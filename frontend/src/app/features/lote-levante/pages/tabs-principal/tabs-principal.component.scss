@@ -787,3 +787,28 @@
   &--salida.cell-mov--valor  { color: #dc2626; font-weight: 700; }
   &--venta.cell-mov--valor   { color: #d97706; font-weight: 700; }
 }
+
+// ── Varios registros el mismo día (companies.permite_multiples_seguimientos_diarios) ──
+// La grilla sigue pintando UNA FILA POR REGISTRO (cada una con sus acciones), pero la fecha, la
+// semana y la edad las rotula sólo la primera del día. Estas clases marcan la continuación para
+// que el bloque se lea como un solo día y no como días repetidos.
+.ux-row--mismo-dia > td:first-child { border-top-color: transparent; }
+
+.registro-dia-continuacion {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.badge-registro-dia {
+  display: inline-block;
+  margin-left: var(--space-1, 0.25rem);
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--ital-orange-100);
+  color: var(--ital-orange-dark);
+}

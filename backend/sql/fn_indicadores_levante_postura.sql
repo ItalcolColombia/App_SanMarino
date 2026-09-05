@@ -413,7 +413,7 @@ BEGIN
         CONTINUE WHEN NOT EXISTS (SELECT 1 FROM _seg_sem WHERE sem = s);
 
         SELECT COALESCE(SUM(mort),0), COALESCE(SUM(sel),0), COALESCE(SUM(cons_kg),0),
-               COALESCE(SUM(err),0), COALESCE(SUM(tras_sal),0), COALESCE(SUM(tras_ing),0), COUNT(*)::int,
+               COALESCE(SUM(err),0), COALESCE(SUM(tras_sal),0), COALESCE(SUM(tras_ing),0), COUNT(DISTINCT reg_date)::int,
                COALESCE(SUM(mort_h),0), COALESCE(SUM(mort_m),0),
                COALESCE(SUM(sel_h),0),  COALESCE(SUM(sel_m),0),
                COALESCE(SUM(err_h),0),  COALESCE(SUM(err_m),0),

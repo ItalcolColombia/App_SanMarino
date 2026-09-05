@@ -74,5 +74,8 @@ public record UpdateCompanyDto(
     string?  GuiaGeneticaPerfil                 = null,
     /// <summary>Semana de vida desde la que arrancan los indicadores de producción.
     /// <c>null</c> = el cliente no lo mandó ⇒ se conserva el valor actual.</summary>
-    int?     SemanaInicioIndicadoresProduccion  = null
+    int?     SemanaInicioIndicadoresProduccion  = null,
+    /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día.
+    /// <c>null</c> = el cliente no lo mandó ⇒ se conserva el valor actual.</summary>
+    bool?    PermiteMultiplesSeguimientosDiarios = null
 );
