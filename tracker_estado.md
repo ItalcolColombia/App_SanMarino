@@ -7624,3 +7624,46 @@ permiso del sistema.
       usan `RolesController.MenusForUser` y `MenuController.GetForUser` — devuelven el menú de OTRO
       usuario. Verificado con grep: **ningún componente del front los llama**. El de `MenuController`
       además está muerto por F.1. Quedan marcados con `[RolesPermisoNoRequerido]` y comentados.
+
+---
+
+# Población de un ciclo completo de Santa Reyes por carga masiva
+
+Plan: [poblacion_ciclo_completo_santa_reyes_plan.md](fase_de_desarrollo/poblacion_ciclo_completo_santa_reyes_plan.md)
+
+Entregable en `Desktop/Poblacion_Ciclo_Santa_Reyes/` (dos `.xlsx` + LEEME + el generador Python).
+Lote `SR-2025-01`: levante semanas 1-17 (119 días) + producción 18-78 (427 días), alimento y huevos
+cuadrados en cero y venta final que deja el lote en 0 aves.
+
+- [x] P1 Relevadas las reglas REALES del importador leyendo el código (no el manual): una fila por
+      fecha, 22 columnas por línea para Santa Reyes, `Consumo H (kg)` vacío cuando la fila trae
+      `Alimento 1 H`, silo validado contra la granja **y** contra `lote_silos`, balance de alimento
+      por TOTAL (silo, ítem), disponibilidad de huevo por ítem.
+- [x] P2 Archivos generados y cuadrados: 9 combinaciones (ítem, silo) con consumo == ingreso kilo a
+      kilo; los 4 ítems de huevo con producido == movido; aves 20.000 + 500 − 680 − 200 − 300 =
+      19.320 al cierre del levante, − 865 − 18.455 = **0** al final.
+- [x] P3 **Encabezados verificados contra la plantilla oficial** que genera el backend
+      (`fase_de_desarrollo/manual_carga_masiva_postura/Plantilla_SANTA_REYES_*.xlsx`): las cinco
+      hojas de datos salen **columna a columna idénticas** (Datos 22, Alimento 16, Movimientos Aves
+      8, Movimientos Huevos 9, Huevos 3). Sólo difieren `Instrucciones` y `Referencias`, que el
+      importador ignora por nombre.
+- [x] P4 Los 8 códigos de alimento, los 2 silos y los 4 ítems de huevo resuelven contra los
+      catálogos reales de la empresa 6.
+- [x] P5 Migración `20260905200000_SeedLotePruebaPoblacionSantaReyes` (commit `8d63313`, en `main`):
+      deja creados el lote, `lote_etapa_levante`, el espejo de levante, los 2 silos asignados y los
+      4 tipos de huevo declarados. Data-only, sin ids literales (todo por nombre/código, porque
+      `galpones.galpon_id` es PK global). Probada contra Postgres real en transacción revertida:
+      crea las 5 cosas con los valores esperados, **3 corridas seguidas no duplican nada**, `Down()`
+      limpia sin huérfanos y `Down()` con un seguimiento cargado **se niega** y deja el lote vivo.
+- [i] 🔴 **El peso corporal va en GRAMOS.** La columna del Excel se llama `Peso H (g)` y el
+      importador **no convierte**; los datos reales están en gramos (levante 1,3 a 3.039; producción
+      3.307 a 4.669). Pero la grilla del lote y el modal de detalle lo rotulan **«kg»**
+      (`tabs-principal.component.html`, `modal-detalle-seguimiento.component.html`), y un `<small>`
+      del form de levante dice «Peso promedio en gramos». Es un error de RÓTULO de la pantalla, no
+      del dato. No se tocó — es de otro módulo.
+- [ ] P6 Dry-run real de los dos archivos contra el importador. **Pendiente**: necesita el lote
+      creado, que ahora lo deja la migración de P5. Es lo único que falta para pasar de «estructura
+      verificada» a «probado de punta a punta».
+- [~] P7 Importar en producción. Orden obligatorio: importar LEVANTE → **cerrar y liquidar el
+      levante a mano** → importar PRODUCCIÓN. Reimportar no corrige: una fecha ya cargada se omite
+      en silencio.
