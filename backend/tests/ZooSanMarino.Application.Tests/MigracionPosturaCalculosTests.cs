@@ -211,6 +211,37 @@ public class MigracionPosturaCalculosTests
         Assert.Equal(esperado, MigracionPosturaCalculos.MezclaFuentesDeHuevos(hayItems, c, incubables));
     }
 
+    [Theory]
+    [InlineData(2550, false)]  // el explícito coincide con la suma de los ítems: redundante, no ambiguo
+    [InlineData(2400, true)]   // discrepa ⇒ advertencia (manda el desglose por ítem)
+    [InlineData(0, true)]      // un cero explícito también discrepa: es un dato, no un vacío
+    [InlineData(null, false)]  // columna vacía (el caso normal en la plantilla nueva): nada que avisar
+    public void TotalDiscrepaDeItems(int? explicito, bool esperado)
+        => Assert.Equal(esperado, MigracionPosturaCalculos.TotalDiscrepaDeItems(explicito, totalItems: 2550));
+
+    [Fact]
+    public void TotalDiscrepaDeItems_EsElGemeloQueFaltaba()
+    {
+        // La asimetría que esto corrige: con ítems en el día, 'Huevo Incubable' informado producía un
+        // ERROR duro (MezclaFuentesDeHuevos) y su gemela 'Huevo Total' no producía absolutamente
+        // nada — la columna se descartaba en silencio.
+        var sinCategorias = HuevosClasificacion.Cero;
+
+        Assert.True(MigracionPosturaCalculos.MezclaFuentesDeHuevos(
+            hayHuevoItems: true, sinCategorias, incubables: 300));
+        Assert.True(MigracionPosturaCalculos.TotalDiscrepaDeItems(totalExplicito: 300, totalItems: 2550));
+    }
+
+    [Fact]
+    public void TotalDiscrepaDeItems_NoConvierteEnErrorUnTotalQueCuadra()
+    {
+        // Escribir el total además del desglose no es mezclar fuentes: el total es DERIVABLE de los
+        // ítems. Solo se avisa cuando dice otra cosa.
+        Assert.False(MigracionPosturaCalculos.TotalDiscrepaDeItems(2550, 2550));
+        Assert.False(MigracionPosturaCalculos.MezclaFuentesDeHuevos(
+            hayHuevoItems: true, HuevosClasificacion.Cero, incubables: null));
+    }
+
     // ── Merge con el arrastre de huevos del levante (día del cierre) ─────────
     // Es el primer día de producción en toda migración: el cierre deja una fila con los huevos
     // arrastrados y el Excel trae ese mismo día. Contrato: se SUMAN categoría por categoría y los

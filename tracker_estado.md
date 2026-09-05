@@ -6869,9 +6869,14 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       se emite y las Instrucciones dicen qué hacer, en vez de ofrecer una hoja que rechaza el archivo.
 - [x] F4.2 `Movimientos Huevos` no se emite con `clasificacion_huevo_por_items` (sus 11 categorías
       quedan en 0 y la validación de disponibilidad rechazaría el archivo entero).
-- [ ] F4.3 `Huevo Total` ignorado en silencio cuando el día trae ítems ⇒ falta la Advertencia
-      explícita. **No aplica a la plantilla nueva** (Santa Reyes ya no recibe esa columna); queda para
-      un archivo viejo. Pendiente.
+- [x] F4.3 `Huevo Total` ya NO se descarta en silencio (5-sep-2026). La asimetría vivía dentro del
+      mismo guardián: `Huevo Incubable` sí producía un Error duro y su gemela `Huevo Total` no
+      producía nada. Se agregó `MigracionPosturaCalculos.TotalDiscrepaDeItems` (puro, 6 tests) y su
+      Advertencia. **Advertencia y no Error, a propósito:** las categorías y los incubables son datos
+      que el camino por ítems no puede representar (se perderían enteros ⇒ Error), mientras que el
+      total SÍ es derivable de los ítems — un total que coincide es redundante, no ambiguo. Es el
+      mismo criterio de `TotalDiscrepaDeCategorias`. Verificado contra el backend: 2400 vs 2550 ⇒
+      avisa con los dos números; 2550 vs 2550 ⇒ silencio.
 
 ### F5 · Silo real en la carga masiva (espejo del seguimiento diario)
 

@@ -675,6 +675,17 @@ public partial class MigracionService
                 errores.Add(new(fila.Numero, "Huevo Total", huevoTot?.ToString(),
                     $"'Huevo Total' ({huevoTot}) no coincide con la suma de las categorías ({categorias.Totales}); manda el desglose.", "Advertencia"));
 
+            // Mismo aviso frente a la hoja "Huevos": sin esto la columna se descartaba en SILENCIO
+            // —su gemela 'Huevo Incubable' sí avisaba— y el Excel del cliente quedaba diciendo un
+            // número que la app no guardó.
+            if (itemsHuevoDelDia is { Count: > 0 })
+            {
+                var totalDeItems = itemsHuevoDelDia.Sum(i => i.Cantidad);
+                if (MigracionPosturaCalculos.TotalDiscrepaDeItems(huevoTot, totalDeItems))
+                    errores.Add(new(fila.Numero, "Huevo Total", huevoTot?.ToString(),
+                        $"'Huevo Total' ({huevoTot}) no coincide con la suma de la hoja 'Huevos' ({totalDeItems}); manda el desglose por ítem.", "Advertencia"));
+            }
+
             if (MigracionSeveridadCalculos.CuentaQueDescartan(errores) > e0) continue;
 
             // Día del cierre del levante: los huevos del Excel se SUMAN a los arrastrados y los totales

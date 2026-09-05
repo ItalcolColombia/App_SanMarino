@@ -139,7 +139,31 @@ public static class MigracionPosturaCalculos
     /// <c>huevo_tot</c> es la suma de los ítems y las 11 columnas quedan en 0 (regla de
     /// <see cref="HuevoItemsCalculos"/>): si además llegan categorías o incubables, no hay forma de
     /// saber cuál gana ⇒ es un ERROR, no se adivina.
+    /// <para>
+    /// <b>Por qué "Huevo Total" NO entra acá</b> y tiene su propia regla
+    /// (<see cref="TotalDiscrepaDeItems"/>): las categorías y los incubables son datos que el camino
+    /// por ítems <b>no puede representar</b> —se guardarían en cero y la información se perdería
+    /// entera—, mientras que el total SÍ es derivable de los ítems. Un total que coincide con la suma
+    /// es redundante, no ambiguo; solo uno que difiere dice dos cosas distintas, y ahí manda el
+    /// desglose. Es el mismo criterio con el que <see cref="TotalDiscrepaDeCategorias"/> trata al
+    /// total frente a las 11 columnas.
+    /// </para>
     /// </summary>
     public static bool MezclaFuentesDeHuevos(bool hayHuevoItems, HuevosClasificacion categorias, int? incubables)
         => hayHuevoItems && (categorias.Totales > 0 || incubables is > 0);
+
+    /// <summary>
+    /// ¿El total explícito de la hoja "Datos" discrepa de la suma de los ítems de la hoja "Huevos"?
+    /// Advertencia, no error, por el mismo motivo que <see cref="TotalDiscrepaDeCategorias"/>: manda
+    /// el desglose y el usuario tiene que enterarse.
+    /// <para>
+    /// Existe porque su gemela <c>Huevo Incubable</c> SÍ producía un error y "Huevo Total" no
+    /// producía absolutamente nada: la columna se descartaba en silencio y el Excel del cliente
+    /// quedaba diciendo un número que la app no guardó.
+    /// </para>
+    /// </summary>
+    /// <param name="totalExplicito">Columna "Huevo Total" de la fila; <c>null</c> si vino vacía.</param>
+    /// <param name="totalItems">Suma de las cantidades de la hoja "Huevos" para esa fecha.</param>
+    public static bool TotalDiscrepaDeItems(int? totalExplicito, int totalItems)
+        => totalExplicito is int t && t != totalItems;
 }
