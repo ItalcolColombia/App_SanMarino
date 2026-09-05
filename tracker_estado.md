@@ -7676,6 +7676,24 @@ cuadrados en cero y venta final que deja el lote en 0 aves.
       tiene columna de peso**, así que ahí el peso no se compara contra nada y arrancar en kg no
       rompe ningún cálculo. Los archivos generados van en kg (levante 0,07→1,455; producción
       1,52→2,00).
+- [x] P8 **Renombrada la columna `Peso H/M (g)` → `(kg)` en los dos esquemas de POSTURA**, que era
+      el único lugar del sistema que decía gramos para el peso corporal. Anexo del plan.
+      Cuatro archivos, y ninguno era opcional: el título es además la **clave de lookup**
+      (`MigracionService.Historicos.cs:481-482,640-641` — sin actualizarlo el peso se perdería en
+      silencio); `PlantillaPosturaCalculos.cs:47,57` lista `"Peso M (g)"` para ocultarlo, así que sin
+      tocarlo la plantilla de Santa Reyes saldría con **23** columnas en vez de 22; y
+      `MigracionEjemploPosturaCalculos.cs:168-169` enseñaba `1450`, ahora `1.45`.
+      **Compatibilidad real, no teórica:** `NormalizarClave` conserva los paréntesis, así que
+      `peso h (g)` y `peso h (kg)` son claves distintas y el ALIAS es lo único que hace entrar un
+      archivo viejo. ⚠️ **Engorde NO se tocó**: ahí el peso sí es en gramos de punta a punta
+      (`Peso de llegada (g)`, campo `pesoLlegadaG`) y están sus históricos de Panamá/Ecuador.
+      Tests: se separó `LevanteViejas` (encabezados como estaban ESCRITOS, con `(g)`) de
+      `LevantePrefijoActual` (títulos actuales, para el test de orden) porque el mismo array servía
+      para dos cosas que ahora divergen; + 3 casos nuevos
+      (`Postura_PesoCorporal_SeLeeConElRotuloViejoYConElNuevo` con las tres escrituras,
+      `Postura_PesoDelHuevo_SigueEnGramos` y `Engorde_ConservaElPesoEnGramos`).
+      Validación: `dotnet build` 0/0 · `dotnet test` **3.971 verdes** (+5).
+      Los dos `.xlsx` se regeneraron con el título nuevo y el peso en kg.
 - [ ] P6 Dry-run real de los dos archivos contra el importador. **Pendiente**: necesita el lote
       creado, que ahora lo deja la migración de P5. Es lo único que falta para pasar de «estructura
       verificada» a «probado de punta a punta».

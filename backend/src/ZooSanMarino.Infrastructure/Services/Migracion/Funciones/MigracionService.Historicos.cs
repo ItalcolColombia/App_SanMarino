@@ -478,8 +478,8 @@ public partial class MigracionService
             var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesPostura(tipo, "Error Sexaje M"));
             var consH = DecimalNoNeg(fila, errores, "Consumo H (kg)", ClavesPostura(tipo, "Consumo H (kg)"));
             var consM = DecimalNoNeg(fila, errores, "Consumo M (kg)", ClavesPostura(tipo, "Consumo M (kg)"));
-            var pesoH = DobleOpc(fila, errores, "Peso H (g)", ClavesPostura(tipo, "Peso H (g)"));
-            var pesoM = DobleOpc(fila, errores, "Peso M (g)", ClavesPostura(tipo, "Peso M (g)"));
+            var pesoH = DobleOpc(fila, errores, "Peso H (kg)", ClavesPostura(tipo, "Peso H (kg)"));
+            var pesoM = DobleOpc(fila, errores, "Peso M (kg)", ClavesPostura(tipo, "Peso M (kg)"));
             var unifH = DobleOpc(fila, errores, "Uniformidad H", ClavesPostura(tipo, "Uniformidad H"));
             var unifM = DobleOpc(fila, errores, "Uniformidad M", ClavesPostura(tipo, "Uniformidad M"));
 
@@ -637,8 +637,8 @@ public partial class MigracionService
             // Campos completos del modal (opcionales): error de sexaje, pesaje corporal y agua.
             var errH = EnteroNoNeg(fila, errores, "Error Sexaje H", ClavesPostura(tipo, "Error Sexaje H"));
             var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesPostura(tipo, "Error Sexaje M"));
-            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", ClavesPostura(tipo, "Peso H (g)"));
-            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", ClavesPostura(tipo, "Peso M (g)"));
+            var pesoH = DobleNoNeg(fila, errores, "Peso H (kg)", ClavesPostura(tipo, "Peso H (kg)"));
+            var pesoM = DobleNoNeg(fila, errores, "Peso M (kg)", ClavesPostura(tipo, "Peso M (kg)"));
             var unifLote = Porcentaje0a100(fila, errores, "Uniformidad", ClavesPostura(tipo, "Uniformidad"));
             var cvLote = Porcentaje0a100(fila, errores, "Coef. Variación", ClavesPostura(tipo, "Coef. Variación"));
             var obsPesaje = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, "Observaciones Pesaje")));

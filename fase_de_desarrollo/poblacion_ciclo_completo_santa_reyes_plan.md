@@ -141,3 +141,43 @@ leída de la BD y volcada al propio script para que no dependa de la conexión.
 - **V5** `aves_h_actual` del LPP al final == 0.
 - **V6** Reimportar cualquiera de los dos archivos: 0 procesadas, todas omitidas, sin cambios.
 - **V7** Todas las fechas del archivo son pasadas ⇒ ninguna advertencia de fecha futura.
+
+---
+
+## Anexo · Renombrar `Peso H/M (g)` → `(kg)` en los esquemas de POSTURA (05-sep-2026)
+
+**Por qué.** El peso corporal de postura se captura y se muestra en **kg** en todo el sistema —
+`modal-create-edit.component.html:426-427` (`pesoPromH`) y
+`modal-seguimiento-diario.component.html:283-284` (`pesoH`), ambos «Peso promedio (kg)» con
+`step="0.01"`, payload **sin conversión**, y la grilla y el modal de detalle igual—. El **único**
+lugar que decía gramos era la columna del Excel de carga masiva, y es por donde entraron los
+históricos de Sanmarino en la escala equivocada.
+
+**Alcance: sólo POSTURA.** Engorde queda intacto: ahí el peso **sí** es en gramos de punta a punta
+(`Peso de llegada (g)`, el campo se llama literalmente `pesoLlegadaG`), y sus históricos de
+Panamá/Ecuador están en esa escala.
+
+**Compatibilidad hacia atrás.** `MigracionCalculos.NormalizarClave` sólo pasa a minúsculas, saca
+acentos y colapsa espacios: **conserva los paréntesis**, así que `peso h (g)` y `peso h (kg)` son
+claves distintas. Agregando `"peso h (g)"` como ALIAS, cualquier archivo ya armado con el título
+viejo se sigue leyendo sin tocarlo. El valor no se convierte: se renombra el rótulo, no el dato.
+
+**Archivos:**
+- `MigracionEsquemas.cs:116-117` (SeguimientoLevante) y `:176-177` (SeguimientoProduccion) —
+  título a `(kg)` + alias `peso h (g)` / `peso m (g)`. **NO tocar `:365-366` ni `:488-489`, que son
+  de engorde.**
+- `MigracionService.Historicos.cs:481-482` y `:640-641` — el título es la clave de lookup
+  (`ClavesDeColumna` busca la columna normalizando el título): si no se actualiza, deja de encontrar
+  la columna.
+- `PlantillaPosturaCalculos.cs:47,57` — `MachosLevante` / `MachosProduccion` listan `"Peso M (g)"`;
+  sin actualizarlo, Santa Reyes dejaría de ocultar esa columna y la plantilla saldría con 23.
+- `MigracionEjemploPosturaCalculos.cs:168-169` — títulos **y valores** del ejemplo (1450 → 1,45).
+- Tests: `MigracionEsquemasTests.cs:135,257`, `PlantillaPosturaCalculosTests.cs:74,113,152`.
+
+**Casos de prueba:**
+- R1 Un archivo con el encabezado VIEJO `Peso H (g)` se sigue leyendo (alias).
+- R2 Un archivo con el encabezado NUEVO `Peso H (kg)` se lee.
+- R3 La plantilla de Santa Reyes sigue emitiendo **22** columnas por línea (el ocultamiento de
+  `Peso M (kg)` sigue funcionando).
+- R4 Engorde intacto: sus esquemas siguen diciendo `(g)`.
+- R5 `dotnet build` 0/0 + `dotnet test` verdes.

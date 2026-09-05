@@ -113,8 +113,17 @@ public static class MigracionEsquemas
         new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h" }),
         new("Consumo M (kg)",     Requerida: false, Alias: new[] { "consumo m" }),
         new("Tipo Alimento",      Requerida: false),
-        new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
-        new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
+        // 🔴 El peso corporal de POSTURA va en KILOS, no en gramos: el formulario diario lo pide así
+        // en las dos líneas («Peso promedio (kg)», step 0.01) y el payload viaja SIN conversión, así
+        // que la grilla y el modal de detalle muestran exactamente lo que se cargó. El título viejo
+        // «(g)» era el único lugar del sistema que decía gramos, y es por donde entraron históricos
+        // en la escala equivocada. Se conserva como ALIAS para que los archivos ya armados con ese
+        // encabezado se sigan leyendo: `NormalizarClave` conserva los paréntesis, así que
+        // «peso h (g)» y «peso h (kg)» son claves distintas y no colisionan.
+        // ⚠️ ENGORDE no cambia: ahí el peso SÍ es en gramos de punta a punta (su formulario dice
+        // «Peso de llegada (g)» y el campo se llama `pesoLlegadaG`).
+        new("Peso H (kg)",        Requerida: false, Alias: new[] { "peso h", "peso h (g)" }),
+        new("Peso M (kg)",        Requerida: false, Alias: new[] { "peso m", "peso m (g)" }),
         new("Uniformidad H",      Requerida: false),
         new("Uniformidad M",      Requerida: false),
         new("Observaciones",      Requerida: false),
@@ -173,8 +182,10 @@ public static class MigracionEsquemas
         {
             new("Error Sexaje H",         Requerida: false, Alias: new[] { "error sexaje hembras" }),
             new("Error Sexaje M",         Requerida: false, Alias: new[] { "error sexaje machos" }),
-            new("Peso H (g)",             Requerida: false, Alias: new[] { "peso h", "peso corporal h" }),
-            new("Peso M (g)",             Requerida: false, Alias: new[] { "peso m", "peso corporal m" }),
+            // En KILOS, igual que en levante y que el formulario diario. El «(g)» viejo queda de
+            // alias para no romper los archivos ya armados — ver la nota en SeguimientoLevante.
+            new("Peso H (kg)",            Requerida: false, Alias: new[] { "peso h", "peso corporal h", "peso h (g)" }),
+            new("Peso M (kg)",            Requerida: false, Alias: new[] { "peso m", "peso corporal m", "peso m (g)" }),
             new("Uniformidad",            Requerida: false, Alias: new[] { "uniformidad lote" }),
             new("Coef. Variación",        Requerida: false, Alias: new[] { "coeficiente de variacion", "cv" }),
             new("Observaciones Pesaje",   Requerida: false, Alias: new[] { "obs pesaje" }),
