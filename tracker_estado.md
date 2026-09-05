@@ -7008,15 +7008,60 @@ Lo que el 4-sep quedó como limitación —la hoja no se emitía para empresas c
 
 ### Fuera de alcance (registrado)
 
-- [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
-      `permissionGuard`: el gate del módulo es 100 % de UI. No es fuga entre empresas
-      (`ActiveCompanyMiddleware` valida la empresa efectiva), pero la «restricción a Sanmarino» de
-      ago-2026 nunca fue real. Deuda conocida.
+- [x] ~~`MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
+      `permissionGuard`~~ — **cerrado en F10** (5-sep): el gate ya no es 100 % de UI.
 - [i] `Movimientos Huevos` por ítem del catálogo; `AplicarMovimientosHuevosAsync` no escribe
       `TotalHuevos`; la pantalla no reacciona al cambio de empresa activa; el error de descarga se
       pierde por llegar como `Blob`; todas las plantillas de un mismo tipo bajan con el mismo nombre.
 - [i] **El lote 152 de Santa Reyes no tiene tipos de huevo declarados** (`lote_huevo_items` vacío):
       hasta que se declaren al editar el lote, su plantilla de Producción no trae la hoja `Huevos`.
+
+### F10 · El gate del módulo deja de ser solo de UI (5-sep-2026)
+
+Lo que el 4-sep quedó registrado como deuda («Fuera de alcance», abajo) se cerró: `MigracionController`
+no tenía **un solo `[Authorize]` por permiso** y la ruta del front no llevaba `permissionGuard`, así
+que la restricción del módulo vivía únicamente en los tiles de la pantalla. Cualquier sesión con token
+válido que escribiera `/migraciones-masivas` a mano —o que llamara al endpoint directo— podía importar
+históricos completos. No era fuga entre empresas (`ActiveCompanyMiddleware` valida la empresa
+efectiva), pero sí escritura masiva sin autorización.
+
+- [x] F10.1 `MigracionAutorizacionCalculos` (cálculo PURO, `Application/Calculos/`): `PermisoPostura`
+      / `PermisoPolloEngorde`, `EsLineaEngorde`, `EsEstructura`, `PermisoRequerido(tipo)`,
+      `PuedeUsar(permisos, tipo?)` y `MensajeSinPermiso(tipo?)`. **El permiso depende del TIPO, no del
+      método HTTP** —a diferencia de `GestionUsuariosAutorizacionCalculos`, donde alcanzaba con
+      separar lecturas de escrituras—, y el tipo viaja como **parámetro** de la request, así que un
+      `[Authorize(Policy = …)]` plano no alcanzaba.
+- [x] F10.2 `CargaMasivaPermisoFilterAttribute` (`API/Infrastructure/`, patrón de
+      `GestionUsuariosEscrituraFilterAttribute`): **filtro de CLASE**, para que un endpoint nuevo nazca
+      cubierto y haya que sacarlo explícitamente con `[CargaMasivaPermisoNoRequerido]`. Repetir la
+      guarda por acción convierte «se olvidaron de una» en cuestión de tiempo, y el endpoint olvidado
+      no falla: **deja pasar**. Resuelve el tipo de los argumentos bindeados (query y el `[FromForm]`
+      del multipart, por reflexión sobre `Tipo`) y, si no, de la query string cruda. Responde **403**
+      con `{ message, error }`, no 401: la sesión es válida, lo que falta es la autorización.
+- [x] F10.3 `[Authorize]` **explícito** en el controller, no heredado de la `FallbackPolicy`: si esa
+      política cambia algún día, un módulo que escribe históricos completos tiene que seguir cerrado
+      por su propia declaración.
+- [x] F10.4 `GET /api/Migracion/tipos` queda abierto con `[CargaMasivaPermisoNoRequerido]`. Son
+      constantes de código (`TipoMigracionCatalogo.Todos`) y la pantalla lo pide **antes** de saber qué
+      puede hacer el usuario, para recién después filtrar los tiles con `filtrarTiposVisibles`
+      (fail-closed). Cerrarlo mostraría un error de red en vez del mensaje que explica que falta el
+      permiso — el mismo error que ya se cometió cerrando `GET /api/Company/global`.
+- [x] F10.5 Front: la ruta `migraciones-masivas` de `app.config.ts` suma `permissionGuard` con
+      `data: { permissions: ['carga_masiva_postura', 'carga_masiva_pollo_engorde'] }` — cualquiera de
+      los dos abre la pantalla y adentro `filtrarTiposVisibles` decide qué tiles se ven.
+- [x] F10.6 **11 tests xUnit** (`MigracionAutorizacionCalculosTests`): fail-closed sin permisos y sin
+      tipo; las dos líneas no se cruzan; estructura y «sin tipo» piden cualquiera de los dos;
+      comparación **ordinal** (`CARGA_MASIVA_POSTURA` no abre); `LaLineaEngordeEsExactamenteLaDelFront`
+      espeja `TIPOS_POLLO_ENGORDE` de `agrupar-tipo-migracion.funcion.ts` —si se desincronizaran, el
+      front ofrecería un tile que el backend rechaza con 403—; y ningún tipo del catálogo queda sin
+      línea resuelta.
+- [x] F10.7 **Nadie queda encerrado, medido antes de cerrar la puerta**: el rol `Colombia
+      Administrativa` (12) tiene el menú sin el permiso, pero a nivel de USUARIO los 9 que hoy ven el
+      módulo tienen `carga_masiva_postura` efectivo y ninguno tiene el de engorde ⇒ el gate no cambia
+      lo que puede hacer nadie. **Sin seed de permisos**: no hacía falta.
+- [x] F10.8 `dotnet build` 0/0 · `dotnet test` **3.936 verdes** · `yarn build` OK (solo el warning de
+      *bundle budget* preexistente). Compilado con `--artifacts-path` propio: hay otras sesiones
+      construyendo sobre el mismo `bin/`.
 
 ---
 
