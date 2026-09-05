@@ -30,14 +30,35 @@ public enum MovimientoAlimento
 /// <summary>
 /// Ubicación de stock de alimento. En Ecuador/Panamá el alimento vive a nivel galpón; en Colombia (o
 /// en una granja con <c>maneja_alimento_por_galpon = false</c>) núcleo y galpón van en null.
+///
+/// <para>
+/// <b>Empresas con <c>maneja_inventario_por_silo</c> (Santa Reyes):</b> el stock vive en el SILO y
+/// núcleo/galpón se anulan — misma decisión que toma
+/// <see cref="InventarioUbicacionSiloCalculos.NormalizarUbicacion"/> para el alta manual. Un silo
+/// alimenta a varios galpones, así que llevar el saldo por (galpón, silo) partiría en dos el
+/// contenido físico de un mismo silo.
+/// </para>
 /// </summary>
-public readonly record struct UbicacionAlimento(int FarmId, string? NucleoId, string? GalponId)
+public readonly record struct UbicacionAlimento(int FarmId, string? NucleoId, string? GalponId, int? SiloId = null)
 {
     /// <summary>Normaliza null/espacios a cadena vacía para que la clave sea comparable.</summary>
     public UbicacionAlimento Normalizada() => new(
         FarmId,
         string.IsNullOrWhiteSpace(NucleoId) ? null : NucleoId.Trim(),
-        string.IsNullOrWhiteSpace(GalponId) ? null : GalponId.Trim());
+        string.IsNullOrWhiteSpace(GalponId) ? null : GalponId.Trim(),
+        SiloId is > 0 ? SiloId : null);
+
+    /// <summary>
+    /// La misma ubicación resuelta para el modo de inventario de la empresa. En modo por silo se
+    /// anulan núcleo y galpón; en modo clásico se descarta cualquier silo que se haya colado.
+    /// Espeja <see cref="InventarioUbicacionSiloCalculos.NormalizarUbicacion"/>.
+    /// </summary>
+    public UbicacionAlimento ParaModo(ModoUbicacionInventario modo)
+    {
+        var (nucleo, galpon, silo) = InventarioUbicacionSiloCalculos.NormalizarUbicacion(
+            modo, NucleoId, GalponId, SiloId);
+        return new UbicacionAlimento(FarmId, nucleo, galpon, silo).Normalizada();
+    }
 }
 
 /// <summary>Una posición del balance: qué ítem, en qué ubicación.</summary>
@@ -181,6 +202,7 @@ public static class MigracionAlimentoCalculos
             .Select(p => new SaldoAlimentoProyectado(p, Valor(stockActual, p), Valor(entradas, p), Valor(salidas, p)))
             .OrderBy(s => s.Posicion.Ubicacion.FarmId)
             .ThenBy(s => s.Posicion.Ubicacion.GalponId ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(s => s.Posicion.Ubicacion.SiloId ?? 0)
             .ThenBy(s => s.Posicion.ItemId)
             .ToList();
     }
@@ -211,6 +233,11 @@ public static class MigracionAlimentoCalculos
     {
         var u = destino.Normalizada();
         var refN = MigracionCalculos.NormalizarClave(referencia);
+        // 🔴 El segmento del silo se agrega SOLO cuando hay silo. Agregarlo siempre (aunque fuera
+        // vacío) cambiaría la clave de TODAS las filas ya cargadas por empresas sin silo, y un
+        // reimport volvería a aplicar movimientos que ya estaban: la clave se recomputa de la BD en
+        // ClavesMovimientosExistentesAsync, así que los dos lados tienen que rendir el mismo string.
+        var silo = u.SiloId is > 0 ? $"|silo{u.SiloId.Value}" : string.Empty;
         return string.Join('|',
             movimiento.ToString(),
             u.FarmId.ToString(),
@@ -223,6 +250,6 @@ public static class MigracionAlimentoCalculos
             // Excel y el 2717.500 que devuelve la columna numeric son el MISMO número pero
             // ToString() los escribe distinto, y el movimiento se volvía a aplicar en cada reintento.
             decimal.Round(cantidadKg, 3).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture),
-            refN);
+            refN) + silo;
     }
 }

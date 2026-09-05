@@ -1,21 +1,29 @@
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.Text;
+using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.API.Middleware;
 
 /// <summary>
-/// Middleware que protege Swagger con una contraseña.
-/// Muestra un formulario de login si no se ha autenticado.
+/// Puerta de acceso a Swagger: sin contraseña no se ve ni la UI ni el <c>swagger.json</c>.
+/// Sólo se monta fuera de Production (ver <c>Program.cs</c>, bloque 14.1-14.4).
+///
+/// <para>
+/// Este archivo <b>orquesta</b> (lee cookies, escribe la respuesta); la decisión —qué se protege,
+/// si la contraseña vale, si la sesión venció— vive en
+/// <see cref="SwaggerAccesoCalculos"/>, pura y con tests. Hasta el 4-sep-2026 estaba acá y
+/// <b>duplicada</b> en un endpoint inline de <c>Program.cs</c>: el que emitía la cookie y el que la
+/// validaba calculaban el mismo hash por separado, así que tocar uno solo dejaba al equipo entero
+/// afuera sin ningún mensaje que lo explicara.
+/// </para>
 /// </summary>
 public class SwaggerPasswordMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<SwaggerPasswordMiddleware> _logger;
-    private readonly string _expectedPassword;
+    private readonly string? _expectedPassword;
     private readonly string _cookieName;
 
     public SwaggerPasswordMiddleware(
@@ -24,131 +32,105 @@ public class SwaggerPasswordMiddleware
         ILogger<SwaggerPasswordMiddleware> logger)
     {
         _next = next;
-        _configuration = configuration;
         _logger = logger;
-        _expectedPassword = configuration["Swagger:Password"] ?? "Swagger2024!SanMarino#API";
-        _cookieName = configuration["Swagger:SessionCookieName"] ?? "SwaggerAuth";
+        // Sin respaldo hardcodeado a propósito: antes había una constante con la contraseña real
+        // acá y en Program.cs, así que vaciar la configuración no cerraba la puerta —la abría con
+        // una contraseña que está en el repositorio. Sin configuración, no entra nadie.
+        _expectedPassword = configuration[ConfigPassword];
+        _cookieName = configuration[ConfigCookie] ?? CookiePorDefecto;
     }
+
+    public const string ConfigPassword = "Swagger:Password";
+    public const string ConfigCookie = "Swagger:SessionCookieName";
+    public const string CookiePorDefecto = "SwaggerAuth";
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var path = context.Request.Path.Value?.ToLower() ?? "";
+        var path = context.Request.Path.Value;
 
-        // Solo proteger rutas de Swagger
-        if (!path.StartsWith("/swagger") && !path.StartsWith("/swagger-ui"))
+        if (!SwaggerAccesoCalculos.EsRutaProtegida(path))
         {
             await _next(context);
             return;
         }
 
-        // NO interceptar el endpoint de login POST (lo maneja Program.cs)
-        if (context.Request.Method == "POST" && (path == "/swagger/login" || path.Contains("/swagger/login")))
+        // El POST del propio formulario lo atiende Program.cs; interceptarlo dejaría la puerta
+        // cerrada por dentro.
+        if (SwaggerAccesoCalculos.EsRutaExenta(context.Request.Method, path))
         {
             await _next(context);
             return;
         }
 
-        // Verificar si ya está autenticado (cookie válida)
-        // Si está autenticado, permitir acceso a TODO Swagger (UI, JSON, recursos estáticos, etc.)
-        if (IsAuthenticated(context))
+        if (SesionVigente(context))
         {
+            // Deslizante: cada petición corre el vencimiento otros 6 minutos.
+            EmitirSesion(context, _expectedPassword!, _cookieName);
             await _next(context);
             return;
         }
 
-        // Usuario NO autenticado: mostrar formulario de login
-        // Esto bloquea: /swagger, /swagger/index.html, /swagger/v1/swagger.json, /swagger-ui/*, etc.
-        await ShowLoginPageAsync(context);
+        await MostrarFormularioAsync(context);
     }
 
-    private bool IsAuthenticated(HttpContext context)
+    private bool SesionVigente(HttpContext context)
     {
-        if (!context.Request.Cookies.TryGetValue(_cookieName, out var cookieValue))
-            return false;
+        if (!context.Request.Cookies.TryGetValue(_cookieName, out var valor)) return false;
 
-        try
-        {
-            // Validar el hash de la cookie
-            var expectedHash = ComputeHash(_expectedPassword + context.Connection.RemoteIpAddress?.ToString());
-            if (cookieValue != expectedHash)
-                return false;
-
-            // Verificar si hay timestamp de última actividad
-            var lastActivityKey = $"{_cookieName}_LastActivity";
-            if (context.Request.Cookies.TryGetValue(lastActivityKey, out var lastActivityStr))
-            {
-                if (DateTime.TryParse(lastActivityStr, out var lastActivity))
-                {
-                    var inactivityTimeout = TimeSpan.FromMinutes(6); // 6 minutos de inactividad
-                    var timeSinceLastActivity = DateTime.UtcNow - lastActivity;
-
-                    // Si ha pasado más de 6 minutos, la sesión expira
-                    if (timeSinceLastActivity > inactivityTimeout)
-                    {
-                        // Limpiar cookies
-                        context.Response.Cookies.Delete(_cookieName);
-                        context.Response.Cookies.Delete(lastActivityKey);
-                        return false;
-                    }
-                }
-            }
-
-            // Renovar la sesión si está activa (sliding expiration)
-            RenewSession(context);
-
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return SwaggerAccesoCalculos.CookieVigente(
+            valor,
+            _expectedPassword,
+            context.Connection.RemoteIpAddress?.ToString(),
+            DateTime.UtcNow);
     }
 
-    private void RenewSession(HttpContext context)
+    /// <summary>
+    /// Emite (o renueva) la cookie de sesión. Es <c>static</c> y pública porque el endpoint
+    /// <c>POST /swagger/login</c> de <c>Program.cs</c> la usa: una sola función escribe la cookie,
+    /// así no puede volver a pasar que emisor y validador se desincronicen.
+    /// </summary>
+    public static void EmitirSesion(HttpContext context, string passwordEsperada, string cookieName)
     {
-        var cookieName = _cookieName;
-        var lastActivityKey = $"{_cookieName}_LastActivity";
-        
-        // Crear hash de autenticación
-        var hash = SHA256.Create().ComputeHash(
-            Encoding.UTF8.GetBytes(_expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
-        var hashString = Convert.ToBase64String(hash);
-
-        // Detectar HTTPS vía proxy
+        // El ALB termina TLS y habla HTTP con la tarea: sin mirar X-Forwarded-Proto, la cookie
+        // saldría sin Secure detrás del proxy.
         var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
-        var isSecure = context.Request.IsHttps || isHttpsViaProxy;
-        
-        // Opciones de cookie con 6 minutos de expiración
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true, // Previene acceso desde JavaScript
-            Secure = isSecure, // Solo enviar por HTTPS
-            SameSite = SameSiteMode.Strict, // Más estricto para cookies de autenticación
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos desde ahora
-            Path = "/" // Aplicar a todo el sitio
-        };
+        var esSeguro = context.Request.IsHttps ||
+                       string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
 
-        // Renovar cookie de autenticación
-        context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
+        var vencimiento = DateTimeOffset.UtcNow.AddMinutes(SwaggerAccesoCalculos.MinutosInactividad);
 
-        // Actualizar timestamp de última actividad
-        var lastActivityOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = isSecure, // Debe ser Secure también
-            SameSite = SameSiteMode.Strict, // Más estricto
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos desde ahora
-            Path = "/"
-        };
-        context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
+        context.Response.Cookies.Append(
+            cookieName,
+            SwaggerAccesoCalculos.EmitirCookie(
+                passwordEsperada,
+                context.Connection.RemoteIpAddress?.ToString(),
+                DateTime.UtcNow),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = esSeguro,
+                SameSite = SameSiteMode.Strict,
+                Expires = vencimiento,
+                Path = "/"
+            });
     }
 
-    private async Task ShowLoginPageAsync(HttpContext context)
+    private async Task MostrarFormularioAsync(HttpContext context)
     {
-        // Leer mensaje de error de la query string si existe
-        var errorMessage = context.Request.Query["error"].ToString();
-        
+        // 🔒 El mensaje llega por query string y se pinta dentro del HTML: sin escapar, cualquier
+        // enlace `/swagger?error=<etiqueta>` ejecutaba script en el navegador de quien lo abriera.
+        var errorCrudo = context.Request.Query["error"].ToString();
+        var error = HtmlEncoder.Default.Encode(errorCrudo);
+
+        if (string.IsNullOrEmpty(_expectedPassword))
+        {
+            _logger.LogError(
+                "Swagger está montado pero '{Clave}' no está configurada: el acceso queda cerrado.",
+                ConfigPassword);
+            error = HtmlEncoder.Default.Encode(
+                $"Swagger no tiene contraseña configurada ({ConfigPassword}). Avisá al equipo.");
+        }
+
         var html = $@"
 <!DOCTYPE html>
 <html lang='es'>
@@ -256,7 +238,7 @@ public class SwaggerPasswordMiddleware
             <p>ZooSanMarino - Acceso Protegido</p>
         </div>
 
-        {(string.IsNullOrWhiteSpace(errorMessage) ? "" : $"<div class='error'>{errorMessage}</div>")}
+        {(string.IsNullOrWhiteSpace(error) ? "" : $"<div class='error'>{error}</div>")}
 
         <form method='POST' action='/swagger/login'>
             <div class='form-group'>
@@ -272,13 +254,4 @@ public class SwaggerPasswordMiddleware
         context.Response.ContentType = "text/html; charset=utf-8";
         await context.Response.WriteAsync(html);
     }
-
-    private string ComputeHash(string input)
-    {
-        using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(input);
-        var hash = sha256.ComputeHash(bytes);
-        return Convert.ToBase64String(hash);
-    }
 }
-

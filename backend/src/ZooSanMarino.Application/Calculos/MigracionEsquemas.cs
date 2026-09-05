@@ -53,16 +53,27 @@ public static class MigracionEsquemas
     /// (a nivel granja o galpón según <c>maneja_alimento_por_galpon</c>). Sin ellos, "Consumo H/M (kg)"
     /// sigue siendo el consumo directo de siempre, que no toca inventario.
     /// </summary>
+    /// <remarks>
+    /// Cada slot lleva su propio SILO, apareado al alimento y no a la fila: el formulario diario
+    /// también pide el silo POR ÍTEM (dos alimentos del mismo día pueden salir de silos distintos, y
+    /// el backend los descuenta por separado). Las columnas de silo solo se EMITEN en empresas con
+    /// <c>maneja_inventario_por_silo</c>; en el esquema viven siempre porque es la fuente única de
+    /// lectura.
+    /// </remarks>
     private static IEnumerable<ColumnaEsquema> AlimentosPorSexoPostura()
     {
         yield return new("Alimento 1 H",         Requerida: false, Alias: new[] { "alimento 1 hembras", "alimento uno hembras" });
         yield return new("Consumo Alimento 1 H", Requerida: false, Alias: new[] { "consumo 1 h", "consumo alimento uno hembras" });
+        yield return new("Silo Alimento 1 H",    Requerida: false, Alias: new[] { "silo 1 h", "silo alimento uno hembras", "bodega 1 h" });
         yield return new("Alimento 2 H",         Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras" });
         yield return new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras" });
+        yield return new("Silo Alimento 2 H",    Requerida: false, Alias: new[] { "silo 2 h", "silo alimento dos hembras", "bodega 2 h" });
         yield return new("Alimento 1 M",         Requerida: false, Alias: new[] { "alimento 1 machos", "alimento uno machos" });
         yield return new("Consumo Alimento 1 M", Requerida: false, Alias: new[] { "consumo 1 m", "consumo alimento uno machos" });
+        yield return new("Silo Alimento 1 M",    Requerida: false, Alias: new[] { "silo 1 m", "silo alimento uno machos", "bodega 1 m" });
         yield return new("Alimento 2 M",         Requerida: false, Alias: new[] { "alimento 2 machos", "alimento dos machos" });
         yield return new("Consumo Alimento 2 M", Requerida: false, Alias: new[] { "consumo 2 m", "consumo alimento dos machos" });
+        yield return new("Silo Alimento 2 M",    Requerida: false, Alias: new[] { "silo 2 m", "silo alimento dos machos", "bodega 2 m" });
     }
 
     /// <summary>
@@ -385,10 +396,16 @@ public static class MigracionEsquemas
         new("Granja",          Requerida: false, Alias: new[] { "nombre granja", "granja destino" }),
         new("Núcleo",          Requerida: false, Alias: new[] { "nombre nucleo", "nucleo destino" }),
         new("Galpón",          Requerida: false, Alias: new[] { "nombre galpon", "galpon destino" }),
+        // Empresas con `maneja_inventario_por_silo` (Santa Reyes): el stock vive en el SILO y el
+        // galpón no mueve alimento. La plantilla solo emite estas dos columnas para esas empresas
+        // (PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento); acá viven siempre porque el ESQUEMA
+        // es la fuente única de lectura y un archivo que las traiga tiene que poder leerse.
+        new("Silo",            Requerida: false, Alias: new[] { "silo destino", "bodega", "bodega destino", "silo/bodega" }),
         // Origen: solo para Traslado / Recepción.
         new("Granja Origen",   Requerida: false, Alias: new[] { "granja de origen", "desde granja" }),
         new("Núcleo Origen",   Requerida: false, Alias: new[] { "nucleo de origen", "desde nucleo" }),
         new("Galpón Origen",   Requerida: false, Alias: new[] { "galpon de origen", "desde galpon" }),
+        new("Silo Origen",     Requerida: false, Alias: new[] { "silo de origen", "desde silo", "bodega origen" }),
         // Solo para Ingreso: de dónde viene (define el estado del movimiento en el histórico).
         new("Origen",          Requerida: false, Alias: new[] { "origen tipo", "procedencia" },
                                Opciones: new[] { "planta", "bodega", "granja" }),

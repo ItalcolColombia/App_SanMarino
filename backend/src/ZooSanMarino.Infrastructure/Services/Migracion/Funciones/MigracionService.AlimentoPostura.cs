@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Migracion;
+using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -32,8 +33,12 @@ public partial class MigracionService
         string? GalponId,
         bool ManejaPorGalpon,
         UbicacionAlimento Posicion,
-        ModeloInventarioConsumo Modelo)
+        ModeloInventarioConsumo Modelo,
+        ModoUbicacionInventario Modo = ModoUbicacionInventario.Clasico)
     {
+        /// <summary>¿El alimento de este lote se ubica en silos/bodegas en vez de granja/galpón?</summary>
+        public bool PorSilo => Modo == ModoUbicacionInventario.PorSilo;
+
         /// <summary>¿El consumo de este lote descuenta de algún inventario automáticamente?</summary>
         public bool DescuentaConsumo => Modelo is ModeloInventarioConsumo.ModeloB or ModeloInventarioConsumo.ModeloBNivelGranja;
     }
@@ -52,6 +57,14 @@ public partial class MigracionService
 
         var manejaPorGalpon = await ManejaAlimentoPorGalponAsync(lote.GranjaId, ct);
 
+        // El modo sale del flag de la EMPRESA DUEÑA DE LA GRANJA, igual que en el alta manual
+        // (ColombiaInventarioConsumoService.ResolverEmpresaYModoAsync). Nunca de un país ni de un nombre.
+        var manejaPorSilo = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == lote.GranjaId)
+            .Join(_ctx.Set<Company>().AsNoTracking(), f => f.CompanyId, c => c.Id, (_, c) => c.ManejaInventarioPorSilo)
+            .FirstOrDefaultAsync(ct);
+        var modo = InventarioUbicacionSiloCalculos.ResolverModo(manejaPorSilo);
+
         // País efectivo: el del lote o, si no está poblado, el de la granja por su departamento —
         // misma cadena que usa SeguimientoLoteLevanteService.ResolverPaisIdLoteAsync.
         var paisId = lote.PaisId is > 0
@@ -68,7 +81,74 @@ public partial class MigracionService
         return new ContextoInventarioPostura(
             lote.GranjaId, nucleo, galpon, manejaPorGalpon,
             MigracionPosturaCalculos.PosicionStockDeLote(manejaPorGalpon, lote.GranjaId, nucleo, galpon),
-            InventarioConsumoGate.ResolverModelo(paisId));
+            InventarioConsumoGate.ResolverModelo(paisId),
+            modo);
+    }
+
+    /// <summary>
+    /// Silos de la granja del lote para resolver las columnas de silo de la hoja "Datos": el índice
+    /// por nombre/código (todos los activos de la granja) y la LISTA BLANCA del lote
+    /// (<c>lote_silos</c>), que es la misma regla que aplica el formulario diario
+    /// (<c>ConsumoSiloCalculos.ValidarClaves</c>).
+    ///
+    /// <para>
+    /// Las dos listas son distintas a propósito: con la primera se traduce el nombre a id y se puede
+    /// decir «ese silo no existe en esta granja»; con la segunda se distingue ese caso del silo que
+    /// SÍ existe pero que el lote no consume, que lleva otro mensaje y otra acción del usuario.
+    /// </para>
+    /// </summary>
+    private async Task<(Dictionary<string, List<(int Id, string Nombre)>> PorClave, HashSet<int> Asignados)>
+        CargarSilosDelLoteAsync(ContextoInventarioPostura ctxInv, int loteId, CancellationToken ct)
+    {
+        if (!ctxInv.PorSilo)
+            return (new Dictionary<string, List<(int, string)>>(), new HashSet<int>());
+
+        var silos = await _ctx.FarmSilos.AsNoTracking()
+            .Where(fs => fs.GranjaId == ctxInv.FarmId && fs.DeletedAt == null && fs.Activo)
+            .Select(fs => new { fs.Id, fs.Nombre, fs.CodigoErpUbicacion })
+            .ToListAsync(ct);
+
+        var porClave = new Dictionary<string, List<(int, string)>>();
+        foreach (var silo in silos)
+        {
+            Indexar(silo.Nombre, (silo.Id, silo.Nombre));
+            Indexar(silo.CodigoErpUbicacion, (silo.Id, silo.Nombre));
+        }
+
+        var asignados = (await _ctx.LoteSilos.AsNoTracking()
+            .Where(ls => ls.LoteId == loteId && ls.Activo)
+            .Select(ls => ls.FarmSiloId)
+            .ToListAsync(ct)).ToHashSet();
+
+        return (porClave, asignados);
+
+        void Indexar(string? texto, (int, string) valor)
+        {
+            var clave = MigracionCalculos.NormalizarClave(texto);
+            if (string.IsNullOrEmpty(clave)) return;
+            if (!porClave.TryGetValue(clave, out var lista)) porClave[clave] = lista = new List<(int, string)>();
+            if (!lista.Contains(valor)) lista.Add(valor);
+        }
+    }
+
+    /// <summary>
+    /// Silos/bodegas que el lote tiene ASIGNADOS, para la hoja Referencias y los desplegables de la
+    /// plantilla. Es exactamente la lista que el importador acepta, así que lo que se elige del
+    /// desplegable siempre valida (el problema que tenía la hoja "Huevos" antes de acotarla al lote).
+    /// </summary>
+    private async Task<List<(int Id, string Nombre, string? Codigo)>> CargarSilosElegiblesDelLoteAsync(
+        ContextoInventarioPostura ctxInv, int loteId, CancellationToken ct)
+    {
+        if (!ctxInv.PorSilo) return new List<(int, string, string?)>();
+
+        return await _ctx.LoteSilos.AsNoTracking()
+            .Where(ls => ls.LoteId == loteId && ls.Activo)
+            .Join(_ctx.FarmSilos.AsNoTracking()
+                    .Where(fs => fs.GranjaId == ctxInv.FarmId && fs.DeletedAt == null && fs.Activo),
+                ls => ls.FarmSiloId, fs => fs.Id, (_, fs) => new { fs.Id, fs.Nombre, fs.CodigoErpUbicacion })
+            .OrderBy(x => x.Nombre)
+            .Select(x => new ValueTuple<int, string, string?>(x.Id, x.Nombre, x.CodigoErpUbicacion))
+            .ToListAsync(ct);
     }
 
     /// <summary>
@@ -78,7 +158,7 @@ public partial class MigracionService
     private Task<List<MovimientoAlimentoFila>> LeerHojaAlimentoPosturaAsync(
         IFormFile file, int companyId, ContextoInventarioPostura ctxInv,
         List<MigracionErrorDto> errores, CancellationToken ct)
-        => LeerHojaAlimentoAsync(file, companyId, ctxInv.Posicion, ctxInv.ManejaPorGalpon, errores, ct);
+        => LeerHojaAlimentoAsync(file, companyId, ctxInv.Posicion, ctxInv.ManejaPorGalpon, errores, ct, ctxInv.Modo);
 
     /// <summary>
     /// Consumo por ítem que aporta una fila del seguimiento, acumulado por posición de stock. Es lo
@@ -90,8 +170,16 @@ public partial class MigracionService
     {
         foreach (var item in items)
             if (item.ItemInventarioEcuadorId is int itemId && item.Cantidad > 0)
+            {
+                // Con silo, la posición la manda el SILO DEL ÍTEM, no la ubicación del lote: dos
+                // alimentos del mismo día pueden salir de silos distintos y el stock de cada uno es
+                // una fila separada. Sin silo, la posición es la de siempre (delta cero).
+                var posicion = ctxInv.PorSilo
+                    ? (ctxInv.Posicion with { NucleoId = null, GalponId = null, SiloId = item.SiloId }).Normalizada()
+                    : ctxInv.Posicion;
                 MigracionAlimentoCalculos.Acumular(
-                    salidas, new PosicionAlimento(ctxInv.Posicion, itemId), (decimal)item.Cantidad);
+                    salidas, new PosicionAlimento(posicion, itemId), (decimal)item.Cantidad);
+            }
     }
 
     /// <summary>
@@ -112,10 +200,18 @@ public partial class MigracionService
 
         foreach (var (fecha, seguimientoId, items) in consumos.OrderBy(c => c.Fecha))
         {
-            var porItem = new Dictionary<int, decimal>();
+            // 🔴 La clave lleva el SILO. Es la misma `ItemConsumoKey` con la que el formulario diario
+            // descuenta, y el silo forma parte de la identidad: dos filas del mismo alimento en silos
+            // distintos son dos descuentos separados, no uno sumado (el índice único del stock es
+            // `COALESCE(silo_id,0)`). Agrupar por itemId a secas los fusionaba y descontaba todo del
+            // primero.
+            var porItem = new Dictionary<ItemConsumoKey, decimal>();
             foreach (var item in items)
                 if (item.ItemInventarioEcuadorId is int itemId && item.Cantidad > 0)
-                    porItem[itemId] = porItem.GetValueOrDefault(itemId) + (decimal)item.Cantidad;
+                {
+                    var clave = new ItemConsumoKey(itemId, true, ctxInv.PorSilo ? item.SiloId : null);
+                    porItem[clave] = porItem.GetValueOrDefault(clave) + (decimal)item.Cantidad;
+                }
             if (porItem.Count == 0) continue;
 
             var refStr = referencia(seguimientoId, fecha);
@@ -127,16 +223,15 @@ public partial class MigracionService
                     // Camino 2 (pass-through): los ítems salen del inventario unificado, así que la
                     // clave viaja con EsItemInventario=true y el servicio la valida contra la empresa
                     // dueña de la granja antes de descontar.
-                    var byItem = porItem.ToDictionary(kv => new ItemConsumoKey(kv.Key, true), kv => kv.Value);
-                    await _colombiaConsumo.AplicarConsumoAsync(ctxInv.FarmId, byItem, refStr, ct, fechaMovimiento: fecha);
+                    await _colombiaConsumo.AplicarConsumoAsync(ctxInv.FarmId, porItem, refStr, ct, fechaMovimiento: fecha);
                     await _ctx.SaveChangesAsync(ct); // el servicio no commitea: participa de la tx externa
                 }
                 else if (_inventarioGestion is not null)
                 {
                     foreach (var kv in porItem)
                         await _inventarioGestion.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                            ctxInv.FarmId, ctxInv.NucleoId, ctxInv.GalponId, kv.Key, kv.Value, "kg", refStr, null,
-                            FechaMovimiento: fecha), ct);
+                            ctxInv.FarmId, ctxInv.NucleoId, ctxInv.GalponId, kv.Key.Id, kv.Value, "kg", refStr, null,
+                            FechaMovimiento: fecha, SiloId: kv.Key.SiloId), ct);
                 }
             }
             catch (Exception ex)

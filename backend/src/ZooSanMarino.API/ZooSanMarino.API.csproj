@@ -4,6 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Los doc-comments de los controllers alimentan Swagger (Program.cs, IncludeXmlComments).
+         Sin esto el XML no se emite y las descripciones nunca llegan a la UI.
+         1591 = "falta comentario XML en miembro público": documentar 94 controllers enteros no es
+         el objetivo, y dejarlo prendido llenaría el build de advertencias nuevas.
+         1573 = "un parámetro sin <param> cuando los otros sí lo tienen": son 11 doc-comments
+         preexistentes a los que les falta el `ct` (CancellationToken). Prendido, encender el XML
+         metía 11 advertencias nuevas al build sin agregar una sola línea de documentación útil. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1573</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

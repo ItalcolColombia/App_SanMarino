@@ -107,6 +107,11 @@ public partial class CompanyService
         // podría asignar ningún permiso al primer rol de la empresa.
         await _companyPermissionService.SembrarCatalogoCompletoSiVaciaAsync(c.Id);
 
+        // …y con un resolutor de tickets, por el mismo motivo: `ticket_resolutor_rol` es por empresa,
+        // así que sin esta siembra el formulario de «Nuevo caso» nace con el desplegable de Tipo
+        // vacío y la empresa no puede escalar nada a desarrollo.
+        await SembrarResolutorGlobalTicketsAsync(c.Id);
+
         if (CompanyCalculos.TryExtractLogo(dto.LogoDataUrl, out var bytes, out var contentType, out var clear)
             && !clear && bytes != null)
         {

@@ -52,7 +52,7 @@ public partial class MigracionService
     /// columnas emitidas, en orden, para calcular letras de dropdowns sobre la hoja filtrada.
     /// El esquema de validación NO cambia: las columnas omitidas siguen siendo opcionales al importar.
     /// </summary>
-    private static List<ColumnaEsquema> PonerEncabezadosSin(ExcelWorksheet ws, EsquemaMigracion esquema, ISet<string> titulosExcluidos)
+    private static List<ColumnaEsquema> PonerEncabezadosSin(ExcelWorksheet ws, EsquemaMigracion esquema, IReadOnlySet<string> titulosExcluidos)
     {
         var columnas = esquema.Columnas.Where(c => !titulosExcluidos.Contains(c.Titulo)).ToList();
         PonerEncabezados(ws, columnas.Select(c => c.Titulo).ToArray());
@@ -114,10 +114,69 @@ public partial class MigracionService
         ws.Column(1).Width = 110;
     }
 
+    /// <summary>
+    /// Hoja "Ejemplo": los mismos encabezados que emitió cada hoja real, con filas ya resueltas y las
+    /// notas que explican las decisiones no obvias (por qué una celda va vacía, qué se deriva de qué).
+    /// <para>
+    /// Es guía pura: el importador solo lee "Datos", "Alimento", "Movimientos Aves",
+    /// "Movimientos Huevos" y "Huevos", así que esta hoja no puede alterar una carga. El rótulo lo
+    /// dice igual, para que nadie la llene creyendo que se importa.
+    /// </para>
+    /// </summary>
+    private static void HojaEjemplo(ExcelPackage pkg, IReadOnlyList<BloqueEjemplo> bloques)
+    {
+        var ws = pkg.Workbook.Worksheets.Add("Ejemplo");
+
+        ws.Cells[1, 1].Value = MigracionEjemploPosturaCalculos.Advertencia;
+        ws.Cells[1, 1].Style.Font.Bold = true;
+        ws.Cells[1, 1].Style.Font.Size = 12;
+
+        int fila = 3;
+        foreach (var bloque in bloques)
+        {
+            ws.Cells[fila, 1].Value = $"Hoja «{bloque.Hoja}»";
+            ws.Cells[fila, 1].Style.Font.Bold = true;
+            ws.Cells[fila, 1].Style.Font.Size = 11;
+            fila++;
+
+            for (int c = 0; c < bloque.Encabezados.Count; c++)
+            {
+                var cell = ws.Cells[fila, c + 1];
+                cell.Value = bloque.Encabezados[c];
+                cell.Style.Font.Bold = true;
+            }
+            fila++;
+
+            foreach (var filaEjemplo in bloque.Filas)
+            {
+                for (int c = 0; c < filaEjemplo.Count; c++)
+                {
+                    var texto = filaEjemplo[c];
+                    if (!string.IsNullOrEmpty(texto)) ws.Cells[fila, c + 1].Value = texto;
+                }
+                fila++;
+            }
+
+            fila++;
+            foreach (var nota in bloque.Notas)
+            {
+                ws.Cells[fila, 1].Value = $"• {nota}";
+                fila++;
+            }
+            fila += 2;
+        }
+    }
+
     private static byte[] Finalizar(ExcelPackage pkg)
     {
         foreach (var ws in pkg.Workbook.Worksheets)
-            if (ws.Dimension is not null) ws.Cells.AutoFitColumns();
+        {
+            if (ws.Dimension is null) continue;
+            // La hoja "Ejemplo" lleva notas largas en la columna A: sin tope, el autofit la deja de
+            // cientos de caracteres de ancho y la tabla de ejemplo queda fuera de la pantalla.
+            if (ws.Name == "Ejemplo") ws.Cells.AutoFitColumns(8, 42);
+            else ws.Cells.AutoFitColumns();
+        }
         return pkg.GetAsByteArray();
     }
 

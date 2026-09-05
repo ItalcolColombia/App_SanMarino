@@ -127,13 +127,18 @@ public partial class MigracionService
     /// </param>
     private async Task<List<MovimientoAlimentoFila>> LeerHojaAlimentoAsync(
         IFormFile file, int companyId, UbicacionAlimento destinoDefault, bool manejaPorGalpon,
-        List<MigracionErrorDto> errores, CancellationToken ct)
+        List<MigracionErrorDto> errores, CancellationToken ct,
+        ModoUbicacionInventario modo = ModoUbicacionInventario.Clasico)
     {
         var filas = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.AlimentoEngorde, errores);
         if (filas.Count == 0) return new List<MovimientoAlimentoFila>();
 
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var granjasPorNombre = await CargarUbicacionesEmpresaAsync(companyId, ct);
+        // Solo se consulta en modo por silo: las empresas sin el flag no pagan esta query.
+        var silosPorGranja = modo == ModoUbicacionInventario.PorSilo
+            ? await CargarSilosEmpresaAsync(companyId, ct)
+            : new Dictionary<int, Dictionary<string, List<(int Id, string Nombre)>>>();
 
         destinoDefault = MigracionPosturaCalculos.NormalizarUbicacionSegunNivel(destinoDefault, manejaPorGalpon);
 
@@ -172,6 +177,8 @@ public partial class MigracionService
                 "Granja", "Núcleo", "Galpón", esOrigen: false);
             if (errores.Count > e0) continue;
             destino = AjustarUbicacionAlNivel(destino, manejaPorGalpon, fila, errores, "Galpón");
+            destino = ResolverSiloDeUbicacion(destino, modo, silosPorGranja, fila, errores, "Silo");
+            if (errores.Count > e0) continue;
 
             // Un Consumo sin referencia no se puede distinguir de otro igual del mismo día: la
             // idempotencia lo tomaría por repetido y la segunda salida no se aplicaría.
@@ -193,6 +200,8 @@ public partial class MigracionService
                     "Granja Origen", "Núcleo Origen", "Galpón Origen", esOrigen: true);
                 if (errores.Count > e0) continue;
                 origen = AjustarUbicacionAlNivel(origen.Value, manejaPorGalpon, fila, errores, "Galpón Origen");
+                origen = ResolverSiloDeUbicacion(origen.Value, modo, silosPorGranja, fila, errores, "Silo Origen");
+                if (errores.Count > e0) continue;
             }
 
             var origenTxt = MigracionCalculos.TextoLimpio(Celda(fila, ClavesAlimento("Origen")));
@@ -217,6 +226,90 @@ public partial class MigracionService
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Silos y bodegas de la empresa, indexados por granja y por clave normalizada (nombre Y código
+    /// ERP de ubicación). Es el equivalente de <c>CargarUbicacionesEmpresaAsync</c> para las empresas
+    /// que ubican el inventario por silo: el usuario escribe el NOMBRE que ve en pantalla y acá se
+    /// traduce al id que espera el servicio de inventario.
+    /// </summary>
+    private async Task<Dictionary<int, Dictionary<string, List<(int Id, string Nombre)>>>> CargarSilosEmpresaAsync(
+        int companyId, CancellationToken ct)
+    {
+        var silos = await _ctx.FarmSilos.AsNoTracking()
+            .Where(fs => fs.CompanyId == companyId && fs.DeletedAt == null && fs.Activo)
+            .Select(fs => new { fs.Id, fs.GranjaId, fs.Nombre, fs.CodigoErpUbicacion })
+            .ToListAsync(ct);
+
+        var porGranja = new Dictionary<int, Dictionary<string, List<(int, string)>>>();
+        foreach (var silo in silos)
+        {
+            if (!porGranja.TryGetValue(silo.GranjaId, out var porClave))
+                porGranja[silo.GranjaId] = porClave = new Dictionary<string, List<(int, string)>>();
+
+            Indexar(porClave, silo.Nombre, (silo.Id, silo.Nombre));
+            Indexar(porClave, silo.CodigoErpUbicacion, (silo.Id, silo.Nombre));
+        }
+        return porGranja;
+
+        static void Indexar(Dictionary<string, List<(int, string)>> destino, string? texto, (int, string) valor)
+        {
+            var clave = MigracionCalculos.NormalizarClave(texto);
+            if (string.IsNullOrEmpty(clave)) return;
+            if (!destino.TryGetValue(clave, out var lista)) destino[clave] = lista = new List<(int, string)>();
+            if (!lista.Contains(valor)) lista.Add(valor);
+        }
+    }
+
+    /// <summary>
+    /// Resuelve la columna de silo de una fila y la mete en la ubicación, aplicando la MISMA regla que
+    /// el alta manual (<see cref="InventarioUbicacionSiloCalculos.ValidarUbicacion"/> +
+    /// <see cref="UbicacionAlimento.ParaModo"/>): en modo por silo es obligatorio y anula
+    /// núcleo/galpón; en modo clásico se rechaza si viene.
+    ///
+    /// <para>
+    /// El silo se busca entre los de la granja de ESA ubicación, no entre los de la empresa: un
+    /// nombre como «Silo 4» existe en varias granjas y aceptarlo suelto movería el stock de otra.
+    /// </para>
+    /// </summary>
+    private static UbicacionAlimento ResolverSiloDeUbicacion(
+        UbicacionAlimento ubicacion, ModoUbicacionInventario modo,
+        IReadOnlyDictionary<int, Dictionary<string, List<(int Id, string Nombre)>>> silosPorGranja,
+        FilaCruda fila, List<MigracionErrorDto> errores, string columna)
+    {
+        var texto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesAlimento(columna)));
+
+        if (modo == ModoUbicacionInventario.Clasico)
+        {
+            if (texto is not null)
+                errores.Add(new(fila.Numero, columna, texto, $"Alimento: {InventarioUbicacionSiloCalculos.MensajeSiloNoAplica}"));
+            return ubicacion.ParaModo(modo);
+        }
+
+        if (texto is null)
+        {
+            errores.Add(new(fila.Numero, columna, null,
+                $"Alimento: {InventarioUbicacionSiloCalculos.MensajeSiloRequerido} Elegí uno de la hoja Referencias."));
+            return ubicacion;
+        }
+
+        if (!silosPorGranja.TryGetValue(ubicacion.FarmId, out var porClave)
+            || !porClave.TryGetValue(MigracionCalculos.NormalizarClave(texto), out var matches)
+            || matches.Count == 0)
+        {
+            errores.Add(new(fila.Numero, columna, texto,
+                $"El silo o bodega '{texto}' no existe en esa granja (activo). Usá el nombre o el código de la hoja Referencias."));
+            return ubicacion;
+        }
+        if (matches.Count > 1)
+        {
+            errores.Add(new(fila.Numero, columna, texto,
+                $"'{texto}' coincide con {matches.Count} silos de esa granja; usá el código ERP."));
+            return ubicacion;
+        }
+
+        return (ubicacion with { SiloId = matches[0].Id }).ParaModo(modo);
     }
 
     /// <summary>
@@ -367,7 +460,8 @@ public partial class MigracionService
                             m.Referencia, m.Observaciones ?? "Carga masiva de seguimiento engorde",
                             OrigenTipo: m.OrigenTipo,
                             OrigenFarmId: m.OrigenTipo is "granja" or "bodega" ? m.Origen?.FarmId : null,
-                            FechaMovimiento: m.Fecha), ct);
+                            FechaMovimiento: m.Fecha,
+                            SiloId: m.Destino.SiloId), ct);
                         break;
 
                     case MovimientoAlimento.Traslado:
@@ -377,7 +471,8 @@ public partial class MigracionService
                             m.Destino.FarmId, m.Destino.NucleoId, m.Destino.GalponId,
                             m.ItemId, m.CantidadKg, "kg", m.Referencia,
                             m.Observaciones ?? "Carga masiva de seguimiento engorde",
-                            DestinoTipo: "granja", FechaMovimiento: m.Fecha), ct);
+                            DestinoTipo: "granja", FechaMovimiento: m.Fecha,
+                            FromSiloId: o.SiloId, ToSiloId: m.Destino.SiloId), ct);
                         break;
 
                     case MovimientoAlimento.Recepcion:
@@ -388,7 +483,8 @@ public partial class MigracionService
                         var pedido = new InventarioGestionConsumoRequest(
                             m.Destino.FarmId, m.Destino.NucleoId, m.Destino.GalponId, m.ItemId, m.CantidadKg, "kg",
                             m.Referencia, m.Observaciones ?? "Carga masiva de seguimiento engorde",
-                            FechaMovimiento: m.Fecha);
+                            FechaMovimiento: m.Fecha,
+                            SiloId: m.Destino.SiloId);
                         // RegistrarConsumoAsync EXIGE núcleo+galpón para alimento, sin mirar el flag: en
                         // una granja de nivel granja hay que ir por la variante dedicada (la misma que
                         // usa ColombiaInventarioConsumoService).
@@ -405,7 +501,17 @@ public partial class MigracionService
                         // entero en una transacción cambiaría ese comportamiento deliberado de reporte
                         // parcial a todo-o-nada, que no es lo que este importador hace hoy. El
                         // SaveChangesAsync que sigue queda como no-op inofensivo (nada pendiente).
-                        if (await PorGalponAsync(m.Destino.FarmId))
+                        // Con silo, el stock vive a nivel granja (núcleo/galpón en NULL por decisión de
+                        // la Fase B), así que va por la variante de nivel granja aunque la granja
+                        // maneje alimento por galpón: RegistrarConsumoAsync exige núcleo+galpón.
+                        //
+                        // ⚠️ `RegistrarConsumoNivelGranjaAsync` es FAIL-OPEN con el silo: no llama
+                        // `ValidarSiloDeGranjaAsync` ni `ValidarUbicacion`, manda `req.SiloId` tal cual
+                        // al stock atómico. Los tres agujeros que eso deja (silo de OTRA granja, silo
+                        // inactivo, silo en una empresa sin el flag) los cierra el PARSEO:
+                        // `ResolverSiloDeUbicacion` resuelve el nombre SOLO entre los silos activos de
+                        // la granja de esa misma ubicación, y en modo clásico rechaza cualquier silo.
+                        if (m.Destino.SiloId is null && await PorGalponAsync(m.Destino.FarmId))
                             await _inventarioGestion.RegistrarConsumoAsync(pedido, ct);
                         else
                         {
@@ -472,6 +578,7 @@ public partial class MigracionService
                         && itemIds.Contains(x.ItemInventarioEcuadorId)
                         && x.CreatedAt >= desdeUtc && x.CreatedAt <= hastaUtc)
             .Select(x => new { x.FarmId, x.NucleoId, x.GalponId, x.FromFarmId, x.FromNucleoId, x.FromGalponId,
+                               x.SiloId, x.FromSiloId,
                                x.ItemInventarioEcuadorId, x.Quantity, x.Reference, x.CreatedAt, x.MovementType })
             .ToListAsync(ct);
 
@@ -483,7 +590,7 @@ public partial class MigracionService
             // emite — mapearlo dejaba los traslados aplicados invisibles y un reimport tras un
             // fallo parcial los volvía a contar en el balance.)
             MovimientoAlimento? mov;
-            var ubicacion = new UbicacionAlimento(e.FarmId, e.NucleoId, e.GalponId);
+            var ubicacion = new UbicacionAlimento(e.FarmId, e.NucleoId, e.GalponId, e.SiloId);
             switch (e.MovementType)
             {
                 case "Ingreso":
@@ -495,7 +602,7 @@ public partial class MigracionService
                 // viaja en From* (semántica invertida del tránsito).
                 case "TrasladoInterGranjaSalida":
                     mov = MovimientoAlimento.Traslado;
-                    ubicacion = new UbicacionAlimento(e.FromFarmId ?? e.FarmId, e.FromNucleoId, e.FromGalponId);
+                    ubicacion = new UbicacionAlimento(e.FromFarmId ?? e.FarmId, e.FromNucleoId, e.FromGalponId, e.FromSiloId);
                     break;
                 // Recepción de tránsito ya aceptada (fila sobre el destino elegido al recibir).
                 case "TrasladoInterGranjaEntrada":
@@ -534,13 +641,15 @@ public partial class MigracionService
 
         var filas = await _ctx.InventarioGestionStock.AsNoTracking()
             .Where(s => farmIds.Contains(s.FarmId) && itemIds.Contains(s.ItemInventarioEcuadorId))
-            .Select(s => new { s.FarmId, s.NucleoId, s.GalponId, s.ItemInventarioEcuadorId, s.Quantity })
+            .Select(s => new { s.FarmId, s.NucleoId, s.GalponId, s.SiloId, s.ItemInventarioEcuadorId, s.Quantity })
             .ToListAsync(ct);
 
         foreach (var f in filas)
         {
+            // El silo entra en la clave: sin él, una empresa con 39 silos veía TODO su stock sumado
+            // en una sola posición y el dry-run aprobaba archivos que después no se podían aplicar.
             var pos = new PosicionAlimento(
-                new UbicacionAlimento(f.FarmId, f.NucleoId, f.GalponId).Normalizada(), f.ItemInventarioEcuadorId);
+                new UbicacionAlimento(f.FarmId, f.NucleoId, f.GalponId, f.SiloId).Normalizada(), f.ItemInventarioEcuadorId);
             mapa[pos] = mapa.TryGetValue(pos, out var v) ? v + f.Quantity : f.Quantity;
         }
         return mapa;

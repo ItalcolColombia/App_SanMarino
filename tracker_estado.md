@@ -6605,3 +6605,501 @@ el detalle no aparece la informacion en el detalle con la que se creo la granja"
       contra `:5002` (sesión temporal en `sesiones_activas`, borrada al terminar) sobre
       `GET /api/Farm/83` y `GET /api/Farm/search`: los 3 nombres llegan correctos en ambos
       endpoints, incluida la granja con el `regionalId` de lista maestra.
+
+---
+
+## 🔐 Soporte Sanmarino + separación del administrador global (4-sep-2026)
+
+Plan: [`fase_de_desarrollo/soporte_sanmarino_y_admin_global_plan.md`](fase_de_desarrollo/soporte_sanmarino_y_admin_global_plan.md)
+
+Pedido: un encargado de soporte **solo para Agroavicola Sanmarino**, que no vea lo del
+administrador global; y limpiar los módulos que «no van a la causa» en Sanmarino.
+
+**Veredicto:** NO se crea una «empresa administrador». El eje global ya existe fuera de
+`companies` (`users.is_super_admin` + rol de aplicación por nombre exacto). Al validarlo
+aparecieron dos bloqueantes que hay que cerrar ANTES de limitar a Sanmarino.
+
+### F1 · Cerrar la escritura del módulo Empresas
+
+- [i] **Hallazgo bloqueante.** `CompanyController` no tiene **ni un `[Authorize]`**: solo lo cubre
+      la `FallbackPolicy` (= token válido). Cualquier sesión autenticada puede hoy crear, editar y
+      borrar empresas, y hacer `PUT /api/Company/{id}/menus` y `/permissions` sobre **cualquier**
+      empresa — o sea, reasignarse módulos a sí misma. Mismo agujero que tenía `PermissionController`
+      antes del 15-ago. Esconder el ítem de menú sin esto sería teatro.
+- [x] F1.1 `Application/Calculos/AdministracionEmpresasAutorizacionCalculos.cs` (puro): super admin
+      **o** rol de aplicación (`admin`/`administrador`, comparación exacta). Fail-closed.
+- [x] F1.2 Tests xUnit (8 casos): incluyen la frontera del substring (`Admin Panama`, `Santa Reyes
+      Administrador`, `ADMINISTRADOR DE GRANJA` ⇒ false).
+- [x] F1.3 Policy `AdminEmpresas` en `Program.cs` (claim `is_super_admin` + claims de rol).
+- [x] F1.4 `[Authorize(Policy = "AdminEmpresas")]` en las 6 escrituras de `CompanyController`.
+      ⛔ Las LECTURAS quedan abiertas: `GET /api/Company/global` **lo usa el filtro de tickets**
+      (`ticket-filtros.component.ts:101`) y cerrarlo lo rompe para todos.
+
+### F2 · Bypass de super admin en `fn_menu_usuario`
+
+- [i] **Segundo bloqueante.** La fn arma el menú del super admin con `company_menus` igual que el de
+      todos, y `/config/companies` + `/config/db-studio` están habilitados en **una sola empresa:
+      Sanmarino**. Quitárselos deja al super admin sin el módulo Empresas en TODA la app, sin ruta
+      de vuelta por la UI (para rehabilitarlo hay que entrar al menú que se quitó). El fail-open D2
+      no cubre este caso: aplica a la empresa sin ninguna fila, y las cinco tienen.
+- [x] F2.1 `MenuVisibilidadCalculos` (D5) + 3 tests nuevos: super admin saltea el gate de `company_menus`;
+      `role_menus` / `is_active` / `menu_permissions` intactos.
+- [x] F2.2 Espejo `backend/sql/fn_menu_usuario.sql` + migración `FnMenuUsuarioSuperAdmin` **con su
+      `.Designer.cs`** (sin Designer, EF no la ve y nunca se aplica).
+- [x] F2.3 Verificador propio `backend/sql/verificar_menu_super_admin_bypass.sql` (patrón congela /
+      compara). **Línea base tomada antes del cambio: 867 pares (usuario, empresa, menú).**
+- [x] F2.4 **Probado contra datos reales en transacción reversible**: apagados Empresas y db_studio
+      en Sanmarino, el super admin los SIGUE viendo (49 menús) y un usuario común de Sanmarino no los
+      ve ni antes ni después (13 menús). Con la fn vieja el super admin quedaba en `ve_empresas = 0`
+      — el lockout, confirmado.
+
+### F3 · Rol «Soporte Sanmarino»
+
+- [x] F3.1 Migración data-only idempotente (lookups por `companies.name` / `menus.route` /
+      `permissions.key`, nunca por id). ⚠️ El nombre del rol **no puede ser `Admin` ni
+      `Administrador`**: esos strings son la llave de los catálogos globales.
+- [x] F3.2 `role_menus` (18 rutas): Usuarios, Roles y permisos, Tickets (Mis solicitudes + Bandeja de gestión)
+      y lo operativo de Sanmarino. ⛔ Sin `/config/companies`, `/config/db-studio`,
+      `/config/countries`, `/config/master-lists`.
+- [x] F3.3 `role_permissions`: `usuarios.gestionar`, `usuarios.revocar_sesion`, `tickets.crear`,
+      `tickets.gestionar`. ⛔ Sin `tickets.admin` (es «todos los países»). Los 4 están habilitados
+      en `company_permissions` de Sanmarino ⇒ los 4 llegan a la sesión.
+- [x] F3.5 **Probado en transacción reversible**: rol creado con su empresa, 18 menús, 4 permisos, e
+      **idempotente** (segunda corrida no duplica nada).
+- [~] F3.4 Alta del usuario y asignación del rol: se hace desde Configuración → Usuarios (no hay
+      identidad definida todavía).
+
+### F4 · Limpiar `company_menus` de Sanmarino (49 de 68 menús)
+
+- [x] F4.1 **Decisión del usuario: limpieza completa (los 17).** Impacto medido antes de decidir — apagar un menú se lo saca a TODOS los
+      usuarios de Sanmarino, no solo al soporte. Depende de F2 para no provocar el lockout.
+- [x] F4.2 Migración `AcotaMenusSanmarino`, data-only e idempotente. **Apaga 20** (16 hojas + los 4
+      grupos que quedan vacíos: ItalJira, Implementación, Mapas, Vacunación); Sanmarino pasa de
+      **49 a 29** menús, en línea con Demo (27), Ecuador (25), Santa Reyes (24) y Panamá (23).
+      Los grupos NO se nombran por `label` —un acento mal leído volvería el UPDATE un no-op
+      silencioso—: se deducen de sus hijos, con un criterio que da el mismo conjunto en Up y Down.
+- [i] 🔴 **Colisión entre las dos decisiones del usuario, resuelta.** `/tickets/gestion` estaba en
+      la limpieza completa, pero el menú efectivo es `role_menus ∩ company_menus`: apagarlo en la
+      empresa dejaba al rol «Soporte Sanmarino» —creado en F3 justamente para atender esa bandeja—
+      sin poder verla. Se **sacó de F4**: es la única combinación que cumple las dos decisiones. El
+      rol `Sistemas sanmarino`, que también la tiene, la conserva; sacársela a él es tocar su
+      `role_menus`, no `company_menus`.
+- [x] F4.3 **Probado en transacción reversible**: Up apaga 20 · la bandeja sigue habilitada ·
+      **idempotencia** (2ª corrida = 0 filas) · **Down revierte exacto** (vuelve a 49, 0 apagados).
+
+### Validación
+
+- [x] F5.1 **`dotnet build` EXIT=0, los 6 proyectos, 0 errores** (warnings: solo `CS1573` de doc XML
+      preexistentes, en archivos que no se tocaron) + **`dotnet test` 3841/3841 verdes, 0 fallas**.
+- [x] F5.2 **Las 3 migraciones aplicadas a la BD local** con `dotnet-ef 10` (tool-path). Estado final
+      medido: Sanmarino **29** menús (Demo 27 · Ecuador 25 · Santa Reyes 24 · Panamá 23) — deja de
+      ser la excepción; rol `Soporte Sanmarino` id 37 con 18 menús y 4 permisos, 0 usuarios (se
+      asigna a mano); **super admin en Sanmarino: 49 menús, conserva Empresas, db_studio y bandeja**.
+- [x] F5.3 **Verificador de paridad, segunda corrida contra la línea base de 867 filas**:
+      · **Invariante 2 (D5) perfecto**: el super admin **no perdió ni un menú** y no ganó ninguno
+        que su rol no le diera.
+      · **Cero menús GANADOS por no-super-admins** — el invariante crítico: D5 no se filtró a nadie.
+      · Invariante 1: **5 filas, todas PERDIDO, y son exactamente el efecto declarado de F4** — 1
+        usuario perdió Geografía (rol `Sistemas sanmarino`) y 1 perdió Backlog/Roadmap/Panel + el
+        grupo ItalJira (rol `Lider Demanda & Delivery`); los dos predichos antes de decidir. La
+        Bandeja de gestión NO aparece: la corrección de la colisión funcionó.
+- [x] F5.4 Gate del `.sql` que corta el CI (`verificar-sql-llega-por-migracion.js`) en verde.
+- [x] F5.5 Sin procesos huérfanos: puertos `:5002`/`:5501` libres, tabla de línea base del
+      verificador borrada de la BD local.
+- [~] F5.6 **Paso manual pendiente tuyo**: crear el usuario del encargado de soporte en
+      Configuración → Usuarios y asignarle el rol `Soporte Sanmarino` con empresa Agroavicola
+      Sanmarino. Los permisos viajan en la sesión ⇒ necesita re-login para verlos.
+
+### Hallazgos colaterales (registrados, fuera de alcance)
+
+- [i] **8 asignaciones de permiso huérfanas en Sanmarino**: `seguimiento_levante.validar` y
+      `seguimiento_produccion.validar` están en los roles `Admin`, `Colombia Administrativa` e
+      `Implementador Sanmarino Colombia` pero **no existen en `company_permissions` de Sanmarino**
+      ⇒ fail-closed los deja fuera de la sesión. Si en Sanmarino «no se puede validar el
+      seguimiento», la causa está acá. Ídem `vacunacion.plantillas.{ver,administrar}` en `Admin`.
+- [i] `GET /api/Company/debug` devuelve **todos los headers** de la request (incluido
+      `Authorization`). Marcado «temporal» en su propio doc-comment. Candidato a borrar.
+
+---
+
+# Swagger: puerta de acceso, filtros de empresa y banco de pruebas
+
+> Plan: [swagger_acceso_y_pruebas_plan.md](fase_de_desarrollo/swagger_acceso_y_pruebas_plan.md)
+> Auditoria + correccion del acceso a Swagger. **No toca contratos de API ni el front.**
+
+## S0 - Auditoria (hecha)
+
+- [x] S0.1 Leidos `Program.cs` (bloques 12 y 14.1-14.4), `SwaggerPasswordMiddleware`,
+      `PlatformSecretMiddleware`, `ActiveCompanyMiddleware`, `HttpCurrentUser`, el `.csproj`,
+      `appsettings*.json` y los 94 controllers.
+- [x] S0.2 **Hallazgo bloqueante B1**: `X-Secret-Up` es obligatorio en todo `/api/*` y Swagger UI
+      no lo mandaba ⇒ **todo Try it out daba 401** `platform-secret`.
+- [x] S0.3 **Hallazgo bloqueante B2**: `POST /api/Auth/login` recibe el cuerpo CIFRADO ⇒ desde
+      Swagger no habia forma de obtener un JWT; el boton Authorize no tenia que pegar.
+- [x] S0.4 **Hallazgo C1**: las 3 cabeceras de empresa (`X-Active-Company`, `-Id`, `X-Active-Pais`)
+      **no estaban en el swagger.json** ⇒ el escenario multiempresa no se podia probar desde la UI.
+- [x] S0.5 **Hallazgo D1**: `GenerateDocumentationFile` ausente + `IncludeXmlComments` comentado ⇒
+      79 de 94 controllers tienen `/// <summary>` y **ninguno se veia**.
+- [x] S0.6 **Hallazgo A1**: XSS reflejado en la pagina de login (el `error=` se interpolaba crudo).
+- [x] S0.7 **Hallazgos A2-A5**: contrasena hardcodeada de respaldo en 2 archivos, comparacion no
+      constante en tiempo, hash de la cookie duplicado, y vigencia en una cookie que el cliente
+      reescribe (el timeout de 6 min no vencia nunca).
+- [i] Contexto que baja la severidad de A1-A5: el bloque Swagger vive dentro de
+      `if (!app.Environment.IsProduction())` y el Dockerfile fija `ASPNETCORE_ENVIRONMENT=Production`
+      ⇒ **en produccion no hay /swagger**. La puerta protege dev/local.
+
+## S1 - La puerta: decision pura + tests
+
+- [x] S1.1 `Application/Calculos/SwaggerAccesoCalculos.cs` (puro): rutas protegidas/exentas,
+      comparacion en tiempo fijo, cookie firmada con el vencimiento adentro, fail-closed sin config.
+- [x] S1.2 `tests/.../SwaggerAccesoCalculosTests.cs` (24 casos): incluye que el vencimiento firmado
+      no se puede estirar desde el cliente y que sin contrasena configurada no entra nadie.
+- [x] S1.3 `SwaggerPasswordMiddleware` delega en el calculo puro + `HtmlEncode` del error (cierra A1).
+- [x] S1.4 `POST /swagger/login` de `Program.cs` usa las MISMAS funciones (cierra A3 y A4).
+
+## S2 - Filtros de empresa en el contrato
+
+- [x] S2.1 `Infrastructure/EmpresaActivaHeadersOperationFilter.cs`: declara las 3 cabeceras como
+      parametros opcionales en toda operacion `/api/*`, con su descripcion.
+- [x] S2.2 Registrado en `AddSwaggerGen`. ⛔ El comportamiento del backend NO cambia: siguen siendo
+      opcionales y `ActiveCompanyMiddleware` sigue fail-closed.
+
+## S3 - Documentacion y banco de pruebas
+
+- [x] S3.1 `.csproj`: `GenerateDocumentationFile` + `NoWarn 1591`; `IncludeXmlComments` activado.
+- [x] S3.2 Descripcion del documento con el instructivo de prueba (token -> Authorize -> Try it out)
+      y la explicacion del alcance por empresa.
+- [x] S3.3 `POST /swagger/token`: JWT desde email/password en texto plano. Fuera de `/api`, solo
+      fuera de Production, detras de la contrasena de Swagger. Valida igual que el login real.
+- [x] S3.4 `UseRequestInterceptor` inyecta `X-Secret-Up` cifrado ⇒ Try it out ejecuta de verdad.
+      `EncryptionService.Encrypt` pasa a public (simetrico con `Decrypt`).
+- [x] S3.5 `/swagger-ui/dark.css`, `/swagger/login` y `/swagger/download` fuera del documento.
+
+## S4 - Validacion
+
+- [x] S4.1 `dotnet build` de la solucion: **0 errores, 0 advertencias**. El XML de doc encendia 11
+      CS1573 nuevas (doc-comments preexistentes sin `<param name="ct">`) ⇒ `NoWarn` 1573 junto a 1591.
+- [x] S4.2 `dotnet test`: **3898 verdes, 0 fallas**; 91 en los dos modulos tocados.
+- [x] S4.3 Smoke HTTP en :5002: sin cookie ⇒ formulario; `swagger.json` bloqueado; contrasena mala
+      ⇒ 302 de vuelta sin cookie; correcta ⇒ 302 + cookie; `error=` con etiquetas ⇒ sale `&lt;img`.
+- [x] S4.4 Contrato: `openapi 3.0.4`, **698 rutas**; **844 de 844** operaciones `/api/*` con las 3
+      cabeceras de empresa; **572** operaciones con summary/description (los XML comments llegaron).
+- [x] S4.5 Funcional: sin firma `GET /api/Company` ⇒ 401 `X-Auth-Failure: platform-secret`; con la
+      firma que inyecta la UI ⇒ 401 `WWW-Authenticate: Bearer`, o sea **paso el gate de plataforma**.
+      `POST /swagger/token`: sin cookie ⇒ formulario; sin campos ⇒ 400; credenciales malas ⇒ 401
+      "Credenciales invalidas"; `X-RateLimit-Limit: 15` (auth, no los 50 de Swagger).
+- [x] S4.6 Backend apagado y :5002 libre.
+
+## S5 - Dos bugs PREVIOS que el smoke destapo (la puerta nunca habia funcionado)
+
+- [x] S5.1 **Nadie podia entrar a Swagger.** `POST /swagger/login` devolvia **401
+      `WWW-Authenticate: Bearer`**: el `FallbackPolicy = RequireAuthenticatedUser` (commit `025ec85`,
+      hardening de login) alcanza a los minimal APIs, y los 3 endpoints bajo `/swagger` no tenian
+      `.AllowAnonymous()`. Se veia la pantalla de login y la contrasena correcta fallaba igual que la
+      incorrecta. Pedir JWT para entrar a la documentacion ademas es un circulo: el token se saca
+      desde adentro. ⇒ `.AllowAnonymous()` en los 4 endpoints de `/swagger`.
+- [x] S5.2 **El `swagger.json` nunca se genero.** `ItemInventarioController.CargaMasivaExcel` usaba
+      `[FromForm] IFormFile`; Swashbuckle lo rechaza en `GenerateParametersAsync` —antes de correr
+      ningun operation filter— y **aborta el documento entero**: un solo parametro dejaba toda la API
+      en 500. Quitado el `[FromForm]`; el binding no cambia (ASP.NET liga `IFormFile` del multipart
+      igual) y el `[Consumes("multipart/form-data")]` ya declaraba el contenido.
+- [x] S5.3 **500 con la contrasena incorrecta.** El `Redirect("...?error=Contraseña incorrecta")`
+      mete una ñ en un header y Kestrel rechaza bytes fuera de ASCII. Escapado con
+      `Uri.EscapeDataString`. Nunca se habia visto porque S5.1 cortaba antes.
+- [i] Los tres son **anteriores a este trabajo** y se tapaban entre si: S5.1 impedia llegar a S5.3, y
+      con S5.1 vivo nadie llegaba a ver S5.2. Se destaparon en cadena al arreglar el primero.
+
+---
+
+## 📦 Carga masiva de Levante y Producción para Santa Reyes (4-sep-2026)
+
+Plan: [`fase_de_desarrollo/carga_masiva_santa_reyes_plan.md`](fase_de_desarrollo/carga_masiva_santa_reyes_plan.md)
+
+Pedido: validar todo lo de Santa Reyes para poder hacer la carga masiva de Levante y Producción,
+dejar la plantilla de descarga **parametrizada para esa empresa** y que traiga un **ejemplo lleno**.
+
+Auditoría previa: 10 dimensiones con verificación adversarial + consultas reales contra
+`sanmarinoapplocal:5433`. 26 hallazgos confirmados, 3 refutados. Lo que ya estaba resuelto (hoja
+`Huevos` por ítem con paridad aritmética exacta, lista blanca F7.3 del lote, ventana de fecha que a
+propósito NO corta el histórico, parseo que tolera archivos sin columnas de machos, permisos ya
+asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
+
+### F1 · Habilitar el módulo para Santa Reyes
+
+- [i] Medido con `fn_menu_usuario` sobre los 2 usuarios reales de la empresa 6: `ve_migraciones_masivas
+      = false`. La causa es UNA sola capa (el MENÚ): los permisos ya están. Faltaban **exactamente 3
+      filas** — 1 en `company_menus` + 2 en `role_menus`. El grupo padre `carga_masiva` no necesita
+      fila propia (`fn_menu_usuario` sube los ancestros, D3).
+- [x] F1.1 Migración EF data-only `20260904160000_HabilitarMigracionesMasivasSantaReyes` **con su
+      `.Designer.cs`**.
+- [x] F1.2 Lookups por `menus.key` / `companies.identifier`, nunca por id ni por `route`;
+      `INSERT … NOT EXISTS` + `UPDATE … IS DISTINCT FROM`.
+- [x] F1.3 Apagado `carga_masiva_pollo_engorde` en `company_permissions` de Santa Reyes (0 lotes de
+      engorde ⇒ 4 tiles que no le aplican). No se borran las filas de `role_permissions`.
+- [x] F1.4 **Verificado en transacción revertida contra la BD real:** los 2 usuarios pasan de `f/f` a
+      `t/t` (ítem + grupo padre); segunda corrida inserta 0 filas (idempotente); el conteo de
+      `company_menus` de Sanmarino y Demo no cambia y **ningún usuario de otra empresa gana el ítem**.
+
+### F2 · Plantilla parametrizada por empresa
+
+- [x] F2.1 `Application/Calculos/PlantillaPosturaCalculos.cs` puro: `ColumnasOcultas(esLevante, flags)`
+      + `EmiteHojaAlimento(flags)`. Espejo exacto de lo que oculta el formulario vivo.
+- [x] F2.2 Tests xUnit (11): flags OFF ⇒ conjunto VACÍO; Santa Reyes ⇒ lista exacta; **ninguna columna
+      ocultable puede ser `Requerida:true`** y ninguna puede quedar huérfana del esquema.
+- [x] F2.3 `ResolverLotePosturaCtxAsync` proyecta los 3 flags nuevos (mismo fail-closed `?? false`,
+      misma consulta, por la empresa dueña de la GRANJA).
+- [x] F2.4 Generador con `PonerEncabezadosSin` + letras de dropdown calculadas sobre las columnas
+      EMITIDAS (la trampa: con `IndiceColumna` sobre el esquema completo caían en otra columna).
+- [x] F2.5 Instrucciones ramificadas + orden «levante → cerrar → trasladar → producción» con su motivo.
+
+### F3 · Hoja «Ejemplo» llena
+
+- [x] F3.1 `MigracionEjemploPosturaCalculos` puro: 3 días resueltos, **derivados de las columnas
+      emitidas**, con alimento / ítem de huevo / lote contraparte reales de la empresa.
+- [x] F3.2 Tests xUnit (16): los encabezados del ejemplo son exactamente los emitidos; toda fila tiene
+      un valor por encabezado; Santa Reyes no ve ni una columna de machos ni de huevo fijo.
+- [x] F3.3 Helper `HojaEjemplo` + bloques para `Datos`, `Alimento`, `Movimientos Aves` y `Huevos`,
+      cada uno con sus notas (por qué una celda va vacía, qué se deriva de qué).
+- [x] F3.4 Rótulo «ESTA HOJA NO SE IMPORTA» + `Instrucciones` y `Ejemplo` movidas al frente.
+
+### F4 · Hojas de huevo de Santa Reyes
+
+- [x] F4.1 `Referencias` y el dropdown de `Huevos` se arman con la MISMA consulta que el parseo
+      (`CargarItemsHuevoDelLoteAsync`, ítems declarados por el LOTE). Lote sin declarar ⇒ la hoja no
+      se emite y las Instrucciones dicen qué hacer, en vez de ofrecer una hoja que rechaza el archivo.
+- [x] F4.2 `Movimientos Huevos` no se emite con `clasificacion_huevo_por_items` (sus 11 categorías
+      quedan en 0 y la validación de disponibilidad rechazaría el archivo entero).
+- [ ] F4.3 `Huevo Total` ignorado en silencio cuando el día trae ítems ⇒ falta la Advertencia
+      explícita. **No aplica a la plantilla nueva** (Santa Reyes ya no recibe esa columna); queda para
+      un archivo viejo. Pendiente.
+
+### F5 · Silo real en la carga masiva (espejo del seguimiento diario)
+
+- [i] El módulo **no mencionaba silos ni una vez**. Hoja `Alimento`: cada fila reventaba ⇒ 0 kg.
+      Consumo: el día se guardaba y el inventario NO se tocaba. El dry-run era ciego al silo y aprobaba.
+- [i] Patrón mapeado con file:line contra el alta manual (25 agentes, 15 trampas verificadas):
+      `InventarioUbicacionSiloCalculos` + `ConsumoSiloCalculos.ValidarClaves` sobre `lote_silos` +
+      `ItemConsumoKey.SiloId` + `metadata.siloId` solo cuando existe.
+- [x] F5.1 Columnas `Silo` / `Silo Origen` (hoja Alimento) y `Silo Alimento 1/2 H-M` (hoja Datos) en el
+      esquema. El silo va **por ítem**, no por fila: es como lo pide el formulario diario.
+- [x] F5.2 Se emiten SOLO con `maneja_inventario_por_silo`. En modo clásico el servicio rechaza un
+      movimiento con silo, así que ofrecerlas rompería el archivo. Sanmarino sigue con sus 43.
+- [x] F5.3 Resolución por nombre/código **entre los silos activos de la granja de esa ubicación**
+      (criterio del backend, no el del selector, que omite `fs.Activo`), + lista blanca `lote_silos`
+      con el mensaje del alta manual — todo **antes de insertar nada**.
+- [x] F5.4 Propagación: `SiloId` (ingreso/consumo), `FromSiloId`/`ToSiloId` (traslado),
+      `ItemSeguimientoDto.SiloId` → `ItemConsumoKey(itemId, true, siloId)` → `AplicarConsumoAsync`.
+- [x] F5.5 El consumo se acumula sobre `ItemConsumoKey`, no sobre `int`: aplanar antes era
+      irreversible (dos filas del mismo alimento en silos distintos se descontaban todas del primero).
+- [x] F5.6 `PosicionAlimento` con silo ⇒ la simulación del dry-run mide el silo real.
+- [x] F5.7 Idempotencia intacta: el segmento de silo se agrega a la clave **solo cuando hay silo**.
+- [x] F5.8 `SerializarItem` pasa a ser espejo exacto de `ItemAMetadata` (`siloId` solo cuando > 0).
+- [i] `ReplicarPorSilo` no se duplica: se reusa `AplicarConsumoAsync`, que ya lo aplica.
+      `RegistrarConsumoNivelGranjaAsync` es **fail-open** con el silo; los 3 agujeros los cierra el parseo.
+
+### F6 · Validación
+
+- [x] F6.1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **3.899 verdes, 0 fallos**
+      (subieron de 3.876 con los tests nuevos de silo).
+- [x] F6.2 **Smoke flags OFF (Sanmarino, lotes 14 y 143):** Levante y Producción siguen con las **43
+      columnas**, hoja `Alimento` con sus 14 (sin `Silo`/`Silo Origen`), `Movimientos Aves` 8,
+      `Movimientos Huevos` 18. Delta cero; lo único nuevo es la hoja `Ejemplo`.
+- [x] F6.3 **Smoke flags ON (Santa Reyes, lote 152):** 22 columnas (de 47), sin machos, sin huevo de
+      columnas fijas, con `Silo Alimento 1/2 H`; hoja `Alimento` con `Silo` y `Silo Origen`;
+      `Referencias` con el silo asignado al lote (`Silo 7` / `BS60107`); y el `Ejemplo` con el silo
+      REAL en cada slot.
+- [x] F6.4 **Smoke funcional del silo, 4 casos contra el backend real:**
+      1. consumo sin entrada ⇒ rechazado por stock **del silo** (0,009 kg en Silo 7), antes de insertar
+         — antes la simulación sumaba los 39 silos y daba luz verde;
+      2. hoja `Alimento` sin la columna Silo ⇒ rechazado con el mensaje del alta manual;
+      3. hoja `Alimento` con `Silo 7` + 5.000 kg ⇒ **`Validado`**, con el saldo proyectado por silo
+         (0,009 + 5.000 − 638,5 = 4.361,509 kg);
+      4. `Silo 20` (existe en la granja, no asignado al lote) ⇒ rechazado con
+         `MensajeSiloNoAsignadoAlLote`.
+- [x] F6.5 Backend del smoke apagado, puertos 5501/5002 libres, sesiones de smoke borradas.
+- [i] **Defecto que solo vio el smoke:** el generador pasaba `SiloNombre: null` al ejemplo, así que la
+      plantilla traía la columna de silo y el ejemplo la dejaba vacía. Cada pieza estaba bien por
+      separado; el defecto vivía en la junta. Corregido: el ejemplo usa el primer silo de
+      `Referencias`, o sea un valor que el importador acepta.
+
+### Fuera de alcance (registrado)
+
+- [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
+      `permissionGuard`: el gate del módulo es 100 % de UI. No es fuga entre empresas
+      (`ActiveCompanyMiddleware` valida la empresa efectiva), pero la «restricción a Sanmarino» de
+      ago-2026 nunca fue real. Deuda conocida.
+- [i] `Movimientos Huevos` por ítem del catálogo; `AplicarMovimientosHuevosAsync` no escribe
+      `TotalHuevos`; la pantalla no reacciona al cambio de empresa activa; el error de descarga se
+      pierde por llegar como `Blob`; todas las plantillas de un mismo tipo bajan con el mismo nombre.
+- [i] **El lote 152 de Santa Reyes no tiene tipos de huevo declarados** (`lote_huevo_items` vacío):
+      hasta que se declaren al editar el lote, su plantilla de Producción no trae la hoja `Huevos`.
+
+---
+
+# El «Día 1» lo manda el primer día CON registro (reproductora + pollo engorde)
+
+Plan: [numeracion_dia_primer_registro_plan.md](fase_de_desarrollo/numeracion_dia_primer_registro_plan.md)
+
+Reporte 04sep26 (granja DOÑA MARIA, lote reproductora `LR-0023649715` «156», encaset 30/08): sus
+registros del 31/08, 01/09 y 02/09 salen como **Día 2, 3 y 4**. Causa raíz: la numeración se corría
+**solo si el lote traía hora de encasetamiento ≥ 13:00**, y la hora la tienen **0 de 142**
+reproductoras (26 de 248 lotes de engorde). El fix del 31-ago (`1191b39`) se validó contra el único
+lote que sí tenía hora. Regla nueva: el corrimiento lo manda **la menor edad con registro**, con
+tope de 1 día. Sin DDL, sin migración: es presentación del front.
+
+## N1 · Función pura + tests
+
+- [x] N1.1 `dia-negocio-engorde.funcion.ts`: `DESPLAZAMIENTO_MAX_NUMERACION`,
+      `menorEdadRegistrada(edades)` y `desplazamientoNumeracion(edadMin, hora)`.
+- [x] N1.2 `dia-negocio-engorde.funcion.spec.ts` (nuevo, 15 casos): sin registros ⇒ cae a la hora;
+      sin hora + edad 1 ⇒ 1 (caso reportado); edad 0 con hora tardía ⇒ 0 (históricos 131/132);
+      tope en 1; basura/negativos ⇒ 0.
+
+## N2 · Reproductora (pantalla reportada)
+
+- [x] N2.1 `seguimiento-diario-lote-reproductora-list.component.ts`: el getter pasa a
+      `desplazamientoNumeracion`; `nextSuggestedFecha` y el guarda siguen con la hora.
+- [x] N2.2 Queda alineado con `construir-bloques-reproductora.funcion.ts` (que ya numeraba por dato).
+- [x] N2.3 Spec del componente con los datos REALES del lote reportado ⇒ días 1, 2, 3 (6 verdes).
+
+## N3 · Pollo engorde (mismo criterio)
+
+- [x] N3.1 `tabs-principal-engorde.component.ts`: `diaNegocio()`/`semanaNegocio()` por edad mínima de
+      `tablaFilas` (sin filtrar: filtrar la tabla no puede renumerar el lote).
+- [x] N3.2 `indicadores-diarios-engorde-compute.service.ts` (columna «Día» + CSV).
+- [x] N3.3 `productividad-engorde-compute.service.ts` (gráficas diaria y semanal, Panamá).
+- [x] N3.4 `indicadores-diarios-engorde-compute.service.spec.ts`: 5 casos actualizados a la
+      numeración nueva + 2 casos nuevos (sin hora desde la edad 1; hueco de 3 días).
+- [i] NO se toca la regla de **pesaje obligatorio** (bloquea el guardado) ni el guarda de captura ni
+      la EDAD que cruza con la guía genética.
+
+## N4 · Validación
+
+- [x] N4.1 `yarn build` 0 errores.
+- [x] N4.2 `yarn test` de los 3 specs tocados: **25 + 6 verdes, 0 fallos**.
+- [x] N4.3 **Smoke visual del lote `LR-0023649715`** con sus datos reales sobre el front local: la
+      fila del **31/08 dice «día 1»**, 01/09 «día 2» y 02/09 «día 3». Dev server y Chrome headless
+      apagados; puertos 4200/9344/5002 libres.
+
+---
+
+# Santa Reyes no puede crear tickets — perfil de atención vacío
+
+Plan: [perfil_atencion_tickets_santa_reyes_plan.md](fase_de_desarrollo/perfil_atencion_tickets_santa_reyes_plan.md)
+
+Reporte 04sep26: «Santa Reyes no deja crear el ticket para asignarlo a desarrollo». **No es permiso,
+ni menú, ni rol** — los tres ya estaban. La empresa no tiene **una sola fila** en
+`ticket_resolutor_rol` ni en `ticket_resolutores`, y `GetTiposPermitidosAsync` **oculta todo tipo sin
+resolutor** ⇒ el `<select>` de Tipo queda vacío y el form, que lo pide `required`, no se puede
+enviar. Causa de fondo: `CompanyService.CreateAsync` siembra `company_permissions` pero **no** la
+fila del rol global `Admin → DESARROLLO` que las otras 4 empresas sí tienen ⇒ toda empresa nueva nace
+sin vía de escalamiento a desarrollo.
+
+## T1 · Cálculo puro + tests
+
+- [x] T1.1 `Application/Calculos/TicketPerfilAtencionSiembraCalculos.cs`: qué rol es el resolutor
+      global (nombre EXACTO `admin`/`administrador`, nunca substring) y qué filas le faltan a una
+      empresa.
+- [x] T1.2 `TicketPerfilAtencionSiembraCalculosTests.cs` (8 casos): `Admin Panama` /
+      `Santa Reyes Administrador` NO son el rol global; sin rol global ⇒ 0 filas (fail-closed); no
+      duplica lo ya sembrado; null/vacío/blanco no lanzan.
+
+## T2 · Migración data-only para Santa Reyes
+
+- [x] T2.1 `20260904170000_SeedPerfilAtencionTicketsSantaReyes` (+ Designer): `Admin` → DESARROLLO,
+      REQUERIMIENTO · `Santa Reyes Implementador` → los 4 tipos. `pais_id = NULL`, localizado por
+      `companies.identifier` + `roles.name`.
+- [x] T2.2 Idempotente por `NOT EXISTS` con `pais_id IS NULL` explícito (el índice único **no**
+      protege: dos NULL no chocan en Postgres) + `UPDATE activo = true` (fila apagada = ausente).
+
+## T3 · La empresa nueva nace con el resolutor global
+
+- [x] T3.1 `CompanyService.PerfilAtencionTickets.cs` (partial nuevo) + una línea en `CreateAsync`.
+      Sólo siembra si la empresa está vacía, mismo criterio que `SembrarCatalogoCompletoSiVaciaAsync`.
+
+## T4 · Validación
+
+- [x] T4.1 `dotnet build` 0 errores · `dotnet test` verde.
+- [x] T4.2 En transacción revertida contra la copia de producción: Santa Reyes 0 → 6 filas; las otras
+      4 empresas **14 → 14 idénticas**; `Up` dos veces sigue en 6; los asignables de DESARROLLO
+      pasan de vacío a 2.
+
+---
+
+# Santa Reyes — múltiples seguimientos diarios de producción el mismo día
+
+Plan: [seguimiento_produccion_multiples_registros_dia_plan.md](fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md)
+
+Pedido (04-sep-2026): Santa Reyes necesita cargar más de un registro de seguimiento diario de
+producción/postura el mismo día para un mismo lote, controlado por flag de empresa. Investigación
+cerrada (workflow de 4 agentes): hay **dos escritores** de `seguimiento_diario_produccion` (uno vivo
+usado por el front, uno huérfano de UI con ruta activa), un **índice único en BD**
+(`ux_seguimiento_diario_produccion_lote_dia_utc`) y, lo central, la función canónica
+`fn_seguimiento_diario_produccion` que hoy ante 2+ filas del mismo lote+día **no suma ni duplica: se
+queda con la de timestamp más temprano y la otra desaparece en silencio** de la grilla, las 3 fns
+semanales derivadas y el espejo C#. Además 3 consumidores (dashboard, header del lote, Reporte
+Técnico Producción) leen la tabla cruda sin pasar por la función y hoy se comportarían distinto
+entre sí ante duplicados. Detalle completo con file:line en el plan.
+
+## S0 · Decisiones del usuario — BLOQUEAN el resto (ver plan §0)
+
+- [!] S0.1 Semántica: ¿los registros del día se SUMAN (lectura del pedido original) o el último
+      reemplaza al anterior?
+- [!] S0.2 Regla por campo para lo no aditivo (peso promedio, uniformidad, CV%, observaciones) —
+      tabla propuesta en el plan §3, a confirmar/editar.
+- [!] S0.3 Manejo del índice único de BD — DDL, sin OK no se toca: (A) parcial con el `company_id`
+      de Santa Reyes hardcodeado en el predicado (recomendado, ya hay precedente en el repo), (B)
+      bajar el índice único para todas las empresas, o (C) columna de secuencia dentro del día.
+- [!] S0.4 ¿Gatear el flag en los DOS escritores (incluye el huérfano de UI con ruta HTTP activa) o
+      solo en el vivo (`ProduccionService.Seguimiento.cs`)?
+- [!] S0.5 Rollout: ¿todo en un commit (recomendado, incluye el fix del Reporte Técnico Producción
+      para que no duplique renglones) o en fases?
+
+## S1 · Flag por empresa (una vez resueltas las decisiones)
+
+- [ ] S1.1 Columna `permite_multiples_seguimientos_diarios_produccion` en `companies` — migración
+      `ADD COLUMN IF NOT EXISTS` + `Company.cs` + `CompanyConfiguration.cs`, patrón de
+      `20260820220012_AddFlagLimitaTiposInventarioAlimentoYAves.cs`.
+- [ ] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
+      Create+Update, `CompanyResolver` x2) + `CreateCompanyDto`/`UpdateCompanyDto`.
+- [ ] S1.3 Seed: `UPDATE companies SET ... WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`
+      (misma migración o una `Seed*` posterior, después del seed que crea la empresa).
+- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed).
+
+## S2 · Alta — sacar la validación de duplicado (gateada)
+
+- [ ] S2.1 `ProduccionService.Seguimiento.cs` Create (~L51-69) y Update (~L508-516): no lanzar la
+      excepción de duplicado cuando el flag está ON.
+- [ ] S2.2 `SeguimientoProduccionService.cs` Create/Update — según S0.4.
+- [ ] S2.3 Índice(s) de BD — según S0.3.
+
+## S3 · Función canónica v3 — agregación real, no solo "dejar pasar el alta"
+
+- [ ] S3.1 `fn_seguimiento_diario_produccion.sql` v3: bifurcar `seg_dias` por el flag de la empresa
+      (join ya existe a `lotes`/`companies`) — flag OFF idéntico byte a byte (gate), flag ON agrupa
+      por día con la regla de S0.1/S0.2.
+- [ ] S3.2 Migración EF de la fn v3 (Designer clonado, `Down` = v2 verbatim) — **en el mismo commit**
+      que el `.sql` (regla del espejo, `CLAUDE.md` §🗄️).
+- [ ] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + tests xUnit (paridad con
+      SQL en ambos modos).
+- [ ] S3.4 Gate multipaís: `verificar_paridad_seguimiento_produccion.sql` antes/después en TODAS las
+      empresas — 0 diffs en las que no son Santa Reyes.
+
+## S4 · Los 3 consumidores que bypasean la función
+
+- [ ] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header) — agrupar por día
+      antes de sumar/contar.
+- [ ] S4.2 `ReporteTecnicoProduccionService.Diario.cs` / `.Tabs.cs` — agrupar por día antes de la
+      iteración que decrementa el saldo en cascada (hoy duplicaría el renglón visualmente).
+- [ ] S4.3 `DashboardService.Postura.cs` — revisar si necesita tocarse (hoy ya suma por día a nivel
+      empresa, verificar que coincida con la nueva regla de agregación de S3).
+- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` — `consumoRealGrAveDiaH/M` debe
+      dividir por días únicos, no por `totalRegistros` (conteo de filas).
+
+## S5 · Validación
+
+- [ ] S5.1 `dotnet build` + `dotnet test` verdes.
+- [ ] S5.2 `yarn build`.
+- [ ] S5.3 Smoke con el flag ON en Santa Reyes: 2 registros mismo lote+día → grilla, header,
+      dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
+- [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).

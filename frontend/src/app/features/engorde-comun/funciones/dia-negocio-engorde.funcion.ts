@@ -3,9 +3,9 @@
  * Espejo puro de `EncasetamientoCalculos` / `PesajeEngordeCalculos` del backend.
  * Sin `this`, sin DI, sin estado de Angular: reciben datos y devuelven un resultado.
  *
- * Regla: el PRIMER DÍA CON REGISTRO del lote es el **día 1**. Si la empresa tiene activa la regla
- * de la hora de llegada y las aves llegaron a las 13:00 o después, ese primer día es el siguiente
- * al encasetamiento (la fecha de encasetamiento no cambia nunca).
+ * Regla: el PRIMER DÍA CON REGISTRO del lote es el **día 1**, y quién es ese día lo dice el DATO
+ * (la menor edad con registro), no la hora de llegada — que casi nunca se carga. La hora solo
+ * decide mientras el lote no tiene ningún registro. La fecha de encasetamiento no cambia nunca.
  *
  * Ojo: esto NO reemplaza a la edad. La edad (`fecha − fecha_encaset`, 0 el día del encaset) sigue
  * siendo la que usan la guía genética, los indicadores, el informe semanal y la liquidación; acá
@@ -30,6 +30,50 @@ export const DIAS_PESAJE_DIARIO = 7;
 export function desplazamientoPrimerDia(horaEncasetamiento: string | null | undefined): number {
   const h = (horaEncasetamiento ?? '').toString().trim();
   return h.length >= 5 && h.slice(0, 5) >= HORA_CORTE_ENCASETAMIENTO ? 1 : 0;
+}
+
+/**
+ * Días como máximo que la NUMERACIÓN se corre respecto del encasetamiento. Uno: es lo que justifica
+ * una llegada tardía. Un hueco mayor son días que nadie capturó, y esconderlos detrás del «día 1»
+ * mentiría sobre el hueco.
+ */
+export const DESPLAZAMIENTO_MAX_NUMERACION = 1;
+
+/** Menor edad (días desde el encaset) entre los registros; null si no hay ninguna utilizable. */
+export function menorEdadRegistrada(edades: ReadonlyArray<number | null | undefined>): number | null {
+  let min: number | null = null;
+  for (const e of edades) {
+    if (e == null || !Number.isFinite(e)) continue;
+    const v = Math.trunc(e);
+    if (min == null || v < min) min = v;
+  }
+  return min;
+}
+
+/**
+ * Desplazamiento que rige la NUMERACIÓN: lo manda el DATO —la menor edad con registro del lote—,
+ * acotado a {@link DESPLAZAMIENTO_MAX_NUMERACION}. Sin registros cae a la hora de llegada, que es
+ * lo único que se sabe antes del primer día.
+ *
+ * <p>Por qué no la hora: el campo se captura en el formulario del lote de pollo engorde y casi
+ * nadie lo llena (04-sep-2026: 0 de 142 lotes reproductora y 26 de 248 de engorde lo tienen), así
+ * que con la hora como única fuente el primer registro de un lote que arrancó al día siguiente del
+ * encaset se numeraba «Día 2». Es el mismo criterio que ya usa el reporte «Primera semana»
+ * (`construir-bloques-reproductora.funcion.ts`: edad inicial 0 si hay registro del día del encaset,
+ * si no 1).</p>
+ *
+ * <p>Un lote histórico que SÍ capturó el día del encaset conserva su numeración 1..7 aunque la hora
+ * sea tardía: manda el dato, y su edad mínima es 0.</p>
+ */
+export function desplazamientoNumeracion(
+  edadMinRegistrada: number | null | undefined,
+  horaEncasetamiento: string | null | undefined
+): number {
+  if (edadMinRegistrada == null || !Number.isFinite(edadMinRegistrada)) {
+    return desplazamientoPrimerDia(horaEncasetamiento);
+  }
+  const edad = Math.trunc(edadMinRegistrada);
+  return Math.min(Math.max(edad, 0), DESPLAZAMIENTO_MAX_NUMERACION);
 }
 
 /**

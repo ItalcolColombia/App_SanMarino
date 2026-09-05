@@ -29,7 +29,7 @@ import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesi
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
-import { desplazamientoPrimerDia } from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
+import { desplazamientoNumeracion, menorEdadRegistrada } from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LoteReproductoraAveEngordeService, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
@@ -703,32 +703,30 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   /**
    * Días que se corre el PRIMER día con registro respecto del encasetamiento: 0 o 1.
-   * Lo decide la HORA EFECTIVA DEL LOTE (13:00 inclusive), sin gate de empresa.
-   * Espejo de `EncasetamientoCalculos.DiasDesplazamiento` en el backend.
-   * <p>Para la NUMERACIÓN el desplazamiento se acota a la menor edad CON registro: los lotes que
-   * capturaron el día del encasetamiento antes de que existiera el guarda de la hora (históricos)
-   * conservan su semana 1..7 y ninguna fila queda sin número de día.</p>
+   * <p>Lo manda el DATO —la menor edad CON registro—, no la hora: el campo «Hora de
+   * encasetamiento» se captura en el formulario del lote de POLLO ENGORDE y no lo llena nadie
+   * (04-sep-2026: 0 de 142 lotes reproductora la tienen), así que el primer registro de un lote que
+   * arrancó al día siguiente del encaset se numeraba «Día 2» (reporte de la granja DOÑA MARIA).
+   * Los lotes que sí capturaron el día del encasetamiento conservan su semana 1..7 aunque la hora
+   * sea tardía, porque su edad mínima es 0.</p>
+   * <p>Sin registros cae a la hora, que es lo único que se sabe antes del primer día — y sigue
+   * rigiendo la fecha sugerida y el guarda de captura, que NO cambian.</p>
    */
   private get desplazamientoPrimerDia(): number {
-    const teorico = desplazamientoPrimerDia(this.horaEncasetamientoEfectiva);
-    if (teorico === 0) return 0;
-    const edadMin = this.menorEdadRegistrada();
-    return edadMin == null ? teorico : Math.min(teorico, Math.max(0, edadMin));
+    return desplazamientoNumeracion(this.edadMinimaRegistrada(), this.horaEncasetamientoEfectiva);
   }
 
   /** Menor edad (días desde el encaset) entre los registros cargados; null si no hay ninguno. */
-  private menorEdadRegistrada(): number | null {
+  private edadMinimaRegistrada(): number | null {
     const baseYmd = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
     if (!baseYmd) return null;
     const inicio = new Date(baseYmd + 'T00:00:00').getTime();
-    let min: number | null = null;
-    for (const s of this.seguimientos) {
+    const edades = this.seguimientos.map(s => {
       const regYmd = ymdSinTz(s.fechaRegistro);
-      if (!regYmd) continue;
-      const dias = Math.round((new Date(regYmd + 'T00:00:00').getTime() - inicio) / (1000 * 60 * 60 * 24));
-      if (min == null || dias < min) min = dias;
-    }
-    return min;
+      if (!regYmd) return null;
+      return Math.round((new Date(regYmd + 'T00:00:00').getTime() - inicio) / (1000 * 60 * 60 * 24));
+    });
+    return menorEdadRegistrada(edades);
   }
 
   /**

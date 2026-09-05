@@ -72,6 +72,59 @@ public class MenuVisibilidadCalculosTests
         Assert.True(MenuVisibilidadCalculos.EmpresaFiltra(companyId: 5, filasEnCompanyMenus: 25));
     }
 
+    // ── D5: el super admin no pasa por el gate de empresa ─────────────────────
+    // Sin la marca el resultado tiene que ser idéntico al de siempre; el default `false` del
+    // parámetro es lo que garantiza que los tres asserts de arriba sigan midiendo lo mismo.
+
+    [Fact]
+    public void SuperAdmin_NoLoFiltraLaEmpresa()
+    {
+        Assert.False(MenuVisibilidadCalculos.EmpresaFiltra(
+            companyId: 5, filasEnCompanyMenus: 25, esSuperAdmin: true));
+
+        // Y el no-super-admin en la misma empresa sí: la excepción es de la persona, no del dato.
+        Assert.True(MenuVisibilidadCalculos.EmpresaFiltra(
+            companyId: 5, filasEnCompanyMenus: 25, esSuperAdmin: false));
+    }
+
+    /// <summary>
+    /// El caso concreto que motivó D5: el ítem «Empresas» está en los <c>role_menus</c> del super
+    /// admin, pero la empresa activa ya no lo habilita. Con el gate aplicado se quedaría sin la
+    /// única pantalla que sirve para volver a habilitarlo.
+    /// </summary>
+    [Fact]
+    public void SuperAdmin_VeLoAsignadoAunqueLaEmpresaLoHayaApagado()
+    {
+        // El gate resuelto en false (D5) llega a ResolverVisibles como "sin habilitados" = null.
+        var filtra = MenuVisibilidadCalculos.EmpresaFiltra(
+            companyId: 5, filasEnCompanyMenus: 25, esSuperAdmin: true);
+
+        var visibles = ResolverVisibles(
+            Catalogo(),
+            asignados: [2, 3, 11, 21, 22],
+            keysUsuario: ["tickets.admin"],
+            habilitadosEmpresa: filtra ? [1, 2, 3, 10, 11] : null);
+
+        // Ve también ItalJira (20/21/22), que la empresa no habilita.
+        Assert.Equal(new[] { 1, 2, 3, 10, 11, 20, 21, 22 }, Ids(visibles));
+    }
+
+    /// <summary>
+    /// D5 recorta el gate de EMPRESA y nada más: los <c>role_menus</c>, <c>is_active</c> y
+    /// <c>menu_permissions</c> le siguen aplicando al super admin como a cualquiera.
+    /// </summary>
+    [Fact]
+    public void SuperAdmin_SigueLimitadoPorSusRolesYSusPermisos()
+    {
+        var visibles = ResolverVisibles(
+            Catalogo(),
+            asignados: [2, 3],            // no tiene ItalJira asignado en role_menus
+            keysUsuario: [],              // ni la key que ItalJira exige
+            habilitadosEmpresa: null);    // gate de empresa levantado por D5
+
+        Assert.DoesNotContain(visibles, m => m.Id is 20 or 21 or 22);
+    }
+
     // ── T2/T3/T4: el gate propiamente dicho ───────────────────────────────────
     // T2 es el caso reportado: el rol de Panamá tiene ItalJira en role_menus y la empresa no lo
     // tiene en company_menus.

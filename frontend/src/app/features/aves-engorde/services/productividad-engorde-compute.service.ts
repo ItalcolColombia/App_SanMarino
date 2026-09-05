@@ -6,8 +6,9 @@ import {
   ProductividadEngordeResult
 } from './productividad-engorde.models';
 import {
-  desplazamientoPrimerDia,
+  desplazamientoNumeracion,
   diaDeNegocioDesdeEdad,
+  menorEdadRegistrada,
   semanaDeNegocio
 } from '../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 
@@ -27,9 +28,14 @@ export class ProductividadEngordeComputeService {
       return { diaria: [], semanal: [] };
     }
 
-    // Numeración de negocio (día 1 = primer día con registro; sin día 0). Con desplazamiento 0 la
-    // semana de negocio coincide exactamente con la `semana` de fn_seguimiento_diario_engorde.
-    const desplazamiento = desplazamientoPrimerDia(horaEncasetamiento);
+    // Numeración de negocio (día 1 = primer día con registro; sin día 0). Quién es ese día lo dice
+    // el DATO —la menor edad con registro—, no la hora de llegada, que casi nadie carga. Con
+    // desplazamiento 0 la semana de negocio coincide exactamente con la `semana` de
+    // fn_seguimiento_diario_engorde.
+    const desplazamiento = desplazamientoNumeracion(
+      menorEdadRegistrada(filas.map(f => f.edadDia)),
+      horaEncasetamiento
+    );
 
     const diaria = this.computeDiaria(filas, desplazamiento);
     const semanal = this.computeSemanal(filas, desplazamiento);
