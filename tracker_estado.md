@@ -7694,9 +7694,26 @@ cuadrados en cero y venta final que deja el lote en 0 aves.
       `Postura_PesoDelHuevo_SigueEnGramos` y `Engorde_ConservaElPesoEnGramos`).
       Validación: `dotnet build` 0/0 · `dotnet test` **3.971 verdes** (+5).
       Los dos `.xlsx` se regeneraron con el título nuevo y el peso en kg.
-- [ ] P6 Dry-run real de los dos archivos contra el importador. **Pendiente**: necesita el lote
-      creado, que ahora lo deja la migración de P5. Es lo único que falta para pasar de «estructura
-      verificada» a «probado de punta a punta».
+- [x] P6 **Dry-run real contra el importador: los dos archivos pasan** (05-sep-2026, backend local
+      con content root propio y `RunMigrations=false`, build de `faf31eb`, lote creado corriendo el
+      SQL de la migración de P5).
+      · **LEVANTE** → `POST /api/Migracion/validar` HTTP 200, estado **`Validado`**,
+      `filasTotales: 119`, **`filasError: 0`**, 0 errores. Las 4 advertencias son el propio
+      importador reportando el cuadre: *«Saldo proyectado de POLLITA PREINICIADOR SR Q SIN COCC:
+      0.000 kg + 21,040.830 entradas − 21,040.830 consumidos = 0.00»*, y lo mismo para los otros 3.
+      · **PRODUCCIÓN** → primero devolvió el Error esperado *«El lote no está habilitado (requiere
+      Levante cerrado + liquidado + lote Producción)»*, que **confirma el gate** y el paso manual del
+      LEEME. Simulando el cierre por SQL (LPL a `Cerrado` + fila de liquidación + LPP) para poder
+      llegar al parseo: HTTP 200, **`Validado`**, `filasTotales: 427`, **`filasError: 0`**, 0 errores,
+      y las 5 advertencias del saldo proyectado en **0,000 kg** por cada (ítem, silo).
+      · Eso valida de verdad, no por estructura: las 427 filas de `Datos` (sin fechas repetidas, con
+      silos aceptados por la lista blanca del lote, códigos de alimento, `Etapa` y pH válidos), las
+      **1.281 filas de `Huevos`** contra los 4 ítems declarados, las **1.281 de `Movimientos Huevos`**
+      pasando la validación de DISPONIBILIDAD por ítem, y `Movimientos Aves`. Ninguna advertencia
+      sobre el peso ⇒ el encabezado nuevo `Peso H (kg)` se reconoce (P8 verificado en vivo).
+      · **Todo lo creado se deshizo**: LPP, liquidación, `estado_cierre` de vuelta a `Abierto`, el
+      `Down()` de la migración para el lote, y la sesión de smoke. Conteo final 0 en las 7 sondas
+      (incluidos huérfanos de `lote_silos` y `lote_huevo_items`). Puertos libres.
 - [~] P7 Importar en producción. Orden obligatorio: importar LEVANTE → **cerrar y liquidar el
       levante a mano** → importar PRODUCCIÓN. Reimportar no corrige: una fecha ya cargada se omite
       en silencio.
