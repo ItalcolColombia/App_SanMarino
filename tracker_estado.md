@@ -6939,6 +6939,36 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       con su README. ⚠️ No se pisa `fase_de_desarrollo/Manual_Carga_Masiva_Postura.docx`: es otro
       documento, anterior y distinto («ITALGRANJA · de punta a punta»).
 
+### F8 · E2E completo de Santa Reyes (importación real)
+
+Corrido contra el backend local aislado (`:5501`, content root propio, migraciones apagadas) con el
+lote 152 / granja 109 / empresa 6. El archivo se armó copiando la hoja `Ejemplo` de la plantilla
+descargada, que es lo que hace una persona.
+
+- [x] F8.1 **Fixture**: se declararon 2 tipos de huevo del lote (`lote_huevo_items`: 528 Primera y
+      538 Pnc). Con eso la plantilla de Producción pasó a emitir la hoja `Huevos` — la comprobación
+      en vivo de F4.1.
+- [x] F8.2 **LEVANTE · validar → importar**: `Validado` 0 errores → `Procesado` 5/5.
+      Verificado en BD: 5 filas nuevas, **todas con `siloId: 7` en `metadata.itemsHembras`** (misma
+      forma que las 2 filas que había escrito el formulario manual); stock del silo 7
+      **0,009 + 5.000 − 1.506,3 = 3.493,709**; 1 Ingreso + 5 Consumos con `silo_id=7` y
+      núcleo/galpón en NULL; referencias `Seguimiento lote levante #<id> <fecha>` idénticas a las del
+      alta manual; aves 3.000 − 38 = **2.962**.
+- [x] F8.3 **Idempotencia**: reimportar el MISMO archivo ⇒ `Procesado` 0 procesadas / **6 omitidas**
+      (5 días + el movimiento de alimento) y stock, aves, filas y movimientos **idénticos**. No se
+      duplicó nada ni se descontó dos veces.
+- [x] F8.4 **PRODUCCIÓN · validar → importar**: `Validado` → `Procesado` 3/3, con la hoja `Huevos`
+      por ítem. Verificado: `huevo_tot = 2.550` (2.400 Primera + 150 Pnc, **derivado de los ítems**),
+      `huevo_inc = 0` y las 11 columnas legacy en 0 — la paridad exacta con el alta manual;
+      `metadata.huevoItems` con catalogItemId/código/nombre/tipoHuevo/cantidad por fecha;
+      `cons_kg_m = 0` (consumo solo hembras); stock 3.493,709 + 4.000 − 932,3 = **6.561,409**;
+      aves 3.000 − 17 = **2.983**.
+- [x] F8.5 **Limpieza verificada dentro de una transacción**: el estado volvió al de partida
+      (2 filas de levante, 0 de producción, 3 movimientos, stock 0,009, aves 3.000/3.000, fixture y
+      sesiones de smoke borradas). Los 10 registros del histórico unificado quedaron
+      **`anulado = true`**, que es lo que exige el invariante (se anula, nunca se abandona).
+- [x] F8.6 Backend apagado, puertos 5501/5002 libres.
+
 ### Fuera de alcance (registrado)
 
 - [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
