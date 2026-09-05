@@ -6969,6 +6969,38 @@ descargada, que es lo que hace una persona.
       **`anulado = true`**, que es lo que exige el invariante (se anula, nunca se abandona).
 - [x] F8.6 Backend apagado, puertos 5501/5002 libres.
 
+### F9 · «Movimientos Huevos» por ítem (5-sep-2026)
+
+Lo que el 4-sep quedó como limitación —la hoja no se emitía para empresas con clasificación por
+ítems— ahora funciona. Patrón mapeado file:line contra el alta manual (25 agentes).
+
+- [x] F9.1 Esquema `MovimientosHuevosPorItem`: **la misma hoja, otra forma** — una fila por ítem
+      (Fecha, Tipo, Ítem, Cantidad + los campos de destino), como la hoja `Huevos`. Las filas que
+      comparten fecha, tipo y destino forman UN movimiento con N ítems.
+- [x] F9.2 La plantilla emite una u otra variante según `clasificacion_huevo_por_items`, con el
+      desplegable de `Ítem` acotado a los tipos de la hoja `Referencias`.
+- [x] F9.3 Inserta en `traslado_huevos` con las **11 columnas en 0**, `total_huevos` = suma de ítems y
+      el desglose en `metadata.huevoItems` — byte a byte lo que hace `TrasladoHuevosService` en su
+      rama `usaHuevoItems`.
+- [x] F9.4 **`TotalHuevos` ya se escribe** (bug preexistente registrado el 4-sep): la carga masiva
+      nunca poblaba esa columna, de la que sale el total del espejo.
+- [x] F9.5 **Clave de idempotencia por ítems** (`ClaveArchivoPorItems`, 11 tests): con las 11
+      categorías en cero, la clave vieja hacía colisionar dos movimientos distintos del mismo día y el
+      segundo se omitía como «repetido». Ordena por id e ignora los ceros, así que el mismo movimiento
+      escrito en otro orden rinde la misma clave.
+- [x] F9.6 Disponibilidad por ítem **reusando `DisponibilidadLoteService`** (el mismo servicio que
+      consulta la pantalla): disponible hoy + lo que el archivo produce − lo que el archivo mueve. No
+      se reimplementó la aritmética del saldo.
+- [i] **A diferencia de la hoja `Huevos`, acá NO se aplica la lista blanca del lote (F7.3)**: un
+      traslado mueve lo que YA se produjo. Es la decisión explícita y documentada del alta manual
+      (`ValidarCatalogoHuevoItemsAsync`). Lo que acota de verdad es la disponibilidad.
+- [x] F9.7 **E2E real**: dos movimientos el MISMO día (Traslado a planta + Venta) con dos tipos de
+      huevo ⇒ 2 filas separadas, 11 columnas en 0, `total_huevos` 1.900 y 400, metadata con el
+      desglose. Reimportar ⇒ 0 procesadas / 5 omitidas. Mover 9.999 de un tipo con 800 disponibles ⇒
+      rechazado con el detalle. Ítem del catálogo no producido ⇒ lo frena la disponibilidad, no la
+      lista blanca. Limpieza verificada: estado devuelto al inicial.
+- [x] F9.8 `dotnet build` 0/0 · `dotnet test` **3.910 verdes**.
+
 ### Fuera de alcance (registrado)
 
 - [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin

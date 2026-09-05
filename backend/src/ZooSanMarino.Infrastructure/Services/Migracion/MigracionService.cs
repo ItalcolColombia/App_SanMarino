@@ -44,6 +44,13 @@ public partial class MigracionService : IMigracionService
     /// histórico no son días pendientes de validar. Opcional por el mismo motivo que las de arriba.
     /// </summary>
     private readonly IValidacionSeguimientoService? _validacion;
+    /// <summary>
+    /// Disponibilidad de huevos POR ÍTEM del catálogo. Es el MISMO servicio que consulta el traslado
+    /// por pantalla, para que la carga masiva no tenga su propia aritmética del saldo: la del archivo
+    /// se calcula como «lo disponible hoy + lo que el archivo produce − lo que el archivo mueve».
+    /// Opcional por el mismo motivo que las de arriba.
+    /// </summary>
+    private readonly IDisponibilidadLoteService? _disponibilidad;
 
     static MigracionService()
     {
@@ -65,9 +72,11 @@ public partial class MigracionService : IMigracionService
         IInventarioGestionService? inventarioGestion = null,
         IColombiaInventarioConsumoService? colombiaConsumo = null,
         IEspejoHuevoProduccionSyncService? espejoHuevoSync = null,
-        IValidacionSeguimientoService? validacion = null)
+        IValidacionSeguimientoService? validacion = null,
+        IDisponibilidadLoteService? disponibilidad = null)
     {
         _validacion = validacion;
+        _disponibilidad = disponibilidad;
         _inventarioGestion = inventarioGestion;
         _colombiaConsumo = colombiaConsumo;
         _espejoHuevoSync = espejoHuevoSync;

@@ -241,6 +241,39 @@ public static class MigracionEsquemas
         .ToArray());
 
     /// <summary>
+    /// Hoja <c>Movimientos Huevos</c> de las empresas que clasifican el huevo POR ÍTEM del catálogo
+    /// (<c>clasificacion_huevo_por_items</c>, ej. Santa Reyes). Misma hoja, otra FORMA: en vez de las
+    /// 11 categorías fijas —que en esas empresas quedan en cero y harían rechazar el archivo entero—
+    /// va <b>una fila por ítem</b>, igual que la hoja <see cref="HuevosPostura"/>.
+    ///
+    /// <para>
+    /// <b>Cómo se agrupan las filas en movimientos:</b> las que comparten fecha, tipo y destino
+    /// (<c>Tipo Destino</c>, <c>Destino</c>, <c>Motivo</c>, <c>Descripción</c>) forman UN movimiento
+    /// con N ítems. Es el mismo criterio con el que la venta de engorde arma un despacho a partir de
+    /// varias filas.
+    /// </para>
+    ///
+    /// <para>
+    /// Se usa SOLO para generar la plantilla y para parsear el archivo de esas empresas; el destino en
+    /// base es el mismo <c>traslado_huevos</c>, con las 11 columnas en cero y el desglose en
+    /// <c>metadata.huevoItems</c> — byte a byte lo que ya escribe el alta manual
+    /// (<c>TrasladoHuevosService</c>, rama <c>usaHuevoItems</c>).
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion MovimientosHuevosPorItem { get; } = new("Movimientos Huevos", new ColumnaEsquema[]
+    {
+        new("Fecha",         Requerida: true),
+        new("Tipo",          Requerida: true, Alias: new[] { "movimiento", "tipo operacion", "operacion" }, Opciones: new[] { "Traslado", "Venta" }),
+        new("Ítem",          Requerida: true, Alias: new[] { "item", "huevo", "producto", "codigo", "código" }),
+        new("Cantidad",      Requerida: true, Alias: new[] { "cantidad huevos", "unidades" }),
+        new("Tipo Destino",  Requerida: false, Opciones: new[] { "Planta", "Cliente", "Empresa" }),
+        new("Destino",       Requerida: false, Alias: new[] { "planta", "cliente", "lote destino" }),
+        new("Motivo",        Requerida: false, Alias: new[] { "motivo venta" }),
+        new("Descripción",   Requerida: false, Alias: new[] { "descripcion" }),
+        new("Observaciones", Requerida: false),
+    });
+
+    /// <summary>
     /// Hoja <c>Movimientos Aves</c> de los archivos de LEVANTE y PRODUCCIÓN: movimientos de aves
     /// UNILATERALES sobre el lote del archivo. <c>Salida</c> descuenta a este lote y exige que el
     /// "Lote Contraparte" exista en la MISMA fase en la empresa (NO lo acredita: ese lote carga su

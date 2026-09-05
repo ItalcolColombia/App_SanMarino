@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Migracion;
+using ZooSanMarino.Application.DTOs.Produccion;
+using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -30,11 +32,23 @@ public partial class MigracionService
         string? Destino,
         string? Motivo,
         string? Descripcion,
-        string? Observaciones);
+        string? Observaciones,
+        IReadOnlyList<HuevoItemSeguimientoDto>? HuevoItems = null)
+    {
+        /// <summary>¿El movimiento viene clasificado por ítem del catálogo en vez de por las 11 categorías?</summary>
+        public bool PorItems => HuevoItems is { Count: > 0 };
+
+        /// <summary>Total de huevos del movimiento, venga por ítems o por categorías.</summary>
+        public int Total => PorItems ? HuevoItemsCalculos.SumarTotal(HuevoItems) : Cantidades.Totales;
+    }
 
     /// <summary>Claves de lectura (título + alias) de una columna de la hoja "Movimientos Huevos".</summary>
     private static string[] ClavesMovHuevos(string titulo) =>
         MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.MovimientosHuevosProduccion, titulo);
+
+    /// <summary>Claves de lectura de la variante POR ÍTEM de la hoja "Movimientos Huevos".</summary>
+    private static string[] ClavesMovHuevosItem(string titulo) =>
+        MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.MovimientosHuevosPorItem, titulo);
 
     /// <summary>
     /// Lee y valida la hoja "Movimientos Huevos" (opcional; solo PRODUCCIÓN la invoca — levante la
@@ -106,6 +120,140 @@ public partial class MigracionService
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Lee la hoja "Movimientos Huevos" en su variante POR ÍTEM del catálogo (empresas con
+    /// <c>clasificacion_huevo_por_items</c>). Una fila por ítem; las filas que comparten fecha, tipo
+    /// y destino forman UN movimiento con N ítems — mismo criterio con el que la venta de engorde
+    /// arma un despacho a partir de varias filas.
+    ///
+    /// <para>
+    /// El ítem se resuelve contra los tipos de huevo DECLARADOS POR EL LOTE, exactamente como la hoja
+    /// "Huevos": si no aplicara la misma lista blanca, la carga masiva sería la puerta de atrás de la
+    /// restricción que pidió el cliente (F7.3).
+    /// </para>
+    /// </summary>
+    private async Task<List<MovimientoHuevosMigFila>> LeerHojaMovimientosHuevosPorItemAsync(
+        IFormFile file, int companyId, LotePosturaCtx? loteCtx, List<MigracionErrorDto> errores, CancellationToken ct)
+    {
+        var filas = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.MovimientosHuevosPorItem, errores);
+        if (filas.Count == 0 || loteCtx is null) return new List<MovimientoHuevosMigFila>();
+
+        // 🔴 A diferencia de la hoja "Huevos" (producción), acá NO se aplica la lista blanca del lote
+        // (F7.3): un traslado mueve lo que YA se produjo, y un tipo que salió de la lista del lote
+        // sigue teniendo huevos que sacar. Es la misma decisión, documentada, que toma el alta manual
+        // en `TrasladoHuevosService.ValidarCatalogoHuevoItemsAsync`. Lo que acota de verdad es la
+        // DISPONIBILIDAD por ítem, más abajo.
+        var catalogo = await CargarItemsHuevoEmpresaAsync(companyId, ct);
+        if (catalogo.Count == 0)
+        {
+            errores.Add(new(0, "Ítem", null,
+                "La empresa no tiene tipos de huevo activos en su catálogo: no se pueden cargar movimientos de huevo."));
+            return new List<MovimientoHuevosMigFila>();
+        }
+
+        var porClave = new Dictionary<string, List<(int Id, string? Codigo, string Nombre, string? TipoHuevo)>>();
+        foreach (var i in catalogo)
+        {
+            Indexar(i.Nombre, i);
+            Indexar(i.Codigo, i);
+        }
+
+        // (fecha, tipo, destino...) -> movimiento en construcción. Se conserva el orden de aparición.
+        var grupos = new Dictionary<string, (MovimientoHuevosMigFila Cabecera, List<HuevoItemSeguimientoDto> Items)>();
+        var orden = new List<string>();
+        var hoyUtc = DateTime.UtcNow.Date;
+
+        foreach (var fila in filas)
+        {
+            int e0 = errores.Count;
+
+            if (!MigracionCalculos.TryFecha(Celda(fila, ClavesMovHuevosItem("Fecha")), out var fecha))
+            { errores.Add(new(fila.Numero, "Fecha", null, "Movimientos Huevos: fecha inválida o faltante.")); continue; }
+            if (!ValidarFechaContraLote(fila, fecha, loteCtx, hoyUtc, errores)) continue;
+
+            var tipoTexto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Tipo")));
+            if (!MigracionMovimientosHuevosCalculos.TryOperacion(tipoTexto, out var tipo))
+            {
+                errores.Add(new(fila.Numero, "Tipo", tipoTexto,
+                    "Movimientos Huevos: tipo no reconocido. Usá 'Traslado' (a planta) o 'Venta'."));
+                continue;
+            }
+
+            var itemTexto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Ítem")));
+            if (itemTexto is null)
+            { errores.Add(new(fila.Numero, "Ítem", null, "Movimientos Huevos: indicá el tipo de huevo que se mueve.")); continue; }
+            if (!porClave.TryGetValue(MigracionCalculos.NormalizarClave(itemTexto), out var matches) || matches.Count == 0)
+            {
+                errores.Add(new(fila.Numero, "Ítem", itemTexto,
+                    $"El tipo de huevo '{itemTexto}' no existe en el catálogo de huevo de la empresa (activo). Usá el nombre o el código de la hoja 'Referencias'."));
+                continue;
+            }
+            if (matches.Count > 1)
+            { errores.Add(new(fila.Numero, "Ítem", itemTexto, $"'{itemTexto}' coincide con {matches.Count} ítems; usá el código.")); continue; }
+
+            var cantidad = EnteroNoNeg(fila, errores, "Cantidad", ClavesMovHuevosItem("Cantidad"));
+            if (errores.Count > e0) continue;
+            if (cantidad <= 0)
+            { errores.Add(new(fila.Numero, "Cantidad", cantidad.ToString(), "Movimientos Huevos: la cantidad debe ser mayor a 0.")); continue; }
+
+            var tipoDestinoTexto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Tipo Destino")));
+            var tipoDestino = MigracionMovimientosHuevosCalculos.TipoDestinoEfectivo(tipoDestinoTexto, tipo);
+            if (tipoDestino is null)
+            {
+                errores.Add(new(fila.Numero, "Tipo Destino", tipoDestinoTexto,
+                    $"Movimientos Huevos: tipo de destino no reconocido. Usá {string.Join(", ", MigracionMovimientosHuevosCalculos.TiposDestino)} (vacío = default según el tipo)."));
+                continue;
+            }
+
+            var destino = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Destino")));
+            var motivo = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Motivo")));
+            var descripcion = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Descripción")));
+            var observaciones = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovHuevosItem("Observaciones")));
+
+            var claveGrupo = string.Join("|", fecha.Date.ToString("yyyy-MM-dd"), tipo.ToString(),
+                tipoDestino, destino ?? "", motivo ?? "", descripcion ?? "");
+
+            if (!grupos.TryGetValue(claveGrupo, out var grupo))
+            {
+                grupo = (new MovimientoHuevosMigFila(fila.Numero, fecha.Date, tipo, HuevosClasificacion.Cero,
+                            tipoDestino, destino, motivo, descripcion, observaciones),
+                         new List<HuevoItemSeguimientoDto>());
+                grupos[claveGrupo] = grupo;
+                orden.Add(claveGrupo);
+            }
+
+            var (id, codigo, nombre, tipoHuevo) = matches[0];
+            var yaEsta = grupo.Items.FirstOrDefault(x => x.CatalogItemId == id);
+            if (yaEsta is not null)
+            {
+                // Mismo ítem repetido dentro del mismo movimiento: se suma y se avisa, igual que en
+                // la hoja "Huevos". No descarta la fila.
+                errores.Add(new(fila.Numero, "Ítem", itemTexto,
+                    $"'{nombre}' aparece más de una vez en el mismo movimiento: las cantidades se suman.", "Advertencia"));
+                grupo.Items.Remove(yaEsta);
+                cantidad += yaEsta.Cantidad;
+            }
+            grupo.Items.Add(new HuevoItemSeguimientoDto(
+                CatalogItemId: id, Codigo: codigo, Nombre: nombre, TipoHuevo: tipoHuevo,
+                Cantidad: cantidad, Um: "UND"));
+        }
+
+        return orden
+            .Select(k => grupos[k])
+            .Where(g => g.Items.Count > 0)
+            .Select(g => g.Cabecera with { HuevoItems = g.Items })
+            .ToList();
+
+        void Indexar(string? texto, (int Id, string? Codigo, string Nombre, string? TipoHuevo) valor)
+        {
+            var clave = MigracionCalculos.NormalizarClave(texto);
+            if (string.IsNullOrEmpty(clave)) return;
+            if (!porClave.TryGetValue(clave, out var lista))
+                porClave[clave] = lista = new List<(int, string?, string, string?)>();
+            if (!lista.Any(x => x.Id == valor.Id)) lista.Add(valor);
+        }
     }
 
     /// <summary>
@@ -193,7 +341,7 @@ public partial class MigracionService
                             && t.FechaTraslado >= desde && t.FechaTraslado < hasta)
                 .Select(t => new
                 {
-                    t.FechaTraslado, t.TipoOperacion,
+                    t.FechaTraslado, t.TipoOperacion, t.Metadata,
                     t.CantidadLimpio, t.CantidadTratado, t.CantidadSucio, t.CantidadDeforme, t.CantidadBlanco,
                     t.CantidadDobleYema, t.CantidadPiso, t.CantidadPequeno, t.CantidadRoto, t.CantidadDesecho, t.CantidadOtro
                 })
@@ -202,6 +350,16 @@ public partial class MigracionService
             .Select(t =>
             {
                 MigracionMovimientosHuevosCalculos.TryOperacion(t.TipoOperacion, out var op);
+                // Un traslado por ÍTEM tiene las 11 cantidades en cero: su identidad son los ítems del
+                // metadata. Con la clave por categorías, dos movimientos distintos del mismo día
+                // rendirían el MISMO string y el segundo se omitiría como "repetido".
+                if (t.Metadata is not null)
+                {
+                    var items = HuevoItemsCalculos.LeerDeMetadata(t.Metadata.RootElement);
+                    if (items.Count > 0)
+                        return MigracionMovimientosHuevosCalculos.ClaveArchivoPorItems(
+                            t.FechaTraslado.Date, op, items.Select(i => (i.CatalogItemId, i.Cantidad)));
+                }
                 return MigracionMovimientosHuevosCalculos.ClaveArchivo(t.FechaTraslado.Date, op, new HuevosClasificacion(
                     Limpio: t.CantidadLimpio, Tratado: t.CantidadTratado, Sucio: t.CantidadSucio,
                     Deforme: t.CantidadDeforme, Blanco: t.CantidadBlanco, DobleYema: t.CantidadDobleYema,
@@ -213,7 +371,11 @@ public partial class MigracionService
         int aplicados = 0, omitidos = 0;
         foreach (var m in movimientos.OrderBy(x => x.Fecha).ThenBy(x => x.NumeroFila))
         {
-            if (clavesExistentes.Contains(MigracionMovimientosHuevosCalculos.ClaveArchivo(m.Fecha, m.Tipo, m.Cantidades)))
+            var claveMovimiento = m.PorItems
+                ? MigracionMovimientosHuevosCalculos.ClaveArchivoPorItems(
+                    m.Fecha, m.Tipo, m.HuevoItems!.Select(i => (i.CatalogItemId, i.Cantidad)))
+                : MigracionMovimientosHuevosCalculos.ClaveArchivo(m.Fecha, m.Tipo, m.Cantidades);
+            if (clavesExistentes.Contains(claveMovimiento))
             { omitidos++; continue; }
 
             try
@@ -233,17 +395,27 @@ public partial class MigracionService
                     Observaciones = string.IsNullOrWhiteSpace(m.Observaciones)
                         ? "Carga masiva de seguimiento producción"
                         : $"Carga masiva de seguimiento producción. {m.Observaciones}",
-                    CantidadLimpio = m.Cantidades.Limpio,
-                    CantidadTratado = m.Cantidades.Tratado,
-                    CantidadSucio = m.Cantidades.Sucio,
-                    CantidadDeforme = m.Cantidades.Deforme,
-                    CantidadBlanco = m.Cantidades.Blanco,
-                    CantidadDobleYema = m.Cantidades.DobleYema,
-                    CantidadPiso = m.Cantidades.Piso,
-                    CantidadPequeno = m.Cantidades.Pequeno,
-                    CantidadRoto = m.Cantidades.Roto,
-                    CantidadDesecho = m.Cantidades.Desecho,
-                    CantidadOtro = m.Cantidades.Otro,
+                    // Clasificación por ítems: las 11 quedan en 0 y el desglose real viaja en
+                    // Metadata — byte a byte lo que hace el alta manual (TrasladoHuevosService, rama
+                    // `usaHuevoItems`). El camino legacy queda idéntico.
+                    CantidadLimpio = m.PorItems ? 0 : m.Cantidades.Limpio,
+                    CantidadTratado = m.PorItems ? 0 : m.Cantidades.Tratado,
+                    CantidadSucio = m.PorItems ? 0 : m.Cantidades.Sucio,
+                    CantidadDeforme = m.PorItems ? 0 : m.Cantidades.Deforme,
+                    CantidadBlanco = m.PorItems ? 0 : m.Cantidades.Blanco,
+                    CantidadDobleYema = m.PorItems ? 0 : m.Cantidades.DobleYema,
+                    CantidadPiso = m.PorItems ? 0 : m.Cantidades.Piso,
+                    CantidadPequeno = m.PorItems ? 0 : m.Cantidades.Pequeno,
+                    CantidadRoto = m.PorItems ? 0 : m.Cantidades.Roto,
+                    CantidadDesecho = m.PorItems ? 0 : m.Cantidades.Desecho,
+                    CantidadOtro = m.PorItems ? 0 : m.Cantidades.Otro,
+                    // 🔴 `TotalHuevos` no se escribía nunca: la disponibilidad total del lote sale de
+                    // esta columna, así que los movimientos de la carga masiva no la descontaban. Con
+                    // ítems es además la ÚNICA cifra agregada que queda (las 11 van en cero).
+                    TotalHuevos = m.Total,
+                    Metadata = m.PorItems
+                        ? HuevoItemsCalculos.EscribirEnMetadata(null, m.HuevoItems!.ToList())
+                        : null,
                     Estado = "Completado",
                     FechaProcesamiento = fechaUtc,
                     UsuarioTrasladoId = _current.UserId,
@@ -265,6 +437,90 @@ public partial class MigracionService
             }
         }
         return (aplicados, omitidos);
+    }
+
+    /// <summary>
+    /// Disponibilidad proyectada POR ÍTEM del catálogo: lo disponible HOY (según el mismo servicio
+    /// que consulta el traslado por pantalla) más lo que el archivo va a producir, menos lo que el
+    /// archivo va a mover. Si algún ítem queda en negativo es un ERROR.
+    ///
+    /// <para>
+    /// La versión por categorías no sirve acá: con clasificación por ítems las 11 columnas del espejo
+    /// están en cero, así que compararía todo contra cero y rechazaría cualquier movimiento. Y la
+    /// aritmética del saldo NO se reimplementa —
+    /// <c>DisponibilidadLoteService.ObtenerDisponibilidadHuevoItemsLPPAsync</c> ya la tiene, leyendo
+    /// el jsonb en vivo (producción menos traslados Completados) — acá solo se le suma el delta del
+    /// archivo, que es lo único que ese servicio no puede saber.
+    /// </para>
+    ///
+    /// <para>
+    /// Sin la dependencia inyectada la validación se omite (mismo criterio que el resto de las
+    /// opcionales del servicio); el importador igual no puede escribir un saldo negativo, porque el
+    /// alta real de cada movimiento pasa por su propia validación.
+    /// </para>
+    /// </summary>
+    private async Task ValidarDisponibilidadHuevosPorItemAsync(
+        int loteId,
+        IReadOnlyList<Dictionary<string, object?>> filasJson,
+        IReadOnlyList<MovimientoHuevosMigFila> movimientosHuevos,
+        List<MigracionErrorDto> errores,
+        CancellationToken ct)
+    {
+        var aMover = movimientosHuevos.Where(m => m.PorItems).SelectMany(m => m.HuevoItems!).ToList();
+        if (aMover.Count == 0 || _disponibilidad is null) return;
+
+        var lppId = await _ctx.LotePosturaProduccion.AsNoTracking()
+            .Where(x => x.LoteId == loteId && x.DeletedAt == null && x.LotePosturaProduccionId != null)
+            .OrderByDescending(x => x.LotePosturaProduccionId)
+            .Select(x => (int?)x.LotePosturaProduccionId!.Value)
+            .FirstOrDefaultAsync(ct);
+        if (lppId is null) return;
+
+        var disponibleHoy = (await _disponibilidad.ObtenerDisponibilidadHuevoItemsLPPAsync(lppId.Value))
+            .ToDictionary(i => i.CatalogItemId, i => i.Cantidad);
+
+        // Lo que el archivo va a PRODUCIR: los ítems de la hoja "Huevos" ya parseados en el json de
+        // cada día. Sin esto, cargar producción y movimientos en el mismo archivo se rechazaría solo.
+        var produceElArchivo = new Dictionary<int, int>();
+        foreach (var fila in filasJson)
+        {
+            if (!fila.TryGetValue("metadata", out var m) || m is not Dictionary<string, object?> meta) continue;
+            if (!meta.TryGetValue(HuevoItemsCalculos.MetadataKey, out var lista)) continue;
+            foreach (var item in EnumerarItems(lista))
+                produceElArchivo[item.Id] = produceElArchivo.GetValueOrDefault(item.Id) + item.Cantidad;
+        }
+
+        var nombrePorId = aMover.Where(i => !string.IsNullOrWhiteSpace(i.Nombre))
+            .GroupBy(i => i.CatalogItemId)
+            .ToDictionary(g => g.Key, g => g.First().Nombre!);
+
+        foreach (var grupo in aMover.GroupBy(i => i.CatalogItemId))
+        {
+            var movido = grupo.Sum(i => i.Cantidad);
+            var hoy = disponibleHoy.GetValueOrDefault(grupo.Key);
+            var delArchivo = produceElArchivo.GetValueOrDefault(grupo.Key);
+            var proyectado = hoy + delArchivo - movido;
+            if (proyectado >= 0) continue;
+
+            var nombre = nombrePorId.GetValueOrDefault(grupo.Key, $"ítem {grupo.Key}");
+            errores.Add(new(0, "Movimientos Huevos", nombre,
+                $"No alcanzan los huevos de '{nombre}': disponibles {hoy} + {delArchivo} del archivo − {movido} a mover = {proyectado}. "
+                + "Corregí las cantidades o cargá primero la producción de ese tipo de huevo."));
+        }
+
+        // El metadata que arma el parseo es un diccionario de objetos; se lee defensivamente porque
+        // la forma la fija otro punto del código (SerializarItem) y no queremos acoplarnos a su tipo.
+        static IEnumerable<(int Id, int Cantidad)> EnumerarItems(object? lista)
+        {
+            if (lista is not System.Collections.IEnumerable filas) yield break;
+            foreach (var f in filas)
+            {
+                if (f is not IDictionary<string, object?> d) continue;
+                var id = d.TryGetValue("catalogItemId", out var v) && v is int n ? n : 0;
+                var cant = d.TryGetValue("cantidad", out var c) && c is int q ? q : 0;
+                if (id > 0 && cant != 0) yield return (id, cant);
+            }
+        }
     }
 
     /// <summary>
