@@ -7245,8 +7245,14 @@ entre sí ante duplicados. Detalle completo con file:line en el plan.
 - [x] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
       Create+Update, `CompanyResolver` x2) + `CreateCompanyDto`/`UpdateCompanyDto`.
 - [x] S1.3 Seed en la misma migración: `WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`.
-- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed) —
-      pendiente, va con el resto del front (S4.4/S6.9).
+- [x] S1.4 Front: flag `permiteMultiplesSeguimientosDiarios` en `CompanyFlags` +
+      `FLAGS_APAGADOS` + `CompanyFlagsResponse` + `mapFlags` + la comparación de `publish()` +
+      atajo `permiteMultiplesSeguimientosDiarios$` (`active-company-config.service.ts`),
+      **fail-closed** (`=== true`). Además la línea que faltaba en el catálogo administrable
+      `FLAGS_EMPRESA` (grupo *Postura*): sin ella el flag existiría en BD y en el runtime pero
+      **nadie podría encenderlo desde la pantalla de Empresas** — es el defecto que el propio
+      encabezado de `flags-empresa.funcion.ts` documenta (`seguimiento_engorde_mixto`). Lo fija el
+      test `TODO flag booleano que lee el runtime se puede configurar…` (11/11 verdes).
 
 ## S2 · Alta — sacar la validación de duplicado + borrar el escritor huérfano — CERRADO
 
@@ -7299,18 +7305,28 @@ entre sí ante duplicados. Detalle completo con file:line en el plan.
 - [x] Build 0 errores/warnings + `dotnet test` 3887 verdes en el worktree aislado
       (`App_SanMarino_seg_multiples`, rama independiente para no pisar el trabajo sin commitear de
       otra sesión en `Migracion*`).
-- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` (`consumoRealGrAveDiaH/M`) y flag en
-      `active-company-config.service.ts` — pendiente, junto con el resto del front (S6.9).
+- [x] S4.4 Flag en `active-company-config.service.ts` → hecho en S1.4.
+      `tabla-lista-indicadores.component.ts:426-439` (`consumoRealGrAveDiaH/M`) **NO necesita
+      cambio, verificado**: divide por `ind.totalRegistros`, que sale de
+      `fn_indicadores_produccion_postura` → `r_dias := COUNT(*) FROM _seg`, y `_seg` se construye
+      **desde `fn_seguimiento_diario_produccion`** (líneas 162-182 y 246-266 del `.sql`), que con la
+      v3 ya devuelve UNA fila por día. O sea que `totalRegistros` ya son días, no filas, y el
+      gr/ave/día del front no se infla con 2 registros el mismo día. Mismo razonamiento para el
+      `tabla-lista-indicadores` de LEVANTE: sus indicadores los calcula la BD (S6.3) y el front sólo
+      pinta.
 
 ## S5 · Validación (producción)
 
-- [ ] S5.1 `dotnet build` + `dotnet test` verdes.
-- [ ] S5.2 `yarn build`.
+- [ ] S5.1 `dotnet build` + `dotnet test` verdes. **Parcial:** `dotnet build` 0 errores / 0 warnings
+      el 05-sep-2026 sobre `392cf3c` + el front de S6.8/S1.4; falta volver a correr `dotnet test`
+      (el 3887/3891 verde de S4/S7.1 sigue vigente, no se tocó C# después).
+- [x] S5.2 `yarn build` (producción) 0 errores — 05-sep-2026, worktree `App_SanMarino_seg_multiples`
+      con node portable 22.23.1.
 - [ ] S5.3 Smoke con el flag ON en Santa Reyes: 2 registros mismo lote+día → grilla, header,
       dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
 - [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).
 
-## S6 · LEVANTE — backend CERRADO, verificado contra Postgres real (05-sep-2026)
+## S6 · LEVANTE — backend y FRONT CERRADOS, verificados contra Postgres real y por pantalla (05-sep-2026)
 
 Decisión S6.0 tomada: función canónica nueva SOLO para lo que realmente la necesitaba
 (`sp_recalcular_seguimiento_levante`, cuyo `LAG()` compara fila consecutiva, no día — bug real de
@@ -7351,10 +7367,24 @@ parchados — REQ-002B36, matriz Verenice — no valía el riesgo de tocar más 
       `produccion_resultado_levante` muestra **una sola fila** para ese día con
       `mort_h=3` (0+3), `cons_kg_h=1004.991` (999.991+5.0), `peso_h=0.22` (AVG ignorando el NULL
       original) — y `fn_indicadores_levante_postura` reporta `dias_con_registro=2`, no 3.
-- [ ] S6.8 Front `tabs-principal.component.ts:250-393,576-750` (`buildDiarioFilas` +
-      `exportSeguimientoDiarioExcel`) — evitar el renglón duplicado con mismo `edadDia`/semana.
-      **Pendiente.**
-- [ ] S6.9 Front: agregar el flag a `CompanyFlags` (compartido con S1.4/S4.4). **Pendiente.**
+- [x] S6.8 Front `tabs-principal.component.ts` (levante) — **NO se agrupan las filas**, y la razón
+      es dura: cada renglón lleva sus botones Ver / Validar / Editar / Eliminar atados a
+      `f.seg.id` (`tabs-principal.component.html:422-437`), así que fusionar los registros del día
+      dejaría el segundo **sin forma de corregirse ni de validarse**. Lo que se arregla es lo que
+      realmente estaba mal: se agregó la función pura
+      `funciones/registros-por-dia.funcion.ts` (`posicionesEnElDia`, 6 tests) y con ella
+      (a) la fecha, la semana y la edad las rotula sólo el PRIMER registro del día —el resto muestra
+      «↳ 2.º del día»— con un badge «N registros» que avisa cuántos hay;
+      (b) 🔴 **defecto real encontrado de paso**: el agregado por fecha del historial unificado
+      (`aggregateHistoricoPorFecha`) se asignaba a TODAS las filas del día ⇒ el mismo ingreso de
+      alimento y el mismo despacho se mostraban —y se exportaban al Excel— una vez por registro,
+      como si hubieran entrado dos veces. Ahora cuelga sólo de la primera fila del día;
+      (c) el Excel gana la columna «Registro del día» (`1 de 2`), emitida **sólo si algún día tiene
+      más de un registro** (helper `soloConVariosPorDia`, mismo patrón anti-desalineación que
+      `soloConMachos`) — sin ella dos renglones quedaban idénticos en fecha/semana/edad.
+      Con un registro por día `posicionesEnElDia` devuelve 1 de 1 en todas las filas ⇒ **delta cero
+      por construcción**, sin depender del flag.
+- [x] S6.9 Front: flag en `CompanyFlags` — hecho en S1.4 (compartido con S4.4).
 
 ## S7 · Validación (levante)
 
@@ -7364,7 +7394,35 @@ parchados — REQ-002B36, matriz Verenice — no valía el riesgo de tocar más 
 - [x] S7.2 Smoke con el flag ON en Santa Reyes sobre LEVANTE — ver arriba (grilla vía SP +
       indicadores semanales consistentes; Reporte Técnico Semanal y RA Pesadas heredan el mismo
       fix de conteo, no probados end-to-end con datos reales todavía).
-- [ ] S7.3 Smoke con el flag OFF: cero cambios visibles en el resto de empresas.
+- [x] S7.3 **Smoke de UI real, ida y vuelta** (05-sep-2026, front :4200 + back :5002 con content root
+      propio y `Database:RunMigrations=false`, sesión inyectada en `localStorage` + fila en
+      `sesiones_activas`, lote 152 / LPL 44 de Santa Reyes):
+      1. Insertado un 2.º registro para el **21/08/2026** — el `INSERT` **pasó**, que es la
+         verificación en vivo del índice parcial de S2.2/S6.2 (con `company_id = 6` la fila queda
+         fuera de `ux_sdlr_tipo_lote_rep_dia_utc`).
+      2. Grilla: `21/08/2026` + badge **«2 registros»** (Semana 1, Edad 3), debajo **«↳ 2.º del día»**
+         con Semana y Edad **en blanco** y sus propios valores (mort 3, sel 2, saldo 2.995, peso
+         0,25, unif 82, C.V. 7,5), y `22/08/2026` intacto. Acumulados correctos y en orden:
+         999,99 → 1.004,99 → 10.004,99 kg.
+      3. Excel (leído del blob, sin abrirlo): `B17 = "Registro del día"`, `C17 = Semana`,
+         `D17 = Edad` — sin desalineación —, y las filas `1 de 2` / `2 de 2` / `1 de 1`.
+      4. **Contraprueba = flag OFF:** borrado el 2.º registro, la misma pantalla vuelve a 2 filas sin
+         badge ni «↳», con fecha/semana/edad en cada una, y el Excel **pierde** la columna
+         («A17 Fecha, B17 Semana, C17 Edad»). Es la situación de toda empresa sin el flag ⇒ delta cero.
+      5. Testigos borrados: la fila 1690, el `company_id` de 1609/1610 devuelto a NULL y la sesión de
+         `sesiones_activas`. Puertos 5002/4200 libres al terminar.
+      ⚠️ Lo que **no** cubre: no se probó con un token de otra empresa (Sanmarino/Demo) — la
+      equivalencia se apoya en el punto 4 y en los tests de `posicionesEnElDia`. S5.3 (smoke de
+      PRODUCCIÓN por pantalla) sigue pendiente.
+- [i] **La carga masiva quedó fuera del alcance de esta feature, y sigue afuera.**
+      `MigracionService.Historicos.cs:460` (levante) y `:614` (producción) rechazan
+      «Fecha repetida en el archivo.» para **todas** las empresas, y las dos
+      `fn_migracion_seguimiento_*` deduplican con `WHERE NOT EXISTS (… mismo lote y fecha …)`: sacar
+      la guarda de C# no alcanzaría, la 2.ª fila del día tampoco se insertaría. Extenderlo exige
+      además una **clave de idempotencia por fila** (hoy es por lote+fecha; sin ella un reimport
+      duplicaría todo) y arreglar `IdsSeguimientoPorFechaAsync`, que mapea una sola fila por fecha y
+      es de donde cuelga el descuento de alimento. Decisión explícita del plan (líneas 57-60): *«ese
+      módulo … nunca pasa por ISeguimientoProduccionService. No se toca»*.
 
 ---
 
