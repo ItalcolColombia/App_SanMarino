@@ -7120,65 +7120,124 @@ semanales derivadas y el espejo C#. Además 3 consumidores (dashboard, header de
 Técnico Producción) leen la tabla cruda sin pasar por la función y hoy se comportarían distinto
 entre sí ante duplicados. Detalle completo con file:line en el plan.
 
-## S0 · Decisiones del usuario — BLOQUEAN el resto (ver plan §0)
+## S0 · Decisiones del usuario — CERRADAS (ver plan §0)
 
-- [!] S0.1 Semántica: ¿los registros del día se SUMAN (lectura del pedido original) o el último
-      reemplaza al anterior?
-- [!] S0.2 Regla por campo para lo no aditivo (peso promedio, uniformidad, CV%, observaciones) —
-      tabla propuesta en el plan §3, a confirmar/editar.
-- [!] S0.3 Manejo del índice único de BD — DDL, sin OK no se toca: (A) parcial con el `company_id`
-      de Santa Reyes hardcodeado en el predicado (recomendado, ya hay precedente en el repo), (B)
-      bajar el índice único para todas las empresas, o (C) columna de secuencia dentro del día.
-- [!] S0.4 ¿Gatear el flag en los DOS escritores (incluye el huérfano de UI con ruta HTTP activa) o
-      solo en el vivo (`ProduccionService.Seguimiento.cs`)?
-- [!] S0.5 Rollout: ¿todo en un commit (recomendado, incluye el fix del Reporte Técnico Producción
-      para que no duplique renglones) o en fases?
+- [x] S0.1 Semántica: **SUMA**.
+- [x] S0.2 Regla por campo para lo no aditivo: **confirmada** — promedio ponderado (peso), último
+      registro del día gana (uniformidad/CV%/observaciones).
+- [x] S0.3 Índice único de BD: **opción (A)** — parcial con el `company_id` de Santa Reyes
+      hardcodeado en el predicado.
+- [x] S0.4 Escritor huérfano (`SeguimientoProduccionService.cs`): **SE ELIMINA por completo**
+      (no se gatea). Verificación de borrado seguro cerrada, sin bloqueantes — detalle plan §0.6.
+- [x] S0.5 Rollout: **todo en un solo commit**.
+- [x] S0.6 Alcance ampliado a **LEVANTE** (mismo flag, misma lógica) — mapeo cerrado, plan §5.
+      Arquitectura muy distinta a producción: sin función canónica, 6 consumidores a tocar.
+- [i] Hallazgo fuera de alcance, spawneado aparte (`task_0c2fcd76`): `ProduccionService.Seguimiento.cs`
+      no filtra por empresa en el camino legacy `ProduccionLoteId` (Create/Update) — hueco de
+      scoping multi-empresa real, no relacionado con este feature. Plan §0.7.
 
-## S1 · Flag por empresa (una vez resueltas las decisiones)
+## S1 · Flag por empresa — CERRADO
 
-- [ ] S1.1 Columna `permite_multiples_seguimientos_diarios_produccion` en `companies` — migración
-      `ADD COLUMN IF NOT EXISTS` + `Company.cs` + `CompanyConfiguration.cs`, patrón de
+- [x] S1.1 Columna `permite_multiples_seguimientos_diarios` en `companies` — migración
+      `20260905015025_AddFlagPermiteMultiplesSeguimientosDiarios` (`ADD COLUMN IF NOT EXISTS` +
+      `Company.cs` + `CompanyConfiguration.cs`), patrón de
       `20260820220012_AddFlagLimitaTiposInventarioAlimentoYAves.cs`.
-- [ ] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
+- [x] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
       Create+Update, `CompanyResolver` x2) + `CreateCompanyDto`/`UpdateCompanyDto`.
-- [ ] S1.3 Seed: `UPDATE companies SET ... WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`
-      (misma migración o una `Seed*` posterior, después del seed que crea la empresa).
-- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed).
+- [x] S1.3 Seed en la misma migración: `WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`.
+- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed) —
+      pendiente, va con el resto del front (S4.4/S6.9).
 
-## S2 · Alta — sacar la validación de duplicado (gateada)
+## S2 · Alta — sacar la validación de duplicado + borrar el escritor huérfano — CERRADO
 
-- [ ] S2.1 `ProduccionService.Seguimiento.cs` Create (~L51-69) y Update (~L508-516): no lanzar la
-      excepción de duplicado cuando el flag está ON.
-- [ ] S2.2 `SeguimientoProduccionService.cs` Create/Update — según S0.4.
-- [ ] S2.3 Índice(s) de BD — según S0.3.
+- [x] S2.1 `ProduccionService.Seguimiento.cs`: helper `PermiteMultiplesSeguimientosDiariosAsync`
+      análogo a `RequiereValidacionSeguimientoAsync` (nota: el gate real de esta feature vive en la
+      función canónica v3 — la fn agrupa igual aunque hubiera 2 filas; documentado en S3).
+- [x] S2.2 Índice único de BD: parcial con `company_id` excluido dinámicamente (migración
+      `20260905015934_IndicesUnicosDiaExcluyenFlagMultiplesRegistros`, `DO $mig$` que resuelve los
+      ids con el flag ON en tiempo de migración — sin hardcodear un id literal en el código).
+      **Verificado en BD real**: `ux_seguimiento_diario_produccion_lote_dia_utc` quedó
+      `WHERE (company_id IS NULL) OR (company_id <> 6)` (Santa Reyes = id 6 en la copia local).
+- [x] S2.3 **Borrado**: `SeguimientoProduccionService.cs` + `ISeguimientoProduccionService` +
+      registro DI (`Program.cs`) + `SeguimientoProduccionScopeCalculos.cs` y su test — eliminados.
+- [x] S2.4 `SeguimientoProduccionController.cs`: solo queda `GetFilterData` (no depende de `_svc`).
+- [x] S2.5 `ProduccionLoteDto.cs`: borrados solo los 4 records `Seguimiento*`; `ProduccionLoteDto` y
+      compañía intactos.
 
-## S3 · Función canónica v3 — agregación real, no solo "dejar pasar el alta"
+## S3 · Función canónica v3 — CERRADO, verificado contra Postgres real
 
-- [ ] S3.1 `fn_seguimiento_diario_produccion.sql` v3: bifurcar `seg_dias` por el flag de la empresa
-      (join ya existe a `lotes`/`companies`) — flag OFF idéntico byte a byte (gate), flag ON agrupa
-      por día con la regla de S0.1/S0.2.
-- [ ] S3.2 Migración EF de la fn v3 (Designer clonado, `Down` = v2 verbatim) — **en el mismo commit**
-      que el `.sql` (regla del espejo, `CLAUDE.md` §🗄️).
-- [ ] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + tests xUnit (paridad con
-      SQL en ambos modos).
-- [ ] S3.4 Gate multipaís: `verificar_paridad_seguimiento_produccion.sql` antes/después en TODAS las
-      empresas — 0 diffs en las que no son Santa Reyes.
+- [x] S3.1 `fn_seguimiento_diario_produccion.sql` v3: `seg_dias` bifurca en `seg_dias_dedup`
+      (INTACTO, byte a byte) + `seg_dias_agrupado` (nuevo), elegidos por `ctx.permite_multiples`
+      vía `UNION ALL ... WHERE (NOT)/(  ) (SELECT bool_or(...) FROM ctx)`.
+- [x] S3.2 Migración `20260905021548_FnSeguimientoDiarioProduccionV3MultiplesRegistros`
+      (`CREATE OR REPLACE`, la firma no cambió — no hizo falta tocar las 3 fns semanales, heredan
+      el comportamiento solas) + `.Fn.cs` con `FnV3`/`FnV2` verbatim para el `Down`.
+- [x] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + 5 tests xUnit nuevos
+      (21 en total en el archivo, todos verdes) — incluye el caso testigo validado en BD real.
+- [x] **Smoke real contra Postgres local** (transacción revertida, lote 152/LPP 20 de Santa Reyes):
+      2 registros el mismo día → la fn devuelve **una** fila con mortalidad 1+2=3, huevos
+      100+150=250, consumo 10+12=22, peso_h avg(1.50,1.60)=1.55, uniformidad=82.00 (último
+      registro), tipo_alimento="Alimento B" (último) — exactamente la regla de S0.1/S0.2.
+      Confirmado además que el flag OFF (empresa 1, LPP 7, 301 filas reales) sigue funcionando
+      sin tocar nada del camino de siempre.
+- [ ] S3.4 Gate multipaís formal: `verificar_paridad_seguimiento_produccion.sql` antes/después en
+      TODAS las empresas — pendiente (el smoke manual ya da fuerte evidencia de no-regresión, pero
+      el gate del repo corre sobre la copia completa de prod, no sobre datos sintéticos).
 
-## S4 · Los 3 consumidores que bypasean la función
+## S4 · Los 3 consumidores que bypasean la función — backend CERRADO
 
-- [ ] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header) — agrupar por día
-      antes de sumar/contar.
-- [ ] S4.2 `ReporteTecnicoProduccionService.Diario.cs` / `.Tabs.cs` — agrupar por día antes de la
-      iteración que decrementa el saldo en cascada (hoy duplicaría el renglón visualmente).
-- [ ] S4.3 `DashboardService.Postura.cs` — revisar si necesita tocarse (hoy ya suma por día a nivel
-      empresa, verificar que coincida con la nueva regla de agregación de S3).
-- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` — `consumoRealGrAveDiaH/M` debe
-      dividir por días únicos, no por `totalRegistros` (conteo de filas).
+- [x] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header): reemplazado el
+      `GroupBy` crudo por lectura de `fn_seguimiento_diario_produccion` (reusa la misma llamada que
+      ya hacía para el saldo — un solo roundtrip en vez de dos).
+- [x] S4.2 `ReporteTecnicoProduccionService.ClasificacionHuevo.cs` (`ObtenerSeguimientosDesdePDAsync`)
+      y `.Tabs.cs` (`ObtenerSegsProdTabsAsync` + `ObtenerSegsProdTabsConItemsAsync`, esta última
+      además resuelve `metadata` desde la MISMA fn en vez de una segunda consulta cruda) — las tres
+      pasan ahora por la fn canónica; ya no duplican el renglón del día.
+- [x] S4.3 `DashboardService.Postura.cs`: **confirmado que NO necesita cambios** — su `GROUP BY`
+      ya es solo por día calendario a nivel empresa (no por lote+día), así que 2 filas del mismo
+      lote+día ya se sumaban correctamente en el total por casualidad de diseño, no por un bug.
+- [x] Build 0 errores/warnings + `dotnet test` 3887 verdes en el worktree aislado
+      (`App_SanMarino_seg_multiples`, rama independiente para no pisar el trabajo sin commitear de
+      otra sesión en `Migracion*`).
+- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` (`consumoRealGrAveDiaH/M`) y flag en
+      `active-company-config.service.ts` — pendiente, junto con el resto del front (S6.9).
 
-## S5 · Validación
+## S5 · Validación (producción)
 
 - [ ] S5.1 `dotnet build` + `dotnet test` verdes.
 - [ ] S5.2 `yarn build`.
 - [ ] S5.3 Smoke con el flag ON en Santa Reyes: 2 registros mismo lote+día → grilla, header,
       dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
 - [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).
+
+## S6 · LEVANTE — mismo flag, arquitectura sin función canónica (plan §5)
+
+Sin punto único de verdad: hay que decidir agregación en 6 consumidores independientes en vez de
+una sola función. Hoy NINGUNO dedupea — todos `SUM`/`COUNT(*)` fila cruda, así que 2+ filas/día
+sobre-cuentan en cascada (opuesto al bug de producción, que descarta en silencio).
+
+- [!] S6.0 Decisión de arquitectura pendiente: ¿construir una función canónica nueva para levante
+      (mismo patrón que produccion — más trabajo inicial, deja a levante con "una sola fórmula por
+      número") o ajustar los 6 consumidores uno por uno (menos trabajo ahora, deuda que se repite)?
+- [ ] S6.1 `SeguimientoDiarioService.CreateAsync` rama `levante` (L252-286, con su lógica de MERGE
+      sobre traslado, Feature 13) y `UpdateAsync` (L537-546) — gatear el flag preservando el merge.
+- [ ] S6.2 Índice único `ux_sdlr_tipo_lote_rep_dia_utc` (`20260828120000_IndiceUnicoDiaSeguimientos.cs`)
+      — mismo criterio que S2.2 (parcial con `company_id` de Santa Reyes).
+- [ ] S6.3 `fn_indicadores_levante_postura` (`Migrations/20260710012849...:169-267`) — `dias_con_registro`
+      debe contar días distintos, no filas; sumas deben agrupar por día primero.
+- [ ] S6.4 `fn_reporte_semanal_levante_extras.sql:150-262` — mismo ajuste.
+- [ ] S6.5 `fn_resumen_semanal_ra_pesadas_levante.sql:120-152,232-251` — mismo ajuste.
+- [ ] S6.6 `sp_recalcular_seguimiento_levante` (`Migrations/20260710012849...:736-918`) — acumulados
+      `SUM(...) OVER (ORDER BY fecha)` y `gr_ave_dia_h/m` deben operar sobre días agrupados, no filas.
+- [ ] S6.7 `LiquidacionCierreLoteLevanteService.cs:94-111,223-235,285` — agrupar antes de sumar;
+      `TotalRegistrosSeguimiento` debe contar días, no filas.
+- [ ] S6.8 Front `tabs-principal.component.ts:250-393,576-750` (`buildDiarioFilas` +
+      `exportSeguimientoDiarioExcel`) — evitar el renglón duplicado con mismo `edadDia`/semana.
+- [ ] S6.9 Front: agregar el flag a `CompanyFlags` si no se comparte con S1.4.
+
+## S7 · Validación (levante)
+
+- [ ] S7.1 `dotnet build` + `dotnet test` verdes · `yarn build`.
+- [ ] S7.2 Smoke con el flag ON en Santa Reyes sobre LEVANTE: 2 registros mismo lote+día → grilla,
+      indicadores semanales, Reporte Técnico Semanal, RA Pesadas y cierre de lote consistentes.
+- [ ] S7.3 Smoke con el flag OFF: cero cambios visibles en el resto de empresas.
