@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.API.Controllers;
@@ -13,6 +14,10 @@ namespace ZooSanMarino.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+// Gate real de roles/permisos. Las policies `CanManageRoles`/`CanManageMenus` de los atributos de
+// abajo son, hasta hoy, `RequireAuthenticatedUser()`: NO filtran nada. El filtro de clase cubre
+// todo endpoint que no se exceptúe explícitamente — ver RolesGestionFilter.cs.
+[RolesGestionFilter]
 public class RolesController : ControllerBase
 {
     // NOTA: Este servicio orquestador unifica lo de roles, permisos y menús.
@@ -141,12 +146,17 @@ public class RolesController : ControllerBase
 
     [HttpGet("menus/tree")]
     [Authorize(Policy = "CanManageMenus")]
+    // Catálogo GLOBAL: el árbol de módulos de todas las empresas y todos los países. Lo leen la
+    // pantalla de Roles y la de Empresas; el sidebar NO pasa por acá (usa menus/me).
+    [CatalogoMenusLectura]
     [ProducesResponseType(typeof(IEnumerable<MenuItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MenusTree()
         => Ok(await _svc.Menus_GetTreeAsync());
 
     [HttpGet("menus/me")]
     [Authorize]
+    // El menú del PROPIO usuario: alimenta el sidebar de toda la aplicación. Queda abierto.
+    [RolesPermisoNoRequerido]
     [ProducesResponseType(typeof(MenuWithCountryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MenusForCurrentUser([FromQuery] int? companyId = null)
@@ -191,6 +201,9 @@ public class RolesController : ControllerBase
 
     [HttpGet("menus/user/{userId:guid}")]
     [Authorize(Policy = "CanManageUsers")]
+    // ⚠️ `CanManageUsers` sigue siendo "token válido y nada más". Queda fuera del alcance de este
+    // trabajo a propósito: la comparte MenuController.GetForUser y endurecerla es otro cambio.
+    [RolesPermisoNoRequerido]
     [ProducesResponseType(typeof(IEnumerable<MenuItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MenusForUser(Guid userId, [FromQuery] int? companyId = null)
         => Ok(await _svc.Menus_GetForUserAsync(userId, EmpresaEfectiva(companyId)));
@@ -214,10 +227,13 @@ public class RolesController : ControllerBase
         return _currentUser.CompanyId > 0 ? _currentUser.CompanyId : null;
     }
 
-    // Las tres escrituras de abajo tocan el árbol de menús GLOBAL (el mismo que MenuController):
-    // reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión válida.
+    // Las tres escrituras de abajo tocan el árbol de menús GLOBAL —el catálogo que comparten todas
+    // las empresas—: reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión
+    // válida. Desde el 5-sep-2026 este controller es el ÚNICO que expone ese árbol: el gemelo
+    // `MenuController` se borró por muerto (su `IMenuService` no estaba registrado ⇒ 500).
     [HttpPost("menus")]
     [Authorize(Policy = "AdminAplicacion")]
+    [RolesPermisoNoRequerido] // AdminAplicacion ya es más estricto que este filtro.
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -230,6 +246,7 @@ public class RolesController : ControllerBase
 
     [HttpPut("menus/{id:int}")]
     [Authorize(Policy = "AdminAplicacion")]
+    [RolesPermisoNoRequerido] // AdminAplicacion ya es más estricto que este filtro.
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -244,6 +261,7 @@ public class RolesController : ControllerBase
 
     [HttpDelete("menus/{id:int}")]
     [Authorize(Policy = "AdminAplicacion")]
+    [RolesPermisoNoRequerido] // AdminAplicacion ya es más estricto que este filtro.
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

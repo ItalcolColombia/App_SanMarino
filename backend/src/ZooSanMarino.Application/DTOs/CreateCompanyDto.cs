@@ -63,5 +63,7 @@ public record CreateCompanyDto(
     string?  GuiaGeneticaPerfil                 = null,
     /// <summary>Semana de vida desde la que arrancan los indicadores de producción.
     /// <c>null</c> ⇒ el DEFAULT 25 de la BD (comportamiento de siempre).</summary>
-    int?     SemanaInicioIndicadoresProduccion  = null
+    int?     SemanaInicioIndicadoresProduccion  = null,
+    /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día.</summary>
+    bool     PermiteMultiplesSeguimientosDiarios = false
 );

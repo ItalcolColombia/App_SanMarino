@@ -276,7 +276,6 @@ builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, 
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
 builder.Services.AddScoped<IProduccionDiariaService, ProduccionDiariaService>();
 builder.Services.AddScoped<IProduccionService, ProduccionService>();
-builder.Services.AddScoped<ISeguimientoProduccionService, SeguimientoProduccionService>();
 builder.Services.AddScoped<ICatalogItemService, CatalogItemService>();
 builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 // builder.Services.AddScoped<IEmailService, EmailService>(); // Temporalmente comentado para debug
@@ -553,9 +552,26 @@ builder.Services.AddAuthorization(opt =>
         .RequireAuthenticatedUser()
         .Build();
 
-    // Políticas con nombre usadas por los controllers (Menu/Role/...). Antes las "resolvía"
+    // Políticas con nombre usadas por los controllers (Role/...). Antes las "resolvía"
     // el AllowAllPolicyProvider dejándolas pasar; ahora exigen, como mínimo, usuario autenticado.
-    // TODO(seguridad): endurecer a permisos específicos (claim "permission") por política.
+    //
+    // 🔴 Estas tres NO son el gate de nada por sí solas: son "token válido y nada más". Se conservan
+    // porque los atributos [Authorize(Policy = ...)] las nombran, pero el permiso real se exige así:
+    //
+    //   - CanManageRoles / CanManageMenus (RolesController, MenuController.GetTree)
+    //       => RolesGestionFilterAttribute (API/Infrastructure/RolesGestionFilter.cs), con la regla
+    //          pura en RolesAutorizacionCalculos. Keys `roles.gestionar` y `menus.gestionar`.
+    //          Medido el 5-sep-2026: sin ese filtro, cualquier sesión autenticada podía hacer
+    //          POST /api/Roles/{id}/permissions/assign — o sea asignarse permisos, volver a loguearse
+    //          (las keys se hornean como claims al login) y saltarse todos los demás gates.
+    //
+    //   - CanManageUsers => sigue siendo sólo "autenticado", a propósito y fuera de alcance: la
+    //       comparten RolesController.MenusForUser y MenuController.GetForUser, ajenos al módulo de
+    //       usuarios; el módulo en sí lo cierra GestionUsuariosEscrituraFilterAttribute.
+    //
+    // Por qué el gate no puede vivir acá: una policy no distingue lectura de escritura, y la LECTURA
+    // de roles necesita una OR con `usuarios.gestionar` que la escritura no debe tener (el modal de
+    // usuarios consume GET /api/Roles para su desplegable). Ver RolesAutorizacionCalculos.
     foreach (var policyName in new[] { "CanManageMenus", "CanManageUsers", "CanManageRoles" })
         opt.AddPolicy(policyName, p => p.RequireAuthenticatedUser());
 
@@ -565,7 +581,9 @@ builder.Services.AddAuthorization(opt =>
     // por ningún lado: PermissionController no tenía un solo [Authorize] y CanManageMenus era
     // "usuario autenticado", así que cualquier sesión válida podía escribir el catálogo.
     // Las LECTURAS quedan como estaban a propósito: un usuario no admin necesita GET /api/Permission
-    // para asignarle permisos a un rol y GET /api/Menu/tree para ver etiquetas en la tabla de roles.
+    // para asignarle permisos a un rol y GET /api/Roles/menus/tree para ver etiquetas en la tabla de
+    // roles. (Era /api/Menu/tree: ese controller se borró el 5-sep-2026, estaba muerto — su
+    // IMenuService no estaba registrado en el DI y respondía 500. El árbol lo sirve RoleController.)
     // La regla vive en Application/Calculos (pura y con tests), no acá.
     opt.AddPolicy("AdminAplicacion", p => p.RequireAssertion(ctx =>
         CatalogoGlobalAutorizacionCalculos.PuedeEscribirCatalogoGlobal(

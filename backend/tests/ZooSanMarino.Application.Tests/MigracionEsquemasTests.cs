@@ -128,11 +128,27 @@ public class MigracionEsquemasTests
     // Es el criterio de aceptación #1 del plan: un Excel con los encabezados históricos tiene que
     // seguir validando sin faltantes ni desconocidos después de ampliar el esquema.
 
-    /// <summary>Las 15 columnas de la plantilla de Levante anterior a la ampliación (alimento + huevos).</summary>
+    /// <summary>
+    /// Las 15 columnas de la plantilla de Levante anterior a la ampliación (alimento + huevos), tal
+    /// como estaban ESCRITAS en los archivos de esa época — con el peso corporal rotulado «(g)».
+    /// Se conservan así a propósito: son el archivo que un operario todavía puede tener guardado, y
+    /// que tiene que seguir entrando gracias al alias.
+    /// </summary>
     private static readonly string[] LevanteViejas =
     {
         "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Error Sexaje H", "Error Sexaje M",
         "Consumo H (kg)", "Consumo M (kg)", "Tipo Alimento", "Peso H (g)", "Peso M (g)",
+        "Uniformidad H", "Uniformidad M", "Observaciones"
+    };
+
+    /// <summary>
+    /// Las mismas 15 columnas con los títulos ACTUALES del esquema: el peso corporal pasó a «(kg)»
+    /// —que es la unidad que pide el formulario diario— sin moverse de lugar.
+    /// </summary>
+    private static readonly string[] LevantePrefijoActual =
+    {
+        "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Error Sexaje H", "Error Sexaje M",
+        "Consumo H (kg)", "Consumo M (kg)", "Tipo Alimento", "Peso H (kg)", "Peso M (kg)",
         "Uniformidad H", "Uniformidad M", "Observaciones"
     };
 
@@ -155,6 +171,56 @@ public class MigracionEsquemasTests
         Assert.Empty(desconocidos);
     }
 
+    [Theory]
+    [InlineData("Peso H (g)")]   // el rótulo VIEJO, que sigue circulando en archivos guardados
+    [InlineData("Peso H (kg)")]  // el rótulo ACTUAL, el que emite la plantilla
+    [InlineData("peso h")]       // el alias corto de siempre
+    public void Postura_PesoCorporal_SeLeeConElRotuloViejoYConElNuevo(string encabezado)
+    {
+        // El peso corporal de postura se renombró de «(g)» a «(kg)» —que es lo que pide el
+        // formulario diario— conservando el título viejo como ALIAS. Las dos escrituras tienen que
+        // resolver a la MISMA columna, o el rename dejaría afuera los archivos ya armados.
+        // `NormalizarClave` conserva los paréntesis, así que son claves distintas y esto no es trivial.
+        var clave = MigracionCalculos.NormalizarClave(encabezado);
+
+        foreach (var esquema in new[] { MigracionEsquemas.SeguimientoLevante, MigracionEsquemas.SeguimientoProduccion })
+        {
+            var claves = MigracionEsquemaCalculos.ClavesDeColumna(esquema, "Peso H (kg)");
+            Assert.Contains(clave, claves);
+
+            var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+                esquema, new List<string> { MigracionCalculos.NormalizarClave("Fecha"), clave });
+            Assert.Empty(faltantes);
+            Assert.Empty(desconocidos);
+        }
+    }
+
+    [Fact]
+    public void Postura_PesoDelHuevo_SigueEnGramos()
+    {
+        // Es el campo que se confundió con el corporal al diagnosticar: el peso del HUEVO sí va en
+        // gramos («Peso promedio en gramos» en el formulario) y NO se renombró.
+        Assert.Contains(MigracionEsquemas.SeguimientoLevante.Columnas, c => c.Titulo == "Peso Huevo (g)");
+        Assert.Contains(MigracionEsquemas.SeguimientoProduccion.Columnas, c => c.Titulo == "Peso Huevo (g)");
+    }
+
+    [Fact]
+    public void Engorde_ConservaElPesoEnGramos()
+    {
+        // El rename es SOLO de postura. En engorde el peso sí es en gramos de punta a punta (su
+        // formulario dice «Peso de llegada (g)» y el campo se llama `pesoLlegadaG`), y sus históricos
+        // de Panamá/Ecuador están en esa escala.
+        foreach (var esquema in new[]
+        {
+            MigracionEsquemas.SeguimientoPolloEngorde,
+            MigracionEsquemas.SeguimientoReproductoraEngorde
+        })
+        {
+            Assert.Contains(esquema.Columnas, c => c.Titulo == "Peso H (g)");
+            Assert.DoesNotContain(esquema.Columnas, c => c.Titulo == "Peso H (kg)");
+        }
+    }
+
     [Fact]
     public void SeguimientoProduccion_ArchivoConLas12ColumnasViejas_SigueSiendoValido()
     {
@@ -174,8 +240,11 @@ public class MigracionEsquemasTests
     {
         // El orden importa: los operarios copian y pegan bloques enteros de sus planillas sobre la
         // plantilla. Las columnas nuevas van SIEMPRE al final.
+        // Ojo: se compara contra los títulos ACTUALES, no contra los encabezados viejos. El peso
+        // corporal se renombró a «(kg)» conservando su POSICIÓN (y el «(g)» como alias, que es lo
+        // que prueba `..._SigueSiendoValido`): lo que este test cuida es el orden, no el rótulo.
         var (esquema, viejas) = cual == nameof(MigracionEsquemas.SeguimientoLevante)
-            ? (MigracionEsquemas.SeguimientoLevante, LevanteViejas)
+            ? (MigracionEsquemas.SeguimientoLevante, LevantePrefijoActual)
             : (MigracionEsquemas.SeguimientoProduccion, ProduccionViejas);
 
         var prefijo = esquema.Columnas.Take(viejas.Length).Select(c => c.Titulo).ToArray();
@@ -254,7 +323,7 @@ public class MigracionEsquemasTests
         var titulos = MigracionEsquemas.SeguimientoProduccion.Columnas.Select(c => c.Titulo).ToList();
         foreach (var titulo in new[]
         {
-            "Error Sexaje H", "Error Sexaje M", "Peso H (g)", "Peso M (g)",
+            "Error Sexaje H", "Error Sexaje M", "Peso H (kg)", "Peso M (kg)",
             "Uniformidad", "Coef. Variación", "Observaciones Pesaje",
             "Consumo Agua (L)", "pH Agua", "ORP Agua (mV)", "Temperatura Agua (°C)"
         })

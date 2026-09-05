@@ -1,6 +1,14 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- fn_seguimiento_diario_produccion — grilla diaria CANÓNICA de producción (postura)
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- v3 (2026-09-05) — múltiples registros por día para empresas con el flag
+--   companies.permite_multiples_seguimientos_diarios (plan
+--   fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md). El CTE
+--   seg_dias se bifurca: seg_dias_dedup (de siempre, INTACTO byte a byte) para el flag OFF,
+--   seg_dias_agrupado (SUMA lo aditivo, PROMEDIA peso, último-registro-gana en
+--   uniformidad/CV%/observaciones/metadata) para el flag ON. Decide ctx.permite_multiples,
+--   un valor constante por llamada (la fn siempre corre para UN lote → UNA empresa). Espejo
+--   C#: SeguimientoDiarioProduccionCalculos.AgruparPorDia.
 -- v2 (2026-08-01) — filas TSD visibles en la rama LPP (migración 20260801110000)
 --   Problema: las filas de traslado creadas por TrasladoAvesDesdeSegService nacen con
 --   lote_postura_produccion_id NULL (matching por lote_id + fecha, documentado en
@@ -177,11 +185,14 @@ WITH ctx AS (
                AT TIME ZONE 'America/Bogota')::date                  AS ref_date,
            (lpp.fecha_inicio_produccion
                AT TIME ZONE 'America/Bogota')::date                  AS mov_desde,
-           true                                                      AS es_lpp
+           true                                                      AS es_lpp,
+           -- v3: flag de la empresa — decide si seg_dias dedupea (de siempre) o agrupa (§ abajo)
+           COALESCE(comp.permite_multiples_seguimientos_diarios, false) AS permite_multiples
       FROM lote_postura_produccion lpp
       LEFT JOIN lote_postura_levante lev
              ON lev.lote_postura_levante_id = lpp.lote_postura_levante_id
             AND lev.deleted_at IS NULL
+      LEFT JOIN companies comp ON comp.id = lpp.company_id
      WHERE p_lote_postura_produccion_id IS NOT NULL
        AND lpp.lote_postura_produccion_id = p_lote_postura_produccion_id
        AND lpp.deleted_at IS NULL
@@ -194,10 +205,12 @@ WITH ctx AS (
            (COALESCE(lo.fecha_inicio_produccion, pa.fecha_encaset, lo.fecha_encaset)
                AT TIME ZONE 'America/Bogota')::date,
            NULL::date,
-           false
+           false,
+           COALESCE(comp2.permite_multiples_seguimientos_diarios, false)
       FROM (SELECT 1) uno
       LEFT JOIN lotes lo ON lo.lote_id = p_lote_id AND lo.deleted_at IS NULL
       LEFT JOIN lotes pa ON pa.lote_id = lo.lote_padre_id AND pa.deleted_at IS NULL
+      LEFT JOIN companies comp2 ON comp2.id = lo.company_id
      WHERE p_lote_postura_produccion_id IS NULL
        AND p_lote_id IS NOT NULL
 ),
@@ -340,12 +353,98 @@ crudos AS (
           OR (p_lote_postura_produccion_id IS NULL
                 AND sp.lote_id = p_lote_id) )
 ),
-seg_dias AS (
+-- v3: DOS estrategias en paralelo — cuál alimenta seg_dias lo decide el flag de la empresa
+-- (ctx.permite_multiples), UN valor constante para toda la llamada (la fn siempre se invoca
+-- para UN lote). El camino de siempre (seg_dias_dedup) queda BYTE A BYTE intacto: ninguna
+-- empresa sin el flag pasa jamás por seg_dias_agrupado.
+seg_dias_dedup AS (
     SELECT DISTINCT ON ((c.c_ts AT TIME ZONE 'America/Bogota')::date)
            c.*,
            (c.c_ts AT TIME ZONE 'America/Bogota')::date AS reg_date
       FROM crudos c
      ORDER BY (c.c_ts AT TIME ZONE 'America/Bogota')::date, c.c_ts
+),
+-- v3 — flag ON: agrupa TODOS los registros del mismo día calendario Bogotá en una sola fila.
+-- Regla de agregación por campo (plan seguimiento_produccion_multiples_registros_dia, §3):
+--   • ADITIVOS (mortalidad, selección, error de sexaje, consumo, huevos, traslados) → SUMA.
+--   • Peso promedio (ave y huevo) → PROMEDIO simple. "Ponderado por aves vivas" se simplifica a
+--     esto porque las aves vivas son un valor de DÍA (constante entre los registros del mismo
+--     día), así que ponderar por una constante equivale a promediar sin más.
+--   • Uniformidad, CV%, observaciones, metadata, ciclo, etapa, tipo de alimento, traslado
+--     (dirección/lote/granja destino) → gana el ÚLTIMO registro del día (mayor c_ts).
+--   • es_traslado → TRUE si CUALQUIER registro del día fue de traslado (bool_or).
+--   • Identificación (seg_id, company_id, lpp) → el primer valor NO NULO (MIN), para que un
+--     registro real (con lpp/company) no quede tapado por una fila-stub de traslado sin FK.
+--   • created_at = el más temprano del día; updated_at = el más tardío; created_by = el del
+--     último registro (simplificación: no hay noción de "autor del día").
+-- Con UN solo registro (caso normal de cualquier empresa sin duplicados ese día) cada fórmula
+-- de arriba devuelve exactamente el valor de esa fila — el mismo resultado que el dedup.
+seg_dias_agrupado AS (
+    SELECT
+        MIN(c.c_seg_id)                                              AS c_seg_id,
+        (array_agg(c.c_fuente ORDER BY c.c_ts DESC))[1]              AS c_fuente,
+        MIN(c.c_ts)                                                  AS c_ts,
+        SUM(c.c_mort_h)::int                                         AS c_mort_h,
+        SUM(c.c_mort_m)::int                                         AS c_mort_m,
+        SUM(c.c_sel_h)::int                                          AS c_sel_h,
+        SUM(c.c_sel_m)::int                                          AS c_sel_m,
+        SUM(c.c_err_h)::int                                          AS c_err_h,
+        SUM(c.c_err_m)::int                                          AS c_err_m,
+        SUM(c.c_cons_h)::float8                                      AS c_cons_h,
+        SUM(c.c_cons_m)::float8                                      AS c_cons_m,
+        (array_agg(c.c_tipo_alimento ORDER BY c.c_ts DESC))[1]       AS c_tipo_alimento,
+        SUM(c.c_huevo_tot)::int                                      AS c_huevo_tot,
+        SUM(c.c_huevo_inc)::int                                      AS c_huevo_inc,
+        SUM(c.c_h_limpio)::int                                       AS c_h_limpio,
+        SUM(c.c_h_tratado)::int                                      AS c_h_tratado,
+        SUM(c.c_h_sucio)::int                                        AS c_h_sucio,
+        SUM(c.c_h_deforme)::int                                      AS c_h_deforme,
+        SUM(c.c_h_blanco)::int                                       AS c_h_blanco,
+        SUM(c.c_h_doble)::int                                        AS c_h_doble,
+        SUM(c.c_h_piso)::int                                         AS c_h_piso,
+        SUM(c.c_h_pequeno)::int                                      AS c_h_pequeno,
+        SUM(c.c_h_roto)::int                                         AS c_h_roto,
+        SUM(c.c_h_desecho)::int                                      AS c_h_desecho,
+        SUM(c.c_h_otro)::int                                         AS c_h_otro,
+        AVG(c.c_peso_huevo)::float8                                  AS c_peso_huevo,
+        bool_or(c.c_es_traslado)                                     AS c_es_traslado,
+        (array_agg(c.c_tras_dir ORDER BY c.c_ts DESC))[1]            AS c_tras_dir,
+        SUM(c.c_tras_in_h)::int                                      AS c_tras_in_h,
+        SUM(c.c_tras_in_m)::int                                      AS c_tras_in_m,
+        SUM(c.c_tras_out_h)::int                                     AS c_tras_out_h,
+        SUM(c.c_tras_out_m)::int                                     AS c_tras_out_m,
+        (array_agg(c.c_lote_destino_id ORDER BY c.c_ts DESC))[1]     AS c_lote_destino_id,
+        (array_agg(c.c_granja_destino_id ORDER BY c.c_ts DESC))[1]   AS c_granja_destino_id,
+        AVG(c.c_peso_h)                                              AS c_peso_h,
+        AVG(c.c_peso_m)                                              AS c_peso_m,
+        (array_agg(c.c_unif ORDER BY c.c_ts DESC))[1]                AS c_unif,
+        (array_agg(c.c_cv ORDER BY c.c_ts DESC))[1]                  AS c_cv,
+        (array_agg(c.c_unif_h ORDER BY c.c_ts DESC))[1]              AS c_unif_h,
+        (array_agg(c.c_unif_m ORDER BY c.c_ts DESC))[1]              AS c_unif_m,
+        (array_agg(c.c_cv_h ORDER BY c.c_ts DESC))[1]                AS c_cv_h,
+        (array_agg(c.c_cv_m ORDER BY c.c_ts DESC))[1]                AS c_cv_m,
+        (array_agg(c.c_obs_pesaje ORDER BY c.c_ts DESC))[1]          AS c_obs_pesaje,
+        SUM(c.c_agua)                                                AS c_agua,
+        AVG(c.c_agua_ph)                                             AS c_agua_ph,
+        AVG(c.c_agua_orp)                                            AS c_agua_orp,
+        AVG(c.c_agua_temp)                                           AS c_agua_temp,
+        (array_agg(c.c_etapa ORDER BY c.c_ts DESC))[1]               AS c_etapa,
+        (array_agg(c.c_ciclo ORDER BY c.c_ts DESC))[1]               AS c_ciclo,
+        (array_agg(c.c_observaciones ORDER BY c.c_ts DESC))[1]       AS c_observaciones,
+        (array_agg(c.c_metadata ORDER BY c.c_ts DESC))[1]            AS c_metadata,
+        (array_agg(c.c_created_by ORDER BY c.c_ts DESC))[1]          AS c_created_by,
+        MIN(c.c_created_at)                                          AS c_created_at,
+        MAX(c.c_updated_at)                                          AS c_updated_at,
+        MIN(c.c_company_id)                                          AS c_company_id,
+        MIN(c.c_lpp)                                                 AS c_lpp,
+        (c.c_ts AT TIME ZONE 'America/Bogota')::date                 AS reg_date
+      FROM crudos c
+     GROUP BY (c.c_ts AT TIME ZONE 'America/Bogota')::date
+),
+seg_dias AS (
+    SELECT * FROM seg_dias_dedup    WHERE NOT (SELECT bool_or(ctx.permite_multiples) FROM ctx)
+    UNION ALL
+    SELECT * FROM seg_dias_agrupado WHERE     (SELECT bool_or(ctx.permite_multiples) FROM ctx)
 ),
 -- ── Movimientos de aves (solo rama LPP con lote base) — misma población que el GET
 --    informacion-lote: Completado, no borrado, misma empresa; salidas = CUALQUIER tipo con

@@ -327,10 +327,23 @@
                       </tr>
                     }
                     @for (f of diarioFilas; track trackByDiarioFila($index, f)) {
-                      <tr class="ux-row" [ngClass]="claseFilaValidacion(f.seg.id)">
-                        <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
-                        <td [title]="f.semana == null ? 'Registro anterior al encasetamiento' : ''">{{ f.semana ?? '—' }}</td>
-                        <td [title]="f.edadDia == null ? 'Registro anterior al encasetamiento' : ''">{{ f.edadDia ?? '—' }}</td>
+                      <tr class="ux-row" [ngClass]="claseFilaValidacion(f.seg.id)" [class.ux-row--mismo-dia]="!f.esPrimeraDelDia">
+                        <!-- Con varios registros el mismo día (empresas con
+                             `permite_multiples_seguimientos_diarios`) la fecha, la semana y la edad
+                             las rotula sólo el PRIMER registro: repetirlas hacía leer dos días donde
+                             hay uno. Las filas siguientes muestran su lugar dentro del día. -->
+                        <td [title]="f.registrosDelDia > 1 ? ('Registro ' + f.ordinalDelDia + ' de ' + f.registrosDelDia + ' del ' + formatDMY(f.seg.fechaRegistro)) : ''">
+                          @if (f.esPrimeraDelDia) {
+                            {{ formatDMY(f.seg.fechaRegistro) }}
+                            @if (f.registrosDelDia > 1) {
+                              <span class="badge-registro-dia">{{ f.registrosDelDia }} registros</span>
+                            }
+                          } @else {
+                            <span class="registro-dia-continuacion">↳ {{ f.ordinalDelDia }}.º del día</span>
+                          }
+                        </td>
+                        <td [title]="f.semana == null ? 'Registro anterior al encasetamiento' : ''">{{ f.esPrimeraDelDia ? (f.semana ?? '—') : '' }}</td>
+                        <td [title]="f.edadDia == null ? 'Registro anterior al encasetamiento' : ''">{{ f.esPrimeraDelDia ? (f.edadDia ?? '—') : '' }}</td>
                         <td>{{ f.seg.mortalidadHembras }}</td>
                         @if (!ocultaMachosEnPostura) {
                           <td>{{ f.seg.mortalidadMachos }}</td>

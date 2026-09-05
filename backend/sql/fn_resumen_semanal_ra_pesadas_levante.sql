@@ -1,94 +1,18 @@
--- ============================================================================
--- fn_resumen_semanal_ra_pesadas_levante(...)
--- Hoja «RESUMEN SEMANAL» del Informe RA Pesadas — BLOQUE LEVANTE.
--- ----------------------------------------------------------------------------
--- UNA FILA POR LOTE para UNA semana CALENDARIO (año + semana del año).
--- Es la contracara del Detalle: donde fn_reporte_semanal_levante_extras devuelve
--- N semanas de 1 lote, ésta devuelve N lotes de 1 semana.
---
--- ⚠️ Set-based A PROPÓSITO (LANGUAGE sql, ventanas). Está PROHIBIDO resolver el
---    resumen iterando lotes desde C# y llamando la fn por-lote: son ~70 lotes ×
---    25 semanas y el endpoint se cuelga (mismo patrón que ya rompió los
---    endpoints multipaís). Regla del repo: la BD filtra, el backend orquesta.
---
--- EQUIVALENCIA CON EL DETALLE (requisito duro):
---   Replica EXACTO lo de fn_reporte_semanal_levante_extras / fn_indicadores_levante_postura:
---     * semana de edad  = floor((fecha_bogota − encaset)/7) + 1, topada en 25
---     * guards          = sin registros ⇒ lote fuera; encaset NULL o POSTERIOR
---                         al primer registro ⇒ lote fuera (datos inconsistentes)
---     * exclusión       = filas de PURO traslado posteriores a la semana 25
---     * base por sexo   = hembras_l / machos_l, con fallback a la SUMA POR SEXO de
---                         los traslado_ingreso de las filas que la ventana descarta
---     * saldo por sexo  = base − Σ(mort + sel + err + tras_salida + venta − tras_ingreso)
---     * pesaje          = último registro de la semana con peso>0; si no hay,
---                         el último registro de la semana; con ARRASTRE (LOCF)
---                         del último peso conocido del sexo
---   ⇒ para un mismo (lote, semana) el Resumen y el Detalle deben dar los MISMOS
---     números. Cualquier diferencia es un bug (ver plan §7.5b).
---
--- SEMANA DEL AÑO: se usa la convención WEEKNUM de Excel (return_type = 1:
---   semanas que arrancan en DOMINGO, la semana 1 es la que contiene el 1-ene),
---   NO la semana ISO. Verificado contra el archivo fuente: 1825/1825 filas
---   coinciden con WEEKNUM y solo 1736/1825 con ISO. La fecha que se clasifica
---   es `fecha_fin_semana` = encaset + (semana−1)*7 + 6, la misma columna FECHA
---   que ya emite el Detalle.
---
--- FÓRMULAS (verificadas 1:1 contra la hoja «Datos semanal LEV» del archivo):
---   %MortH      = mort_h_semana / aves_hembras_INICIO_semana * 100
---   %RetiroH    = Σ(mort+sel+err)_h hasta la semana / base_hembras * 100   (base FIJA)
---   %DifConsH   = (gr_ave_dia_h_real / gr_ave_dia_h_guia − 1) * 100
---   %DifPesoH   = (peso_h_real / peso_h_guia − 1) * 100
---   PART        = saldo_hembras del lote / Σ saldo_hembras de la selección
---   (idem machos; en el Excel la columna macho se llama «DifConsM» sin %, pero
---    es la misma fórmula)
---
--- Guía: guia_genetica_sanmarino_colombia por (company, raza, año del lote, edad).
--- Todo TEXT en esa tabla ⇒ se parsea con f_safe_numeric (tolera coma decimal).
---
--- Zona horaria: America/Bogota (idéntica a las fns hermanas).
--- ============================================================================
-DROP FUNCTION IF EXISTS fn_resumen_semanal_ra_pesadas_levante(integer, integer, integer, integer[], text, boolean);
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- fn_resumen_semanal_ra_pesadas_levante — Informe RA Pesadas (multi-lote/multi-granja)
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- Fix 2026-09-05 (plan seguimiento_produccion_multiples_registros_dia_plan.md, §5/S6):
+--   'dias' contaba FILAS (COUNT(*)), no DIAS calendario, en el agregado semanal por lote.
+--   Mismo razonamiento que fn_reporte_semanal_levante_extras: las SUMAS son asociativas y
+--   no cambian, solo el conteo de dias necesitaba COUNT(DISTINCT reg_date).
+-- Espejo exacto de pg_get_functiondef (ground truth) + este fix, no reformateado.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE FUNCTION fn_resumen_semanal_ra_pesadas_levante(
-    p_company_id           integer,
-    p_anio                 integer,
-    p_sem_anio             integer,   -- NULL = todas las semanas del año
-    p_granja_ids           integer[] DEFAULT NULL,
-    p_regional             text      DEFAULT NULL,
-    p_excluir_trasladados  boolean   DEFAULT false
-)
-RETURNS TABLE(
-    lote_id                   integer,
-    lote_nombre               text,
-    granja_id                 integer,
-    granja_nombre             text,
-    nucleo_nombre             text,
-    regional                  text,
-    raza                      text,
-    anio_guia                 integer,
-    edad_semana               integer,
-    fecha_fin_semana          date,
-    dias_con_registro         integer,
-    tuvo_traslado             boolean,
-    part                      double precision,
-    saldo_hembras             double precision,
-    saldo_machos              double precision,
-    mort_hembras_pct          double precision,
-    retiro_acum_hembras_pct   double precision,
-    retiro_acum_hembras_guia  double precision,
-    dif_consumo_hembras_pct   double precision,
-    dif_peso_hembras_pct      double precision,
-    uniformidad_hembras       double precision,
-    cv_hembras                double precision,
-    mort_machos_pct           double precision,
-    retiro_acum_machos_pct    double precision,
-    retiro_acum_machos_guia   double precision,
-    dif_consumo_machos_pct    double precision,
-    dif_peso_machos_pct       double precision,
-    uniformidad_machos        double precision,
-    cv_machos                 double precision
-)
-LANGUAGE sql STABLE AS $$
+CREATE OR REPLACE FUNCTION public.fn_resumen_semanal_ra_pesadas_levante(p_company_id integer, p_anio integer, p_sem_anio integer, p_granja_ids integer[] DEFAULT NULL::integer[], p_regional text DEFAULT NULL::text, p_excluir_trasladados boolean DEFAULT false)
+ RETURNS TABLE(lote_id integer, lote_nombre text, granja_id integer, granja_nombre text, nucleo_nombre text, regional text, raza text, anio_guia integer, edad_semana integer, fecha_fin_semana date, dias_con_registro integer, tuvo_traslado boolean, part double precision, saldo_hembras double precision, saldo_machos double precision, mort_hembras_pct double precision, retiro_acum_hembras_pct double precision, retiro_acum_hembras_guia double precision, dif_consumo_hembras_pct double precision, dif_peso_hembras_pct double precision, uniformidad_hembras double precision, cv_hembras double precision, mort_machos_pct double precision, retiro_acum_machos_pct double precision, retiro_acum_machos_guia double precision, dif_consumo_machos_pct double precision, dif_peso_machos_pct double precision, uniformidad_machos double precision, cv_machos double precision)
+ LANGUAGE sql
+ STABLE
+AS $function$
 WITH
 -- ── 1) Lotes candidatos de la empresa (+ ubicación y datos de guía) ──────────
 lote_base AS (
@@ -232,7 +156,7 @@ reg_ok AS (
 sem AS (
     SELECT lote_id,
            sem,
-           COUNT(*)::int                       AS dias,
+           COUNT(DISTINCT reg_date)::int        AS dias,
            SUM(mort_h)::double precision       AS mort_h,
            SUM(mort_m)::double precision       AS mort_m,
            SUM(sel_h)::double precision        AS sel_h,
@@ -464,7 +388,5 @@ SELECT
     f.cv_m                                                       AS cv_machos
   FROM final f
  ORDER BY f.sem DESC, f.lote_nombre;
-$$;
+$function$
 
-COMMENT ON FUNCTION fn_resumen_semanal_ra_pesadas_levante(integer, integer, integer, integer[], text, boolean)
-IS 'Informe RA Pesadas — hoja RESUMEN SEMANAL, bloque Levante: una fila por lote para una semana calendario (WEEKNUM Excel). Set-based; equivalente 1:1 al Detalle de fn_reporte_semanal_levante_extras.';

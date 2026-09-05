@@ -26,6 +26,7 @@ import { LoginComponent } from './features/auth/login/login.component';
 import { PasswordRecoveryComponent } from './features/auth/password-recovery/password-recovery.component';
 import { HomeComponent } from './features/home/home.component';
 import { authGuard } from './core/auth/auth.guard';
+import { permissionGuard } from './core/auth/permission.guard';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -237,7 +238,10 @@ export const appConfig: ApplicationConfig = {
       // Migraciones Masivas (módulo independiente)
       {
         path: 'migraciones-masivas',
-        canActivate: [authGuard],
+        // Cualquiera de los dos permisos abre la pantalla; adentro, `filtrarTiposVisibles` decide
+        // qué tiles ve. Sin ninguno la ruta ya no entra: antes bastaba con escribir la URL a mano.
+        canActivate: [authGuard, permissionGuard],
+        data: { permissions: ['carga_masiva_postura', 'carga_masiva_pollo_engorde'] },
         loadChildren: () =>
           import('./features/migraciones-masivas/migraciones-masivas-routing.module')
             .then(m => m.MigracionesMasivasRoutingModule)

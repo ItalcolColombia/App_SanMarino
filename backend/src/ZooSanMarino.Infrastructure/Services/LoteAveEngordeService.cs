@@ -49,13 +49,20 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
     private readonly AppInterfaces.IVacunacionMaterializadorService _vacunacionMaterializador;
 
+    /// <summary>
+    /// Doble validación. Opcional para no volver obligatoria una dependencia que solo hace falta al
+    /// borrar; con la empresa sin el flag no hay reservas que liberar y el método no encuentra nada.
+    /// </summary>
+    private readonly AppInterfaces.IValidacionSeguimientoService? _validacion;
+
     public LoteAveEngordeService(
         ZooSanMarinoContext ctx,
         AppInterfaces.ICurrentUser current,
         AppInterfaces.ICompanyResolver companyResolver,
         AppInterfaces.IFarmService farmService,
         AppInterfaces.ILocationScopeResolver scopeResolver,
-        AppInterfaces.IVacunacionMaterializadorService vacunacionMaterializador)
+        AppInterfaces.IVacunacionMaterializadorService vacunacionMaterializador,
+        AppInterfaces.IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
@@ -63,6 +70,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         _farmService = farmService;
         _scopeResolver = scopeResolver;
         _vacunacionMaterializador = vacunacionMaterializador;
+        _validacion = validacion;
     }
 
     /// <summary>
@@ -777,7 +785,34 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
+
+        // El lote se va, sus seguimientos quedan — y con ellos lo que tuvieran SEPARADO. Como el
+        // disponible del galpón suma reservas por UBICACIÓN, una reserva de un lote borrado le sigue
+        // restando kilos al ciclo siguiente y ya nadie puede liberarla desde la pantalla, porque el
+        // lote no se abre más. Va después del SaveChanges: liberar reservas no es motivo para tumbar
+        // un borrado que la operación ya pidió.
+        await LiberarSeparadoDelLoteAsync(loteAveEngordeId);
         return true;
+    }
+
+    /// <summary>
+    /// Libera lo que los seguimientos del lote tuvieran separado y sin validar. No propaga: es una
+    /// corrección de higiene sobre el disponible, no parte del borrado — el lote YA se borró y
+    /// commiteó, así que dejar caer la excepción devolvería 500 sobre una operación exitosa y, de
+    /// paso, le diría a la operación que reintente un borrado que ya ocurrió. Lo peor que deja un
+    /// fallo acá es la reserva colgada que había antes, y la migración de remediación la barre.
+    /// </summary>
+    private async Task LiberarSeparadoDelLoteAsync(int loteAveEngordeId)
+    {
+        if (_validacion is null) return;
+        try
+        {
+            await _validacion.LiberarDelLoteEngordeAsync(loteAveEngordeId);
+        }
+        catch (Exception)
+        {
+            // Intencional: ver el doc-comment.
+        }
     }
 
     public async Task<bool> HardDeleteAsync(int loteAveEngordeId)
@@ -796,6 +831,12 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         LiquidacionCongeladaGateCalculos.ValidarEscritura(
             ent.EstadoOperativoLote, OperacionLoteEngordeLiquidado.EliminarDefinitivoLote);
 
+        // Acá NO se libera nada, a propósito. `fk_seg_diario_aves_engorde_lote` y
+        // `fk_lrae_lote_ave_engorde` son RESTRICT: el hard delete solo prospera si el lote no tiene
+        // ni un seguimiento ni un sub-lote de reproductora, y sin seguimientos no hay reserva que
+        // colgar. Liberar antes del Remove sería peor que no hacer nada: en todo caso en el que
+        // encontrara algo, el Remove de abajo va a fallar por la FK y las reservas quedarían
+        // liberadas para un lote que sigue vivo y todavía puede validar esos días.
         _ctx.LoteAveEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;

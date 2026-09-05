@@ -500,6 +500,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("oculta_machos_en_postura");
 
+                    b.Property<bool>("PermiteMultiplesSeguimientosDiarios")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("permite_multiples_seguimientos_diarios");
+
                     b.Property<bool>("PermiteTrasladoAvesCrossEtapa")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -8652,6 +8658,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
                         .HasColumnName("coeficiente_variacion");
+
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
 
                     b.Property<double?>("ConsumoAguaDiario")
                         .HasColumnType("double precision")

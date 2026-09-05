@@ -282,7 +282,12 @@ public class LiquidacionCierreLoteLevanteService : ILiquidacionCierreLoteLevante
             PorcentajeDiferenciaUniformidad: porcDifUnif.HasValue ? Math.Round(porcDifUnif.Value, 2) : null,
 
             FechaCalculo:               DateTime.UtcNow,
-            TotalRegistrosSeguimiento:  segs.Count,
+            // Cuenta DÍAS calendario, no filas: con permite_multiples_seguimientos_diarios ON
+            // (Santa Reyes) puede haber 2+ registros el mismo día, y "total de registros" para
+            // este reporte significa "días con seguimiento", no "cantidad de filas guardadas".
+            // Las sumas de arriba (mortalidad, consumo) no necesitan este ajuste — SUM es
+            // asociativa, da el mismo total sin importar cuántas filas tuvo cada día.
+            TotalRegistrosSeguimiento:  segs.Select(s => s.Fecha.Date).Distinct().Count(),
             SemanaUltimoRegistro:       semanaUltimo,
             TieneGuiaGenetica:          guia is not null);
     }

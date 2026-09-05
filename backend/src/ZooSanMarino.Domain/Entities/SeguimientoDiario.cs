@@ -13,6 +13,13 @@ public class SeguimientoDiario
 
     public string TipoSeguimiento { get; set; } = null!; // 'levante' | 'produccion' | 'reproductora' | 'engorde'
     public string LoteId { get; set; } = null!;
+    /// <summary>
+    /// Empresa del lote al momento de crear el registro, denormalizada (espejo de
+    /// <c>seguimiento_diario_produccion.company_id</c>). Nula en filas históricas (no se
+    /// backfillea) — el índice único por día trata NULL como protegido, igual que siempre.
+    /// Se popula desde <c>SeguimientoDiarioService</c> al resolver el lote.
+    /// </summary>
+    public int? CompanyId { get; set; }
     /// <summary>FK a lote_postura_levante. Solo aplica cuando tipo = 'levante'.</summary>
     public int? LotePosturaLevanteId { get; set; }
     /// <summary>FK a lote_postura_produccion. Solo aplica cuando tipo = 'produccion'.</summary>

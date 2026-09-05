@@ -56,9 +56,14 @@ public partial class ProduccionService
         }
         else
         {
+            // Sin el filtro de empresa, cualquier usuario autenticado podía colgar un registro nuevo
+            // del lote de OTRA empresa mandando su ProduccionLoteId (camino legacy, sin HasQueryFilter
+            // global por CompanyId sobre Lote). Mismo criterio que la resolución por LotePosturaProduccionId
+            // de arriba.
             var loteProd = await _context.Lotes
                 .AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion"
+                    && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (loteProd == null)
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;
@@ -428,8 +433,13 @@ public partial class ProduccionService
         }
         else
         {
+            // Mismo filtro que en el alta: sin `CompanyId == _currentUser.CompanyId` acá, un usuario
+            // podía mandar el ProduccionLoteId de un lote de OTRA empresa y mover su propio registro
+            // (ya validado como suyo más abajo por `esDeMiEmpresa`, pero contra el lote ORIGINAL) para
+            // que quede colgando del lote ajeno — la reasignación de `entity.LoteId` nunca se validaba.
             var loteProd = await _context.Lotes.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion"
+                    && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (loteProd == null)
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;

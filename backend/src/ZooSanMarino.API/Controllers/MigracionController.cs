@@ -1,5 +1,7 @@
 // src/ZooSanMarino.API/Controllers/MigracionController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.Application.DTOs.Migracion;
 using ZooSanMarino.Application.Interfaces;
 
@@ -13,6 +15,13 @@ namespace ZooSanMarino.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Tags("Migracion")]
+// Explícito y no heredado de la FallbackPolicy: si algún día esa política cambia, este módulo —que
+// escribe históricos completos— tiene que seguir cerrado por su propia declaración.
+[Authorize]
+// El gate del módulo vive acá, en la clase: cada endpoint exige el permiso de carga masiva que
+// corresponde a SU tipo (postura / pollo engorde). Un endpoint nuevo nace cubierto; para abrirlo hay
+// que marcarlo explícitamente con [CargaMasivaPermisoNoRequerido].
+[CargaMasivaPermisoFilter]
 public class MigracionController : ControllerBase
 {
     private readonly IMigracionService _svc;
@@ -24,8 +33,14 @@ public class MigracionController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Catálogo de tipos de migración soportados.</summary>
+    /// <summary>
+    /// Catálogo de tipos de migración soportados. Abierto a cualquier sesión: son constantes de
+    /// código, la pantalla lo pide ANTES de saber qué puede hacer el usuario, y recién después
+    /// filtra los tiles con los permisos de la sesión. Cerrarlo mostraría un error de red en vez del
+    /// mensaje que explica que falta el permiso.
+    /// </summary>
     [HttpGet("tipos")]
+    [CargaMasivaPermisoNoRequerido]
     [ProducesResponseType(typeof(IEnumerable<TipoMigracionInfoDto>), StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<TipoMigracionInfoDto>> GetTipos() => Ok(_svc.GetTipos());
 

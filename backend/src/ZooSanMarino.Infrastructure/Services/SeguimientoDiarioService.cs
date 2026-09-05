@@ -277,12 +277,22 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
                 }
                 if (teneManualExist)
                 {
-                    throw new InvalidOperationException(
-                        "Ya existe un seguimiento manual para ese lote en esa fecha.");
+                    // Con el flag de empresa ON, un segundo registro manual el mismo día NO se
+                    // rechaza: se agrega como fila propia y se agrupa para reportes/indicadores
+                    // (SeguimientoDiarioLevanteCalculos.AgruparPorDia). Sin el flag, comportamiento
+                    // de siempre: como máximo un registro manual por lote+día.
+                    if (!await PermiteMultiplesSeguimientosDiariosAsync(ct))
+                    {
+                        throw new InvalidOperationException(
+                            "Ya existe un seguimiento manual para ese lote en esa fecha.");
+                    }
                 }
-                // Caso raro: fila vacía existente — la borramos y dejamos crear nueva
-                _ctx.SeguimientoDiario.Remove(existente);
-                await _ctx.SaveChangesAsync(ct);
+                else
+                {
+                    // Caso raro: fila vacía existente — la borramos y dejamos crear nueva
+                    _ctx.SeguimientoDiario.Remove(existente);
+                    await _ctx.SaveChangesAsync(ct);
+                }
             }
         }
         else
@@ -313,6 +323,7 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             Validado = !separaEsteRegistro,
             TipoSeguimiento = tipo,
             LoteId = loteId,
+            CompanyId = lote?.CompanyId ?? _current.CompanyId,
             LotePosturaLevanteId = dto.LotePosturaLevanteId,
             LotePosturaProduccionId = dto.LotePosturaProduccionId,
             ReproductoraId = tipo == "reproductora" ? (dto.ReproductoraId ?? "").Trim() : null,
@@ -440,6 +451,20 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         return await _ctx.Companies.AsNoTracking()
             .Where(c => c.Id == companyId)
             .Select(c => c.RequiereValidacionSeguimientoDiario)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// ¿La empresa activa acepta más de un registro de seguimiento diario por lote+día? Fail-closed:
+    /// ante una empresa no resoluble devuelve <c>false</c> (comportamiento previo: uno por día).
+    /// </summary>
+    private async Task<bool> PermiteMultiplesSeguimientosDiariosAsync(CancellationToken ct)
+    {
+        var companyId = _current.CompanyId;
+        if (companyId <= 0) return false;
+        return await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.PermiteMultiplesSeguimientosDiarios)
             .FirstOrDefaultAsync(ct);
     }
 

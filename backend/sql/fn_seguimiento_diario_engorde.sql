@@ -3,6 +3,54 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v18 (2026-09-04) — Un lote SIN seguimientos deja de heredar todo el alimento del galpon.
+--   Ticket de operacion Panama: DOÑA MARIA / A / 4 (G0475), lote 95. La grilla mostraba UNA fila
+--   (04-sep) con `saldo_alimento_kg = 176.246,967` contra un unico ingreso de 11.740 kg.
+--   Plan: fase_de_desarrollo/tk_panama_saldo_alimento_lote_sin_seguimiento_plan.md
+--
+--   QUE PASABA. `hist_full`, `hist_alimento` y `docs_por_fecha` acotaban el histórico con
+--   `(rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)`. `fecha_min` es el primer
+--   seguimiento del lote, asi que mientras el lote no tiene NINGUNO la condicion es verdadera para
+--   todo y el saldo suma cada movimiento que el galpon recibio en su vida — ciclos anteriores
+--   incluidos, y sin los guards que si protegen la apertura (`lotes_ajenos` v11 y `corte_apertura`
+--   v12 viven solo en `apert_mov`, que ademas exige `fecha_min IS NOT NULL` y por eso da 0).
+--   Medido en G0475: 173.296,967 kg de ingresos desde el 02-jul (lote 165 «94 - 2», liquidado el
+--   27-ago) − 6.350 de devolucion − 2.440 reemplazados + 11.740 = **176.246,967 exacto**.
+--
+--   LA INCOHERENCIA ERA INTERNA: `fechas_universo` (CTE 11) SI acota con `li.fecha_corte_alimento`,
+--   asi que la grilla listaba una sola fila y le ponia el saldo de toda la historia. La v18 le da a
+--   las tres CTE del saldo un piso propio para ese caso:
+--     `DATE(h.fecha_operacion) >= COALESCE(rs.fecha_min, (SELECT desde FROM corte_apertura),
+--                                          DATE 'infinity')`
+--
+--   EL PISO ES EL CORTE, NO LA VENTANA CRUDA. `corte_apertura` (v12) ya sabe donde empieza lo mio:
+--   `GREATEST(fecha_corte_alimento, ultimo dia del ciclo anterior + 1)`. Hasta v17 exigia
+--   `rs.fecha_min IS NOT NULL` —o sea, moria justo en este caso—; ahora el arranque del ciclo cae de
+--   vuelta en el ENCASET cuando no hay seguimientos. Sin esto el piso hubiera sido la ventana cruda
+--   de v9 y el lote nuevo habria heredado la limpieza de cierre del ciclo anterior, que es EXACTO el
+--   defecto que v11 y v12 existen para tapar (Ecuador encadena 3-4 ciclos por galpon).
+--
+--   POR QUE ES SEGURO. Con `fecha_min` presente el COALESCE la elige a ella ⇒ expresion identica a
+--   v17 y salida byte a byte igual para TODO lote con al menos un seguimiento (el 100 % de los que
+--   tienen historia); y el valor de `desde` tampoco se mueve, porque su COALESCE nuevo tambien
+--   prefiere `fecha_min`. Solo cambia el lote que todavia no cargo ningun dia, que es el caso roto.
+--   Sin encaset NI seguimientos el tercer termino (`DATE 'infinity'`) no deja pasar nada: un lote sin
+--   ninguna fecha no tiene ciclo del cual colgar alimento, y mostrar la historia entera del galpon
+--   —lo que hacia v17— nunca fue una respuesta. Hoy no hay ninguno (0 de 203 lotes vivos), pero la
+--   columna es nullable.
+--
+--   ALCANCE medido sobre la copia de prod del 04-sep: 26 lotes vivos sin un solo seguimiento
+--   (25 ItalcolPanama, 1 ItalcolEcuador). De esos, UNO produce filas hoy —Panama lote 131 «94»,
+--   PA-87, 1 fila con saldo 0, inofensivo— y el resto devuelve 0 filas porque su galpon no tiene
+--   movimientos dentro de la ventana. El defecto es LATENTE: se despierta el dia que el galpon
+--   recibe un ingreso, que es exactamente lo que le paso al lote 95 de Panama al cargarle los
+--   11.740 kg. No es un defecto de un pais: la unica razon de que Ecuador no lo muestre es que su
+--   unico lote sin seguimientos (229 «2605», G0039) todavia no tiene un movimiento en la ventana.
+--
+--   La firma NO cambia (49 columnas OUT) ⇒ `CREATE OR REPLACE` alcanzaria y los 5 consumidores que
+--   la llaman por CROSS JOIN LATERAL no se tocan. El script conserva igual el `DROP FUNCTION IF
+--   EXISTS` de v15 por idempotencia, y la migracion lo replica byte a byte.
+--
 -- v17 (2026-08-25) — La fn aprende a leer el AJUSTE DE CUADRE.
 --   Plan: fase_de_desarrollo/ecuador_cuadre_alimento_y_permisos_plan.md (F2).
 --   Que cambia: dos `tipo_evento` NUEVOS —`INV_AJUSTE_CUADRE_ENTRADA` y `INV_AJUSTE_CUADRE_SALIDA`—
@@ -423,11 +471,16 @@ corte_apertura AS (
                        -- solo ciclos que YA habían cerrado cuando este empezó
                        AND (SELECT MAX(DATE(s3.fecha))
                               FROM seguimiento_diario_aves_engorde s3
-                             WHERE s3.lote_ave_engorde_id = l2.lote_ave_engorde_id) < rs.fecha_min),
+                             WHERE s3.lote_ave_engorde_id = l2.lote_ave_engorde_id)
+                           < COALESCE(rs.fecha_min, li.fecha_encaset::DATE)),
                    li.fecha_corte_alimento)
            ) AS desde
     FROM lote_info li, rango_seg rs
-    WHERE rs.fecha_min IS NOT NULL
+    -- ⭐ v18: antes exigía `rs.fecha_min IS NOT NULL`, así que el lote SIN seguimientos se quedaba
+    -- sin corte. Ahora el arranque del ciclo cae de vuelta en el ENCASET, que es lo que el lote
+    -- tiene cuando todavía no cargó ningún día. Con `fecha_min` presente el COALESCE la elige a
+    -- ella ⇒ el valor de `desde` para todo lote con seguimientos es idéntico a v17.
+    WHERE rs.fecha_min IS NOT NULL OR li.fecha_encaset IS NOT NULL
 ),
 
 -- 2e. ⭐ v14: día en que el galpón deja de ser mío = arranque del ciclo SIGUIENTE.
@@ -622,7 +675,10 @@ hist_full AS (
       AND h.farm_id = li.granja_id
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
-      AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
+      -- ⭐ v18: el SALDO se acota con el mismo piso que las FILAS. Ver cabecera v18.
+      AND DATE(h.fecha_operacion) >= COALESCE(rs.fecha_min,
+                                              (SELECT desde FROM corte_apertura),
+                                              DATE 'infinity')
     GROUP BY DATE(h.fecha_operacion)
 ),
 
@@ -765,7 +821,10 @@ hist_alimento AS (
       AND h.farm_id = li.granja_id
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
-      AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
+      -- ⭐ v18: mismo piso que `hist_full` cuando el lote todavía no tiene seguimientos.
+      AND DATE(h.fecha_operacion) >= COALESCE(rs.fecha_min,
+                                              (SELECT desde FROM corte_apertura),
+                                              DATE 'infinity')
       AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max)
     GROUP BY DATE(h.fecha_operacion)
 ),
@@ -793,7 +852,10 @@ docs_por_fecha AS (
            AND h.farm_id = li.granja_id
            AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
            AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
-           AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
+           -- ⭐ v18: mismo piso que `hist_full` cuando el lote no tiene seguimientos.
+           AND DATE(h.fecha_operacion) >= COALESCE(rs.fecha_min,
+                                                   (SELECT desde FROM corte_apertura),
+                                                   DATE 'infinity')
            AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max))
           OR
           -- ⭐ v7: VENTA_AVES del lote SIN tope fecha_min/fecha_max (ver cabecera).

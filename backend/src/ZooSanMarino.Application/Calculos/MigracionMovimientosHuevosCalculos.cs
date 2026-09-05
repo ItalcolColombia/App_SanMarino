@@ -71,4 +71,26 @@ public static class MigracionMovimientosHuevosCalculos
     public static string ClaveArchivo(DateTime fecha, MovimientoHuevosMigracion tipo, HuevosClasificacion c) =>
         FormattableString.Invariant(
             $"{fecha:yyyy-MM-dd}|{tipo}|{c.Limpio}|{c.Tratado}|{c.Sucio}|{c.Deforme}|{c.Blanco}|{c.DobleYema}|{c.Piso}|{c.Pequeno}|{c.Roto}|{c.Desecho}|{c.Otro}");
+
+    /// <summary>
+    /// Clave de duplicado de un movimiento clasificado POR ÍTEM del catálogo (empresas con
+    /// <c>clasificacion_huevo_por_items</c>). Las 11 cantidades son todas cero en ese camino, así que
+    /// la clave de arriba haría colisionar dos movimientos distintos del mismo día: la identidad la
+    /// dan los ítems.
+    ///
+    /// <para>
+    /// Los ítems se ordenan por id antes de serializar, así que el mismo movimiento escrito con las
+    /// filas en otro orden rinde la MISMA clave — que es lo que hace falta para que un reimport lo
+    /// reconozca. Se ignoran las cantidades en cero por el mismo motivo.
+    /// </para>
+    /// </summary>
+    public static string ClaveArchivoPorItems(
+        DateTime fecha, MovimientoHuevosMigracion tipo, IEnumerable<(int CatalogItemId, int Cantidad)> items)
+    {
+        var desglose = string.Join(',', items
+            .Where(i => i.Cantidad != 0)
+            .OrderBy(i => i.CatalogItemId)
+            .Select(i => FormattableString.Invariant($"{i.CatalogItemId}:{i.Cantidad}")));
+        return FormattableString.Invariant($"{fecha:yyyy-MM-dd}|{tipo}|items|{desglose}");
+    }
 }

@@ -108,6 +108,18 @@ export interface CompanyFlags {
    */
   huevoPrimeraPosturaHastaSemana: number | null;
   /**
+   * Santa Reyes: un mismo lote puede tener MÁS DE UN registro de seguimiento diario el mismo día
+   * (dos turnos), tanto en levante como en producción. Los registros del día se agregan para la
+   * grilla, los indicadores y los reportes: lo aditivo SUMA (mortalidad, selección, error de
+   * sexaje, consumo, traslados, venta), el peso promedia y uniformidad/C.V. los gana el último
+   * registro del día — misma regla que `fn_seguimiento_diario_levante` /
+   * `fn_seguimiento_diario_produccion` y sus espejos `SeguimientoDiario*Calculos.AgruparPorDia`.
+   *
+   * Apagado (todas las demás empresas) el alta sigue rechazando el segundo registro del día, así
+   * que el conteo de filas y el de días coinciden y nada de esto se activa.
+   */
+  permiteMultiplesSeguimientosDiarios: boolean;
+  /**
    * Cuál de las dos tablas de guía genética de POSTURA administra la empresa. Ver
    * {@link GuiaGeneticaPerfil}. Fail-closed = `'sanmarino'` (el default neutro: es el perfil con el
    * que nace toda empresa, así que tratarlo así ante un error no habilita nada que no estuviera).
@@ -133,6 +145,7 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   limitaTiposInventarioAlimentoYAves: false,
   separaLotesPosturaPorEtapa: false,
   huevoPrimeraPosturaHastaSemana: null,
+  permiteMultiplesSeguimientosDiarios: false,
   guiaGeneticaPerfil: GUIA_GENETICA_PERFIL_DEFECTO
 });
 
@@ -162,6 +175,7 @@ interface CompanyFlagsResponse {
   limitaTiposInventarioAlimentoYAves?: boolean | null;
   separaLotesPosturaPorEtapa?: boolean | null;
   huevoPrimeraPosturaHastaSemana?: number | null;
+  permiteMultiplesSeguimientosDiarios?: boolean | null;
   /** `companies.guia_genetica_perfil` — llega como texto libre; se valida contra los conocidos. */
   guiaGeneticaPerfil?: string | null;
 }
@@ -259,6 +273,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: última semana de vida con «Huevo de primera postura» vigente (`null` = sin límite). */
   readonly huevoPrimeraPosturaHastaSemana$: Observable<number | null> = this.flags$.pipe(
     map(f => f.huevoPrimeraPosturaHastaSemana),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa acepta más de un seguimiento diario por lote y día? */
+  readonly permiteMultiplesSeguimientosDiarios$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.permiteMultiplesSeguimientosDiarios),
     distinctUntilChanged()
   );
 
@@ -402,6 +422,7 @@ export class ActiveCompanyConfigService {
       huevoPrimeraPosturaHastaSemana: typeof dto?.huevoPrimeraPosturaHastaSemana === 'number'
         ? dto.huevoPrimeraPosturaHastaSemana
         : null,
+      permiteMultiplesSeguimientosDiarios: dto?.permiteMultiplesSeguimientosDiarios === true,
       // Sólo se acepta un perfil CONOCIDO. Un valor nuevo que el front todavía no entiende cae al
       // default neutro en vez de habilitar una pantalla equivocada — igual criterio que el backend,
       // que ante un valor desconocido lanza en vez de adivinar.
@@ -432,6 +453,7 @@ export class ActiveCompanyConfigService {
       actual.limitaTiposInventarioAlimentoYAves === flags.limitaTiposInventarioAlimentoYAves &&
       actual.separaLotesPosturaPorEtapa === flags.separaLotesPosturaPorEtapa &&
       actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana &&
+      actual.permiteMultiplesSeguimientosDiarios === flags.permiteMultiplesSeguimientosDiarios &&
       actual.guiaGeneticaPerfil === flags.guiaGeneticaPerfil
     ) return;
     this.flagsSubject.next(flags);

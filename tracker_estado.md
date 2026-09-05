@@ -6869,9 +6869,14 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       se emite y las Instrucciones dicen qué hacer, en vez de ofrecer una hoja que rechaza el archivo.
 - [x] F4.2 `Movimientos Huevos` no se emite con `clasificacion_huevo_por_items` (sus 11 categorías
       quedan en 0 y la validación de disponibilidad rechazaría el archivo entero).
-- [ ] F4.3 `Huevo Total` ignorado en silencio cuando el día trae ítems ⇒ falta la Advertencia
-      explícita. **No aplica a la plantilla nueva** (Santa Reyes ya no recibe esa columna); queda para
-      un archivo viejo. Pendiente.
+- [x] F4.3 `Huevo Total` ya NO se descarta en silencio (5-sep-2026). La asimetría vivía dentro del
+      mismo guardián: `Huevo Incubable` sí producía un Error duro y su gemela `Huevo Total` no
+      producía nada. Se agregó `MigracionPosturaCalculos.TotalDiscrepaDeItems` (puro, 6 tests) y su
+      Advertencia. **Advertencia y no Error, a propósito:** las categorías y los incubables son datos
+      que el camino por ítems no puede representar (se perderían enteros ⇒ Error), mientras que el
+      total SÍ es derivable de los ítems — un total que coincide es redundante, no ambiguo. Es el
+      mismo criterio de `TotalDiscrepaDeCategorias`. Verificado contra el backend: 2400 vs 2550 ⇒
+      avisa con los dos números; 2550 vs 2550 ⇒ silencio.
 
 ### F5 · Silo real en la carga masiva (espejo del seguimiento diario)
 
@@ -6922,17 +6927,191 @@ asignados a los roles 30/31) está listado en el plan §0 para no rehacerlo.
       separado; el defecto vivía en la junta. Corregido: el ejemplo usa el primer silo de
       `Referencias`, o sea un valor que el importador acepta.
 
+### F7 · Manual actualizado a v1.1
+
+- [x] F7.1 Manual `Manual_Carga_Masiva_Postura.docx/.pdf` actualizado de v1.0 a **v1.1** (20 → 25 pág.)
+      por edición quirúrgica sobre el .docx (se clonan filas y párrafos existentes para heredar el
+      formato directo: el documento no tiene estilos con nombre).
+- [x] F7.2 Contenido nuevo: §1.3 (la plantilla se adapta a la empresa + hoja `Ejemplo`), fila
+      `Silo Alimento 1/2 H-M` en las dos tablas de la hoja `Datos`, filas `Silo` y `Silo Origen` en la
+      de `Alimento`, §7.4 (huevo por ítems y `Movimientos Huevos` que no se emite), 6 mensajes de silo
+      en §9, Anexo A por configuración y **Anexo C — «Empresas con configuración propia»**.
+- [x] F7.3 Se agregan al material las plantillas **reales** de Santa Reyes descargadas del backend
+      (lote 152): son una medición, no un diseño.
+- [x] F7.4 PDF regenerado con el índice (campo TOC) actualizado; verificado por render de páginas.
+      Corregido de paso: la tabla del Anexo C salía toda en negrita por clonar la fila de encabezado.
+- [x] F7.5 El material vigente queda versionado en `fase_de_desarrollo/manual_carga_masiva_postura/`
+      con su README. ⚠️ No se pisa `fase_de_desarrollo/Manual_Carga_Masiva_Postura.docx`: es otro
+      documento, anterior y distinto («ITALGRANJA · de punta a punta»).
+
+### F8 · E2E completo de Santa Reyes (importación real)
+
+Corrido contra el backend local aislado (`:5501`, content root propio, migraciones apagadas) con el
+lote 152 / granja 109 / empresa 6. El archivo se armó copiando la hoja `Ejemplo` de la plantilla
+descargada, que es lo que hace una persona.
+
+- [x] F8.1 **Fixture**: se declararon 2 tipos de huevo del lote (`lote_huevo_items`: 528 Primera y
+      538 Pnc). Con eso la plantilla de Producción pasó a emitir la hoja `Huevos` — la comprobación
+      en vivo de F4.1.
+- [x] F8.2 **LEVANTE · validar → importar**: `Validado` 0 errores → `Procesado` 5/5.
+      Verificado en BD: 5 filas nuevas, **todas con `siloId: 7` en `metadata.itemsHembras`** (misma
+      forma que las 2 filas que había escrito el formulario manual); stock del silo 7
+      **0,009 + 5.000 − 1.506,3 = 3.493,709**; 1 Ingreso + 5 Consumos con `silo_id=7` y
+      núcleo/galpón en NULL; referencias `Seguimiento lote levante #<id> <fecha>` idénticas a las del
+      alta manual; aves 3.000 − 38 = **2.962**.
+- [x] F8.3 **Idempotencia**: reimportar el MISMO archivo ⇒ `Procesado` 0 procesadas / **6 omitidas**
+      (5 días + el movimiento de alimento) y stock, aves, filas y movimientos **idénticos**. No se
+      duplicó nada ni se descontó dos veces.
+- [x] F8.4 **PRODUCCIÓN · validar → importar**: `Validado` → `Procesado` 3/3, con la hoja `Huevos`
+      por ítem. Verificado: `huevo_tot = 2.550` (2.400 Primera + 150 Pnc, **derivado de los ítems**),
+      `huevo_inc = 0` y las 11 columnas legacy en 0 — la paridad exacta con el alta manual;
+      `metadata.huevoItems` con catalogItemId/código/nombre/tipoHuevo/cantidad por fecha;
+      `cons_kg_m = 0` (consumo solo hembras); stock 3.493,709 + 4.000 − 932,3 = **6.561,409**;
+      aves 3.000 − 17 = **2.983**.
+- [x] F8.5 **Limpieza verificada dentro de una transacción**: el estado volvió al de partida
+      (2 filas de levante, 0 de producción, 3 movimientos, stock 0,009, aves 3.000/3.000, fixture y
+      sesiones de smoke borradas). Los 10 registros del histórico unificado quedaron
+      **`anulado = true`**, que es lo que exige el invariante (se anula, nunca se abandona).
+- [x] F8.6 Backend apagado, puertos 5501/5002 libres.
+
+### F9 · «Movimientos Huevos» por ítem (5-sep-2026)
+
+Lo que el 4-sep quedó como limitación —la hoja no se emitía para empresas con clasificación por
+ítems— ahora funciona. Patrón mapeado file:line contra el alta manual (25 agentes).
+
+- [x] F9.1 Esquema `MovimientosHuevosPorItem`: **la misma hoja, otra forma** — una fila por ítem
+      (Fecha, Tipo, Ítem, Cantidad + los campos de destino), como la hoja `Huevos`. Las filas que
+      comparten fecha, tipo y destino forman UN movimiento con N ítems.
+- [x] F9.2 La plantilla emite una u otra variante según `clasificacion_huevo_por_items`, con el
+      desplegable de `Ítem` acotado a los tipos de la hoja `Referencias`.
+- [x] F9.3 Inserta en `traslado_huevos` con las **11 columnas en 0**, `total_huevos` = suma de ítems y
+      el desglose en `metadata.huevoItems` — byte a byte lo que hace `TrasladoHuevosService` en su
+      rama `usaHuevoItems`.
+- [x] F9.4 **`TotalHuevos` ya se escribe** (bug preexistente registrado el 4-sep): la carga masiva
+      nunca poblaba esa columna, de la que sale el total del espejo.
+- [x] F9.5 **Clave de idempotencia por ítems** (`ClaveArchivoPorItems`, 11 tests): con las 11
+      categorías en cero, la clave vieja hacía colisionar dos movimientos distintos del mismo día y el
+      segundo se omitía como «repetido». Ordena por id e ignora los ceros, así que el mismo movimiento
+      escrito en otro orden rinde la misma clave.
+- [x] F9.6 Disponibilidad por ítem **reusando `DisponibilidadLoteService`** (el mismo servicio que
+      consulta la pantalla): disponible hoy + lo que el archivo produce − lo que el archivo mueve. No
+      se reimplementó la aritmética del saldo.
+- [i] **A diferencia de la hoja `Huevos`, acá NO se aplica la lista blanca del lote (F7.3)**: un
+      traslado mueve lo que YA se produjo. Es la decisión explícita y documentada del alta manual
+      (`ValidarCatalogoHuevoItemsAsync`). Lo que acota de verdad es la disponibilidad.
+- [x] F9.7 **E2E real**: dos movimientos el MISMO día (Traslado a planta + Venta) con dos tipos de
+      huevo ⇒ 2 filas separadas, 11 columnas en 0, `total_huevos` 1.900 y 400, metadata con el
+      desglose. Reimportar ⇒ 0 procesadas / 5 omitidas. Mover 9.999 de un tipo con 800 disponibles ⇒
+      rechazado con el detalle. Ítem del catálogo no producido ⇒ lo frena la disponibilidad, no la
+      lista blanca. Limpieza verificada: estado devuelto al inicial.
+- [x] F9.8 `dotnet build` 0/0 · `dotnet test` **3.910 verdes**.
+
 ### Fuera de alcance (registrado)
 
-- [i] `MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
-      `permissionGuard`: el gate del módulo es 100 % de UI. No es fuga entre empresas
-      (`ActiveCompanyMiddleware` valida la empresa efectiva), pero la «restricción a Sanmarino» de
-      ago-2026 nunca fue real. Deuda conocida.
+- [x] ~~`MigracionController` **sin un solo `[Authorize]` por permiso** y la ruta del front sin
+      `permissionGuard`~~ — **cerrado en F10** (5-sep): el gate ya no es 100 % de UI.
 - [i] `Movimientos Huevos` por ítem del catálogo; `AplicarMovimientosHuevosAsync` no escribe
       `TotalHuevos`; la pantalla no reacciona al cambio de empresa activa; el error de descarga se
       pierde por llegar como `Blob`; todas las plantillas de un mismo tipo bajan con el mismo nombre.
 - [i] **El lote 152 de Santa Reyes no tiene tipos de huevo declarados** (`lote_huevo_items` vacío):
       hasta que se declaren al editar el lote, su plantilla de Producción no trae la hoja `Huevos`.
+
+### F10 · El gate del módulo deja de ser solo de UI (5-sep-2026)
+
+Lo que el 4-sep quedó registrado como deuda («Fuera de alcance», abajo) se cerró: `MigracionController`
+no tenía **un solo `[Authorize]` por permiso** y la ruta del front no llevaba `permissionGuard`, así
+que la restricción del módulo vivía únicamente en los tiles de la pantalla. Cualquier sesión con token
+válido que escribiera `/migraciones-masivas` a mano —o que llamara al endpoint directo— podía importar
+históricos completos. No era fuga entre empresas (`ActiveCompanyMiddleware` valida la empresa
+efectiva), pero sí escritura masiva sin autorización.
+
+- [x] F10.1 `MigracionAutorizacionCalculos` (cálculo PURO, `Application/Calculos/`): `PermisoPostura`
+      / `PermisoPolloEngorde`, `EsLineaEngorde`, `EsEstructura`, `PermisoRequerido(tipo)`,
+      `PuedeUsar(permisos, tipo?)` y `MensajeSinPermiso(tipo?)`. **El permiso depende del TIPO, no del
+      método HTTP** —a diferencia de `GestionUsuariosAutorizacionCalculos`, donde alcanzaba con
+      separar lecturas de escrituras—, y el tipo viaja como **parámetro** de la request, así que un
+      `[Authorize(Policy = …)]` plano no alcanzaba.
+- [x] F10.2 `CargaMasivaPermisoFilterAttribute` (`API/Infrastructure/`, patrón de
+      `GestionUsuariosEscrituraFilterAttribute`): **filtro de CLASE**, para que un endpoint nuevo nazca
+      cubierto y haya que sacarlo explícitamente con `[CargaMasivaPermisoNoRequerido]`. Repetir la
+      guarda por acción convierte «se olvidaron de una» en cuestión de tiempo, y el endpoint olvidado
+      no falla: **deja pasar**. Resuelve el tipo de los argumentos bindeados (query y el `[FromForm]`
+      del multipart, por reflexión sobre `Tipo`) y, si no, de la query string cruda. Responde **403**
+      con `{ message, error }`, no 401: la sesión es válida, lo que falta es la autorización.
+- [x] F10.3 `[Authorize]` **explícito** en el controller, no heredado de la `FallbackPolicy`: si esa
+      política cambia algún día, un módulo que escribe históricos completos tiene que seguir cerrado
+      por su propia declaración.
+- [x] F10.4 `GET /api/Migracion/tipos` queda abierto con `[CargaMasivaPermisoNoRequerido]`. Son
+      constantes de código (`TipoMigracionCatalogo.Todos`) y la pantalla lo pide **antes** de saber qué
+      puede hacer el usuario, para recién después filtrar los tiles con `filtrarTiposVisibles`
+      (fail-closed). Cerrarlo mostraría un error de red en vez del mensaje que explica que falta el
+      permiso — el mismo error que ya se cometió cerrando `GET /api/Company/global`.
+- [x] F10.5 Front: la ruta `migraciones-masivas` de `app.config.ts` suma `permissionGuard` con
+      `data: { permissions: ['carga_masiva_postura', 'carga_masiva_pollo_engorde'] }` — cualquiera de
+      los dos abre la pantalla y adentro `filtrarTiposVisibles` decide qué tiles se ven.
+- [x] F10.6 **11 tests xUnit** (`MigracionAutorizacionCalculosTests`): fail-closed sin permisos y sin
+      tipo; las dos líneas no se cruzan; estructura y «sin tipo» piden cualquiera de los dos;
+      comparación **ordinal** (`CARGA_MASIVA_POSTURA` no abre); `LaLineaEngordeEsExactamenteLaDelFront`
+      espeja `TIPOS_POLLO_ENGORDE` de `agrupar-tipo-migracion.funcion.ts` —si se desincronizaran, el
+      front ofrecería un tile que el backend rechaza con 403—; y ningún tipo del catálogo queda sin
+      línea resuelta.
+- [x] F10.7 **Nadie queda encerrado, medido antes de cerrar la puerta**: el rol `Colombia
+      Administrativa` (12) tiene el menú sin el permiso, pero a nivel de USUARIO los 9 que hoy ven el
+      módulo tienen `carga_masiva_postura` efectivo y ninguno tiene el de engorde ⇒ el gate no cambia
+      lo que puede hacer nadie. **Sin seed de permisos**: no hacía falta.
+- [x] F10.8 `dotnet build` 0/0 · `dotnet test` **3.936 verdes** · `yarn build` OK (solo el warning de
+      *bundle budget* preexistente). Compilado con `--artifacts-path` propio: hay otras sesiones
+      construyendo sobre el mismo `bin/`.
+- [x] F10.9 **403 probado en vivo contra el backend local** (5-sep, backend propio en `:5501` con
+      content root aparte). No con un token vacío: se minteó el token de un usuario REAL —ALEX
+      ALTAMIRANO, `4efb520a…`, ItalcolEcuador, activo, 3 roles— **con sus 14 permisos efectivos
+      reales**, ninguno de carga masiva. Así el 403 prueba que faltan *esas dos keys*, no que el
+      token venga pelado. Matriz de 4 escenarios × 16 endpoints = **64/64**:
+      - **A (sin ninguna key)**: los 16 endpoints gateados devuelven 403 con `{ message, error }` y
+        el texto del cálculo puro. `GET /tipos` devuelve **200** con el catálogo estático — control
+        interno: mismo token, misma sesión, misma empresa ⇒ lo único que separa 200 de 403 es el
+        filtro.
+      - **B (ALEX + `carga_masiva_postura`)**: pasan levante/producción/historial/estructura/sin
+        tipo; **403 en los 4 endpoints de engorde**.
+      - **C (ALEX + `carga_masiva_pollo_engorde`)**: exactamente el espejo.
+      - **D (usuario real con ambas, Santa Reyes)**: pasan los 16.
+      `/importar` se probó **sin archivo** (el controller corta con 400 antes de tocar datos), así
+      que la prueba no escribió una sola fila. Las 4 sesiones de smoke se borraron de
+      `sesiones_activas` (verificado: 0 restantes) y el puerto quedó libre.
+- [x] F10.10 **11 intentos de evasión, ninguno pasó.** El que importaba: mandar
+      `POST /validar?tipo=SeguimientoLevante` con el formulario en `Tipo=SeguimientoPolloEngorde`
+      —si el filtro leyera la QUERY y el controller el FORMULARIO, se correría una importación de
+      engorde con permiso de postura—. El filtro lee el **formulario**, que es lo que el controller
+      ejecuta: **403 pidiendo la key de engorde**. Igual de cerrados: `?TIPO=` en otra caja, el valor
+      en minúsculas, con espacios, con coma (que `Enum.TryParse` interpreta como flags), y el
+      formulario sin `Tipo` con el tipo en la query. `tipo=0` resuelve a `Granjas` **en los dos
+      lados** (mismo parseo ⇒ no pueden discrepar) y `tipo=99` cae a «sin tipo» ⇒ pide cualquiera de
+      las dos y muere en el 400 del controller.
+- [x] F10.11 **Lockout re-verificado por la cadena COMPLETA**, no solo por `role_permissions`. El
+      claim `permission` solo se emite si la key está en `role_permissions` **y además** habilitada
+      en `company_permissions` para la empresa del rol (`AuthService.PermisosEfectivosAsync`) — una
+      key asignada en la UI de roles puede no llegar nunca al token. Medido: de los 9 usuarios que
+      ven el módulo (Sanmarino 4, Demo 3, Santa Reyes 2) los **9 tienen `carga_masiva_postura`
+      efectivo** y **0 tienen el de engorde**; **0 encerrados**. Los 8 que sí tienen engorde efectivo
+      son todos de ItalcolPanamá y **no ven el módulo**. La conclusión de F10.7 se sostiene, ahora
+      medida donde importa.
+
+### 🔴 Hallazgo fuera de alcance: la key que este gate exige es AUTO-ASIGNABLE
+
+- [i] **El gate funciona y aun así se puede anular, por un agujero preexistente que no es suyo.**
+      `POST /api/Roles/{id}/permissions/assign` está protegido por la policy `CanManageRoles`, que en
+      `Program.cs:559` está declarada como `RequireAuthenticatedUser()` — token válido y nada más,
+      con un `TODO(seguridad)` al lado admitiendo que no verifica ningún permiso. **Verificado en
+      vivo con el mismo token que recibe 403 en el módulo**: `GET /api/Roles` → **200** (lista todos
+      los roles con sus permisos), `GET /api/Roles/permissions` → **200** (catálogo completo de
+      keys), y `POST /api/Roles/999999/permissions/assign` → **404, no 403** ⇒ la autorización
+      **pasó**; solo lo frenó que el rol no existiera. Con un `roleId` real, escribía. Después basta
+      re-loguearse (los permisos se hornean en el token al login) y el gate deja pasar.
+      La única barrera que queda es `EnsurePermisosHabilitadosPorEmpresaAsync`, que exige que la key
+      esté habilitada en `company_permissions` de **todas** las empresas del rol destino — acota la
+      población atacante a roles de una sola empresa habilitada, no cierra el agujero.
+      ⚠️ **No se tocó**: `CanManageRoles` cubre también Menús y Usuarios, y endurecerla es
+      exactamente el problema anti-lockout ya documentado. Va en su propia tarea.
 
 ---
 
@@ -7030,6 +7209,21 @@ sin vía de escalamiento a desarrollo.
 
 Plan: [seguimiento_produccion_multiples_registros_dia_plan.md](fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md)
 
+> **En `main` desde el 05-sep-2026** (`bf28282` · `64200e2` · `ecdd77c`). La rama
+> `feature/seguimiento-multiples-registros-dia` se rebasó sobre `main` —sin conflictos: los únicos
+> archivos que se cruzaban eran `Program.cs` y el hunk no colisionó— y se bajó por fast-forward.
+> **Revalidado DESPUÉS del rebase**, porque el código pasó a apoyarse en 12 commits ajenos:
+> `dotnet build` 0/0, `dotnet test` **3.967 verdes** (subieron de 3.891 al entrar los tests de esos
+> commits), `yarn build` 0 errores y `dotnet ef migrations has-pending-model-changes` → *"No changes
+> have been made to the model since the last migration"*.
+> El working tree de la otra sesión en la raíz quedó **byte a byte igual** que antes del merge
+> (`diff` de los dos `status --porcelain`).
+>
+> ⚠️ **Todavía NO está en producción.** `main-produccion` no tiene las 5 migraciones: el deploy sigue
+> siendo un paso explícito del usuario. Cuando se haga, `20260905015025` **ya deja el flag prendido
+> para Santa Reyes** (`UPDATE … WHERE name = 'Santa Reyes'` en su propio `Up()`), así que **no hace
+> falta ninguna migración adicional para habilitarlo**.
+
 Pedido (04-sep-2026): Santa Reyes necesita cargar más de un registro de seguimiento diario de
 producción/postura el mismo día para un mismo lote, controlado por flag de empresa. Investigación
 cerrada (workflow de 4 agentes): hay **dos escritores** de `seguimiento_diario_produccion` (uno vivo
@@ -7041,65 +7235,551 @@ semanales derivadas y el espejo C#. Además 3 consumidores (dashboard, header de
 Técnico Producción) leen la tabla cruda sin pasar por la función y hoy se comportarían distinto
 entre sí ante duplicados. Detalle completo con file:line en el plan.
 
-## S0 · Decisiones del usuario — BLOQUEAN el resto (ver plan §0)
+## S0 · Decisiones del usuario — CERRADAS (ver plan §0)
 
-- [!] S0.1 Semántica: ¿los registros del día se SUMAN (lectura del pedido original) o el último
-      reemplaza al anterior?
-- [!] S0.2 Regla por campo para lo no aditivo (peso promedio, uniformidad, CV%, observaciones) —
-      tabla propuesta en el plan §3, a confirmar/editar.
-- [!] S0.3 Manejo del índice único de BD — DDL, sin OK no se toca: (A) parcial con el `company_id`
-      de Santa Reyes hardcodeado en el predicado (recomendado, ya hay precedente en el repo), (B)
-      bajar el índice único para todas las empresas, o (C) columna de secuencia dentro del día.
-- [!] S0.4 ¿Gatear el flag en los DOS escritores (incluye el huérfano de UI con ruta HTTP activa) o
-      solo en el vivo (`ProduccionService.Seguimiento.cs`)?
-- [!] S0.5 Rollout: ¿todo en un commit (recomendado, incluye el fix del Reporte Técnico Producción
-      para que no duplique renglones) o en fases?
+- [x] S0.1 Semántica: **SUMA**.
+- [x] S0.2 Regla por campo para lo no aditivo: **confirmada** — promedio ponderado (peso), último
+      registro del día gana (uniformidad/CV%/observaciones).
+- [x] S0.3 Índice único de BD: **opción (A)** — parcial con el `company_id` de Santa Reyes
+      hardcodeado en el predicado.
+- [x] S0.4 Escritor huérfano (`SeguimientoProduccionService.cs`): **SE ELIMINA por completo**
+      (no se gatea). Verificación de borrado seguro cerrada, sin bloqueantes — detalle plan §0.6.
+- [x] S0.5 Rollout: **todo en un solo commit**.
+- [x] S0.6 Alcance ampliado a **LEVANTE** (mismo flag, misma lógica) — mapeo cerrado, plan §5.
+      Arquitectura muy distinta a producción: sin función canónica, 6 consumidores a tocar.
+- [i] Hallazgo fuera de alcance, spawneado aparte (`task_0c2fcd76`): `ProduccionService.Seguimiento.cs`
+      no filtra por empresa en el camino legacy `ProduccionLoteId` (Create/Update) — hueco de
+      scoping multi-empresa real, no relacionado con este feature. Plan §0.7.
 
-## S1 · Flag por empresa (una vez resueltas las decisiones)
+## S1 · Flag por empresa — CERRADO
 
-- [ ] S1.1 Columna `permite_multiples_seguimientos_diarios_produccion` en `companies` — migración
-      `ADD COLUMN IF NOT EXISTS` + `Company.cs` + `CompanyConfiguration.cs`, patrón de
+- [x] S1.1 Columna `permite_multiples_seguimientos_diarios` en `companies` — migración
+      `20260905015025_AddFlagPermiteMultiplesSeguimientosDiarios` (`ADD COLUMN IF NOT EXISTS` +
+      `Company.cs` + `CompanyConfiguration.cs`), patrón de
       `20260820220012_AddFlagLimitaTiposInventarioAlimentoYAves.cs`.
-- [ ] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
+- [x] S1.2 Propagación a `CompanyDto` (4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`
       Create+Update, `CompanyResolver` x2) + `CreateCompanyDto`/`UpdateCompanyDto`.
-- [ ] S1.3 Seed: `UPDATE companies SET ... WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`
-      (misma migración o una `Seed*` posterior, después del seed que crea la empresa).
-- [ ] S1.4 Front: agregar el flag a `CompanyFlags`/`active-company-config.service.ts` (fail-closed).
+- [x] S1.3 Seed en la misma migración: `WHERE name = 'Santa Reyes' AND ... IS DISTINCT FROM true`.
+- [x] S1.4 Front: flag `permiteMultiplesSeguimientosDiarios` en `CompanyFlags` +
+      `FLAGS_APAGADOS` + `CompanyFlagsResponse` + `mapFlags` + la comparación de `publish()` +
+      atajo `permiteMultiplesSeguimientosDiarios$` (`active-company-config.service.ts`),
+      **fail-closed** (`=== true`). Además la línea que faltaba en el catálogo administrable
+      `FLAGS_EMPRESA` (grupo *Postura*): sin ella el flag existiría en BD y en el runtime pero
+      **nadie podría encenderlo desde la pantalla de Empresas** — es el defecto que el propio
+      encabezado de `flags-empresa.funcion.ts` documenta (`seguimiento_engorde_mixto`). Lo fija el
+      test `TODO flag booleano que lee el runtime se puede configurar…` (11/11 verdes).
 
-## S2 · Alta — sacar la validación de duplicado (gateada)
+## S2 · Alta — sacar la validación de duplicado + borrar el escritor huérfano — CERRADO
 
-- [ ] S2.1 `ProduccionService.Seguimiento.cs` Create (~L51-69) y Update (~L508-516): no lanzar la
-      excepción de duplicado cuando el flag está ON.
-- [ ] S2.2 `SeguimientoProduccionService.cs` Create/Update — según S0.4.
-- [ ] S2.3 Índice(s) de BD — según S0.3.
+- [x] S2.1 `ProduccionService.Seguimiento.cs`: helper `PermiteMultiplesSeguimientosDiariosAsync`
+      análogo a `RequiereValidacionSeguimientoAsync` (nota: el gate real de esta feature vive en la
+      función canónica v3 — la fn agrupa igual aunque hubiera 2 filas; documentado en S3).
+- [x] S2.2 Índice único de BD: parcial con `company_id` excluido dinámicamente (migración
+      `20260905015934_IndicesUnicosDiaExcluyenFlagMultiplesRegistros`, `DO $mig$` que resuelve los
+      ids con el flag ON en tiempo de migración — sin hardcodear un id literal en el código).
+      **Verificado en BD real**: `ux_seguimiento_diario_produccion_lote_dia_utc` quedó
+      `WHERE (company_id IS NULL) OR (company_id <> 6)` (Santa Reyes = id 6 en la copia local).
+- [x] S2.3 **Borrado**: `SeguimientoProduccionService.cs` + `ISeguimientoProduccionService` +
+      registro DI (`Program.cs`) + `SeguimientoProduccionScopeCalculos.cs` y su test — eliminados.
+- [x] S2.4 `SeguimientoProduccionController.cs`: solo queda `GetFilterData` (no depende de `_svc`).
+- [x] S2.5 `ProduccionLoteDto.cs`: borrados solo los 4 records `Seguimiento*`; `ProduccionLoteDto` y
+      compañía intactos.
 
-## S3 · Función canónica v3 — agregación real, no solo "dejar pasar el alta"
+## S3 · Función canónica v3 — CERRADO, verificado contra Postgres real
 
-- [ ] S3.1 `fn_seguimiento_diario_produccion.sql` v3: bifurcar `seg_dias` por el flag de la empresa
-      (join ya existe a `lotes`/`companies`) — flag OFF idéntico byte a byte (gate), flag ON agrupa
-      por día con la regla de S0.1/S0.2.
-- [ ] S3.2 Migración EF de la fn v3 (Designer clonado, `Down` = v2 verbatim) — **en el mismo commit**
-      que el `.sql` (regla del espejo, `CLAUDE.md` §🗄️).
-- [ ] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + tests xUnit (paridad con
-      SQL en ambos modos).
-- [ ] S3.4 Gate multipaís: `verificar_paridad_seguimiento_produccion.sql` antes/después en TODAS las
-      empresas — 0 diffs en las que no son Santa Reyes.
+- [x] S3.1 `fn_seguimiento_diario_produccion.sql` v3: `seg_dias` bifurca en `seg_dias_dedup`
+      (INTACTO, byte a byte) + `seg_dias_agrupado` (nuevo), elegidos por `ctx.permite_multiples`
+      vía `UNION ALL ... WHERE (NOT)/(  ) (SELECT bool_or(...) FROM ctx)`.
+- [x] S3.2 Migración `20260905021548_FnSeguimientoDiarioProduccionV3MultiplesRegistros`
+      (`CREATE OR REPLACE`, la firma no cambió — no hizo falta tocar las 3 fns semanales, heredan
+      el comportamiento solas) + `.Fn.cs` con `FnV3`/`FnV2` verbatim para el `Down`.
+- [x] S3.3 Espejo C#: `SeguimientoDiarioProduccionCalculos.AgruparPorDia` + 5 tests xUnit nuevos
+      (21 en total en el archivo, todos verdes) — incluye el caso testigo validado en BD real.
+- [x] **Smoke real contra Postgres local** (transacción revertida, lote 152/LPP 20 de Santa Reyes):
+      2 registros el mismo día → la fn devuelve **una** fila con mortalidad 1+2=3, huevos
+      100+150=250, consumo 10+12=22, peso_h avg(1.50,1.60)=1.55, uniformidad=82.00 (último
+      registro), tipo_alimento="Alimento B" (último) — exactamente la regla de S0.1/S0.2.
+      Confirmado además que el flag OFF (empresa 1, LPP 7, 301 filas reales) sigue funcionando
+      sin tocar nada del camino de siempre.
+- [ ] S3.4 Gate multipaís formal: `verificar_paridad_seguimiento_produccion.sql` antes/después en
+      TODAS las empresas — pendiente (el smoke manual ya da fuerte evidencia de no-regresión, pero
+      el gate del repo corre sobre la copia completa de prod, no sobre datos sintéticos).
 
-## S4 · Los 3 consumidores que bypasean la función
+## S4 · Los 3 consumidores que bypasean la función — backend CERRADO
 
-- [ ] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header) — agrupar por día
-      antes de sumar/contar.
-- [ ] S4.2 `ReporteTecnicoProduccionService.Diario.cs` / `.Tabs.cs` — agrupar por día antes de la
-      iteración que decrementa el saldo en cascada (hoy duplicaría el renglón visualmente).
-- [ ] S4.3 `DashboardService.Postura.cs` — revisar si necesita tocarse (hoy ya suma por día a nivel
-      empresa, verificar que coincida con la nueva regla de agregación de S3).
-- [ ] S4.4 Front `tabla-lista-indicadores.component.ts:426-439` — `consumoRealGrAveDiaH/M` debe
-      dividir por días únicos, no por `totalRegistros` (conteo de filas).
+- [x] S4.1 `ProduccionService.Consultas.cs` `ObtenerInformacionLoteAsync` (header): reemplazado el
+      `GroupBy` crudo por lectura de `fn_seguimiento_diario_produccion` (reusa la misma llamada que
+      ya hacía para el saldo — un solo roundtrip en vez de dos).
+- [x] S4.2 `ReporteTecnicoProduccionService.ClasificacionHuevo.cs` (`ObtenerSeguimientosDesdePDAsync`)
+      y `.Tabs.cs` (`ObtenerSegsProdTabsAsync` + `ObtenerSegsProdTabsConItemsAsync`, esta última
+      además resuelve `metadata` desde la MISMA fn en vez de una segunda consulta cruda) — las tres
+      pasan ahora por la fn canónica; ya no duplican el renglón del día.
+- [x] S4.3 `DashboardService.Postura.cs`: **confirmado que NO necesita cambios** — su `GROUP BY`
+      ya es solo por día calendario a nivel empresa (no por lote+día), así que 2 filas del mismo
+      lote+día ya se sumaban correctamente en el total por casualidad de diseño, no por un bug.
+- [x] Build 0 errores/warnings + `dotnet test` 3887 verdes en el worktree aislado
+      (`App_SanMarino_seg_multiples`, rama independiente para no pisar el trabajo sin commitear de
+      otra sesión en `Migracion*`).
+- [x] S4.4 Flag en `active-company-config.service.ts` → hecho en S1.4.
+      `tabla-lista-indicadores.component.ts:426-439` (`consumoRealGrAveDiaH/M`) **NO necesita
+      cambio, verificado**: divide por `ind.totalRegistros`, que sale de
+      `fn_indicadores_produccion_postura` → `r_dias := COUNT(*) FROM _seg`, y `_seg` se construye
+      **desde `fn_seguimiento_diario_produccion`** (líneas 162-182 y 246-266 del `.sql`), que con la
+      v3 ya devuelve UNA fila por día. O sea que `totalRegistros` ya son días, no filas, y el
+      gr/ave/día del front no se infla con 2 registros el mismo día. Mismo razonamiento para el
+      `tabla-lista-indicadores` de LEVANTE: sus indicadores los calcula la BD (S6.3) y el front sólo
+      pinta.
 
-## S5 · Validación
+## S5 · Validación (producción)
 
-- [ ] S5.1 `dotnet build` + `dotnet test` verdes.
-- [ ] S5.2 `yarn build`.
+- [ ] S5.1 `dotnet build` + `dotnet test` verdes. **Parcial:** `dotnet build` 0 errores / 0 warnings
+      el 05-sep-2026 sobre `392cf3c` + el front de S6.8/S1.4; falta volver a correr `dotnet test`
+      (el 3887/3891 verde de S4/S7.1 sigue vigente, no se tocó C# después).
+- [x] S5.2 `yarn build` (producción) 0 errores — 05-sep-2026, worktree `App_SanMarino_seg_multiples`
+      con node portable 22.23.1.
 - [ ] S5.3 Smoke con el flag ON en Santa Reyes: 2 registros mismo lote+día → grilla, header,
       dashboard, Reporte Técnico Producción y los 3 indicadores semanales consistentes entre sí.
 - [ ] S5.4 Smoke con el flag OFF en Sanmarino/Demo: cero cambios visibles (no-op verificable).
+
+## S6 · LEVANTE — backend y FRONT CERRADOS, verificados contra Postgres real y por pantalla (05-sep-2026)
+
+Decisión S6.0 tomada: función canónica nueva SOLO para lo que realmente la necesitaba
+(`sp_recalcular_seguimiento_levante`, cuyo `LAG()` compara fila consecutiva, no día — bug real de
+orden). Para las 3 fns semanales, medido que SUM es asociativa (sumar 2 filas del mismo día o el
+día ya agrupado da el MISMO total): lo único roto era `COUNT(*)` contando filas en vez de días —
+fix quirúrgico `COUNT(DISTINCT reg_date)`, sin reapuntar esas 3 fns (multi-lote/edge-cases finos ya
+parchados — REQ-002B36, matriz Verenice — no valía el riesgo de tocar más que el conteo).
+
+- [x] S6.1 `SeguimientoDiarioService.CreateAsync` rama `levante`: gate del flag preservando el
+      MERGE sobre traslado (Feature 13) — ya commiteado junto con producción (`ead0692`), más
+      `CompanyId` poblado en el alta (`lote?.CompanyId ?? _current.CompanyId`).
+- [x] S6.2 Índice único `ux_sdlr_tipo_lote_rep_dia_utc` — parcial con `company_id` excluido
+      dinámicamente, MISMA migración que produccion (`20260905015934_...`). Trata NULL (filas
+      históricas sin backfill) como protegido — solo excluye `tipo_seguimiento='levante'`;
+      reproductora no cambia.
+- [x] Columna `seguimiento_diario_levante.company_id` (nullable, sin backfill histórico) — hacía
+      falta para el índice parcial, la tabla no tenía denormalizada la empresa como sí la tiene
+      producción (migración `20260905015522_AddCompanyIdSeguimientoDiarioLevante`).
+- [x] **`fn_seguimiento_diario_levante` — función nueva** (`backend/sql/fn_seguimiento_diario_levante.sql`):
+      mismo patrón dedup/agrupado que producción v3, sin la complejidad de rama LPP/legacy ni saldo
+      de aves (eso lo sigue calculando cada consumidor con sus propios acumuladores, ahora sobre
+      una fila por día). Devuelve `fecha_ts` (TIMESTAMPTZ, preserva la aritmética exacta de quien
+      restaba fechas) además de `reg_date`.
+- [x] S6.6 `sp_recalcular_seguimiento_levante`: su CTE `base` ahora lee de la fn nueva — arregla el
+      `LAG(peso_prom_h)` que comparaba fila consecutiva en vez de día consecutivo.
+- [x] S6.3/S6.4/S6.5 `fn_indicadores_levante_postura` / `fn_reporte_semanal_levante_extras.sql` /
+      `fn_resumen_semanal_ra_pesadas_levante.sql`: `COUNT(*)` → `COUNT(DISTINCT reg_date)` (fix
+      quirúrgico, ver decisión arriba — NO se reapuntaron a la fn canónica).
+- [x] S6.7 `LiquidacionCierreLoteLevanteService.cs`: `TotalRegistrosSeguimiento` cuenta días
+      distintos (`segs.Select(s => s.Fecha.Date).Distinct().Count()`), no filas.
+- [x] Migración `20260905035704_FnSeguimientoDiarioLevanteYFixesConteoDias` (`CREATE OR REPLACE`
+      en los 4 objetos, firmas sin cambios, `Down` restaura las 4 versiones previas verbatim).
+- [x] Espejo C# `SeguimientoDiarioLevanteCalculos.AgruparPorDia` + 4 tests xUnit (incluye el caso
+      testigo real de abajo).
+- [x] **Smoke real contra Postgres local** (transacción revertida, lote 152 Santa Reyes,
+      `company_id=6`): insertado un 2º registro el mismo día (2026-08-21) sobre una fila real
+      preexistente (consumo 999.991 kg, sin peso) → tras `sp_recalcular_seguimiento_levante`,
+      `produccion_resultado_levante` muestra **una sola fila** para ese día con
+      `mort_h=3` (0+3), `cons_kg_h=1004.991` (999.991+5.0), `peso_h=0.22` (AVG ignorando el NULL
+      original) — y `fn_indicadores_levante_postura` reporta `dias_con_registro=2`, no 3.
+- [x] S6.8 Front `tabs-principal.component.ts` (levante) — **NO se agrupan las filas**, y la razón
+      es dura: cada renglón lleva sus botones Ver / Validar / Editar / Eliminar atados a
+      `f.seg.id` (`tabs-principal.component.html:422-437`), así que fusionar los registros del día
+      dejaría el segundo **sin forma de corregirse ni de validarse**. Lo que se arregla es lo que
+      realmente estaba mal: se agregó la función pura
+      `funciones/registros-por-dia.funcion.ts` (`posicionesEnElDia`, 6 tests) y con ella
+      (a) la fecha, la semana y la edad las rotula sólo el PRIMER registro del día —el resto muestra
+      «↳ 2.º del día»— con un badge «N registros» que avisa cuántos hay;
+      (b) 🔴 **defecto real encontrado de paso**: el agregado por fecha del historial unificado
+      (`aggregateHistoricoPorFecha`) se asignaba a TODAS las filas del día ⇒ el mismo ingreso de
+      alimento y el mismo despacho se mostraban —y se exportaban al Excel— una vez por registro,
+      como si hubieran entrado dos veces. Ahora cuelga sólo de la primera fila del día;
+      (c) el Excel gana la columna «Registro del día» (`1 de 2`), emitida **sólo si algún día tiene
+      más de un registro** (helper `soloConVariosPorDia`, mismo patrón anti-desalineación que
+      `soloConMachos`) — sin ella dos renglones quedaban idénticos en fecha/semana/edad.
+      Con un registro por día `posicionesEnElDia` devuelve 1 de 1 en todas las filas ⇒ **delta cero
+      por construcción**, sin depender del flag.
+- [x] S6.9 Front: flag en `CompanyFlags` — hecho en S1.4 (compartido con S4.4).
+
+## S7 · Validación (levante)
+
+- [x] S7.1 `dotnet build` 0/0 · `dotnet test` 3891 verdes (worktree aislado
+      `App_SanMarino_seg_multiples`, rama `feature/seguimiento-multiples-registros-dia`, commit
+      `392cf3c`).
+- [x] S7.2 Smoke con el flag ON en Santa Reyes sobre LEVANTE — ver arriba (grilla vía SP +
+      indicadores semanales consistentes; Reporte Técnico Semanal y RA Pesadas heredan el mismo
+      fix de conteo, no probados end-to-end con datos reales todavía).
+- [x] S7.3 **Smoke de UI real, ida y vuelta** (05-sep-2026, front :4200 + back :5002 con content root
+      propio y `Database:RunMigrations=false`, sesión inyectada en `localStorage` + fila en
+      `sesiones_activas`, lote 152 / LPL 44 de Santa Reyes):
+      1. Insertado un 2.º registro para el **21/08/2026** — el `INSERT` **pasó**, que es la
+         verificación en vivo del índice parcial de S2.2/S6.2 (con `company_id = 6` la fila queda
+         fuera de `ux_sdlr_tipo_lote_rep_dia_utc`).
+      2. Grilla: `21/08/2026` + badge **«2 registros»** (Semana 1, Edad 3), debajo **«↳ 2.º del día»**
+         con Semana y Edad **en blanco** y sus propios valores (mort 3, sel 2, saldo 2.995, peso
+         0,25, unif 82, C.V. 7,5), y `22/08/2026` intacto. Acumulados correctos y en orden:
+         999,99 → 1.004,99 → 10.004,99 kg.
+      3. Excel (leído del blob, sin abrirlo): `B17 = "Registro del día"`, `C17 = Semana`,
+         `D17 = Edad` — sin desalineación —, y las filas `1 de 2` / `2 de 2` / `1 de 1`.
+      4. **Contraprueba = flag OFF:** borrado el 2.º registro, la misma pantalla vuelve a 2 filas sin
+         badge ni «↳», con fecha/semana/edad en cada una, y el Excel **pierde** la columna
+         («A17 Fecha, B17 Semana, C17 Edad»). Es la situación de toda empresa sin el flag ⇒ delta cero.
+      5. Testigos borrados: la fila 1690, el `company_id` de 1609/1610 devuelto a NULL y la sesión de
+         `sesiones_activas`. Puertos 5002/4200 libres al terminar.
+      ⚠️ Lo que **no** cubre: no se probó con un token de otra empresa (Sanmarino/Demo) — la
+      equivalencia se apoya en el punto 4 y en los tests de `posicionesEnElDia`. S5.3 (smoke de
+      PRODUCCIÓN por pantalla) sigue pendiente.
+- [i] **La carga masiva quedó fuera del alcance de esta feature, y sigue afuera.**
+      `MigracionService.Historicos.cs:460` (levante) y `:614` (producción) rechazan
+      «Fecha repetida en el archivo.» para **todas** las empresas, y las dos
+      `fn_migracion_seguimiento_*` deduplican con `WHERE NOT EXISTS (… mismo lote y fecha …)`: sacar
+      la guarda de C# no alcanzaría, la 2.ª fila del día tampoco se insertaría. Extenderlo exige
+      además una **clave de idempotencia por fila** (hoy es por lote+fecha; sin ella un reimport
+      duplicaría todo) y arreglar `IdsSeguimientoPorFechaAsync`, que mapea una sola fila por fecha y
+      es de donde cuelga el descuento de alimento. Decisión explícita del plan (líneas 57-60): *«ese
+      módulo … nunca pasa por ISeguimientoProduccionService. No se toca»*.
+
+---
+
+# TK Panamá · DOÑA MARÍA / A / 4 lote 95 — saldo de alimento heredado, 32 kg separados y 508 kg faltantes
+
+Plan: [`fase_de_desarrollo/tk_panama_saldo_alimento_lote_sin_seguimiento_plan.md`](fase_de_desarrollo/tk_panama_saldo_alimento_lote_sin_seguimiento_plan.md)
+
+Ticket de operación (04-sep-2026). Diagnóstico hecho sobre la copia de producción del 04-sep 02:24
+restaurada en `sanmarino_tk95`; **ningún dato de producción tocado**.
+
+## P0 · Diagnóstico (cerrado)
+
+- [x] P0.1 Reproducido al decimal en transacción revertida: lote nuevo en G0475 **sin seguimiento** ⇒
+      la fn devuelve 1 fila, `edad_dia 2`, `saldo_alimento_kg 176246.967`, `ingreso 11740`,
+      `saldo_aves 19110` — idéntico a la captura del ticket.
+- [x] P0.2 Causa raíz: `hist_full` (625), `hist_alimento` (768) y `docs_por_fecha` (796) de
+      `fn_seguimiento_diario_engorde` acotan con `(rs.fecha_min IS NULL OR ...)`; sin seguimientos
+      `fecha_min` es NULL ⇒ **el saldo pierde la cota inferior** y suma todo el histórico del galpón
+      (G0475: 173.296,967 kg desde el 02-jul, ciclo anterior lote 165 «94 - 2» liquidado el 27-ago).
+      `fechas_universo` (836) **sí** acota con `fecha_corte_alimento`: por eso se ve UNA fila con un
+      saldo de toda la historia. Incoherencia interna de la fn.
+- [x] P0.3 Los 32 kg «separados» = reserva `seguimiento_reserva_alimento` id **425**, ACTIVA, del
+      seguimiento 12944 (`validado=false`) del lote **238 «PRUEBA - 1»**, borrado el 28-ago 09:17
+      — 18 min después de crearse la reserva. Borrar el lote **no** libera las reservas.
+- [x] P0.4 Los 508 kg «faltantes» = consumo real y validado de esa misma prueba (reproductora
+      #890-#896 del lote 145, 150+100+125+34+56+31+12) sobre el ítem 223.
+- [x] P0.5 Alcance medido: lotes vivos sin un solo seguimiento cuyo galpón tiene movimientos ⇒
+      **1 en la copia**, y es de **ItalcolEcuador** (lote 229 «2605», G0039, 304.470 kg). El defecto
+      NO es de Panamá. Reservas ACTIVA en toda la base: 4 (1.937,12 kg, todas Panamá), **1 huérfana**.
+
+## P1 · Arreglo de la función (F1)
+
+- [x] P1.1 `backend/sql/fn_seguimiento_diario_engorde.sql` → **v18**: `hist_full`, `hist_alimento` y
+      `docs_por_fecha` acotan con `COALESCE(rs.fecha_min, li.fecha_corte_alimento,
+      DATE(h.fecha_operacion))` — el mismo piso que `fechas_universo` ya usaba. Firma sin cambios.
+- [x] P1.2 Migración `20260904190000_FnSeguimientoEngordeV18SaldoSinSeguimiento` (+ `.Fn.cs` con la
+      v18 y la v17 verbatim + `.Designer.cs` clonado del último real). `Down` = v17.
+- [x] P1.3 T1 sobre la copia de prod: el lote del ticket simulado en G0475 pasa de **176.246,967 a
+      11.740**; T2 escenario con seguimiento el 04-sep = 11.740 y el del 05-sep = 11.120 (sin cambio).
+- [x] P1.4 **Gate de identidad multipaís** sobre las 7.102 filas de los 178 lotes vivos de TODAS las
+      empresas (`EXCEPT` en los dos sentidos, todas las columnas): **0 / 0**. El lote 229 de Ecuador
+      que el censo marcaba no llega a emitir filas (no tiene movimientos dentro de su ventana), así
+      que el caso roto solo se prueba con el lote simulado.
+- [x] P1.5 `fn_cuadre_alimento_engorde(NULL)` v17 vs v18: **0 filas distintas** en los 68 galpones
+      (Ecuador 37/0; Panamá 31/11 y −48.472,56 kg, preexistentes e idénticos antes y después).
+- [ ] P1.6 `dotnet build` + `dotnet test` — build lanzado con `--artifacts-path`, la máquina está
+      con varias sesiones compilando a la vez.
+
+## P2 · Reservas huérfanas (F2)
+
+- [x] P2.1 `IValidacionSeguimientoService.LiberarDelLoteEngordeAsync(loteId)` + llamada desde
+      `LoteAveEngordeService.DeleteAsync` (después del SaveChanges) y `HardDeleteAsync` (antes del
+      Remove, que se lleva los seguimientos por FK). Solo toca `ACTIVA`, igual que `LiberarAsync`.
+      Inyección opcional; verificado que no hay ciclo de DI (ni `InventarioGestionService` ni
+      `ColombiaInventarioConsumoService` dependen de `ILoteAveEngordeService`).
+- [ ] P2.2 Sin test: los proyectos de test son solo `Application`/`Domain` (cálculo puro) y esto es
+      EF. Queda cubierto por el smoke de P3.1 cuando se aplique.
+
+## P3 · Dato de producción — aprobado por el usuario el 04-sep, va por migración
+
+- [x] P3.1 Migración data-only `20260904200000_RemediacionTkPanamaLote95DonaMaria` (+ `.Seed.cs` +
+      `.Designer.cs`). **Parte 1**: libera las reservas `ACTIVA` de cualquier lote de engorde borrado
+      (criterio general; hoy = 1 fila, los 32 kg). **Parte 2**: devuelve los 508 kg con un
+      `AjusteStock` **fail-closed** (solo si los 7 movimientos de consumo siguen ahí y suman 508) e
+      idempotente por `reference`.
+- [x] P3.2 Instrumento elegido y **medido**: `AjusteStock`, no `Ingreso`. La tabla diaria del ciclo
+      nuevo ya está bien (11.740: el consumo es de un lote borrado y la fn no lo cuenta); el corto es
+      el STOCK. Un `Ingreso` movería los dos y dejaría la grilla en 12.248 — el mismo descuadre del
+      otro lado. `AjusteStock` se espeja como `INV_OTRO` (verificado: `fn_tipo_evento_inventario`)
+      ⇒ mueve stock y solo stock. Simulado en transacción revertida: stock 11.232 → 11.740,
+      disponible 11.200 → 11.740, grilla **11.740 antes y después**, `esperado_kg` del cuadre
+      **−508 → 0**.
+- [x] P3.3 Up/Down/idempotencia de la migración probados en transacción revertida sobre la copia:
+      Up deja 4→3 reservas activas y stock +508 con su espejo en el histórico; segunda corrida no
+      repite; Down devuelve 3→4, resta los 508 y el trigger `_del` anula el espejo.
+- [x] P3.4 Espejos verificados byte a byte: la constante v18 del `.Fn.cs` == `backend/sql/…​.sql`
+      (66.843 chars) y la v17 del `Down` == `git show HEAD:…​.sql` (63.822).
+- [x] P3.5 La guarda ahora mira también el **efecto**: si aparece un `AjusteStock`/`EliminacionStock`
+      en G0475 posterior al 04-sep (alguien lo corrigió con el lápiz), la migración se abstiene y
+      avisa por NOTICE en vez de sumar los kilos dos veces. Igual conviene no tocarlo a mano.
+- [x] P3.6 El `INSERT` toma `company_id`/`pais_id` de la fila de stock, no de literales.
+
+## P3bis · Revisión adversarial (5 lentes) y lo que cambió por ella
+
+- [x] P3bis.1 🔴 **El piso nuevo no llevaba los guards v11/v12.** `corte_apertura` exigía
+      `fecha_min IS NOT NULL`, así que el lote sin seguimientos entraba con la ventana CRUDA de v9 y
+      podía heredar la limpieza de cierre del ciclo anterior — el defecto exacto que v11/v12 tapan.
+      Corregido: `corte_apertura` cae de vuelta en el **encaset** cuando no hay seguimientos y las
+      tres CTE usan `(SELECT desde FROM corte_apertura)` como segundo término. **Medido**: con un
+      encaset hipotético del 15-ago en G0475 la ventana cruda se comía **21.772 kg** del lote
+      anterior (ingresos del 06 y 08-ago); con el corte da **0**.
+- [x] P3bis.2 Lote sin encaset NI seguimientos: el tercer término era `DATE(fecha_operacion)` (o sea
+      «pasa todo»). Ahora es `DATE 'infinity'` ⇒ no pasa nada. Hoy no hay ninguno (0 de 203), pero la
+      columna es nullable.
+- [x] P3bis.3 🔴 **Dato falso en la cabecera**: decía que Ecuador tenía un caso vivo (lote 229, G0039,
+      304.470 kg). La fn devuelve **0 filas** para ese lote. Reemplazado por la medición real: 26
+      lotes sin seguimientos (25 Panamá, 1 Ecuador), de los cuales solo uno produce filas hoy
+      (Panamá 131, saldo 0). El defecto es **latente**, se despierta con el primer movimiento.
+- [x] P3bis.4 `HardDeleteAsync` liberaba ANTES del `Remove`. Las FK son **RESTRICT**: solo prospera
+      si no hay seguimientos ⇒ nunca hay nada que liberar, y si lo hubiera, el `Remove` fallaría
+      dejando reservas sueltas de un lote vivo. Se quitó la llamada.
+- [x] P3bis.5 `DeleteAsync` prometía en el doc-comment «no propaga» y no tenía `try/catch`. Ahora sí.
+- [x] P3bis.6 La liberación no cubría las reservas de **REPRODUCTORA** del lote —justo las que
+      produjeron los 508 kg— ni el literal legado `ENGORDE_EC`. Ahora cubre las dos cosas.
+- [x] P3bis.7 Re-verificado todo tras los cambios: gate multipaís **0/7.102**, cuadre **0/68**, caso
+      del ticket 11.740, migración Up/idempotencia/Down, espejo `.Fn.cs` == `.sql` byte a byte.
+
+## P4 · Respuesta al ticket
+
+- [x] P4.1 Redactada la respuesta para operación (qué pasó, qué hacer hoy, qué se arregla en el sistema).
+
+---
+
+# Gate de Roles y Menús — cerrar la escalada de privilegios de `CanManageRoles`
+
+Plan: [`fase_de_desarrollo/gate_roles_y_menus_plan.md`](fase_de_desarrollo/gate_roles_y_menus_plan.md)
+
+Probado en vivo el 5-sep-2026: con el JWT de un usuario sin ningún permiso de administración,
+`POST /api/Roles/{id}/permissions/assign` devuelve **404, no 403** — la autorización pasa y sólo lo
+frena que el rol no exista. Con un `roleId` real, cualquier sesión autenticada se asigna permisos,
+vuelve a loguearse (las keys se hornean como claims al login) y se salta todos los demás gates por
+permiso del sistema.
+
+## A · Auditoría anti-lockout (con datos, antes de tocar código)
+
+- [x] A.1 Localizar el módulo por **route** (nunca por id): `/config/role-management`.
+- [x] A.2 Medir qué roles/usuarios ven hoy el módulo de Roles y cuáles quedarían afuera.
+- [x] A.3 Medir los consumidores reales de `GET /api/Roles` en el front (no sólo la pantalla de Roles).
+- [x] A.4 Medir los consumidores del árbol global de menús (`CanManageMenus`).
+- [x] A.5 Verificar que `CanManageUsers` no se rompe: quién llama `menus/user/{id}` y `Menu/user/{id}`.
+- [x] A.6 Cuantificar el blast radius antes/después y confirmar **0 usuarios** perdiendo acceso.
+
+## B · Cálculo puro + tests (gate de CI)
+
+- [x] B.1 `Application/Calculos/RolesAutorizacionCalculos.cs`: `PuedeGestionarRoles`, `PuedeLeerRoles`,
+      `PuedeLeerCatalogoMenus`, `EsLectura` y los mensajes. Reusa los ejes super admin / admin de
+      aplicación de `AdministracionEmpresasAutorizacionCalculos` (comparación de roles EXACTA).
+- [x] B.2 `tests/…/RolesAutorizacionCalculosTests.cs`: fail-closed, ordinal, la válvula del super
+      admin, y el caso que evita el lockout (`usuarios.gestionar` sólo ⇒ lee, no escribe).
+
+## C · Filtro de clase (capa API)
+
+- [x] C.1 `API/Infrastructure/RolesGestionFilter.cs` + marcadores `[RolesPermisoNoRequerido]` y
+      `[CatalogoMenusLectura]`, patrón de `GestionUsuariosEscrituraFilter`/`CargaMasivaPermisoFilter`.
+- [x] C.2 Aplicarlo en `RolesController` (clase) y en `MenuController.GetTree` (método), marcando las
+      excepciones: `menus/me`, `menus/user/{id}` y las 3 escrituras de menús (`AdminAplicacion`).
+- [x] C.3 `Program.cs`: reemplazar el `TODO(seguridad)` por dónde vive el gate real y por qué no puede
+      vivir en la policy.
+
+## D · Migración data-only idempotente
+
+- [x] D.1 Keys `roles.gestionar` y `menus.gestionar` (`WHERE NOT EXISTS`).
+- [x] D.2 `company_permissions` habilitadas **por cada empresa** (sin esto la key no llega al token).
+- [x] D.3 Anti-lockout por route: `/config/role-management` (ambas keys) y `/config/companies`
+      (`menus.gestionar`), más el rol `Admin`.
+- [x] D.4 `Down` que borra sólo lo que la migración crea. Designer clonado, ModelSnapshot intacto.
+- [x] D.5 Probar Up / idempotencia / Down en transacción revertida sobre la copia local.
+
+## E · Validación
+
+- [x] E.1 `dotnet build` con `--artifacts-path` propio (hay sesiones en paralelo) — 0 errores.
+- [x] E.2 `dotnet test` verde.
+- [x] E.3 Smoke HTTP: el usuario sin permisos pasa de 200/404 a **403** en las 4 rutas; el que sólo
+      tiene `usuarios.gestionar` sigue leyendo `GET /api/Roles` (**200**) y no puede escribir (**403**);
+      el admin hace las dos cosas.
+- [x] E.4 Backend de smoke apagado y puerto libre verificado.
+
+## F · Hallazgos que quedan FUERA de este cambio (reportados, no tocados)
+
+- [x] F.1 🔴 **`MenuController` está muerto en `main`: `IMenuService` no está registrado en el DI.**
+      Descubierto por el smoke: `GET /api/Menu/tree` responde **500**
+      (`Unable to resolve service for type 'IMenuService' while attempting to activate 'MenuController'`),
+      y con él **todos** los endpoints de ese controller. La interfaz existe y `MenuService` la
+      implementa, pero `Program.cs` no la registra: `AuthService.cs:25` dice literal
+      *«IRoleCompositeService ← reemplaza a IMenuService»*. Es previo a este trabajo (mi diff en ese
+      archivo son 8 líneas de atributos y comentario). **Consecuencia para este gate:** el 500 ocurre
+      al ACTIVAR el controller, o sea ANTES de que corra ningún action filter ⇒ el
+      `[RolesGestionFilter]` que le puse a `Menu/tree` queda **inerte** hasta que alguien registre el
+      servicio. Se deja puesto a propósito: el día que lo registren, nace cerrado en vez de abierto.
+      El gemelo vivo (`GET /api/Roles/menus/tree`, el que sí usa el front) sí queda cerrado —
+      verificado 403/200 en el smoke. No se arregla acá: registrar el servicio **abriría** un
+      endpoint hoy inalcanzable, que es lo contrario de endurecer.
+- [x] F.2 `CanManageUsers` sigue siendo «token válido y nada más», tal como pedía el enunciado. La
+      usan `RolesController.MenusForUser` y `MenuController.GetForUser` — devuelven el menú de OTRO
+      usuario. Verificado con grep: **ningún componente del front los llama**. El de `MenuController`
+      además está muerto por F.1. Quedan marcados con `[RolesPermisoNoRequerido]` y comentados.
+
+---
+
+# Población de un ciclo completo de Santa Reyes por carga masiva
+
+Plan: [poblacion_ciclo_completo_santa_reyes_plan.md](fase_de_desarrollo/poblacion_ciclo_completo_santa_reyes_plan.md)
+
+Entregable en `Desktop/Poblacion_Ciclo_Santa_Reyes/` (dos `.xlsx` + LEEME + el generador Python).
+Lote `SR-2025-01`: levante semanas 1-17 (119 días) + producción 18-78 (427 días), alimento y huevos
+cuadrados en cero y venta final que deja el lote en 0 aves.
+
+- [x] P1 Relevadas las reglas REALES del importador leyendo el código (no el manual): una fila por
+      fecha, 22 columnas por línea para Santa Reyes, `Consumo H (kg)` vacío cuando la fila trae
+      `Alimento 1 H`, silo validado contra la granja **y** contra `lote_silos`, balance de alimento
+      por TOTAL (silo, ítem), disponibilidad de huevo por ítem.
+- [x] P2 Archivos generados y cuadrados: 9 combinaciones (ítem, silo) con consumo == ingreso kilo a
+      kilo; los 4 ítems de huevo con producido == movido; aves 20.000 + 500 − 680 − 200 − 300 =
+      19.320 al cierre del levante, − 865 − 18.455 = **0** al final.
+- [x] P3 **Encabezados verificados contra la plantilla oficial** que genera el backend
+      (`fase_de_desarrollo/manual_carga_masiva_postura/Plantilla_SANTA_REYES_*.xlsx`): las cinco
+      hojas de datos salen **columna a columna idénticas** (Datos 22, Alimento 16, Movimientos Aves
+      8, Movimientos Huevos 9, Huevos 3). Sólo difieren `Instrucciones` y `Referencias`, que el
+      importador ignora por nombre.
+- [x] P4 Los 8 códigos de alimento, los 2 silos y los 4 ítems de huevo resuelven contra los
+      catálogos reales de la empresa 6.
+- [x] P5 Migración `20260905200000_SeedLotePruebaPoblacionSantaReyes` (commit `8d63313`, en `main`):
+      deja creados el lote, `lote_etapa_levante`, el espejo de levante, los 2 silos asignados y los
+      4 tipos de huevo declarados. Data-only, sin ids literales (todo por nombre/código, porque
+      `galpones.galpon_id` es PK global). Probada contra Postgres real en transacción revertida:
+      crea las 5 cosas con los valores esperados, **3 corridas seguidas no duplican nada**, `Down()`
+      limpia sin huérfanos y `Down()` con un seguimiento cargado **se niega** y deja el lote vivo.
+- [i] 🔴 **El peso corporal va en KILOS; la que está mal rotulada es la columna del EXCEL.**
+      (Corrige una lectura anterior de este mismo bloque, que decía lo contrario.) La cadena
+      completa, verificada: el formulario diario pide **«Peso promedio (kg)»** con `step="0.01"` en
+      las DOS líneas — `lote-levante/pages/modal-create-edit/modal-create-edit.component.html:426-427`
+      (`pesoPromH`) y `lote-produccion/pages/modal-seguimiento-diario/…component.html:283-284`
+      (`pesoH`) —; el payload viaja **sin conversión** (`toNumOrNull(raw.pesoPromH)`,
+      `Number(raw.pesoH)`; los `×1000` de esos archivos son del CONSUMO de alimento); y la grilla y
+      el modal de detalle lo muestran en kg. El único lugar del sistema que dice gramos para el peso
+      corporal es `MigracionEsquemas` → **`Peso H (g)`**.
+      ⚠️ No confundir con el **peso del HUEVO**, que sí va en gramos y es otro campo (`Peso Huevo (g)`,
+      «Peso promedio en gramos») — esa fue la confusión que originó la lectura equivocada.
+- [i] **Dos consecuencias medidas, ninguna tocada** (son de otro módulo y de otra empresa):
+      (a) los históricos de peso de **Sanmarino** están en gramos (levante 144 a 3.039; producción
+      3.307 a 4.669) y entraron por esa columna mal rotulada; su guía
+      (`guia_genetica_sanmarino_colombia.peso_h`, 150 a 4.390) también está en gramos, así que entre
+      sí cuadran y `dif_peso_pct_hembras` de `fn_indicadores_levante_postura.sql:640` da bien —
+      lo que no cuadra es contra lo que pide el formulario;
+      (b) **Santa Reyes no tiene ni una fila con peso** y su guía (`guia_genetica_santa_reyes`) **no
+      tiene columna de peso**, así que ahí el peso no se compara contra nada y arrancar en kg no
+      rompe ningún cálculo. Los archivos generados van en kg (levante 0,07→1,455; producción
+      1,52→2,00).
+- [x] P8 **Renombrada la columna `Peso H/M (g)` → `(kg)` en los dos esquemas de POSTURA**, que era
+      el único lugar del sistema que decía gramos para el peso corporal. Anexo del plan.
+      Cuatro archivos, y ninguno era opcional: el título es además la **clave de lookup**
+      (`MigracionService.Historicos.cs:481-482,640-641` — sin actualizarlo el peso se perdería en
+      silencio); `PlantillaPosturaCalculos.cs:47,57` lista `"Peso M (g)"` para ocultarlo, así que sin
+      tocarlo la plantilla de Santa Reyes saldría con **23** columnas en vez de 22; y
+      `MigracionEjemploPosturaCalculos.cs:168-169` enseñaba `1450`, ahora `1.45`.
+      **Compatibilidad real, no teórica:** `NormalizarClave` conserva los paréntesis, así que
+      `peso h (g)` y `peso h (kg)` son claves distintas y el ALIAS es lo único que hace entrar un
+      archivo viejo. ⚠️ **Engorde NO se tocó**: ahí el peso sí es en gramos de punta a punta
+      (`Peso de llegada (g)`, campo `pesoLlegadaG`) y están sus históricos de Panamá/Ecuador.
+      Tests: se separó `LevanteViejas` (encabezados como estaban ESCRITOS, con `(g)`) de
+      `LevantePrefijoActual` (títulos actuales, para el test de orden) porque el mismo array servía
+      para dos cosas que ahora divergen; + 3 casos nuevos
+      (`Postura_PesoCorporal_SeLeeConElRotuloViejoYConElNuevo` con las tres escrituras,
+      `Postura_PesoDelHuevo_SigueEnGramos` y `Engorde_ConservaElPesoEnGramos`).
+      Validación: `dotnet build` 0/0 · `dotnet test` **3.971 verdes** (+5).
+      Los dos `.xlsx` se regeneraron con el título nuevo y el peso en kg.
+- [x] P6 **Dry-run real contra el importador: los dos archivos pasan** (05-sep-2026, backend local
+      con content root propio y `RunMigrations=false`, build de `faf31eb`, lote creado corriendo el
+      SQL de la migración de P5).
+      · **LEVANTE** → `POST /api/Migracion/validar` HTTP 200, estado **`Validado`**,
+      `filasTotales: 119`, **`filasError: 0`**, 0 errores. Las 4 advertencias son el propio
+      importador reportando el cuadre: *«Saldo proyectado de POLLITA PREINICIADOR SR Q SIN COCC:
+      0.000 kg + 21,040.830 entradas − 21,040.830 consumidos = 0.00»*, y lo mismo para los otros 3.
+      · **PRODUCCIÓN** → primero devolvió el Error esperado *«El lote no está habilitado (requiere
+      Levante cerrado + liquidado + lote Producción)»*, que **confirma el gate** y el paso manual del
+      LEEME. Simulando el cierre por SQL (LPL a `Cerrado` + fila de liquidación + LPP) para poder
+      llegar al parseo: HTTP 200, **`Validado`**, `filasTotales: 427`, **`filasError: 0`**, 0 errores,
+      y las 5 advertencias del saldo proyectado en **0,000 kg** por cada (ítem, silo).
+      · Eso valida de verdad, no por estructura: las 427 filas de `Datos` (sin fechas repetidas, con
+      silos aceptados por la lista blanca del lote, códigos de alimento, `Etapa` y pH válidos), las
+      **1.281 filas de `Huevos`** contra los 4 ítems declarados, las **1.281 de `Movimientos Huevos`**
+      pasando la validación de DISPONIBILIDAD por ítem, y `Movimientos Aves`. Ninguna advertencia
+      sobre el peso ⇒ el encabezado nuevo `Peso H (kg)` se reconoce (P8 verificado en vivo).
+      · **Todo lo creado se deshizo**: LPP, liquidación, `estado_cierre` de vuelta a `Abierto`, el
+      `Down()` de la migración para el lote, y la sesión de smoke. Conteo final 0 en las 7 sondas
+      (incluidos huérfanos de `lote_silos` y `lote_huevo_items`). Puertos libres.
+- [~] P7 Importar en producción. Orden obligatorio: importar LEVANTE → **cerrar y liquidar el
+      levante a mano** → importar PRODUCCIÓN. Reimportar no corrige: una fecha ya cargada se omite
+      en silencio.
+
+---
+
+# `MenuController` muerto — borrarlo en vez de resucitarlo
+
+Plan: [`fase_de_desarrollo/menu_controller_muerto_plan.md`](fase_de_desarrollo/menu_controller_muerto_plan.md)
+
+Continuación de **F.1** del bloque anterior («Gate de Roles y Menús»), que lo dejó reportado y sin
+tocar a propósito. Los 6 endpoints de `MenuController` responden **500** porque `Program.cs` nunca
+registró `IMenuService`: el módulo se migró a `IRoleCompositeService` y el controller quedó colgado.
+La opción de «arreglar el 500» registrando el servicio está **descartada**: abriría 6 endpoints hoy
+inalcanzables, entre ellos `GET /api/Menu/user/{userId}` (menú de OTRO usuario) bajo `CanManageUsers`,
+que sigue siendo «token válido y nada más».
+
+## G · Auditoría de clientes (medida, antes de borrar)
+
+- [x] G.1 Front (`frontend/src/`): **cero** llamadas a `/api/Menu`. El único servicio del ABM del árbol
+      global es `core/services/menu/menu.service.ts:24`, y su base es `${apiUrl}/Roles/menus`.
+- [x] G.2 App móvil (`zootecnicoapp/`): consume `GET /api/Auth/menu` (`lib/core/api/auth_api.dart:41`),
+      que es de `AuthController` y va por `IRoleCompositeService`. No toca `/api/Menu`.
+- [x] G.3 Scripts / SQL / integraciones: las 6 ocurrencias de `api/Menu` en el repo son **comentarios y
+      documentación** (`Program.cs`, `CatalogoGlobalAutorizacionCalculos.cs`, una migración, un plan).
+      Ninguna es una llamada.
+- [x] G.4 `IMenuService`: sólo lo pedía `MenuController`. `MenuService`: nadie lo instancia y `Program.cs`
+      no lo registra (por eso el 500). Ojo con el falso positivo: `ICompanyMenuService`/`CompanyMenuService`
+      es OTRA cosa (menús POR EMPRESA), sí está registrado y queda intacto.
+- [x] G.5 No quedan huérfanos: `[RolesGestionFilter]` sigue aplicado a la clase `RoleController` y
+      `[CatalogoMenusLectura]` a `RoleController.MenusTree`. Los pierde sólo el endpoint muerto.
+
+## H · Borrado
+
+- [x] H.1 `API/Controllers/MenuController.cs`.
+- [x] H.2 `Application/Interfaces/IMenuService.cs` (huérfana tras H.1).
+- [x] H.3 `Infrastructure/Services/MenuService.cs` (único implementador; su lógica vive en `RoleCompositeService.Menus_*`).
+- [x] H.4 Comentarios que quedaban apuntando a la nada, corregidos en `Program.cs` (x2),
+      `CatalogoGlobalAutorizacionCalculos.cs` y `RoleController.cs`: los tres nombraban
+      `GET /api/Menu/tree` como la lectura que necesita la tabla de roles — la real es
+      `GET /api/Roles/menus/tree`. Las **migraciones no se tocan**: son registro histórico.
+
+## I · Validación
+
+- [x] I.1 `dotnet build --artifacts-path artifacts` (DENTRO del worktree): **Build succeeded, 0 Warning(s),
+      0 Error(s)** — los 6 proyectos, `Infrastructure` y `API` incluidos, que son los que prueban el borrado.
+- [x] I.2 `dotnet test`: **3.974 pasados, 0 fallidos** (3.973 Application + 1 Domain). `RazaGuiaAliasParidadSqlTests`
+      pasa, confirmando el porqué del `--artifacts-path` dentro del worktree.
+- [x] I.3 Smoke con el binario recién construido, en **:5501** y con un **content root propio** (copia de los
+      dos `appsettings` con `RunMigrations=false`, para no tocar el esquema de la BD local compartida):
+      - Swagger publica **693 rutas** y **NINGUNA** `/api/Menu/*` — los 6 endpoints que sólo sabían dar 500
+        dejaron de publicarse. Swagger se genera del route table vivo, así que esto es la prueba directa.
+      - El gemelo sigue entero: `/api/Roles/menus/tree`, `/menus/me`, `/menus/user/{id}`, `POST /menus`,
+        `PUT|DELETE /menus/{id}`, más `/api/Company/{id}/menus`.
+      - La app **arranca**: si el borrado hubiera roto el DI o la generación de Swagger, no lo haría.
+      - ⚠️ Ojo para el próximo: `PlatformSecretMiddleware` responde **401 a todo** sin el header `X-Secret-Up`
+        (cifrado), así que curlear `/api/Menu/tree` NO distingue 404 de 500. Swagger sí está exento del gate
+        —aunque detrás de `SwaggerPasswordMiddleware`: `POST /swagger/login` con `Swagger:Password` y cookie.
+- [x] I.4 Backend de smoke apagado; **:5501 libre** y cero procesos `dotnet`/`ZooSanMarino` vivos.
+
+## J · Incidentes de la sesión (no del cambio)
+
+- [x] J.1 El **primer** `dotnet build` se trabó ~10 min: CPU congelada (20,5625 s idénticos en dos muestras a
+      25 s) y working sets de 2-3 MB — la firma de deadlock ya registrada. Maté **sólo** los míos filtrando por
+      línea de comando y el reintento con `--no-restore -nodeReuse:false` compiló en 6:52.
+- [x] J.2 🔴 **El backend ajeno de `:5002` (otra ventana de Claude Code) desapareció en esa misma ventana de
+      tiempo.** Filtré por línea de comando y ninguno de los 6 procesos que maté era `ZooSanMarino.API.exe` ni
+      un `dotnet run`, así que no tengo el mecanismo — pero el puerto dejó de escuchar justo entonces y no
+      puedo descartar haberlo tumbado como proceso hijo. **No lo reinicié**: es estado de esa sesión.

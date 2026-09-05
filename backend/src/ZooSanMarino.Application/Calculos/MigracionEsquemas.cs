@@ -113,8 +113,17 @@ public static class MigracionEsquemas
         new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h" }),
         new("Consumo M (kg)",     Requerida: false, Alias: new[] { "consumo m" }),
         new("Tipo Alimento",      Requerida: false),
-        new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
-        new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
+        // 🔴 El peso corporal de POSTURA va en KILOS, no en gramos: el formulario diario lo pide así
+        // en las dos líneas («Peso promedio (kg)», step 0.01) y el payload viaja SIN conversión, así
+        // que la grilla y el modal de detalle muestran exactamente lo que se cargó. El título viejo
+        // «(g)» era el único lugar del sistema que decía gramos, y es por donde entraron históricos
+        // en la escala equivocada. Se conserva como ALIAS para que los archivos ya armados con ese
+        // encabezado se sigan leyendo: `NormalizarClave` conserva los paréntesis, así que
+        // «peso h (g)» y «peso h (kg)» son claves distintas y no colisionan.
+        // ⚠️ ENGORDE no cambia: ahí el peso SÍ es en gramos de punta a punta (su formulario dice
+        // «Peso de llegada (g)» y el campo se llama `pesoLlegadaG`).
+        new("Peso H (kg)",        Requerida: false, Alias: new[] { "peso h", "peso h (g)" }),
+        new("Peso M (kg)",        Requerida: false, Alias: new[] { "peso m", "peso m (g)" }),
         new("Uniformidad H",      Requerida: false),
         new("Uniformidad M",      Requerida: false),
         new("Observaciones",      Requerida: false),
@@ -173,8 +182,10 @@ public static class MigracionEsquemas
         {
             new("Error Sexaje H",         Requerida: false, Alias: new[] { "error sexaje hembras" }),
             new("Error Sexaje M",         Requerida: false, Alias: new[] { "error sexaje machos" }),
-            new("Peso H (g)",             Requerida: false, Alias: new[] { "peso h", "peso corporal h" }),
-            new("Peso M (g)",             Requerida: false, Alias: new[] { "peso m", "peso corporal m" }),
+            // En KILOS, igual que en levante y que el formulario diario. El «(g)» viejo queda de
+            // alias para no romper los archivos ya armados — ver la nota en SeguimientoLevante.
+            new("Peso H (kg)",            Requerida: false, Alias: new[] { "peso h", "peso corporal h", "peso h (g)" }),
+            new("Peso M (kg)",            Requerida: false, Alias: new[] { "peso m", "peso corporal m", "peso m (g)" }),
             new("Uniformidad",            Requerida: false, Alias: new[] { "uniformidad lote" }),
             new("Coef. Variación",        Requerida: false, Alias: new[] { "coeficiente de variacion", "cv" }),
             new("Observaciones Pesaje",   Requerida: false, Alias: new[] { "obs pesaje" }),
@@ -239,6 +250,39 @@ public static class MigracionEsquemas
             new("Observaciones", Requerida: false),
         })
         .ToArray());
+
+    /// <summary>
+    /// Hoja <c>Movimientos Huevos</c> de las empresas que clasifican el huevo POR ÍTEM del catálogo
+    /// (<c>clasificacion_huevo_por_items</c>, ej. Santa Reyes). Misma hoja, otra FORMA: en vez de las
+    /// 11 categorías fijas —que en esas empresas quedan en cero y harían rechazar el archivo entero—
+    /// va <b>una fila por ítem</b>, igual que la hoja <see cref="HuevosPostura"/>.
+    ///
+    /// <para>
+    /// <b>Cómo se agrupan las filas en movimientos:</b> las que comparten fecha, tipo y destino
+    /// (<c>Tipo Destino</c>, <c>Destino</c>, <c>Motivo</c>, <c>Descripción</c>) forman UN movimiento
+    /// con N ítems. Es el mismo criterio con el que la venta de engorde arma un despacho a partir de
+    /// varias filas.
+    /// </para>
+    ///
+    /// <para>
+    /// Se usa SOLO para generar la plantilla y para parsear el archivo de esas empresas; el destino en
+    /// base es el mismo <c>traslado_huevos</c>, con las 11 columnas en cero y el desglose en
+    /// <c>metadata.huevoItems</c> — byte a byte lo que ya escribe el alta manual
+    /// (<c>TrasladoHuevosService</c>, rama <c>usaHuevoItems</c>).
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion MovimientosHuevosPorItem { get; } = new("Movimientos Huevos", new ColumnaEsquema[]
+    {
+        new("Fecha",         Requerida: true),
+        new("Tipo",          Requerida: true, Alias: new[] { "movimiento", "tipo operacion", "operacion" }, Opciones: new[] { "Traslado", "Venta" }),
+        new("Ítem",          Requerida: true, Alias: new[] { "item", "huevo", "producto", "codigo", "código" }),
+        new("Cantidad",      Requerida: true, Alias: new[] { "cantidad huevos", "unidades" }),
+        new("Tipo Destino",  Requerida: false, Opciones: new[] { "Planta", "Cliente", "Empresa" }),
+        new("Destino",       Requerida: false, Alias: new[] { "planta", "cliente", "lote destino" }),
+        new("Motivo",        Requerida: false, Alias: new[] { "motivo venta" }),
+        new("Descripción",   Requerida: false, Alias: new[] { "descripcion" }),
+        new("Observaciones", Requerida: false),
+    });
 
     /// <summary>
     /// Hoja <c>Movimientos Aves</c> de los archivos de LEVANTE y PRODUCCIÓN: movimientos de aves

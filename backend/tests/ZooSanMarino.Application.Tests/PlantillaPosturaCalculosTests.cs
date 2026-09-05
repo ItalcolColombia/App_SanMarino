@@ -71,7 +71,7 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Sel M", ocultas);
         Assert.Contains("Error Sexaje M", ocultas);
         Assert.Contains("Consumo M (kg)", ocultas);
-        Assert.Contains("Peso M (g)", ocultas);
+        Assert.Contains("Peso M (kg)", ocultas);
         Assert.Contains("Uniformidad M", ocultas);
         Assert.Contains("Coef. Variación M", ocultas);
         // Los 4 slots de alimento del inventario para machos.
@@ -110,7 +110,7 @@ public class PlantillaPosturaCalculosTests
 
         Assert.Contains("Mort M", ocultas);
         Assert.Contains("Consumo M (kg)", ocultas);
-        Assert.Contains("Peso M (g)", ocultas);
+        Assert.Contains("Peso M (kg)", ocultas);
         Assert.Contains("Consumo Alimento 2 M", ocultas);
         // Espejo exacto del modal: total, incubable, peso promedio y la clasificadora.
         Assert.Contains("Huevo Total", ocultas);
@@ -149,7 +149,7 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Consumo M (kg)", ocultas);
         Assert.Contains("Alimento 1 M", ocultas);
         Assert.DoesNotContain("Mort M", ocultas);
-        Assert.DoesNotContain("Peso M (g)", ocultas);
+        Assert.DoesNotContain("Peso M (kg)", ocultas);
         Assert.DoesNotContain("Alimento 1 H", ocultas);
     }
 

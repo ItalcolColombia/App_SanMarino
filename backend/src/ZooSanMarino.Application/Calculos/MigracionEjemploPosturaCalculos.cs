@@ -165,8 +165,8 @@ public static class MigracionEjemploPosturaCalculos
             // El segundo alimento es opcional: se deja vacío para no sugerir que hace falta.
             "Alimento 2 H" or "Consumo Alimento 2 H" or "Alimento 2 M" or "Consumo Alimento 2 M" => "",
 
-            "Peso H (g)" => esLevante ? Serie(dia, "1450", "", "") : Serie(dia, "1760", "", ""),
-            "Peso M (g)" => esLevante ? Serie(dia, "1980", "", "") : Serie(dia, "2310", "", ""),
+            "Peso H (kg)" => esLevante ? Serie(dia, "1.45", "", "") : Serie(dia, "1.76", "", ""),
+            "Peso M (kg)" => esLevante ? Serie(dia, "1.98", "", "") : Serie(dia, "2.31", "", ""),
             "Uniformidad H" or "Uniformidad" => Serie(dia, "85.2", "", ""),
             "Uniformidad M" => Serie(dia, "82.7", "", ""),
             "Coef. Variación H" or "Coef. Variación" => Serie(dia, "8.4", "", ""),

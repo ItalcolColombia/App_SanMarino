@@ -44,7 +44,7 @@ public static class PlantillaPosturaCalculos
     /// <summary>Columnas por sexo MACHO del seguimiento de levante (las de producción son un subconjunto).</summary>
     private static readonly string[] MachosLevante =
     {
-        "Mort M", "Sel M", "Error Sexaje M", "Consumo M (kg)", "Peso M (g)",
+        "Mort M", "Sel M", "Error Sexaje M", "Consumo M (kg)", "Peso M (kg)",
         "Uniformidad M", "Coef. Variación M",
     };
 
@@ -54,7 +54,7 @@ public static class PlantillaPosturaCalculos
     /// </summary>
     private static readonly string[] MachosProduccion =
     {
-        "Mort M", "Sel M", "Error Sexaje M", "Consumo M (kg)", "Peso M (g)",
+        "Mort M", "Sel M", "Error Sexaje M", "Consumo M (kg)", "Peso M (kg)",
     };
 
     /// <summary>Slots de alimento del inventario para machos (las dos líneas de postura los comparten).</summary>

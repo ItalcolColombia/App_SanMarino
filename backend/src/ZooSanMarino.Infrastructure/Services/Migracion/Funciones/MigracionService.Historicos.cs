@@ -178,14 +178,18 @@ public partial class MigracionService
         PonerEncabezados(wsMovAves, MigracionEsquemas.MovimientosAvesLevante);
 
         // Hoja "Movimientos Huevos" (solo producción): traslados a planta y ventas de huevos.
-        // 🔴 No se emite con clasificación por ÍTEMS: esa hoja solo entiende las 11 categorías fijas,
-        // que en esas empresas quedan en cero, así que la validación de disponibilidad rechazaría el
-        // ARCHIVO ENTERO. Mientras no exista la versión por ítem, esos movimientos van por pantalla.
-        var emiteMovimientosHuevos = !esLevante && lotePosturaCtx?.ClasificacionHuevoPorItems != true;
-        if (emiteMovimientosHuevos)
-            PonerEncabezados(
-                pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosHuevosProduccion.Hoja),
-                MigracionEsquemas.MovimientosHuevosProduccion);
+        // La hoja cambia de FORMA según la empresa: por las 11 categorías fijas, o una fila por ÍTEM
+        // del catálogo (que es como esas empresas registran el huevo en todo el resto del sistema).
+        var movHuevosPorItem = lotePosturaCtx?.ClasificacionHuevoPorItems == true;
+        var esquemaMovHuevos = movHuevosPorItem
+            ? MigracionEsquemas.MovimientosHuevosPorItem
+            : MigracionEsquemas.MovimientosHuevosProduccion;
+        ExcelWorksheet? wsMovHuevos = null;
+        if (!esLevante)
+        {
+            wsMovHuevos = pkg.Workbook.Worksheets.Add(esquemaMovHuevos.Hoja);
+            PonerEncabezados(wsMovHuevos, esquemaMovHuevos);
+        }
 
         ExcelWorksheet? wsHuevos = null;
         if (huevoItems.Count > 0)
@@ -281,9 +285,15 @@ public partial class MigracionService
         if (lotesFaseRef.Count > 0)
             DropdownRango(wsMovAves, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosAvesLevante, "Lote Contraparte") + 1),
                 $"Referencias!$H$2:$H${lotesFaseRef.Count + 1}");
-        if (wsHuevos is not null && huevoItems.Count > 0)
-            DropdownRango(wsHuevos, ColumnaLetra(IndiceColumna(MigracionEsquemas.HuevosPostura, "Ítem") + 1),
-                $"Referencias!$D$2:$D${huevoItems.Count + 1}");
+        if (huevoItems.Count > 0)
+        {
+            var rangoItems = $"Referencias!$D$2:$D${huevoItems.Count + 1}";
+            if (wsHuevos is not null)
+                DropdownRango(wsHuevos, ColumnaLetra(IndiceColumna(MigracionEsquemas.HuevosPostura, "Ítem") + 1), rangoItems);
+            // El mismo desplegable en los movimientos: lo que se ofrece es lo que el importador acepta.
+            if (wsMovHuevos is not null && movHuevosPorItem)
+                DropdownRango(wsMovHuevos, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosHuevosPorItem, "Ítem") + 1), rangoItems);
+        }
 
         var nivel = ctxInv?.ManejaPorGalpon == true
             ? $"galpón ({ctxInv.NucleoId}/{ctxInv.GalponId})"
@@ -351,10 +361,14 @@ public partial class MigracionService
         instrucciones.Add("• No cargues en 'Movimientos Aves' movimientos que ya se registraron por pantalla, ni repitas la misma fila: se duplicarían. Dos movimientos iguales el mismo día van como una sola fila sumada.");
         if (!esLevante)
         {
-            if (emiteMovimientosHuevos)
-                instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote por las 11 categorías. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción'). Descuentan de la disponibilidad del lote (espejo); si no alcanzan, el archivo se rechaza.");
+            if (movHuevosPorItem)
+            {
+                instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote, UNA FILA POR TIPO DE HUEVO. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción').");
+                instrucciones.Add("• Las filas que comparten fecha, tipo y destino forman UN movimiento con varios tipos de huevo. Para cargar dos movimientos distintos el mismo día, diferencialos por destino, motivo o descripción.");
+                instrucciones.Add("• Solo se aceptan los tipos de huevo declarados por este lote (los de la hoja 'Referencias'), y no podés mover más de lo producido de cada tipo.");
+            }
             else
-                instrucciones.Add("• Los traslados a planta y las ventas de huevo de esta empresa se cargan por pantalla, no por Excel: la hoja 'Movimientos Huevos' solo entiende las 11 categorías fijas, que acá no se usan.");
+                instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote por las 11 categorías. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción'). Descuentan de la disponibilidad del lote (espejo); si no alcanzan, el archivo se rechaza.");
             instrucciones.Add("• Pesaje y agua: 'Peso H/M (g)', 'Uniformidad', 'Coef. Variación', 'Observaciones Pesaje', 'Consumo Agua (L)', 'pH Agua' (0-14), 'ORP Agua (mV)' y 'Temperatura Agua (°C)' son opcionales y se guardan tal cual en el registro del día.");
         }
         if (wsHuevos is not null)
@@ -464,8 +478,8 @@ public partial class MigracionService
             var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesPostura(tipo, "Error Sexaje M"));
             var consH = DecimalNoNeg(fila, errores, "Consumo H (kg)", ClavesPostura(tipo, "Consumo H (kg)"));
             var consM = DecimalNoNeg(fila, errores, "Consumo M (kg)", ClavesPostura(tipo, "Consumo M (kg)"));
-            var pesoH = DobleOpc(fila, errores, "Peso H (g)", ClavesPostura(tipo, "Peso H (g)"));
-            var pesoM = DobleOpc(fila, errores, "Peso M (g)", ClavesPostura(tipo, "Peso M (g)"));
+            var pesoH = DobleOpc(fila, errores, "Peso H (kg)", ClavesPostura(tipo, "Peso H (kg)"));
+            var pesoM = DobleOpc(fila, errores, "Peso M (kg)", ClavesPostura(tipo, "Peso M (kg)"));
             var unifH = DobleOpc(fila, errores, "Uniformidad H", ClavesPostura(tipo, "Uniformidad H"));
             var unifM = DobleOpc(fila, errores, "Uniformidad M", ClavesPostura(tipo, "Uniformidad M"));
 
@@ -569,7 +583,10 @@ public partial class MigracionService
         var huevoItemsPorFecha = await LeerHojaHuevosPosturaAsync(file, companyId, loteCtx, errores, ct);
 
         var movimientosAves = await LeerHojaMovimientosAvesAsync(file, companyId, loteId, esLevante: false, loteCtx, errores, ct);
-        var movimientosHuevos = LeerHojaMovimientosHuevos(file, loteCtx, errores);
+        // La hoja cambia de forma según la empresa: 11 categorías fijas, o una fila por ítem.
+        var movimientosHuevos = loteCtx?.ClasificacionHuevoPorItems == true
+            ? await LeerHojaMovimientosHuevosPorItemAsync(file, companyId, loteCtx, errores, ct)
+            : LeerHojaMovimientosHuevos(file, loteCtx, errores);
 
         if (filas.Count == 0 && movimientosAlimento.Count == 0 && movimientosAves.Count == 0
             && movimientosHuevos.Count == 0 && errores.Count == 0)
@@ -620,8 +637,8 @@ public partial class MigracionService
             // Campos completos del modal (opcionales): error de sexaje, pesaje corporal y agua.
             var errH = EnteroNoNeg(fila, errores, "Error Sexaje H", ClavesPostura(tipo, "Error Sexaje H"));
             var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesPostura(tipo, "Error Sexaje M"));
-            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", ClavesPostura(tipo, "Peso H (g)"));
-            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", ClavesPostura(tipo, "Peso M (g)"));
+            var pesoH = DobleNoNeg(fila, errores, "Peso H (kg)", ClavesPostura(tipo, "Peso H (kg)"));
+            var pesoM = DobleNoNeg(fila, errores, "Peso M (kg)", ClavesPostura(tipo, "Peso M (kg)"));
             var unifLote = Porcentaje0a100(fila, errores, "Uniformidad", ClavesPostura(tipo, "Uniformidad"));
             var cvLote = Porcentaje0a100(fila, errores, "Coef. Variación", ClavesPostura(tipo, "Coef. Variación"));
             var obsPesaje = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, "Observaciones Pesaje")));
@@ -657,6 +674,17 @@ public partial class MigracionService
             if (MigracionPosturaCalculos.TotalDiscrepaDeCategorias(huevoTot, categorias))
                 errores.Add(new(fila.Numero, "Huevo Total", huevoTot?.ToString(),
                     $"'Huevo Total' ({huevoTot}) no coincide con la suma de las categorías ({categorias.Totales}); manda el desglose.", "Advertencia"));
+
+            // Mismo aviso frente a la hoja "Huevos": sin esto la columna se descartaba en SILENCIO
+            // —su gemela 'Huevo Incubable' sí avisaba— y el Excel del cliente quedaba diciendo un
+            // número que la app no guardó.
+            if (itemsHuevoDelDia is { Count: > 0 })
+            {
+                var totalDeItems = itemsHuevoDelDia.Sum(i => i.Cantidad);
+                if (MigracionPosturaCalculos.TotalDiscrepaDeItems(huevoTot, totalDeItems))
+                    errores.Add(new(fila.Numero, "Huevo Total", huevoTot?.ToString(),
+                        $"'Huevo Total' ({huevoTot}) no coincide con la suma de la hoja 'Huevos' ({totalDeItems}); manda el desglose por ítem.", "Advertencia"));
+            }
 
             if (MigracionSeveridadCalculos.CuentaQueDescartan(errores) > e0) continue;
 
@@ -717,7 +745,10 @@ public partial class MigracionService
         // Aves: aviso de saldo proyectado. Huevos: la disponibilidad proyectada por categoría es un
         // ERROR (mismo criterio del módulo vivo, que rechaza el traslado sin huevos suficientes).
         await AdvertirSaldoAvesProyectadoAsync(tipo, loteId, filasJson, movimientosAves, errores, ct);
-        await ValidarDisponibilidadHuevosProyectadaAsync(loteId, filasJson, movimientosHuevos, errores, ct);
+        if (loteCtx?.ClasificacionHuevoPorItems == true)
+            await ValidarDisponibilidadHuevosPorItemAsync(loteId, filasJson, movimientosHuevos, errores, ct);
+        else
+            await ValidarDisponibilidadHuevosProyectadaAsync(loteId, filasJson, movimientosHuevos, errores, ct);
 
         return await EjecutarHistoricoPosturaAsync(tipo, dryRun, permitirParcial, filas.Count, errores, filasJson,
             consumos, movimientosAlimento, ctxInv, loteId,
