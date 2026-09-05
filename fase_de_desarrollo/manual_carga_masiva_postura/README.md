@@ -7,7 +7,7 @@ lote de postura (levante y producción). **Esta carpeta es la versión vigente**
 
 | Archivo | Qué es |
 |---|---|
-| `Manual_Carga_Masiva_Postura.docx` / `.pdf` | Manual, **v1.1** (25 pág.) |
+| `Manual_Carga_Masiva_Postura.docx` / `.pdf` | Manual, **v1.2** (25 pág.) |
 | `Plantilla_Carga_Masiva_LEVANTE.xlsx` | Plantilla de trabajo para preparar el levante antes de entrar al sistema |
 | `Plantilla_Carga_Masiva_PRODUCCION.xlsx` | Ídem, producción |
 | `Plantilla_SANTA_REYES_LEVANTE.xlsx` | Archivo **tal como lo entrega el sistema** para una empresa con configuración propia |
@@ -25,11 +25,28 @@ que no describa columnas que a un lector concreto no le van a aparecer.
 - **§4.3** (hoja `Alimento`) — filas `Silo` y `Silo Origen`.
 - **§7.4** — con clasificación por ítems la hoja `Datos` no trae `Huevo Total`, `Huevo Incubable`,
   `Peso Huevo (g)` ni las 11 categorías; el desplegable de `Ítem` solo ofrece los tipos declarados
-  por el lote; y `Movimientos Huevos` no se emite para esas empresas.
+  por el lote; y `Movimientos Huevos` no se emitía para esas empresas *(superado en v1.2)*.
 - **§9** — seis mensajes nuevos de silo, con su causa y su solución.
 - **Anexo A** — qué hoja emite cada configuración.
 - **Anexo C (nuevo)** — «Empresas con configuración propia»: una fila por opción de configuración,
   con qué cambia en la plantilla y qué cambia al cargar.
+
+## Qué trae la v1.2 (5-sep-2026)
+
+`Movimientos Huevos` dejó de ser una hoja que esas empresas no podían usar: ahora tiene **dos
+formas** (commit `5dc6b40`).
+
+- **§7.4** — la hoja se explica en sus dos formas, con una tabla de columnas para cada una
+  («Columnas cuando el huevo se clasifica por ítems» / «…por las 11 categorías»), cómo se agrupan
+  las filas en movimientos, y que ahí se acepta cualquier tipo del catálogo —no solo los declarados
+  por el lote— porque un traslado mueve lo que ya se produjo.
+- **§9** — dos mensajes nuevos (disponibilidad por tipo de huevo, y tipo inexistente en el catálogo).
+- **Anexo A** — `Movimientos Huevos` ya no dice «salvo empresas con clasificación por ítems».
+- **Anexo C** — la fila de clasificación por ítems describe la nueva forma de la hoja.
+
+Las plantillas de Santa Reyes se volvieron a descargar del backend **con los tipos de huevo del lote
+declarados**, así que muestran la forma completa: 8 hojas en producción, con `Movimientos Huevos` de
+9 columnas por ítem y `Huevos` de 3.
 
 ## Cómo regenerar el PDF
 
