@@ -12,9 +12,9 @@ namespace ZooSanMarino.Application.Calculos;
 /// </para>
 /// <para>
 /// <b>Las lecturas NO pasan por acá.</b> Un usuario no admin necesita
-/// <c>GET /api/Permission</c> para asignarle permisos a un rol y <c>GET /api/Menu/tree</c> para que
-/// la tabla de roles muestre etiquetas de menú en vez de ids. Cerrar las lecturas rompería el
-/// módulo de Roles para todos.
+/// <c>GET /api/Permission</c> para asignarle permisos a un rol y <c>GET /api/Roles/menus/tree</c>
+/// para que la tabla de roles muestre etiquetas de menú en vez de ids. Cerrar las lecturas rompería
+/// el módulo de Roles para todos.
 /// </para>
 /// <para>
 /// Cálculo PURO: sin EF, sin <c>HttpContext</c>, sin estado. Recibe los nombres de rol de la sesión

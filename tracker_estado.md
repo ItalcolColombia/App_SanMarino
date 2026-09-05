@@ -7551,3 +7551,69 @@ permiso del sistema.
       usan `RolesController.MenusForUser` y `MenuController.GetForUser` — devuelven el menú de OTRO
       usuario. Verificado con grep: **ningún componente del front los llama**. El de `MenuController`
       además está muerto por F.1. Quedan marcados con `[RolesPermisoNoRequerido]` y comentados.
+
+---
+
+# `MenuController` muerto — borrarlo en vez de resucitarlo
+
+Plan: [`fase_de_desarrollo/menu_controller_muerto_plan.md`](fase_de_desarrollo/menu_controller_muerto_plan.md)
+
+Continuación de **F.1** del bloque anterior («Gate de Roles y Menús»), que lo dejó reportado y sin
+tocar a propósito. Los 6 endpoints de `MenuController` responden **500** porque `Program.cs` nunca
+registró `IMenuService`: el módulo se migró a `IRoleCompositeService` y el controller quedó colgado.
+La opción de «arreglar el 500» registrando el servicio está **descartada**: abriría 6 endpoints hoy
+inalcanzables, entre ellos `GET /api/Menu/user/{userId}` (menú de OTRO usuario) bajo `CanManageUsers`,
+que sigue siendo «token válido y nada más».
+
+## G · Auditoría de clientes (medida, antes de borrar)
+
+- [x] G.1 Front (`frontend/src/`): **cero** llamadas a `/api/Menu`. El único servicio del ABM del árbol
+      global es `core/services/menu/menu.service.ts:24`, y su base es `${apiUrl}/Roles/menus`.
+- [x] G.2 App móvil (`zootecnicoapp/`): consume `GET /api/Auth/menu` (`lib/core/api/auth_api.dart:41`),
+      que es de `AuthController` y va por `IRoleCompositeService`. No toca `/api/Menu`.
+- [x] G.3 Scripts / SQL / integraciones: las 6 ocurrencias de `api/Menu` en el repo son **comentarios y
+      documentación** (`Program.cs`, `CatalogoGlobalAutorizacionCalculos.cs`, una migración, un plan).
+      Ninguna es una llamada.
+- [x] G.4 `IMenuService`: sólo lo pedía `MenuController`. `MenuService`: nadie lo instancia y `Program.cs`
+      no lo registra (por eso el 500). Ojo con el falso positivo: `ICompanyMenuService`/`CompanyMenuService`
+      es OTRA cosa (menús POR EMPRESA), sí está registrado y queda intacto.
+- [x] G.5 No quedan huérfanos: `[RolesGestionFilter]` sigue aplicado a la clase `RoleController` y
+      `[CatalogoMenusLectura]` a `RoleController.MenusTree`. Los pierde sólo el endpoint muerto.
+
+## H · Borrado
+
+- [x] H.1 `API/Controllers/MenuController.cs`.
+- [x] H.2 `Application/Interfaces/IMenuService.cs` (huérfana tras H.1).
+- [x] H.3 `Infrastructure/Services/MenuService.cs` (único implementador; su lógica vive en `RoleCompositeService.Menus_*`).
+- [x] H.4 Comentarios que quedaban apuntando a la nada, corregidos en `Program.cs` (x2),
+      `CatalogoGlobalAutorizacionCalculos.cs` y `RoleController.cs`: los tres nombraban
+      `GET /api/Menu/tree` como la lectura que necesita la tabla de roles — la real es
+      `GET /api/Roles/menus/tree`. Las **migraciones no se tocan**: son registro histórico.
+
+## I · Validación
+
+- [x] I.1 `dotnet build --artifacts-path artifacts` (DENTRO del worktree): **Build succeeded, 0 Warning(s),
+      0 Error(s)** — los 6 proyectos, `Infrastructure` y `API` incluidos, que son los que prueban el borrado.
+- [x] I.2 `dotnet test`: **3.974 pasados, 0 fallidos** (3.973 Application + 1 Domain). `RazaGuiaAliasParidadSqlTests`
+      pasa, confirmando el porqué del `--artifacts-path` dentro del worktree.
+- [x] I.3 Smoke con el binario recién construido, en **:5501** y con un **content root propio** (copia de los
+      dos `appsettings` con `RunMigrations=false`, para no tocar el esquema de la BD local compartida):
+      - Swagger publica **693 rutas** y **NINGUNA** `/api/Menu/*` — los 6 endpoints que sólo sabían dar 500
+        dejaron de publicarse. Swagger se genera del route table vivo, así que esto es la prueba directa.
+      - El gemelo sigue entero: `/api/Roles/menus/tree`, `/menus/me`, `/menus/user/{id}`, `POST /menus`,
+        `PUT|DELETE /menus/{id}`, más `/api/Company/{id}/menus`.
+      - La app **arranca**: si el borrado hubiera roto el DI o la generación de Swagger, no lo haría.
+      - ⚠️ Ojo para el próximo: `PlatformSecretMiddleware` responde **401 a todo** sin el header `X-Secret-Up`
+        (cifrado), así que curlear `/api/Menu/tree` NO distingue 404 de 500. Swagger sí está exento del gate
+        —aunque detrás de `SwaggerPasswordMiddleware`: `POST /swagger/login` con `Swagger:Password` y cookie.
+- [x] I.4 Backend de smoke apagado; **:5501 libre** y cero procesos `dotnet`/`ZooSanMarino` vivos.
+
+## J · Incidentes de la sesión (no del cambio)
+
+- [x] J.1 El **primer** `dotnet build` se trabó ~10 min: CPU congelada (20,5625 s idénticos en dos muestras a
+      25 s) y working sets de 2-3 MB — la firma de deadlock ya registrada. Maté **sólo** los míos filtrando por
+      línea de comando y el reintento con `--no-restore -nodeReuse:false` compiló en 6:52.
+- [x] J.2 🔴 **El backend ajeno de `:5002` (otra ventana de Claude Code) desapareció en esa misma ventana de
+      tiempo.** Filtré por línea de comando y ninguno de los 6 procesos que maté era `ZooSanMarino.API.exe` ni
+      un `dotnet run`, así que no tengo el mecanismo — pero el puerto dejó de escuchar justo entonces y no
+      puedo descartar haberlo tumbado como proceso hijo. **No lo reinicié**: es estado de esa sesión.

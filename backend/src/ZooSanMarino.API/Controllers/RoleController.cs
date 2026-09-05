@@ -227,8 +227,10 @@ public class RolesController : ControllerBase
         return _currentUser.CompanyId > 0 ? _currentUser.CompanyId : null;
     }
 
-    // Las tres escrituras de abajo tocan el árbol de menús GLOBAL (el mismo que MenuController):
-    // reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión válida.
+    // Las tres escrituras de abajo tocan el árbol de menús GLOBAL —el catálogo que comparten todas
+    // las empresas—: reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión
+    // válida. Desde el 5-sep-2026 este controller es el ÚNICO que expone ese árbol: el gemelo
+    // `MenuController` se borró por muerto (su `IMenuService` no estaba registrado ⇒ 500).
     [HttpPost("menus")]
     [Authorize(Policy = "AdminAplicacion")]
     [RolesPermisoNoRequerido] // AdminAplicacion ya es más estricto que este filtro.

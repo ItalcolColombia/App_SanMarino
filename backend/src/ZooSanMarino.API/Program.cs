@@ -553,7 +553,7 @@ builder.Services.AddAuthorization(opt =>
         .RequireAuthenticatedUser()
         .Build();
 
-    // Políticas con nombre usadas por los controllers (Menu/Role/...). Antes las "resolvía"
+    // Políticas con nombre usadas por los controllers (Role/...). Antes las "resolvía"
     // el AllowAllPolicyProvider dejándolas pasar; ahora exigen, como mínimo, usuario autenticado.
     //
     // 🔴 Estas tres NO son el gate de nada por sí solas: son "token válido y nada más". Se conservan
@@ -582,7 +582,9 @@ builder.Services.AddAuthorization(opt =>
     // por ningún lado: PermissionController no tenía un solo [Authorize] y CanManageMenus era
     // "usuario autenticado", así que cualquier sesión válida podía escribir el catálogo.
     // Las LECTURAS quedan como estaban a propósito: un usuario no admin necesita GET /api/Permission
-    // para asignarle permisos a un rol y GET /api/Menu/tree para ver etiquetas en la tabla de roles.
+    // para asignarle permisos a un rol y GET /api/Roles/menus/tree para ver etiquetas en la tabla de
+    // roles. (Era /api/Menu/tree: ese controller se borró el 5-sep-2026, estaba muerto — su
+    // IMenuService no estaba registrado en el DI y respondía 500. El árbol lo sirve RoleController.)
     // La regla vive en Application/Calculos (pura y con tests), no acá.
     opt.AddPolicy("AdminAplicacion", p => p.RequireAssertion(ctx =>
         CatalogoGlobalAutorizacionCalculos.PuedeEscribirCatalogoGlobal(
