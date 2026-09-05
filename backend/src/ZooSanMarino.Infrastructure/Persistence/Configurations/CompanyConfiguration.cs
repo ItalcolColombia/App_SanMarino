@@ -194,6 +194,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue("sanmarino")
             .IsRequired();
 
+        // Flag tipado por comportamiento: seguimiento diario de producción y levante aceptan más
+        // de un registro por lote+día (se agrupan para reportes/indicadores). Nace de Santa Reyes.
+        builder.Property(x => x.PermiteMultiplesSeguimientosDiarios)
+            .HasColumnName("permite_multiples_seguimientos_diarios")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

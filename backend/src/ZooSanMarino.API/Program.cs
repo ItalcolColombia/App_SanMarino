@@ -276,7 +276,6 @@ builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, 
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
 builder.Services.AddScoped<IProduccionDiariaService, ProduccionDiariaService>();
 builder.Services.AddScoped<IProduccionService, ProduccionService>();
-builder.Services.AddScoped<ISeguimientoProduccionService, SeguimientoProduccionService>();
 builder.Services.AddScoped<ICatalogItemService, CatalogItemService>();
 builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 // builder.Services.AddScoped<IEmailService, EmailService>(); // Temporalmente comentado para debug

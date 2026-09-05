@@ -64,6 +64,7 @@ public partial class CompanyService : ICompanyService
         c.SeparaLotesPosturaPorEtapa,
         c.DescuentaInventarioDesdeMovil,
         c.GuiaGeneticaPerfil,
-        c.SemanaInicioIndicadoresProduccion
+        c.SemanaInicioIndicadoresProduccion,
+        c.PermiteMultiplesSeguimientosDiarios
     );
 }

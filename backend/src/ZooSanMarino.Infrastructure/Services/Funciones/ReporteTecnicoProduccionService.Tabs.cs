@@ -112,49 +112,55 @@ public partial class ReporteTecnicoProduccionService
         public ResumenHuevoPorTipo Huevo { get; set; }
     }
 
+    /// <summary>
+    /// Lee la serie diaria vía <c>fn_seguimiento_diario_produccion</c> (única fórmula — antes leía
+    /// <c>_ctx.SeguimientoProduccion</c> crudo: con el flag
+    /// <c>permite_multiples_seguimientos_diarios</c> ON eso duplicaba el renglón del día). Filas
+    /// movimiento-only (<c>SegId == null</c>) se excluyen, igual que en la grilla.
+    /// </summary>
     private async Task<List<SegProdTab>> ObtenerSegsProdTabsAsync(
         int lppId, DateTime? fechaInicio, DateTime? fechaFin, CancellationToken ct)
     {
-        var query = _ctx.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lppId);
-
-        if (fechaInicio.HasValue) query = query.Where(s => s.Fecha >= fechaInicio.Value);
-        if (fechaFin.HasValue)   query = query.Where(s => s.Fecha <= fechaFin.Value);
-
-        return await query
-            .OrderBy(s => s.Fecha)
-            .Select(s => new SegProdTab
-            {
-                Fecha        = s.Fecha,
-                MortH        = s.MortalidadH,
-                MortM        = s.MortalidadM,
-                SelH         = s.SelH,
-                SelM         = s.SelM,
-                ConsKgH      = (double)s.ConsKgH,
-                ConsKgM      = (double)s.ConsKgM,
-                HuevoTot     = s.HuevoTot,
-                HuevoInc     = s.HuevoInc,
-                PesoHuevo    = (double)(s.PesoHuevo ?? 0),
-                PesoH        = s.PesoH     != null ? (double?)((double)s.PesoH.Value)        : null,
-                PesoM        = s.PesoM     != null ? (double?)((double)s.PesoM.Value)        : null,
-                Uniformidad  = s.Uniformidad != null ? (double?)((double)s.Uniformidad.Value) : null,
-                Observaciones = s.Observaciones
-                // OJO: `Huevo` NO se asigna acá. Ponerlo en la proyección -aunque sea `default`-
-                // hace que EF lo lea como una constante del cliente dentro del Select y REVIENTE la
-                // consulta entera con "The client projection contains a reference to a constant
-                // expression"; el endpoint devolvía 404 con ese mensaje para TODAS las empresas.
-                // Lo detectó el smoke HTTP, no los tests: el cálculo puro no toca EF.
-                // Al ser una clase, el campo ya nace en su valor por defecto y lo llena
-                // `ObtenerSegsProdTabsConItemsAsync` después, en memoria.
-            })
+        var filas = await _ctx.Database
+            .SqlQueryRaw<SeguimientoProduccionTablaFilaDto>(
+                "SELECT * FROM fn_seguimiento_diario_produccion({0}::int, NULL::int)",
+                lppId)
             .ToListAsync(ct);
+
+        IEnumerable<SeguimientoProduccionTablaFilaDto> visibles = filas.Where(f => f.SegId != null);
+        if (fechaInicio.HasValue) visibles = visibles.Where(f => f.Fecha >= fechaInicio.Value);
+        if (fechaFin.HasValue)   visibles = visibles.Where(f => f.Fecha <= fechaFin.Value);
+
+        return visibles
+            .OrderBy(f => f.Fecha)
+            .Select(f => new SegProdTab
+            {
+                Fecha        = f.Fecha,
+                MortH        = f.MortalidadHembras ?? 0,
+                MortM        = f.MortalidadMachos ?? 0,
+                SelH         = f.SelH ?? 0,
+                SelM         = f.SelM ?? 0,
+                ConsKgH      = f.ConsKgH ?? 0,
+                ConsKgM      = f.ConsKgM ?? 0,
+                HuevoTot     = f.HuevoTot ?? 0,
+                HuevoInc     = f.HuevoInc ?? 0,
+                PesoHuevo    = f.PesoHuevo ?? 0,
+                PesoH        = f.PesoH != null ? (double?)f.PesoH.Value : null,
+                PesoM        = f.PesoM != null ? (double?)f.PesoM.Value : null,
+                Uniformidad  = f.Uniformidad != null ? (double?)f.Uniformidad.Value : null,
+                Observaciones = f.Observaciones,
+                // `Huevo` lo llena ObtenerSegsProdTabsConItemsAsync después, en memoria — el
+                // comentario original sobre proyecciones cliente de EF ya no aplica: esto es
+                // SqlQueryRaw materializado, no una consulta LINQ traducida a SQL.
+            })
+            .ToList();
     }
 
     /// <summary>
-    /// Igual que <see cref="ObtenerSegsProdTabsAsync"/> pero además resuelve el desglose por ítems.
-    /// Se usa SÓLO cuando la empresa clasifica por ítems: para las demás el `metadata` no se pide,
-    /// así que su consulta queda exactamente como estaba.
+    /// Igual que <see cref="ObtenerSegsProdTabsAsync"/> pero además resuelve el desglose por ítems,
+    /// leyendo <c>metadata</c> de la MISMA fn (ya agrupada por día si el flag está ON — el
+    /// metadata del día es el del último registro, igual criterio que el resto de los campos
+    /// "última fila gana"). Se usa SÓLO cuando la empresa clasifica por ítems.
     /// </summary>
     private async Task<List<SegProdTab>> ObtenerSegsProdTabsConItemsAsync(
         int lppId, DateTime? fechaInicio, DateTime? fechaFin, bool clasificacionPorItems,
@@ -163,23 +169,19 @@ public partial class ReporteTecnicoProduccionService
         var segs = await ObtenerSegsProdTabsAsync(lppId, fechaInicio, fechaFin, ct);
         if (!clasificacionPorItems || segs.Count == 0) return segs;
 
-        var query = _ctx.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lppId);
-
-        if (fechaInicio.HasValue) query = query.Where(s => s.Fecha >= fechaInicio.Value);
-        if (fechaFin.HasValue)   query = query.Where(s => s.Fecha <= fechaFin.Value);
-
-        var metadatos = await query
-            .Select(s => new { s.Fecha, s.Metadata })
+        var filas = await _ctx.Database
+            .SqlQueryRaw<SeguimientoProduccionTablaFilaDto>(
+                "SELECT * FROM fn_seguimiento_diario_produccion({0}::int, NULL::int)",
+                lppId)
             .ToListAsync(ct);
 
         var porFecha = new Dictionary<DateTime, ResumenHuevoPorTipo>();
-        foreach (var m in metadatos)
+        foreach (var f in filas)
         {
-            if (m.Metadata is null) continue;
-            var items = HuevoItemsCalculos.LeerDeMetadata(m.Metadata.RootElement);
-            porFecha[m.Fecha] = HuevoItemsResumenCalculos.Resumir(items);
+            if (f.SegId is null || string.IsNullOrWhiteSpace(f.Metadata)) continue;
+            using var doc = System.Text.Json.JsonDocument.Parse(f.Metadata);
+            var items = HuevoItemsCalculos.LeerDeMetadata(doc.RootElement);
+            porFecha[f.Fecha] = HuevoItemsResumenCalculos.Resumir(items);
         }
 
         foreach (var seg in segs)

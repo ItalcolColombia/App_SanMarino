@@ -117,28 +117,33 @@ public partial class ProduccionService
         if (loteEntity == null || (loteEntity.LotePosturaProduccionId ?? 0) <= 0)
             throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
 
-        // Mismo universo que la grilla/fn v2: filas del LPP + filas TSD del lote base con lpp NULL
-        // (aportan 0 a mort/sel/consumo; solo mueven Registros y MinFecha para que el header y la
-        // grilla cuenten los mismos dias)
-        var loteBaseId = loteEntity.LoteId;
-        var agg = await _context.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId
-                     || (s.LotePosturaProduccionId == null && loteBaseId != null && s.LoteId == loteBaseId))
-            .GroupBy(_ => 1)
-            .Select(g => new
+        // Header y saldo salen de la MISMA lectura de fn_seguimiento_diario_produccion (única
+        // fórmula): antes el header sumaba la tabla cruda aparte (GroupBy sin DISTINCT ON) y con
+        // el flag permite_multiples_seguimientos_diarios eso contaría cada registro por separado
+        // en vez del día ya agrupado por la fn — Registros/MortalidadSeleccion quedarían
+        // inflados. Reusar `filasFn` evita además un segundo roundtrip a la BD.
+        var filasFn = await _context.Database
+                .SqlQueryRaw<SeguimientoProduccionTablaFilaDto>(
+                    "SELECT * FROM fn_seguimiento_diario_produccion({0}::int, NULL::int)",
+                    lotePosturaProduccionId)
+                .ToListAsync()
+                .ConfigureAwait(false);
+
+        // Registros: solo filas con seg_id (excluye días movimiento-only, igual que la grilla).
+        var visiblesFn = filasFn.Where(f => f.SegId != null).ToList();
+        var agg = visiblesFn.Count == 0
+            ? null
+            : new
             {
-                Registros = g.Count(),
-                MinFecha = g.Min(x => (DateTime?)x.Fecha),
-                MortalidadH = g.Sum(x => (int?)x.MortalidadH) ?? 0,
-                MortalidadM = g.Sum(x => (int?)x.MortalidadM) ?? 0,
-                SelH = g.Sum(x => (int?)x.SelH) ?? 0,
-                SelM = g.Sum(x => (int?)x.SelM) ?? 0,
-                ConsH = g.Sum(x => (decimal?)x.ConsKgH) ?? 0m,
-                ConsM = g.Sum(x => (decimal?)x.ConsKgM) ?? 0m
-            })
-            .FirstOrDefaultAsync()
-            .ConfigureAwait(false);
+                Registros = visiblesFn.Count,
+                MinFecha = (DateTime?)visiblesFn.Min(f => f.Fecha),
+                MortalidadH = visiblesFn.Sum(f => f.MortalidadHembras ?? 0),
+                MortalidadM = visiblesFn.Sum(f => f.MortalidadMachos ?? 0),
+                SelH = visiblesFn.Sum(f => f.SelH ?? 0),
+                SelM = visiblesFn.Sum(f => f.SelM ?? 0),
+                ConsH = (decimal)visiblesFn.Sum(f => f.ConsKgH ?? 0),
+                ConsM = (decimal)visiblesFn.Sum(f => f.ConsKgM ?? 0)
+            };
 
         var avesInicialesH = loteEntity.AvesHInicial ?? loteEntity.HembrasInicialesProd ?? 0;
         var avesInicialesM = loteEntity.AvesMInicial ?? loteEntity.MachosInicialesProd ?? 0;
@@ -161,13 +166,9 @@ public partial class ProduccionService
         //    última fila de la serie (incluye días movimiento-only) = saldo CON error de sexaje
         //    y con los movimientos de la FASE producción (>= fecha_inicio_produccion). Antes acá
         //    vivía una segunda fórmula (sin err_sexaje y contando también los movimientos del
-        //    LEVANTE, que ya están dentro de las aves iniciales del LPP — doble descuento). ──
-        var ultimaFila = (await _context.Database
-                .SqlQueryRaw<SeguimientoProduccionTablaFilaDto>(
-                    "SELECT * FROM fn_seguimiento_diario_produccion({0}::int, NULL::int)",
-                    lotePosturaProduccionId)
-                .ToListAsync()
-                .ConfigureAwait(false))
+        //    LEVANTE, que ya están dentro de las aves iniciales del LPP — doble descuento).
+        //    Reusa `filasFn` (arriba) — misma serie, sin pedirla dos veces. ──
+        var ultimaFila = filasFn
             .OrderBy(f => f.Fecha).ThenBy(f => f.SegId ?? 0)
             .LastOrDefault();
 
