@@ -7783,3 +7783,33 @@ que sigue siendo «token válido y nada más».
       tiempo.** Filtré por línea de comando y ninguno de los 6 procesos que maté era `ZooSanMarino.API.exe` ni
       un `dotnet run`, así que no tengo el mecanismo — pero el puerto dejó de escuchar justo entonces y no
       puedo descartar haberlo tumbado como proceso hijo. **No lo reinicié**: es estado de esa sesión.
+
+---
+
+# DB Studio — resumen seguro de migraciones
+
+Plan: [`fase_de_desarrollo/db_studio_resumen_seguro_plan.md`](fase_de_desarrollo/db_studio_resumen_seguro_plan.md)
+
+- [x] Relevar módulo, ruta, guards, autorización y contrato actual.
+- [x] Autorización backend. Todos los endpoints del estudio pasan de `EnsureModuleAccessAsync` a
+      `EnsureFullAccessAsync` (rol admin/administrador, superadmin, permiso `db_studio.admin` o correo
+      autorizado). `EnsureModuleAccessAsync` y el tier `db_studio.access` se eliminan del contrato: ya
+      no hay nivel intermedio. `EnsureCanRead` / `EnsureCanWriteData` / `GetReadableObjectKeys` /
+      `GetMyAccess` delegan en `EnsureFullAccessAsync`; el store de grants (`DbStudioObjectGrant`) y sus
+      endpoints quedan admin-only, sin tocar el esquema.
+- [x] Endpoints mínimos de solo lectura. `GET /api/DbStudio/access-mode` (bandera `fullAccess`) y
+      `GET /api/DbStudio/migration-summary`, ambos con `EnsureMigrationSummaryAccessAsync` (cualquier
+      sesión autenticada). Devuelven las migraciones que EF conoce por el ensamblado + estado
+      (`aplicada`/`pendiente`); la fecha va `null` porque `__EFMigrationsHistory` no la guarda y no se
+      infiere del id. Sin SQL, sin DDL, sin migración.
+- [x] Lógica pura + tests. `Application/Calculos/DbStudioMigrationCalculos.cs` (`TieneAccesoCompleto`,
+      `Resumir`) con `DbStudioMigrationCalculosTests` (12 casos: acceso por rol/correo con y sin
+      espacios, rechazo de usuario normal, aplicada/pendiente, dedup, orden, sin fecha).
+- [x] Vista Angular reducida. `db-studio-main` bifurca con `@if (fullAccess())`; la rama restringida
+      solo pega a `migration-summary` y pinta migración / "No disponible" / estado. El error de
+      `getAccessMode` marca `accessModeLoaded` para no dejar el panel colgado en "Cargando…".
+- [x] Validación. `dotnet build` 0/0 (6 proyectos); `dotnet test` verde en build normal (las 2 fallas
+      de `RazaGuiaAliasParidadSqlTests` solo salen bajo `--artifacts-path` y son ajenas al cambio);
+      `yarn build` OK.
+
+---

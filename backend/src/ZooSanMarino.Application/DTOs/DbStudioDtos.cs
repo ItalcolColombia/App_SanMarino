@@ -1,5 +1,19 @@
 namespace ZooSanMarino.Application.DTOs
 {
+    /// <summary>Contrato sin metadatos técnicos para la vista restringida de DB Studio.</summary>
+    public class DbStudioMigrationSummaryItemDto
+    {
+        public string MigrationId { get; set; } = string.Empty;
+        public DateTime? AppliedAtUtc { get; set; }
+        public string Status { get; set; } = "pendiente";
+    }
+
+    /// <summary>Indica si la sesión puede cargar la experiencia completa de DB Studio.</summary>
+    public class DbStudioAccessModeDto
+    {
+        public bool FullAccess { get; set; }
+    }
+
     // =====================================================
     // DTOs PRINCIPALES
     // =====================================================

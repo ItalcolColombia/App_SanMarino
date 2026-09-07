@@ -1,4 +1,5 @@
 <div class="flex flex-col h-full min-h-[calc(100vh-4rem)] bg-ital-cream text-slate-800">
+  @if (fullAccess()) {
 
   <!-- ===== Barra superior ===== -->
   <header class="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-200 shadow-sm">
@@ -465,5 +466,50 @@
         </div>
       }
     </div>
+  }
+  } @else {
+    <main class="flex flex-1 items-center justify-center p-6">
+      <section class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800">Migración aplicada</h1>
+          <p class="mt-1 text-sm text-slate-500">Estado de las migraciones registradas.</p>
+        </div>
+
+        @if (!accessModeLoaded() || loading()) {
+          <p class="text-sm text-slate-500">Cargando…</p>
+        } @else if (error(); as err) {
+          <p class="text-sm text-red-700">{{ err }}</p>
+        } @else {
+          <div class="overflow-x-auto rounded-lg border border-slate-200">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-left text-slate-600">
+                <tr>
+                  <th class="px-4 py-3 font-semibold">Migración</th>
+                  <th class="px-4 py-3 font-semibold">Fecha de aplicación</th>
+                  <th class="px-4 py-3 font-semibold">Estado</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (migration of migrationSummary(); track migration.migrationId) {
+                  <tr>
+                    <td class="px-4 py-3 font-medium text-slate-700">{{ migration.migrationId }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ migration.appliedAtUtc ? (migration.appliedAtUtc | date:'short') : 'No disponible' }}</td>
+                    <td class="px-4 py-3">
+                      @if (migration.status === 'aplicada') {
+                        <span class="font-semibold text-ital-green" aria-label="Aplicada">✓ Aplicada</span>
+                      } @else {
+                        <span class="font-semibold text-slate-500" aria-label="Pendiente">? Pendiente</span>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td class="px-4 py-5 text-slate-500" colspan="3">No hay migraciones registradas.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </main>
   }
 </div>

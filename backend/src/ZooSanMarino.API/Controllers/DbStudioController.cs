@@ -8,7 +8,9 @@ namespace ZooSanMarino.API.Controllers;
 /// <summary>
 /// DB Studio: explorador/editor de base de datos embebido. La autorización se aplica
 /// EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este proyecto).
-/// Admin = todo; no-admin = solo objetos con grant (lectura o escritura de datos), sin DDL ni SQL arbitrario.
+/// Acceso completo = rol admin/administrador, superadmin, permiso <c>db_studio.admin</c> o correo
+/// autorizado. Cualquier otra sesión autenticada solo puede leer el resumen de migraciones
+/// (<c>access-mode</c> / <c>migration-summary</c>); el resto de endpoints le devuelve 403.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -59,10 +61,26 @@ public class DbStudioController : ControllerBase
     }
 
     // ===================== ACCESO / PERMISOS PROPIOS =====================
+    /// <summary>Contrato mínimo para que el frontend elija la vista completa o la restringida.</summary>
+    [HttpGet("access-mode")]
+    public Task<ActionResult> AccessMode() => Run(async () =>
+    {
+        await _authz.EnsureMigrationSummaryAccessAsync();
+        return (object?)new DbStudioAccessModeDto { FullAccess = await _authz.IsAdminAsync() };
+    });
+
+    /// <summary>Historial seguro y de solo lectura para sesiones sin acceso completo.</summary>
+    [HttpGet("migration-summary")]
+    public Task<ActionResult> MigrationSummary() => Run(async () =>
+    {
+        await _authz.EnsureMigrationSummaryAccessAsync();
+        return (object?)await _svc.GetMigrationSummaryAsync(HttpContext.RequestAborted);
+    });
+
     [HttpGet("my-access")]
     public Task<ActionResult> MyAccess() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _authz.GetMyAccessAsync();
     });
 
@@ -70,7 +88,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("schemas")]
     public Task<ActionResult> GetSchemas() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetSchemasAsync();
     });
 
@@ -92,7 +110,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("tables")]
     public Task<ActionResult> GetTables([FromQuery] string? schema = null) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetTablesAsync(schema);
     });
 
@@ -150,7 +168,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("views")]
     public Task<ActionResult> GetViews([FromQuery] string? schema = null) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetViewsAsync(schema);
     });
 
@@ -225,14 +243,14 @@ public class DbStudioController : ControllerBase
     [HttpPost("sql/classify")]
     public Task<ActionResult> ClassifySql([FromBody] SqlValidationRequest request) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)_svc.ClassifySql(request.Sql);
     });
 
     [HttpPost("validate-sql")]
     public Task<ActionResult> ValidateSql([FromBody] SqlValidationRequest request) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.ValidateSqlAsync(request.Sql);
     });
 
@@ -402,14 +420,14 @@ public class DbStudioController : ControllerBase
     [HttpGet("data-types")]
     public Task<ActionResult> GetDataTypes() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetDataTypesAsync();
     });
 
     [HttpGet("database/analyze")]
     public Task<ActionResult> AnalyzeDatabase() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.AnalyzeDatabaseAsync();
     });
 

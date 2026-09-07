@@ -4,6 +4,9 @@ namespace ZooSanMarino.Application.Interfaces
 {
     public interface IDbStudioService
     {
+        /// <summary>Lista segura de migraciones conocidas y su estado, sin metadatos de base de datos.</summary>
+        Task<IReadOnlyList<DbStudioMigrationSummaryItemDto>> GetMigrationSummaryAsync(CancellationToken ct = default);
+
         // ===================== ESQUEMAS =====================
         Task<IEnumerable<SchemaDto>> GetSchemasAsync();
         

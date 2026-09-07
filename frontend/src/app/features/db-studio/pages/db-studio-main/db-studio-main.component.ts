@@ -7,7 +7,8 @@ import { FormsModule } from '@angular/forms';
 import { DbStudioService } from '../../data/db-studio.service';
 import {
   SchemaDto, TableDto, ViewDto, FunctionDto, ColumnDto, IndexDto, ForeignKeyDto, TableStatsDto,
-  QueryPageDto, MyAccessDto, ObjectGrantDto, ActivitySnapshot, PoolStats, AccessLevel
+  QueryPageDto, MyAccessDto, ObjectGrantDto, ActivitySnapshot, PoolStats, AccessLevel,
+  DbStudioMigrationSummaryItemDto
 } from '../../models/db-studio.models';
 import {
   construirWherePk, filasACsv, descargarTexto, descargarBlob, filenameDesdeContentDisposition,
@@ -43,6 +44,9 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   access = signal<MyAccessDto | null>(null);
   isAdmin = computed(() => this.access()?.isAdmin ?? false);
   backupBusy = signal(false);
+  fullAccess = signal(false);
+  accessModeLoaded = signal(false);
+  migrationSummary = signal<DbStudioMigrationSummaryItemDto[]>([]);
 
   // ---- explorador ----
   schemas = signal<SchemaDto[]>([]);
@@ -97,13 +101,32 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   private timer?: any;
 
   ngOnInit(): void {
-    this.db.myAccess().subscribe({
-      next: a => { this.access.set(a); this.loadSchemas(); },
-      error: e => this.fail(e)
+    this.db.getAccessMode().subscribe({
+      next: mode => {
+        this.fullAccess.set(mode.fullAccess);
+        this.accessModeLoaded.set(true);
+        if (mode.fullAccess) {
+          this.db.myAccess().subscribe({
+            next: a => { this.access.set(a); this.loadSchemas(); },
+            error: e => this.fail(e)
+          });
+          return;
+        }
+        this.loadMigrationSummary();
+      },
+      error: e => { this.accessModeLoaded.set(true); this.fail(e); }
     });
   }
 
   ngOnDestroy(): void { this.stopAuto(); }
+
+  private loadMigrationSummary(): void {
+    this.loading.set(true);
+    this.db.getMigrationSummary().subscribe({
+      next: migrations => { this.migrationSummary.set(migrations); this.loading.set(false); },
+      error: e => this.fail(e)
+    });
+  }
 
   // ===================== Navegación =====================
   setTab(t: Tab): void {
