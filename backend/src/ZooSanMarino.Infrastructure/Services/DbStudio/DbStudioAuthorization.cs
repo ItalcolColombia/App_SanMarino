@@ -12,10 +12,10 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Implementación de las reglas de autorización de DB Studio. Centraliza la detección de acceso
-/// completo (rol admin/administrador, superadmin, permiso <c>db_studio.admin</c> o correo autorizado);
-/// el resto de sesiones autenticadas solo llega al resumen de migraciones. Lanza
-/// <see cref="UnauthorizedAccessException"/> (→ 403) o <see cref="InvalidOperationException"/> (→ 400).
+/// Implementación de las reglas de autorización de DB Studio. El acceso completo es doble validación:
+/// el correo autorizado <b>y además</b> ser admin (rol admin/administrador, superadmin o permiso
+/// <c>db_studio.admin</c>); el resto de sesiones autenticadas solo llega al resumen de migraciones.
+/// Lanza <see cref="UnauthorizedAccessException"/> (→ 403) o <see cref="InvalidOperationException"/> (→ 400).
 /// </summary>
 public sealed class DbStudioAuthorization : IDbStudioAuthorization
 {
@@ -47,38 +47,41 @@ public sealed class DbStudioAuthorization : IDbStudioAuthorization
     private Guid RequireUserGuid()
         => _current.UserGuid ?? throw new UnauthorizedAccessException("Sesión no autenticada.");
 
+    /// <summary>
+    /// "Admin" de DB Studio = doble validación: correo autorizado (<see cref="DbStudioMigrationCalculos.EmailConAccesoCompleto"/>)
+    /// <b>y además</b> ser admin (rol admin/administrador, superadmin o permiso <c>db_studio.admin</c>).
+    /// Sin el correo ni se consultan los roles. Cualquier otra sesión solo ve el resumen de migraciones.
+    /// </summary>
     public async Task<bool> IsAdminAsync(CancellationToken ct = default)
     {
         if (_isAdminCache.HasValue) return _isAdminCache.Value;
 
-        var result = false;
         var email = _http.HttpContext?.User.FindFirstValue(ClaimTypes.Email)
                     ?? _http.HttpContext?.User.FindFirstValue("email");
-        if (DbStudioMigrationCalculos.TieneAccesoCompleto(Array.Empty<string>(), email) ||
-            _current.Permissions.Contains("db_studio.admin"))
+
+        // Sin el correo autorizado no hay acceso completo — y ni siquiera hace falta mirar los roles.
+        if (!DbStudioMigrationCalculos.EsCorreoAutorizado(email))
         {
-            result = true;
+            _isAdminCache = false;
+            return false;
         }
-        else if (_current.UserGuid is { } guid)
+
+        var tienePermisoDbStudioAdmin = _current.Permissions.Contains("db_studio.admin");
+        IEnumerable<string> roleNames = Array.Empty<string>();
+        var esSuperAdmin = false;
+        if (_current.UserGuid is { } guid)
         {
-            var roleNames = await _ctx.UserRoles.AsNoTracking()
+            roleNames = await _ctx.UserRoles.AsNoTracking()
                 .Include(ur => ur.Role)
                 .Where(ur => ur.UserId == guid)
                 .Select(ur => ur.Role!.Name)
                 .ToListAsync(ct);
-
-            result = DbStudioMigrationCalculos.TieneAccesoCompleto(roleNames, email) ||
-                roleNames.Any(r => !string.IsNullOrWhiteSpace(r) &&
-                    r.Equals("administrador", StringComparison.OrdinalIgnoreCase));
-
-            if (!result)
-            {
-                result = await SuperAdminLookup.EsSuperAdminAsync(_ctx, guid, ct);
-            }
+            esSuperAdmin = await SuperAdminLookup.EsSuperAdminAsync(_ctx, guid, ct);
         }
 
-        _isAdminCache = result;
-        return result;
+        _isAdminCache = DbStudioMigrationCalculos.TieneAccesoCompleto(
+            roleNames, email, esSuperAdmin, tienePermisoDbStudioAdmin);
+        return _isAdminCache.Value;
     }
 
     public async Task EnsureFullAccessAsync(CancellationToken ct = default)

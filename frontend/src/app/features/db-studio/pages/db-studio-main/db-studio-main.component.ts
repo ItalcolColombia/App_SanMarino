@@ -47,6 +47,8 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   fullAccess = signal(false);
   accessModeLoaded = signal(false);
   migrationSummary = signal<DbStudioMigrationSummaryItemDto[]>([]);
+  migracionesAplicadas = computed(() =>
+    this.migrationSummary().filter(m => m.status === 'aplicada').length);
 
   // ---- explorador ----
   schemas = signal<SchemaDto[]>([]);

@@ -468,11 +468,11 @@
     </div>
   }
   } @else {
-    <main class="flex flex-1 items-center justify-center p-6">
-      <section class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="mb-6">
-          <h1 class="text-xl font-bold text-slate-800">Migración aplicada</h1>
-          <p class="mt-1 text-sm text-slate-500">Estado de las migraciones registradas.</p>
+    <main class="flex flex-1 items-start justify-center p-6">
+      <section class="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-5">
+          <h1 class="text-xl font-bold text-slate-800">Migraciones de la base de datos</h1>
+          <p class="mt-1 text-sm text-slate-500">Lista de migraciones y si ya se ejecutaron.</p>
         </div>
 
         @if (!accessModeLoaded() || loading()) {
@@ -480,30 +480,35 @@
         } @else if (error(); as err) {
           <p class="text-sm text-red-700">{{ err }}</p>
         } @else {
+          <p class="mb-3 text-xs text-slate-400">
+            {{ migracionesAplicadas() }} de {{ migrationSummary().length }} ejecutadas
+          </p>
           <div class="overflow-x-auto rounded-lg border border-slate-200">
             <table class="min-w-full text-sm">
               <thead class="bg-slate-50 text-left text-slate-600">
                 <tr>
-                  <th class="px-4 py-3 font-semibold">Migración</th>
-                  <th class="px-4 py-3 font-semibold">Fecha de aplicación</th>
-                  <th class="px-4 py-3 font-semibold">Estado</th>
+                  <th class="px-4 py-2.5 font-semibold">Migración</th>
+                  <th class="px-4 py-2.5 font-semibold w-32">Estado</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 @for (migration of migrationSummary(); track migration.migrationId) {
                   <tr>
-                    <td class="px-4 py-3 font-medium text-slate-700">{{ migration.migrationId }}</td>
-                    <td class="px-4 py-3 text-slate-600">{{ migration.appliedAtUtc ? (migration.appliedAtUtc | date:'short') : 'No disponible' }}</td>
-                    <td class="px-4 py-3">
+                    <td class="px-4 py-2.5 font-mono text-xs text-slate-700">{{ migration.migrationId }}</td>
+                    <td class="px-4 py-2.5">
                       @if (migration.status === 'aplicada') {
-                        <span class="font-semibold text-ital-green" aria-label="Aplicada">✓ Aplicada</span>
+                        <span class="inline-flex items-center gap-1 rounded-full bg-ital-green/10 px-2 py-0.5 text-xs font-semibold text-ital-green">
+                          <span aria-hidden="true">●</span> Ejecutada
+                        </span>
                       } @else {
-                        <span class="font-semibold text-slate-500" aria-label="Pendiente">? Pendiente</span>
+                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                          <span aria-hidden="true">○</span> Pendiente
+                        </span>
                       }
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td class="px-4 py-5 text-slate-500" colspan="3">No hay migraciones registradas.</td></tr>
+                  <tr><td class="px-4 py-5 text-slate-500" colspan="2">No hay migraciones registradas.</td></tr>
                 }
               </tbody>
             </table>

@@ -9,13 +9,16 @@ namespace ZooSanMarino.Application.Interfaces;
 /// </summary>
 public interface IDbStudioAuthorization
 {
-    /// <summary>True si el usuario actual es admin/administrador, superadmin o tiene `db_studio.admin`.</summary>
+    /// <summary>
+    /// True solo con doble validación: el correo autorizado Y además ser admin (rol admin/administrador,
+    /// superadmin o permiso `db_studio.admin`). Un admin sin ese correo devuelve false.
+    /// </summary>
     Task<bool> IsAdminAsync(CancellationToken ct = default);
 
-    /// <summary>Exige acceso completo al estudio (rol admin o correo excepcional autorizado).</summary>
+    /// <summary>Exige acceso completo al estudio (correo autorizado + admin); si no, 403.</summary>
     Task EnsureFullAccessAsync(CancellationToken ct = default);
 
-    /// <summary>Exige acceso al resumen de migraciones, sin revelar objetos ni scripts.</summary>
+    /// <summary>Exige acceso al resumen de migraciones (cualquier sesión autenticada), sin revelar objetos ni scripts.</summary>
     Task EnsureMigrationSummaryAccessAsync(CancellationToken ct = default);
 
     /// <summary>Exige rol admin (DDL, SQL arbitrario, concurrencia, grants).</summary>

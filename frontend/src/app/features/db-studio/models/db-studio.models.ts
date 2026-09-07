@@ -61,7 +61,6 @@ export interface MyAccessDto { isAdmin: boolean; objects: MyAccessItem[]; }
 export interface DbStudioAccessModeDto { fullAccess: boolean; }
 export interface DbStudioMigrationSummaryItemDto {
   migrationId: string;
-  appliedAtUtc: string | null;
   status: 'aplicada' | 'pendiente';
 }
 

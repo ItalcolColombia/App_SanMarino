@@ -1,10 +1,13 @@
 namespace ZooSanMarino.Application.DTOs
 {
-    /// <summary>Contrato sin metadatos técnicos para la vista restringida de DB Studio.</summary>
+    /// <summary>
+    /// Contrato mínimo para la vista restringida de DB Studio: solo el nombre de la migración y si
+    /// ya se ejecutó. Sin fecha (<c>__EFMigrationsHistory</c> estándar no la guarda) ni metadatos.
+    /// </summary>
     public class DbStudioMigrationSummaryItemDto
     {
         public string MigrationId { get; set; } = string.Empty;
-        public DateTime? AppliedAtUtc { get; set; }
+        /// <summary><c>aplicada</c> si EF la marca como ejecutada; si no, <c>pendiente</c>.</summary>
         public string Status { get; set; } = "pendiente";
     }
 

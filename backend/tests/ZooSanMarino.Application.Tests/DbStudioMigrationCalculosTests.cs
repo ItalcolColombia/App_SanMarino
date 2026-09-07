@@ -4,64 +4,102 @@ namespace ZooSanMarino.Application.Tests;
 
 /// <summary>
 /// Tests de la lógica PURA del resumen seguro de migraciones de DB Studio (ver plan
-/// fase_de_desarrollo/db_studio_resumen_seguro_plan.md): quién conserva la experiencia completa
-/// y cómo se proyecta el estado de cada migración sin inventar metadatos.
+/// fase_de_desarrollo/db_studio_resumen_seguro_plan.md): el acceso completo es DOBLE validación
+/// (correo autorizado Y admin), y la proyección de estados es solo nombre + ejecutada sí/no.
 /// </summary>
 public class DbStudioMigrationCalculosTests
 {
-    // ===================== Acceso completo =====================
+    // ===================== Acceso completo = correo autorizado Y admin =====================
 
     [Fact]
-    public void TieneAccesoCompleto_RolAdmin_ConservaLaExperienciaCompleta()
-    {
-        Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(new[] { "admin" }, "operador@ejemplo.com"));
-    }
-
-    [Fact]
-    public void TieneAccesoCompleto_RolAdminConEspaciosYMayusculas_ConservaLaExperienciaCompleta()
-    {
-        Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(new[] { "  ADMIN " }, null));
-    }
-
-    [Fact]
-    public void TieneAccesoCompleto_CorreoExcepcional_ConservaLaExperienciaCompleta()
+    public void TieneAccesoCompleto_CorreoAutorizadoYRolAdmin_DaAccesoCompleto()
     {
         Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(
-            Array.Empty<string>(), "MOIESBBUGA@GMAIL.COM"));
+            new[] { "admin" }, "moiesbbuga@gmail.com"));
     }
 
     [Fact]
-    public void TieneAccesoCompleto_CorreoExcepcionalConEspacios_ConservaLaExperienciaCompleta()
+    public void TieneAccesoCompleto_CorreoAutorizadoYRolAdministrador_DaAccesoCompleto()
     {
         Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(
-            Array.Empty<string>(), "  moiesbbuga@gmail.com  "));
+            new[] { "administrador" }, "moiesbbuga@gmail.com"));
     }
 
     [Fact]
-    public void TieneAccesoCompleto_UsuarioNormal_NoObtieneAccesoCompleto()
+    public void TieneAccesoCompleto_CorreoAutorizadoYSuperAdmin_DaAccesoCompleto()
+    {
+        Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(
+            Array.Empty<string>(), "moiesbbuga@gmail.com", esSuperAdmin: true));
+    }
+
+    [Fact]
+    public void TieneAccesoCompleto_CorreoAutorizadoYPermisoDbStudioAdmin_DaAccesoCompleto()
+    {
+        Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(
+            Array.Empty<string>(), "moiesbbuga@gmail.com", tienePermisoDbStudioAdmin: true));
+    }
+
+    [Fact]
+    public void TieneAccesoCompleto_CorreoAutorizadoConEspaciosYMayusculas_DaAccesoCompleto()
+    {
+        Assert.True(DbStudioMigrationCalculos.TieneAccesoCompleto(
+            new[] { "  ADMIN " }, "  MOIESBBUGA@GMAIL.COM  "));
+    }
+
+    [Fact]
+    public void TieneAccesoCompleto_AdminPeroSinElCorreoAutorizado_NoDaAccesoCompleto()
+    {
+        // El admin "normal" ya no alcanza: falta el correo.
+        Assert.False(DbStudioMigrationCalculos.TieneAccesoCompleto(
+            new[] { "admin", "administrador" }, "otro.admin@empresa.com", esSuperAdmin: true));
+    }
+
+    [Fact]
+    public void TieneAccesoCompleto_CorreoAutorizadoPeroSinSerAdmin_NoDaAccesoCompleto()
+    {
+        // El correo solo tampoco alcanza: falta ser admin por algún lado.
+        Assert.False(DbStudioMigrationCalculos.TieneAccesoCompleto(
+            new[] { "operador" }, "moiesbbuga@gmail.com"));
+    }
+
+    [Fact]
+    public void TieneAccesoCompleto_SinCorreoYSinRoles_NoDaAccesoCompleto()
     {
         Assert.False(DbStudioMigrationCalculos.TieneAccesoCompleto(
-            new[] { "operador" }, "operador@ejemplo.com"));
+            Array.Empty<string>(), null));
     }
 
+    // ===================== Helpers =====================
+
+    [Theory]
+    [InlineData("moiesbbuga@gmail.com", true)]
+    [InlineData("MOIESBBUGA@GMAIL.COM", true)]
+    [InlineData("  moiesbbuga@gmail.com  ", true)]
+    [InlineData("moiesbbuga@gmail.com.attacker.com", false)]
+    [InlineData("otro@gmail.com", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void EsCorreoAutorizado_ComparaExactoTrimYCaseInsensitive(string? email, bool esperado)
+        => Assert.Equal(esperado, DbStudioMigrationCalculos.EsCorreoAutorizado(email));
+
     [Fact]
-    public void TieneAccesoCompleto_SinRolesNiCorreo_NoObtieneAccesoCompleto()
+    public void EsAdminPorRol_ReconoceAdminYAdministrador_ConTrimYCase()
     {
-        Assert.False(DbStudioMigrationCalculos.TieneAccesoCompleto(Array.Empty<string>(), null));
+        Assert.True(DbStudioMigrationCalculos.EsAdminPorRol(new[] { "  Admin " }));
+        Assert.True(DbStudioMigrationCalculos.EsAdminPorRol(new[] { "operador", "ADMINISTRADOR" }));
     }
 
     [Fact]
-    public void TieneAccesoCompleto_RolQueContieneAdmin_NoObtieneAccesoCompleto()
+    public void EsAdminPorRol_NoConfundeRolesQueContienenLaPalabra()
     {
-        // "administrador de granja" NO es "admin": la comparación es por igualdad, no por substring.
-        Assert.False(DbStudioMigrationCalculos.TieneAccesoCompleto(
-            new[] { "administrador de granja", "sub-admin" }, null));
+        Assert.False(DbStudioMigrationCalculos.EsAdminPorRol(new[] { "administrador de granja", "sub-admin" }));
+        Assert.False(DbStudioMigrationCalculos.EsAdminPorRol(Array.Empty<string>()));
     }
 
-    // ===================== Proyección de estados =====================
+    // ===================== Proyección de estados (nombre + ejecutada) =====================
 
     [Fact]
-    public void Resumir_SeparaAplicadasPendientes_YNoInventaFecha()
+    public void Resumir_SeparaAplicadasDePendientes()
     {
         var result = DbStudioMigrationCalculos.Resumir(
             new[] { "20260101010101_Inicial", "20260202020202_Siguiente" },
@@ -72,13 +110,11 @@ public class DbStudioMigrationCalculosTests
             {
                 Assert.Equal("20260101010101_Inicial", applied.MigrationId);
                 Assert.Equal("aplicada", applied.Status);
-                Assert.Null(applied.AppliedAtUtc);
             },
             pending =>
             {
                 Assert.Equal("20260202020202_Siguiente", pending.MigrationId);
                 Assert.Equal("pendiente", pending.Status);
-                Assert.Null(pending.AppliedAtUtc);
             });
     }
 
@@ -96,7 +132,6 @@ public class DbStudioMigrationCalculosTests
     [Fact]
     public void Resumir_MigracionAplicadaQueYaNoEstaEnElCodigo_NoSeListea()
     {
-        // Solo se proyecta lo que EF conoce por el ensamblado; una fila suelta en el historial no aparece.
         var result = DbStudioMigrationCalculos.Resumir(
             new[] { "0001_A" },
             new[] { "0001_A", "0000_Fantasma" });
@@ -109,6 +144,7 @@ public class DbStudioMigrationCalculosTests
     [Fact]
     public void Resumir_SinMigracionesConocidas_DevuelveListaVacia()
     {
-        Assert.Empty(DbStudioMigrationCalculos.Resumir(Array.Empty<string>(), new[] { "0001_A" }));
+        Assert.Empty(DbStudioMigrationCalculos.Resumir(
+            Array.Empty<string>(), new[] { "0001_A" }));
     }
 }

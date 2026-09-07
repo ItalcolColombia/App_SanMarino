@@ -8,9 +8,10 @@ namespace ZooSanMarino.API.Controllers;
 /// <summary>
 /// DB Studio: explorador/editor de base de datos embebido. La autorización se aplica
 /// EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este proyecto).
-/// Acceso completo = rol admin/administrador, superadmin, permiso <c>db_studio.admin</c> o correo
-/// autorizado. Cualquier otra sesión autenticada solo puede leer el resumen de migraciones
-/// (<c>access-mode</c> / <c>migration-summary</c>); el resto de endpoints le devuelve 403.
+/// Acceso completo = <b>doble validación</b>: el correo autorizado (<c>moiesbbuga@gmail.com</c>)
+/// <b>y además</b> ser admin (rol admin/administrador, superadmin o permiso <c>db_studio.admin</c>).
+/// Cualquier otra sesión autenticada —admins incluidos si no llevan ese correo— solo puede leer el
+/// resumen de migraciones (<c>access-mode</c> / <c>migration-summary</c>); el resto le devuelve 403.
 ///
 /// <para>
 /// El controlador entero se oculta de Swagger (<c>IgnoreApi = true</c>) salvo

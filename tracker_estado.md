@@ -7816,6 +7816,17 @@ Plan: [`fase_de_desarrollo/db_studio_resumen_seguro_plan.md`](fase_de_desarrollo
       (login por contraseña + `GET /swagger/v1/swagger.json`): de `/api/DbStudio/*` el contrato
       publica **una sola** ruta, `GET /api/DbStudio/migration-summary`, y 0 schemas `DbStudio*`.
       Ocultar de Swagger no es el control de acceso —siguen las guardas 403— es no documentar lo
-      restringido. `dotnet build` API 0/0.
+      restringido. `dotnet build` API 0/0. Commit `0dd1121`.
+- [x] Corrección de reglas (pedido del usuario). Acceso completo pasa de `admin OR correo` a
+      **`admin AND correo`** (doble validación): `IsAdminAsync` corta si el claim de correo no es
+      `moiesbbuga@gmail.com` —sin ni consultar roles— y recién entonces exige rol admin/administrador,
+      superadmin o `db_studio.admin`. Un admin sin ese correo ⇒ vista restringida. La lógica vive en
+      `DbStudioMigrationCalculos` (`EsCorreoAutorizado` + `EsAdminPorRol` + `TieneAccesoCompleto`
+      de 4 args); tests reescritos (16 casos, cubren admin-sin-correo y correo-sin-admin ⇒ false).
+- [x] Tabla restringida más simple. 2 columnas (Migración monoespaciada + pill Ejecutada/Pendiente)
+      + contador "N de M ejecutadas"; se quitó la columna de fecha y `AppliedAtUtc` del DTO y del
+      modelo Angular (`migration-summary` ahora es `{ migrationId, status }`).
+- [x] Validación. `dotnet build ZooSanMarino.sln` 0/0 (6 proyectos); `dotnet test` 3992 pasados en
+      build normal; `yarn build` OK.
 
 ---
