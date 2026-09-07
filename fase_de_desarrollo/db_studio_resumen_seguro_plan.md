@@ -9,6 +9,10 @@
   `GET migration-summary` (lista mínima con migración, fecha veraz o `null`, y estado). El
   resto de endpoints de DB Studio quedará denegado para ese perfil (403); el frontend nunca
   intentará cargarlos.
+- El contrato de Swagger tampoco debe anunciar la superficie restringida: el controlador entero
+  se marca `[ApiExplorerSettings(IgnoreApi = true)]` y solo `MigrationSummary` la revierte
+  (`IgnoreApi = false`). Es cosmético para el contrato, no un control de acceso: la protección
+  real son las guardas del controlador.
 - La lista se construirá comparando las migraciones conocidas por EF Core con los IDs aplicados
   en `__EFMigrationsHistory`, sin ejecutar SQL arbitrario ni revelar metadatos de la base.
 - `__EFMigrationsHistory` estándar solo tiene `MigrationId` y `ProductVersion`; no contiene la

@@ -7810,6 +7810,12 @@ Plan: [`fase_de_desarrollo/db_studio_resumen_seguro_plan.md`](fase_de_desarrollo
       `getAccessMode` marca `accessModeLoaded` para no dejar el panel colgado en "Cargando…".
 - [x] Validación. `dotnet build` 0/0 (6 proyectos); `dotnet test` verde en build normal (las 2 fallas
       de `RazaGuiaAliasParidadSqlTests` solo salen bajo `--artifacts-path` y son ajenas al cambio);
-      `yarn build` OK.
+      `yarn build` OK. Commit `dd9832d`.
+- [x] Swagger no anuncia la superficie restringida. `[ApiExplorerSettings(IgnoreApi = true)]` en el
+      controlador + `IgnoreApi = false` solo en `MigrationSummary`. Verificado con smoke en :5501
+      (login por contraseña + `GET /swagger/v1/swagger.json`): de `/api/DbStudio/*` el contrato
+      publica **una sola** ruta, `GET /api/DbStudio/migration-summary`, y 0 schemas `DbStudio*`.
+      Ocultar de Swagger no es el control de acceso —siguen las guardas 403— es no documentar lo
+      restringido. `dotnet build` API 0/0.
 
 ---
