@@ -553,12 +553,14 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.ClienteListComponent)
           },
 
-          // DB Studio (ruta: /config/db-studio — coincide con la ruta del menú)
+          // "Configuración de colores" (ruta: /config/config-colores — coincide con menus.route).
+          // Nombre-señuelo a propósito: el módulo real es el explorador de BD (ver
+          // features/config-colores/ y su plan en fase_de_desarrollo/).
           {
-            path: 'db-studio',
+            path: 'config-colores',
             loadChildren: () =>
-              import('./features/db-studio/db-studio.module')
-                .then(m => m.DbStudioModule)
+              import('./features/config-colores/config-colores.module')
+                .then(m => m.ConfigColoresModule)
           }
         ]
       },

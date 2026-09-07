@@ -7914,3 +7914,31 @@ aceptadas); Fase B (quitar el estático del bundle) queda sin marcar. Ver
 - [ ] Setear `PlatformSecret__DerivationKey` en el task definition de ECS (acción AWS).
 
 ---
+
+## Renombrar DB Studio → "Configuración de colores" (señuelo, solo lo visible)
+
+Plan: [`renombrar_db_studio_a_config_colores_plan.md`](fase_de_desarrollo/renombrar_db_studio_a_config_colores_plan.md)
+
+Pedido del usuario (7-sep-2026): que el módulo no sea fácil de identificar en la app. Se le pone
+identidad-señuelo "configuración de colores". Alcance = **solo lo visible** (bundle, red, rutas, UI);
+NO se tocan clases/servicios del backend, config `DbStudio:`, tablas `dbstudio_*`, ni el permiso
+`db_studio.admin`. Sin cambio de comportamiento (autorización, gate de plataforma, ocultamiento de
+Swagger: idénticos).
+
+- [ ] Backend: `DbStudioController` `[Route("api/[controller]")]` → `[Route("api/ConfigColores")]`.
+- [ ] Migración data-only `RenombraMenuDbStudioAConfigColores` (Designer clonado, sin ModelSnapshot):
+      `UPDATE menus SET label='Configuración de colores', route='/config/config-colores',
+      key='config-colores', icon='palette' WHERE route='/config/db-studio'`. Idempotente por route.
+- [ ] Front: `git mv features/db-studio features/config-colores` + renombrar módulo/routing/service/
+      models/funciones/main-component (clases, selector `app-config-colores-main`, `data.title`,
+      `const API='/api/ConfigColores'`); `app.config.ts` (`path: 'config-colores'`, import,
+      `ConfigColoresModule`).
+- [ ] Front: `decidir-cacheable.funcion.ts` token `'dbstudio'` → `'configcolores'` + su spec.
+- [ ] Doc: `respuesta_auditoria_ciberseguridad_2026-09.md` §2 — nota del rename como endurecimiento.
+- [ ] Validar: `dotnet build` 0/0 + `dotnet test` · `dotnet ef database update` local (idempotente) ·
+      `yarn build` + `yarn test` + gates change-detection y lista-cacheable ·
+      `grep -rn "db-studio\|DbStudio\|db_studio" frontend/src` ⇒ 0 · smoke navegador (menú
+      "Configuración de colores" con ícono paleta, `/config/config-colores`, requests a
+      `/api/ConfigColores`, chunk `config-colores-module`).
+
+---

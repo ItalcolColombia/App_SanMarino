@@ -33,6 +33,9 @@ public class DbStudioOptions
     /// </summary>
     public string? ReadOnlyConnectionString { get; set; }
 
-    /// <summary>Nombre de aplicación reportado en pg_stat_activity para identificar sesiones de DB Studio.</summary>
-    public string ApplicationName { get; set; } = "DbStudio";
+    /// <summary>
+    /// Nombre de aplicación reportado en <c>pg_stat_activity</c> (y en el panel de actividad de la UI).
+    /// Neutro a propósito — el módulo se muestra como "Configuración de colores" (nombre-señuelo).
+    /// </summary>
+    public string ApplicationName { get; set; } = "ConfigColores";
 }

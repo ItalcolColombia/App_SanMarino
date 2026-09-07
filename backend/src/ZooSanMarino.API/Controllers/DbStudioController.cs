@@ -6,23 +6,29 @@ using ZooSanMarino.Application.Interfaces;
 namespace ZooSanMarino.API.Controllers;
 
 /// <summary>
-/// DB Studio: explorador/editor de base de datos embebido. La autorización se aplica
-/// EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este proyecto).
-/// Acceso completo = <b>doble validación</b>: el correo autorizado (<c>moiesbbuga@gmail.com</c>)
-/// <b>y además</b> ser admin (rol admin/administrador, superadmin o permiso <c>db_studio.admin</c>).
-/// Cualquier otra sesión autenticada —admins incluidos si no llevan ese correo— solo puede leer el
-/// resumen de migraciones (<c>access-mode</c> / <c>migration-summary</c>); el resto le devuelve 403.
+/// Explorador/editor de base de datos embebido. <b>La ruta HTTP es <c>api/ConfigColores</c> y en la
+/// UI se llama "Configuración de colores"</b> a propósito: nombre-señuelo para que el módulo no sea
+/// fácil de identificar en la app (el string <c>DbStudio</c> ya no está en el bundle). La clase, los
+/// servicios y la config <c>DbStudio:</c> conservan el nombre interno. Ver
+/// <c>fase_de_desarrollo/renombrar_db_studio_a_config_colores_plan.md</c>.
+///
+/// La autorización se aplica EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este
+/// proyecto). Acceso completo = <b>doble validación</b>: el correo autorizado
+/// (<c>moiesbbuga@gmail.com</c>) <b>y además</b> ser admin (rol admin/administrador, superadmin o
+/// permiso <c>db_studio.admin</c>). Cualquier otra sesión autenticada —admins incluidos si no llevan
+/// ese correo— solo puede leer el resumen de migraciones (<c>access-mode</c> /
+/// <c>migration-summary</c>); el resto le devuelve 403.
 ///
 /// <para>
 /// El controlador entero se oculta de Swagger (<c>IgnoreApi = true</c>) salvo
-/// <see cref="MigrationSummary"/>, que es la única capacidad de DB Studio de cara al público:
-/// el contrato no debe anunciar la superficie restringida (explorador, SQL, DDL, backup, grants…).
-/// Ocultar de Swagger NO es el control de acceso —eso lo hacen las guardas de arriba— sino que
-/// evita documentar lo que igual va a responder 403.
+/// <see cref="MigrationSummary"/>, que es la única capacidad de cara al público: el contrato no debe
+/// anunciar la superficie restringida (explorador, SQL, DDL, backup, grants…). Ocultar de Swagger NO
+/// es el control de acceso —eso lo hacen las guardas de arriba— sino que evita documentar lo que
+/// igual va a responder 403.
 /// </para>
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/ConfigColores")]
 [Authorize]
 [ApiExplorerSettings(IgnoreApi = true)]
 public class DbStudioController : ControllerBase

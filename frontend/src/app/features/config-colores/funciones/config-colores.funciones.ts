@@ -1,5 +1,5 @@
-// Funciones PURAS de DB Studio (sin DI, sin this, sin estado). Reutilizables y testeables.
-import type { ColumnDto } from '../models/db-studio.models';
+// Funciones PURAS de Configuración de colores (sin DI, sin this, sin estado). Reutilizables y testeables.
+import type { ColumnDto } from '../models/config-colores.models';
 
 /** Construye el objeto WHERE para identificar una fila: usa PK si existe, si no todas las columnas. */
 export function construirWherePk(

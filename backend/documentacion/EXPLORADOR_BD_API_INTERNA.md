@@ -1,16 +1,22 @@
-# 📚 Documentación de APIs - DB Studio
+# 📚 Documentación de APIs - Explorador de BD
+
+> ⚠️ **Nombre-señuelo (7-sep-2026):** en la app este módulo se llama **"Configuración de colores"**
+> y su ruta es **`/api/ConfigColores`** (antes `/api/DbStudio`). Es deliberado — que no sea fácil
+> de identificar. La clase `DbStudioController`, los servicios y la config `DbStudio:` conservan el
+> nombre interno. Ver `fase_de_desarrollo/renombrar_db_studio_a_config_colores_plan.md`.
+
 
 ## 🎯 Resumen de Implementación Completa
 
-El módulo DB Studio ahora está **100% alineado** entre backend y frontend, con todas las funcionalidades implementadas siguiendo las mejores prácticas.
+El módulo Explorador de BD ahora está **100% alineado** entre backend y frontend, con todas las funcionalidades implementadas siguiendo las mejores prácticas.
 
 ## 🔗 APIs Implementadas
 
 ### **1. Gestión de Esquemas**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `GET` | `/api/DbStudio/schemas` | Obtener todos los esquemas | - | `SchemaDto[]` |
-| `GET` | `/api/DbStudio/schemas/{schema}/export` | Exportar esquema completo | - | `Blob` |
+| `GET` | `/api/ConfigColores/schemas` | Obtener todos los esquemas | - | `SchemaDto[]` |
+| `GET` | `/api/ConfigColores/schemas/{schema}/export` | Exportar esquema completo | - | `Blob` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -27,16 +33,16 @@ this.dbService.exportSchema('public').subscribe(blob => {
 ### **2. Gestión de Tablas**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `GET` | `/api/DbStudio/tables` | Obtener tablas por esquema | `?schema=public` | `TableDto[]` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/details` | Detalles completos de tabla | - | `TableDetailsDto` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/columns` | Columnas de tabla | - | `ColumnDto[]` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/indexes` | Índices de tabla | - | `IndexDto[]` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/foreign-keys` | Claves foráneas | - | `ForeignKeyDto[]` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/stats` | Estadísticas de tabla | - | `TableStatsDto` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/preview` | Preview de datos | `?limit=50&offset=0` | `QueryPageDto` |
-| `POST` | `/api/DbStudio/tables` | Crear nueva tabla | `CreateTableRequest` | `void` |
-| `DELETE` | `/api/DbStudio/tables/{schema}/{table}` | Eliminar tabla | `?cascade=false` | `void` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/export` | Exportar tabla | `?format=sql` | `Blob` |
+| `GET` | `/api/ConfigColores/tables` | Obtener tablas por esquema | `?schema=public` | `TableDto[]` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/details` | Detalles completos de tabla | - | `TableDetailsDto` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/columns` | Columnas de tabla | - | `ColumnDto[]` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/indexes` | Índices de tabla | - | `IndexDto[]` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/foreign-keys` | Claves foráneas | - | `ForeignKeyDto[]` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/stats` | Estadísticas de tabla | - | `TableStatsDto` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/preview` | Preview de datos | `?limit=50&offset=0` | `QueryPageDto` |
+| `POST` | `/api/ConfigColores/tables` | Crear nueva tabla | `CreateTableRequest` | `void` |
+| `DELETE` | `/api/ConfigColores/tables/{schema}/{table}` | Eliminar tabla | `?cascade=false` | `void` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/export` | Exportar tabla | `?format=sql` | `Blob` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -67,9 +73,9 @@ this.dbService.createTable(createTableDto).subscribe(() => {
 ### **3. Gestión de Columnas**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/tables/{schema}/{table}/columns` | Agregar columna | `AddColumnRequest` | `void` |
-| `PATCH` | `/api/DbStudio/tables/{schema}/{table}/columns/{column}` | Modificar columna | `AlterColumnRequest` | `void` |
-| `DELETE` | `/api/DbStudio/tables/{schema}/{table}/columns/{column}` | Eliminar columna | - | `void` |
+| `POST` | `/api/ConfigColores/tables/{schema}/{table}/columns` | Agregar columna | `AddColumnRequest` | `void` |
+| `PATCH` | `/api/ConfigColores/tables/{schema}/{table}/columns/{column}` | Modificar columna | `AlterColumnRequest` | `void` |
+| `DELETE` | `/api/ConfigColores/tables/{schema}/{table}/columns/{column}` | Eliminar columna | - | `void` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -100,8 +106,8 @@ this.dbService.alterColumn('public', 'usuarios', 'nombre', alterColumnDto).subsc
 ### **4. Gestión de Índices** ⭐ **NUEVO**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/tables/{schema}/{table}/indexes` | Crear índice | `CreateIndexRequest` | `void` |
-| `DELETE` | `/api/DbStudio/tables/{schema}/{table}/indexes/{indexName}` | Eliminar índice | - | `void` |
+| `POST` | `/api/ConfigColores/tables/{schema}/{table}/indexes` | Crear índice | `CreateIndexRequest` | `void` |
+| `DELETE` | `/api/ConfigColores/tables/{schema}/{table}/indexes/{indexName}` | Eliminar índice | - | `void` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -136,8 +142,8 @@ this.dbService.dropIndex('public', 'usuarios', 'idx_usuario_email').subscribe(()
 ### **5. Gestión de Claves Foráneas** ⭐ **NUEVO**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/tables/{schema}/{table}/foreign-keys` | Crear clave foránea | `CreateForeignKeyRequest` | `void` |
-| `DELETE` | `/api/DbStudio/tables/{schema}/{table}/foreign-keys/{fkName}` | Eliminar clave foránea | - | `void` |
+| `POST` | `/api/ConfigColores/tables/{schema}/{table}/foreign-keys` | Crear clave foránea | `CreateForeignKeyRequest` | `void` |
+| `DELETE` | `/api/ConfigColores/tables/{schema}/{table}/foreign-keys/{fkName}` | Eliminar clave foránea | - | `void` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -164,9 +170,9 @@ this.dbService.dropForeignKey('public', 'usuarios', 'fk_usuario_perfil').subscri
 ### **6. Gestión de Datos** ⭐ **NUEVO**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/tables/{schema}/{table}/data` | Insertar datos | `InsertDataRequest` | `void` |
-| `PATCH` | `/api/DbStudio/tables/{schema}/{table}/data` | Actualizar datos | `UpdateDataRequest` | `void` |
-| `DELETE` | `/api/DbStudio/tables/{schema}/{table}/data` | Eliminar datos | `DeleteDataRequest` | `void` |
+| `POST` | `/api/ConfigColores/tables/{schema}/{table}/data` | Insertar datos | `InsertDataRequest` | `void` |
+| `PATCH` | `/api/ConfigColores/tables/{schema}/{table}/data` | Actualizar datos | `UpdateDataRequest` | `void` |
+| `DELETE` | `/api/ConfigColores/tables/{schema}/{table}/data` | Eliminar datos | `DeleteDataRequest` | `void` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -199,9 +205,9 @@ this.dbService.deleteData('public', 'usuarios', deleteCondition).subscribe(() =>
 ### **7. Consultas SQL**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/query/select` | Ejecutar consulta SELECT | `SelectQueryRequest` | `QueryPageDto` |
-| `POST` | `/api/DbStudio/query/execute` | Ejecutar consulta general | `ExecuteQueryRequest` | `QueryResultDto` |
-| `POST` | `/api/DbStudio/validate-sql` | Validar SQL | `SqlValidationRequest` | `SqlValidationResult` |
+| `POST` | `/api/ConfigColores/query/select` | Ejecutar consulta SELECT | `SelectQueryRequest` | `QueryPageDto` |
+| `POST` | `/api/ConfigColores/query/execute` | Ejecutar consulta general | `ExecuteQueryRequest` | `QueryResultDto` |
+| `POST` | `/api/ConfigColores/validate-sql` | Validar SQL | `SqlValidationRequest` | `SqlValidationResult` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -241,8 +247,8 @@ this.dbService.validateSql('SELECT * FROM usuarios').subscribe(result => {
 ### **8. Importación/Exportación** ⭐ **NUEVO**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `POST` | `/api/DbStudio/tables/{schema}/{table}/import` | Importar datos desde archivo | `FormData` | `void` |
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/export` | Exportar tabla | `?format=csv\|json\|sql` | `Blob` |
+| `POST` | `/api/ConfigColores/tables/{schema}/{table}/import` | Importar datos desde archivo | `FormData` | `void` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/export` | Exportar tabla | `?format=csv\|json\|sql` | `Blob` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -268,8 +274,8 @@ this.dbService.exportTable('public', 'usuarios', 'csv').subscribe(blob => {
 ### **9. Análisis y Dependencias** ⭐ **NUEVO**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `GET` | `/api/DbStudio/tables/{schema}/{table}/dependencies` | Obtener dependencias | - | `TableDependenciesDto` |
-| `GET` | `/api/DbStudio/database/analyze` | Análisis completo de BD | - | `DatabaseAnalysisDto` |
+| `GET` | `/api/ConfigColores/tables/{schema}/{table}/dependencies` | Obtener dependencias | - | `TableDependenciesDto` |
+| `GET` | `/api/ConfigColores/database/analyze` | Análisis completo de BD | - | `DatabaseAnalysisDto` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -291,7 +297,7 @@ this.dbService.analyzeDatabase().subscribe(analysis => {
 ### **10. Utilidades**
 | Método | Endpoint | Descripción | Request | Response |
 |--------|----------|-------------|---------|----------|
-| `GET` | `/api/DbStudio/data-types` | Obtener tipos de datos | - | `string[]` |
+| `GET` | `/api/ConfigColores/data-types` | Obtener tipos de datos | - | `string[]` |
 
 **Ejemplo de uso:**
 ```typescript
@@ -325,9 +331,9 @@ this.dbService.getDataTypes().subscribe(types => {
   - Información educativa sobre tipos de índices
 
 ### **3. Componentes Actualizados**
-- **DbStudioMainComponent:** Implementadas funciones `exportSchema()` y `analyzeDatabase()`
+- **ConfigColoresMainComponent:** Implementadas funciones `exportSchema()` y `analyzeDatabase()`
 - **ExplorerPage:** Agregados enlaces a gestión de datos e índices
-- **DbStudioService:** Todas las APIs implementadas con tipos TypeScript
+- **ConfigColoresService:** Todas las APIs implementadas con tipos TypeScript
 
 ## 🔧 DTOs y Interfaces
 
@@ -389,7 +395,7 @@ export interface TableDependenciesDto { dependencies: TableReferenceDto[]; depen
 
 ## 🎯 **RESULTADO FINAL: 100% ALINEADO**
 
-El módulo DB Studio ahora cuenta con:
+El módulo Explorador de BD ahora cuenta con:
 - **26 APIs** completamente implementadas
 - **10 componentes** frontend funcionales
 - **Tipos TypeScript** y **DTOs C#** sincronizados

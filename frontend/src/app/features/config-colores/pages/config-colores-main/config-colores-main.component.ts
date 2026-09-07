@@ -4,31 +4,31 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { DbStudioService } from '../../data/db-studio.service';
+import { ConfigColoresService } from '../../data/config-colores.service';
 import {
   SchemaDto, TableDto, ViewDto, FunctionDto, ColumnDto, IndexDto, ForeignKeyDto, TableStatsDto,
   QueryPageDto, MyAccessDto, ObjectGrantDto, ActivitySnapshot, PoolStats, AccessLevel,
-  DbStudioMigrationSummaryItemDto
-} from '../../models/db-studio.models';
+  ConfigColoresMigrationSummaryItemDto
+} from '../../models/config-colores.models';
 import {
   construirWherePk, filasACsv, descargarTexto, descargarBlob, filenameDesdeContentDisposition,
   formatCell, antiguedad, colorEstado
-} from '../../funciones/db-studio.funciones';
+} from '../../funciones/config-colores.funciones';
 
 type Tab = 'explorer' | 'sql' | 'permissions' | 'activity';
 type DetailTab = 'data' | 'columns' | 'indexes' | 'fks' | 'definition' | 'source';
 interface SelectedObject { schema: string; name: string; kind: 'table' | 'view' | 'function'; }
 
 @Component({
-  selector: 'app-db-studio-main',
+  selector: 'app-config-colores-main',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './db-studio-main.component.html',
+  templateUrl: './config-colores-main.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrls: ['./db-studio-main.component.scss']
+  styleUrls: ['./config-colores-main.component.scss']
 })
-export class DbStudioMainComponent implements OnInit, OnDestroy {
-  private db = inject(DbStudioService);
+export class ConfigColoresMainComponent implements OnInit, OnDestroy {
+  private db = inject(ConfigColoresService);
   private confirmDialog = inject(ConfirmDialogService);
   private toast = inject(ToastService);
 
@@ -46,7 +46,7 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   backupBusy = signal(false);
   fullAccess = signal(false);
   accessModeLoaded = signal(false);
-  migrationSummary = signal<DbStudioMigrationSummaryItemDto[]>([]);
+  migrationSummary = signal<ConfigColoresMigrationSummaryItemDto[]>([]);
   migracionesAplicadas = computed(() =>
     this.migrationSummary().filter(m => m.status === 'aplicada').length);
 

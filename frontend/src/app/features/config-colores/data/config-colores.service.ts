@@ -4,10 +4,10 @@ import { Observable } from 'rxjs';
 import type {
   MyAccessDto, ObjectGrantDto, GrantRequest, ActivitySnapshot, PoolStats, LockDto,
   SqlClassificationDto, ViewDto, FunctionDto, RoutineSourceDto, CreateViewRequest,
-  DbStudioAccessModeDto, DbStudioMigrationSummaryItemDto
-} from '../models/db-studio.models';
+  ConfigColoresAccessModeDto, ConfigColoresMigrationSummaryItemDto
+} from '../models/config-colores.models';
 
-const API = '/api/DbStudio';
+const API = '/api/ConfigColores';
 
 // =====================================================
 // INTERFACES PRINCIPALES
@@ -194,15 +194,15 @@ export interface DatabaseAnalysisDto {
 // =====================================================
 
 @Injectable({ providedIn: 'root' })
-export class DbStudioService {
+export class ConfigColoresService {
   private http = inject(HttpClient);
 
-  getAccessMode(): Observable<DbStudioAccessModeDto> {
-    return this.http.get<DbStudioAccessModeDto>(`${API}/access-mode`);
+  getAccessMode(): Observable<ConfigColoresAccessModeDto> {
+    return this.http.get<ConfigColoresAccessModeDto>(`${API}/access-mode`);
   }
 
-  getMigrationSummary(): Observable<DbStudioMigrationSummaryItemDto[]> {
-    return this.http.get<DbStudioMigrationSummaryItemDto[]>(`${API}/migration-summary`);
+  getMigrationSummary(): Observable<ConfigColoresMigrationSummaryItemDto[]> {
+    return this.http.get<ConfigColoresMigrationSummaryItemDto[]>(`${API}/migration-summary`);
   }
 
   // ===================== CONSULTAS BÁSICAS =====================

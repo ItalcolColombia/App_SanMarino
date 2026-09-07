@@ -1,4 +1,4 @@
-// Tipos compartidos del módulo DB Studio (alineados con el contrato del backend, camelCase).
+// Tipos compartidos del módulo Configuración de colores (alineados con el contrato del backend, camelCase).
 
 export interface SchemaDto { name: string; tables: number; description?: string; }
 
@@ -58,8 +58,8 @@ export interface MyAccessItem { schema: string; object: string; accessLevel: Acc
 export interface MyAccessDto { isAdmin: boolean; objects: MyAccessItem[]; }
 
 /** Contratos mínimos de la experiencia restringida, sin estructura ni metadatos de BD. */
-export interface DbStudioAccessModeDto { fullAccess: boolean; }
-export interface DbStudioMigrationSummaryItemDto {
+export interface ConfigColoresAccessModeDto { fullAccess: boolean; }
+export interface ConfigColoresMigrationSummaryItemDto {
   migrationId: string;
   status: 'aplicada' | 'pendiente';
 }

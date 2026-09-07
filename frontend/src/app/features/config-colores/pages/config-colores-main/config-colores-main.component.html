@@ -6,7 +6,7 @@
     <div class="flex items-center gap-2">
       <span class="grid place-items-center w-9 h-9 rounded-lg bg-ital-green/10 text-ital-green text-lg">🗄️</span>
       <div>
-        <h1 class="text-base font-bold leading-tight">DB Studio</h1>
+        <h1 class="text-base font-bold leading-tight">Configuración de colores</h1>
         <p class="text-[11px] text-slate-400 leading-tight">Explorador y administración de base de datos</p>
       </div>
     </div>
@@ -434,7 +434,7 @@
         </div>
 
         @if (pool(); as p) {
-          <p class="text-[11px] text-slate-400 mb-3">Pool DB Studio: {{ p.dbStudioConnections }} activas · min {{ p.poolMinSize }} / max {{ p.poolMaxSize }} · app "{{ p.applicationName }}"</p>
+          <p class="text-[11px] text-slate-400 mb-3">Pool de conexiones: {{ p.dbStudioConnections }} activas · min {{ p.poolMinSize }} / max {{ p.poolMaxSize }} · app "{{ p.applicationName }}"</p>
         }
 
         <div class="overflow-auto border border-slate-200 rounded-lg bg-white">

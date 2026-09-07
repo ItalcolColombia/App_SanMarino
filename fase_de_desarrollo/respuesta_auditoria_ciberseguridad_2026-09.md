@@ -124,6 +124,11 @@ Verdad matizada para el punto 0.a: para **todos los usuarios de la aplicación**
 efectivamente un lector de estado de migraciones. La consola completa existe en el mismo controlador
 pero está cercada a **una identidad fija con segundo factor (rol)**, decidido en el servidor.
 
+> **Actualización 7-sep-2026:** la ruta se renombró a **`/api/ConfigColores`** y en la UI el módulo
+> se llama **"Configuración de colores"** (nombre-señuelo). El string `DbStudio` ya no aparece en el
+> bundle JS. La clase, los servicios y la config `DbStudio:` conservan el nombre interno. Los `curl`
+> de abajo usan la ruta nueva. Ver `renombrar_db_studio_a_config_colores_plan.md`.
+
 ### Cómo verificarlo
 Con una **cuenta de prueba de bajo privilegio** (recomendado entregarla al analista):
 ```bash
@@ -131,10 +136,10 @@ T='<JWT de la cuenta de prueba>'
 S='<X-Secret-Up válido — lo genera el front; se puede capturar de las DevTools>'
 H="-H \"Authorization: Bearer $T\" -H \"X-Secret-Up: $S\""
 
-curl -si $H https://zootecnico.sanmarino.com.co/api/DbStudio/migration-summary | head -n1  # → 200 (lista de migraciones)
-curl -si $H https://zootecnico.sanmarino.com.co/api/DbStudio/schemas           | head -n1  # → 403
-curl -si $H https://zootecnico.sanmarino.com.co/api/DbStudio/backup            | head -n1  # → 403
-curl -si    -H "X-Secret-Up: $S" https://zootecnico.sanmarino.com.co/api/DbStudio/schemas | head -n1  # sin token → 401
+curl -si $H https://zootecnico.sanmarino.com.co/api/ConfigColores/migration-summary | head -n1  # → 200 (lista de migraciones)
+curl -si $H https://zootecnico.sanmarino.com.co/api/ConfigColores/schemas           | head -n1  # → 403
+curl -si $H https://zootecnico.sanmarino.com.co/api/ConfigColores/backup            | head -n1  # → 403
+curl -si    -H "X-Secret-Up: $S" https://zootecnico.sanmarino.com.co/api/ConfigColores/schemas | head -n1  # sin token → 401
 ```
 El cuerpo de `migration-summary` debe contener **solo** `migrationId` y `status`. La pared de `403`
 para todo lo demás **es la evidencia** de que la consola está cerrada.
@@ -145,6 +150,8 @@ hallazgo de los tres que más merece una respuesta deliberada y documentada, por
 superficie asustan aunque el acceso esté cerrado.
 
 ### Acciones recomendadas (endurecimiento)
+0. ✅ **Hecho (7-sep):** renombrado a `/api/ConfigColores` + "Configuración de colores" en la UI —
+   el string `DbStudio` sale del bundle. Es obscurity/defensa en profundidad, no el control real.
 1. **Mover el correo autorizado de constante de código a configuración** (`DbStudio:FullAccessEmails`,
    vía variable de entorno del task definition). Hoy está *hardcodeado* en
    `DbStudioMigrationCalculos.EmailConAccesoCompleto`.
