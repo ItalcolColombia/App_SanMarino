@@ -57,6 +57,13 @@ export type AccessLevel = 'read' | 'write';
 export interface MyAccessItem { schema: string; object: string; accessLevel: AccessLevel; }
 export interface MyAccessDto { isAdmin: boolean; objects: MyAccessItem[]; }
 
+/** Contratos mínimos de la experiencia restringida, sin estructura ni metadatos de BD. */
+export interface DbStudioAccessModeDto { fullAccess: boolean; }
+export interface DbStudioMigrationSummaryItemDto {
+  migrationId: string;
+  status: 'aplicada' | 'pendiente';
+}
+
 export interface ObjectGrantDto {
   id: number; userId: string; companyId: number; schema: string; object: string;
   accessLevel: AccessLevel; grantedByUserId: string; grantedAtUtc: string;

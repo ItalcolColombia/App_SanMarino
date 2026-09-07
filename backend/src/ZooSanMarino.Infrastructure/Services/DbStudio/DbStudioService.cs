@@ -1,11 +1,14 @@
 using System.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.DbStudio;
+using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -23,6 +26,7 @@ public sealed partial class DbStudioService : IDbStudioService
     private readonly IDbStudioAuthorization _authz;
     private readonly IHttpContextAccessor _http;
     private readonly ILogger<DbStudioService> _logger;
+    private readonly ZooSanMarinoContext _ctx;
 
     public DbStudioService(
         DbStudioRuntime rt,
@@ -30,7 +34,8 @@ public sealed partial class DbStudioService : IDbStudioService
         ICurrentUser current,
         IDbStudioAuthorization authz,
         IHttpContextAccessor http,
-        ILogger<DbStudioService> logger)
+        ILogger<DbStudioService> logger,
+        ZooSanMarinoContext ctx)
     {
         _rt = rt;
         _opts = opts.Value;
@@ -38,6 +43,7 @@ public sealed partial class DbStudioService : IDbStudioService
         _authz = authz;
         _http = http;
         _logger = logger;
+        _ctx = ctx;
     }
 
     // ===================== Helpers compartidos =====================
@@ -83,4 +89,11 @@ public sealed partial class DbStudioService : IDbStudioService
 
     private string? GetClientIp()
         => _http.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+
+    public async Task<IReadOnlyList<DbStudioMigrationSummaryItemDto>> GetMigrationSummaryAsync(CancellationToken ct = default)
+    {
+        var conocidas = _ctx.Database.GetMigrations();
+        var aplicadas = await _ctx.Database.GetAppliedMigrationsAsync(ct);
+        return DbStudioMigrationCalculos.Resumir(conocidas, aplicadas);
+    }
 }

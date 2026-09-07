@@ -8,11 +8,23 @@ namespace ZooSanMarino.API.Controllers;
 /// <summary>
 /// DB Studio: explorador/editor de base de datos embebido. La autorización se aplica
 /// EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este proyecto).
-/// Admin = todo; no-admin = solo objetos con grant (lectura o escritura de datos), sin DDL ni SQL arbitrario.
+/// Acceso completo = <b>doble validación</b>: el correo autorizado (<c>moiesbbuga@gmail.com</c>)
+/// <b>y además</b> ser admin (rol admin/administrador, superadmin o permiso <c>db_studio.admin</c>).
+/// Cualquier otra sesión autenticada —admins incluidos si no llevan ese correo— solo puede leer el
+/// resumen de migraciones (<c>access-mode</c> / <c>migration-summary</c>); el resto le devuelve 403.
+///
+/// <para>
+/// El controlador entero se oculta de Swagger (<c>IgnoreApi = true</c>) salvo
+/// <see cref="MigrationSummary"/>, que es la única capacidad de DB Studio de cara al público:
+/// el contrato no debe anunciar la superficie restringida (explorador, SQL, DDL, backup, grants…).
+/// Ocultar de Swagger NO es el control de acceso —eso lo hacen las guardas de arriba— sino que
+/// evita documentar lo que igual va a responder 403.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class DbStudioController : ControllerBase
 {
     private readonly IDbStudioService _svc;
@@ -59,10 +71,30 @@ public class DbStudioController : ControllerBase
     }
 
     // ===================== ACCESO / PERMISOS PROPIOS =====================
+    /// <summary>Contrato mínimo para que el frontend elija la vista completa o la restringida.</summary>
+    [HttpGet("access-mode")]
+    public Task<ActionResult> AccessMode() => Run(async () =>
+    {
+        await _authz.EnsureMigrationSummaryAccessAsync();
+        return (object?)new DbStudioAccessModeDto { FullAccess = await _authz.IsAdminAsync() };
+    });
+
+    /// <summary>
+    /// Historial de migraciones aplicadas en la base, de solo lectura. Es la única operación de
+    /// DB Studio visible en Swagger: cualquier sesión autenticada puede consultarla.
+    /// </summary>
+    [HttpGet("migration-summary")]
+    [ApiExplorerSettings(IgnoreApi = false)]
+    public Task<ActionResult> MigrationSummary() => Run(async () =>
+    {
+        await _authz.EnsureMigrationSummaryAccessAsync();
+        return (object?)await _svc.GetMigrationSummaryAsync(HttpContext.RequestAborted);
+    });
+
     [HttpGet("my-access")]
     public Task<ActionResult> MyAccess() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _authz.GetMyAccessAsync();
     });
 
@@ -70,7 +102,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("schemas")]
     public Task<ActionResult> GetSchemas() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetSchemasAsync();
     });
 
@@ -92,7 +124,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("tables")]
     public Task<ActionResult> GetTables([FromQuery] string? schema = null) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetTablesAsync(schema);
     });
 
@@ -150,7 +182,7 @@ public class DbStudioController : ControllerBase
     [HttpGet("views")]
     public Task<ActionResult> GetViews([FromQuery] string? schema = null) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetViewsAsync(schema);
     });
 
@@ -225,14 +257,14 @@ public class DbStudioController : ControllerBase
     [HttpPost("sql/classify")]
     public Task<ActionResult> ClassifySql([FromBody] SqlValidationRequest request) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)_svc.ClassifySql(request.Sql);
     });
 
     [HttpPost("validate-sql")]
     public Task<ActionResult> ValidateSql([FromBody] SqlValidationRequest request) => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.ValidateSqlAsync(request.Sql);
     });
 
@@ -402,14 +434,14 @@ public class DbStudioController : ControllerBase
     [HttpGet("data-types")]
     public Task<ActionResult> GetDataTypes() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.GetDataTypesAsync();
     });
 
     [HttpGet("database/analyze")]
     public Task<ActionResult> AnalyzeDatabase() => Run(async () =>
     {
-        await _authz.EnsureModuleAccessAsync();
+        await _authz.EnsureFullAccessAsync();
         return (object?)await _svc.AnalyzeDatabaseAsync();
     });
 

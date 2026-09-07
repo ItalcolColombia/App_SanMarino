@@ -9,27 +9,31 @@ namespace ZooSanMarino.Application.Interfaces;
 /// </summary>
 public interface IDbStudioAuthorization
 {
-    /// <summary>True si el usuario actual es admin/administrador, superadmin o tiene `db_studio.admin`.</summary>
+    /// <summary>
+    /// True solo con doble validación: el correo autorizado Y además ser admin (rol admin/administrador,
+    /// superadmin o permiso `db_studio.admin`). Un admin sin ese correo devuelve false.
+    /// </summary>
     Task<bool> IsAdminAsync(CancellationToken ct = default);
 
-    /// <summary>Exige poder abrir el módulo (admin o permiso `db_studio.access`).</summary>
-    Task EnsureModuleAccessAsync(CancellationToken ct = default);
+    /// <summary>Exige acceso completo al estudio (correo autorizado + admin); si no, 403.</summary>
+    Task EnsureFullAccessAsync(CancellationToken ct = default);
+
+    /// <summary>Exige acceso al resumen de migraciones (cualquier sesión autenticada), sin revelar objetos ni scripts.</summary>
+    Task EnsureMigrationSummaryAccessAsync(CancellationToken ct = default);
 
     /// <summary>Exige rol admin (DDL, SQL arbitrario, concurrencia, grants).</summary>
     Task EnsureAdminAsync(CancellationToken ct = default);
 
-    /// <summary>Exige lectura sobre el objeto (admin o grant read/write).</summary>
+    /// <summary>Exige acceso completo: la lectura de objetos ya no se abre por grant, solo a admin.</summary>
     Task EnsureCanReadAsync(string schema, string objectName, CancellationToken ct = default);
 
-    /// <summary>Exige escritura de datos sobre el objeto (admin o grant write).</summary>
+    /// <summary>Exige acceso completo: la escritura de datos ya no se abre por grant, solo a admin.</summary>
     Task EnsureCanWriteDataAsync(string schema, string objectName, CancellationToken ct = default);
 
-    /// <summary>
-    /// Conjunto de objetos legibles por el usuario actual. Devuelve null para admin (= todos).
-    /// </summary>
+    /// <summary>Exige acceso completo y devuelve null: el admin ve todos los objetos, sin filtro por grant.</summary>
     Task<HashSet<string>?> GetReadableObjectKeysAsync(CancellationToken ct = default);
 
-    /// <summary>Resumen de acceso del usuario actual (para el frontend).</summary>
+    /// <summary>Resumen de acceso del usuario actual; hoy exige acceso completo y siempre reporta IsAdmin.</summary>
     Task<MyAccessDto> GetMyAccessAsync(CancellationToken ct = default);
 
     /// <summary>Clave canónica schema.objeto en minúsculas para comparaciones.</summary>

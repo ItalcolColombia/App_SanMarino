@@ -3,7 +3,8 @@ import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type {
   MyAccessDto, ObjectGrantDto, GrantRequest, ActivitySnapshot, PoolStats, LockDto,
-  SqlClassificationDto, ViewDto, FunctionDto, RoutineSourceDto, CreateViewRequest
+  SqlClassificationDto, ViewDto, FunctionDto, RoutineSourceDto, CreateViewRequest,
+  DbStudioAccessModeDto, DbStudioMigrationSummaryItemDto
 } from '../models/db-studio.models';
 
 const API = '/api/DbStudio';
@@ -195,6 +196,14 @@ export interface DatabaseAnalysisDto {
 @Injectable({ providedIn: 'root' })
 export class DbStudioService {
   private http = inject(HttpClient);
+
+  getAccessMode(): Observable<DbStudioAccessModeDto> {
+    return this.http.get<DbStudioAccessModeDto>(`${API}/access-mode`);
+  }
+
+  getMigrationSummary(): Observable<DbStudioMigrationSummaryItemDto[]> {
+    return this.http.get<DbStudioMigrationSummaryItemDto[]>(`${API}/migration-summary`);
+  }
 
   // ===================== CONSULTAS BÁSICAS =====================
   
