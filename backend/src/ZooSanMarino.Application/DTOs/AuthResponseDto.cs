@@ -22,6 +22,14 @@ public class AuthResponseDto
     /// <summary>Token JWT generado</summary>
     public string Token { get; set; } = null!;
 
+    /// <summary>
+    /// Firma de plataforma por sesión: <c>Base64(HMAC-SHA256(PlatformSecret:DerivationKey, jti))</c>.
+    /// El frontend web la manda en el header <c>X-Secret-Up</c> en vez del secreto estático del bundle.
+    /// <c>null</c> si <c>PlatformSecret:DerivationKey</c> no está configurada (el cliente cae al camino
+    /// legacy). Ver <c>PlatformSecretCalculos</c> y <c>PlatformSecretMiddleware</c>.
+    /// </summary>
+    public string? PlatformKey { get; set; }
+
     /// <summary>Lista de roles del usuario</summary>
     public List<string> Roles { get; set; } = new();
 

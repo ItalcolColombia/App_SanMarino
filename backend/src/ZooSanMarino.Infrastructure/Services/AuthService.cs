@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ZooSanMarino.Application.Calculos;
@@ -30,6 +31,10 @@ public class AuthService : IAuthService
     private readonly ISesionActivaService _sesiones;
     private readonly IHttpContextAccessor _http;
 
+    // Solo para leer PlatformSecret:DerivationKey (firma de plataforma por sesión). Ausente ⇒ no se
+    // emite PlatformKey y el cliente sigue por el secreto estático legacy.
+    private readonly IConfiguration _config;
+
     // Respuesta única para recuperación de contraseña: no revela si el correo existe (anti-enumeración).
     private const string NeutralRecoveryMessage =
         "Si el correo está registrado, recibirás un mensaje con instrucciones para restablecer tu contraseña.";
@@ -41,7 +46,8 @@ public class AuthService : IAuthService
         IRoleCompositeService acl,
         IEmailService emailService,
         ISesionActivaService sesiones,
-        IHttpContextAccessor http)
+        IHttpContextAccessor http,
+        IConfiguration config)
     {
         _ctx = ctx;
         _hasher = hasher;
@@ -50,6 +56,7 @@ public class AuthService : IAuthService
         _emailService = emailService;
         _sesiones = sesiones;
         _http = http;
+        _config = config;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -468,6 +475,12 @@ public class AuthService : IAuthService
         SurName = user.surName,
         UserId   = user.Id,
         Token    = new JwtSecurityTokenHandler().WriteToken(token),
+
+        // Firma de plataforma por sesión (header X-Secret-Up). Deriva del `jti` de ESTA sesión, que
+        // B1 ya valida contra `sesiones_activas` en cada request. `null` si PlatformSecret:DerivationKey
+        // no está configurada ⇒ el frontend cae al secreto estático legacy. Ver PlatformSecretCalculos.
+        PlatformKey = PlatformSecretCalculos.DerivarClaveSesion(
+            jti.ToString(), _config["PlatformSecret:DerivationKey"]),
 
         Roles    = userRoles.Select(r => r.Role?.Name)
                             .Where(n => !string.IsNullOrWhiteSpace(n))

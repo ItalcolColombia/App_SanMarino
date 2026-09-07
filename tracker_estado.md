@@ -7830,3 +7830,87 @@ Plan: [`fase_de_desarrollo/db_studio_resumen_seguro_plan.md`](fase_de_desarrollo
       build normal; `yarn build` OK.
 
 ---
+
+## Ocultar lotes/lote base cerrados en Seguimiento Diario y Lote Management
+
+Plan: [`ocultar_lotes_cerrados_seguimiento_y_lote_management_plan.md`](fase_de_desarrollo/ocultar_lotes_cerrados_seguimiento_y_lote_management_plan.md)
+
+Pedido del usuario (7-sep-2026): los selectores de lote de Seguimiento Diario Levante/Producción
+listan lotes ya liquidados; el tab "Lote" y el tab "Lote Base" de Lote Management no tienen techo y
+se llenan de lotes/bases con todas sus fases cerradas.
+
+- [x] `FaseLoteCalculos.EstaLoteCerradoCompleto` (nueva función pura) + 8 tests xUnit (las tres
+      señales, cada combinación).
+- [x] `LoteDetailDto`: campo `ProduccionCerrada` + derivada `CerradoCompleto`; subquery en
+      `LoteService.Consulta.cs` → `ProjectToDetail` (mismo estilo inline que `LevanteCerrado`).
+- [x] `LoteLevanteFilterDataService.GetFilterDataAsync`: excluye levante con `EstadoCierre` cerrado
+      (`CicloVidaPosturaCalculos.EstaCerrado`, en memoria, único consumidor confirmado).
+- [x] `SeguimientoProduccionController.GetFilterData`: excluye producción con `EstadoCierre` cerrado,
+      mismo criterio.
+- [x] `LotePosturaBaseDto` + `LotePosturaBaseService.GetAllAsync`: `TotalLotes` / `TieneLoteAbierto`
+      vía subqueries correlacionadas (default `TieneLoteAbierto=true` para Create/Update/GetById).
+- [x] Front: `LoteDto`/`LotePosturaBaseDto` (services) con los campos nuevos; funciones puras
+      `filtrarLotesPorEstadoCierre`/`filtrarLoteBasePorEstadoCierre`/`mostrarLoteBasePorDefecto` +
+      spec nuevo (10 casos).
+- [x] `lote-list.component.ts/html`: filtro Abiertos/Cerrados/Todos (default Abiertos, estado
+      independiente por tab) en tab Lote y tab Lote Base, combinable con los filtros existentes.
+- [x] Validar: `dotnet build` 0/0 (6 proyectos) + `dotnet test` 4000/4000; `yarn build` 0 errores +
+      `ng test` 841/841 (Chrome Headless). Smoke EF directo contra Postgres local (sin HTTP) para las
+      subqueries nuevas: traducen y devuelven datos correctos (bases sin lotes ⇒ `tieneLoteAbierto=
+      false` pero se muestran igual por el OR con `totalLotes===0`; K345/K404 con datos reales).
+      Smoke en navegador real (back :5002 + front :4200, sesión inyectada — limpiada al terminar):
+      tab Lote con K345A/B + K404A/B — Abiertos=4, Cerrados=0, Todos=4; tab Lote Base con K345/K404 —
+      mismo patrón. Pendiente (no crítico, cero riesgo de traducción SQL — filtrado en memoria con
+      función ya testeada): confirmar en navegador que un lote con LEVANTE cerrado de verdad
+      desaparece del selector de Seguimiento Diario Levante (medido por SQL que existe: lote 124 de
+      la empresa 4, `LOTE 235A`).
+
+---
+
+## Llave de plataforma por sesión (derivada del `jti`)
+
+Plan: [`llave_plataforma_por_sesion_plan.md`](fase_de_desarrollo/llave_plataforma_por_sesion_plan.md)
+
+Motivación: hallazgo de auditoría sept-2026 — `environment.prod.ts` embebe `secretUpFrontend` +
+`encryptionKey` en el bundle JS. Se reemplaza (frontend web) por una firma **por sesión** derivada
+del `jti` del JWT (`HMAC(PlatformSecret:DerivationKey, jti)`), que ya se valida en cada request
+contra `sesiones_activas` (B1). Filtro de origen, no autenticación. Fase A (mecanismo, ambas firmas
+aceptadas); Fase B (quitar el estático del bundle) queda sin marcar. Ver
+`respuesta_auditoria_ciberseguridad_2026-09.md` §4.
+
+### Fase A — código completo + validado (build/tests verdes). Sin commit, sin deploy.
+- [x] `Application/Calculos/PlatformSecretCalculos.cs` (puro: `DerivarClaveSesion`, `FirmasCoinciden`
+      tiempo constante, `LeerJtiDeAuthorizationHeader` sin validar firma) + `PlatformSecretCalculosTests`
+      (xUnit, **29 casos, verde**).
+- [x] `AuthResponseDto` + `string? PlatformKey`.
+- [x] `AuthService`: `+ IConfiguration`; en `GenerateResponseAsync` setear `PlatformKey` desde el `jti`
+      si `PlatformSecret:DerivationKey` está configurada (fail-safe: ausente ⇒ null ⇒ legacy).
+- [x] `PlatformSecretMiddleware`: acepta la firma derivada del `jti` del bearer ANTES del decrypt
+      legacy; exenciones y camino legacy (front estático + móvil) **intactos**.
+- [x] `appsettings.json` (`DerivationKey: ""` ⇒ fail-safe) + `appsettings.Development.json` (valor de
+      DEV). **`.example` NO tocados**: no tienen bloque `PlatformSecret` (incompletos) — agregarlo era
+      scope creep; prod pasa `PlatformSecret__DerivationKey` por env var del task definition.
+- [x] Front: `auth.models.ts` (`AuthSession`/`LoginResult` + `platformKey?`), `auth.service.ts`
+      (capturar `platformKey` del login), `auth.interceptor.ts` (mandar la derivada si existe, si no
+      el estático legacy), función pura `resolver-firma-plataforma.funcion.ts` + spec (6 casos).
+- [x] Validar: `dotnet build` 0/0 · `dotnet test` 4027 pass (2 fallas ajenas `RazaGuiaAliasParidadSqlTests`,
+      solo bajo `--artifacts-path`, ya documentadas) · `yarn build` OK · `yarn test` 846 pass ·
+      gate change-detection 237 componentes OK.
+- [x] Verificación de integración por inspección: el llavero (`cripto-llavero.funcion.ts`) hace
+      `JSON.stringify(sesion)` completo ⇒ `platformKey` sobrevive park/restore sin código nuevo. La
+      cola offline (`SyncService`) usa `HttpClient` ⇒ pasa por `authInterceptor` al enviar ⇒ toma el
+      `platformKey` vigente al drenar.
+- [ ] **Smoke HTTP local (pendiente — lo corre el usuario, requiere un usuario válido)**:
+      backend local con `DerivationKey` en `appsettings.Development.json`; `login` ⇒ la respuesta
+      descifrada trae `platformKey`; `GET /api/Company` con `X-Secret-Up: <platformKey>` + Bearer ⇒
+      no 401 `platform-secret`; con un `platformKey` de otro `jti` ⇒ 401; con el estático legacy ⇒
+      sigue pasando; sin header ⇒ 401.
+
+### Fase B — NO ejecutar hasta confirmar que ~todo el tráfico web usa la firma derivada (≤ 3 días)
+- [ ] Métrica en el middleware: contar requests por firma derivada vs legacy.
+- [ ] Cuando legacy-web ≈ 0 durante 48 h: quitar `secretUpFrontend`/`encryptionKey` de
+      `environment.prod.ts` + `environment.ts`; middleware deja de aceptar el `SecretUpFrontend`
+      estático (conserva `SecretUpMovil`); interceptor sin fallback.
+- [ ] Setear `PlatformSecret__DerivationKey` en el task definition de ECS (acción AWS).
+
+---

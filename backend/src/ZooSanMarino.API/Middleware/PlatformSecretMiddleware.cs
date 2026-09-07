@@ -1,5 +1,6 @@
 // src/ZooSanMarino.API/Middleware/PlatformSecretMiddleware.cs
 using Microsoft.Extensions.Configuration;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Infrastructure.Services;
 
 namespace ZooSanMarino.API.Middleware;
@@ -50,6 +51,14 @@ public class PlatformSecretMiddleware
     private readonly ILogger<PlatformSecretMiddleware> _logger;
     private readonly EncryptionService _encryptionService;
 
+    /// <summary>
+    /// Clave (solo del servidor) con la que se deriva la firma de plataforma por sesión:
+    /// <c>Base64(HMAC-SHA256(DerivationKey, jti))</c>. <c>null</c> si el ambiente todavía no la
+    /// definió: en ese caso solo vale el secreto estático legacy y nada se rompe. Ver
+    /// <see cref="ZooSanMarino.Application.Calculos.PlatformSecretCalculos"/>.
+    /// </summary>
+    private readonly string? _derivationKey;
+
     public PlatformSecretMiddleware(
         RequestDelegate next,
         IConfiguration configuration,
@@ -57,6 +66,7 @@ public class PlatformSecretMiddleware
         EncryptionService encryptionService)
     {
         _next = next;
+        _derivationKey = configuration["PlatformSecret:DerivationKey"];
         _expectedSecret = configuration["PlatformSecret:SecretUpFrontend"]
             ?? throw new InvalidOperationException("PlatformSecret:SecretUpFrontend no configurada");
         // A propósito NO lanza si falta: un ambiente que todavía no la definió
@@ -133,6 +143,24 @@ public class PlatformSecretMiddleware
             return;
         }
 
+        // ── (a) Firma de plataforma POR SESIÓN ─────────────────────────────────────────────
+        // El frontend web manda Base64(HMAC-SHA256(DerivationKey, jti)) — NO se descifra. El `jti`
+        // sale del propio JWT de la petición, leído SIN validar la firma (la validación real, con B1,
+        // la hace JwtBearerEvents.OnTokenValidated unos ms después). Forjar esto para un `jti`
+        // arbitrario exige la DerivationKey, que sólo vive en el servidor. Sin match, cae a (b).
+        if (!string.IsNullOrWhiteSpace(_derivationKey))
+        {
+            var jti = PlatformSecretCalculos.LeerJtiDeAuthorizationHeader(authHeader);
+            var firmaEsperada = PlatformSecretCalculos.DerivarClaveSesion(jti, _derivationKey);
+            if (PlatformSecretCalculos.FirmasCoinciden(encryptedSecretUp, firmaEsperada))
+            {
+                context.Request.Headers[ClienteHeader] = ClienteWeb;
+                await _next(context);
+                return;
+            }
+        }
+
+        // ── (b) Camino legacy: secreto estático cifrado (web previo al cambio + app móvil) ──
         // Desencriptar el SECRET_UP recibido
         string decryptedSecretUp;
         try

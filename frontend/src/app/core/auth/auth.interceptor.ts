@@ -1,13 +1,14 @@
 // src/app/core/auth/auth.interceptor.ts
 import { HttpInterceptorFn, HttpHandlerFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { from, switchMap, catchError, tap, throwError } from 'rxjs';
+import { from, of, switchMap, catchError, tap, throwError } from 'rxjs';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { TokenStorageService } from './token-storage.service';
 import { EncryptionService } from './encryption.service';
 import { SessionTimeoutService } from './session-timeout.service';
 import { ConexionService } from '../pwa/conexion.service';
 import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
+import { resolverFirmaPlataforma } from './funciones/resolver-firma-plataforma.funcion';
 import { obtenerDeviceId } from './funciones/device-id.funcion';
 import { environment } from '../../../environments/environment';
 
@@ -29,21 +30,26 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
     }
   }
 
-  // Obtener el SECRET_UP y encriptarlo
-  const secretUpFrontend = environment.platformSecret?.secretUpFrontend;
+  // Firma de plataforma (X-Secret-Up):
+  //  - 'derivada': la sesión trae `platformKey` (HMAC del `jti`, emitido por el backend). Va tal cual.
+  //  - 'legacy':   secreto estático del bundle. Hay que cifrarlo antes de mandarlo (compat + móvil).
+  const firma = resolverFirmaPlataforma(session, environment.platformSecret?.secretUpFrontend);
 
-  if (!secretUpFrontend) {
-    console.error('⚠️ SECRET_UP del frontend no configurado en environment');
-    return next(req); // Continuar sin SECRET_UP (será rechazado por el backend)
+  if (!firma.valor) {
+    console.error('⚠️ Firma de plataforma no disponible (ni platformKey de sesión ni secreto en environment)');
+    return next(req); // Continuar sin firma (será rechazado por el backend)
   }
 
-  // Encriptar el SECRET_UP de forma asíncrona
-  return from(encryption.encryptSecretUp(secretUpFrontend)).pipe(
+  const secretUp$ = firma.modo === 'derivada'
+    ? of(firma.valor)
+    : from(encryption.encryptSecretUp(firma.valor));
+
+  return secretUp$.pipe(
     switchMap(encryptedSecretUp => {
       // Construir headers base
       const headers: { [key: string]: string } = {};
 
-      // Agregar SECRET_UP encriptado en TODAS las peticiones
+      // Firma de plataforma en TODAS las peticiones (derivada por sesión, o el estático cifrado).
       headers['X-Secret-Up'] = encryptedSecretUp;
 
       // Identificador del equipo. El backend lo declaraba desde hace meses
