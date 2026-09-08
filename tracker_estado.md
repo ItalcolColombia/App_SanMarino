@@ -8007,14 +8007,22 @@ Pedido del usuario (8-sep-2026): corregir los limites declarados al cerrar la au
 un defecto (la firma es filtro de origen POR DISENO); lo accionable ahi es la metrica que destraba la
 Fase B, que queda propuesta y NO implementada.
 
-- [ ] L1. `Application/Calculos/SesionTokenCalculos.cs` + `SesionTokenCalculosTests.cs`: la
-      invariante emisor-verificador pasa de regex a test EJECUTABLE. `AuthService` toma de ahi los
-      dos valores. Criterio 7 reescrito (no borrado) para cuidar el carril.
-- [ ] L2. Bloque opcional de login real en `smoke-firma-plataforma.js`, activado por
+- [x] L1. `Application/Calculos/SesionTokenCalculos.cs` + `SesionTokenCalculosTests.cs` (5 tests): la
+      invariante emisor-verificador pasa de regex a test EJECUTABLE. `AuthService` toma de ahí los dos
+      valores (equivalencia exacta: `JtiClaim` es `jti.ToString()`). Criterio 7 reescrito, no borrado.
+- [x] L2. Bloque opcional de login real en `smoke-firma-plataforma.js`, activado por
       `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Sin credenciales corre igual e informa el tramo no ejercitado.
       Aborta si el host no es localhost (el login ESCRIBE en la BD).
+- [x] **Extra no planeado:** el smoke dejó de tener secretos escritos; los lee de
+      `appsettings.Development.json` en runtime. **Hallazgo:** esas llaves (`Encryption:*`,
+      `PlatformSecret:*`) tienen **el mismo valor en el appsettings de dev y en el de prod** — ya
+      estaban versionadas (problema aparte, sin resolver), pero copiarlas a un tercer archivo las
+      duplicaba y las desincronizaba ante una rotación.
 - [ ] L3. (propuesta, sin implementar) Contador por camino en el middleware para poder decidir la
-      Fase B. Falta definir donde se expone sin abrir superficie.
-- [ ] Validar: `dotnet build` 0/0 · `dotnet test` sin regresiones (base 4030) · gate 7/7 · smoke 8/8
-      sin credenciales · prueba negativa del test nuevo.
-- [ ] ⚠️ Rehacer el merge a `main-produccion` (el preparado queda desactualizado con esto).
+      Fase B. Falta definir dónde se expone sin abrir superficie. **Requiere decisión del usuario.**
+- [x] Validar: `dotnet build` **0 err / 0 warn** · `dotnet test` **4041 pass / 0 fail** (base 4030) ·
+      gate **7/7** · **prueba negativa**: mutando el cálculo para derivar de otro `Guid`, falla el
+      **TEST** (`Assert.Equal Strings differ` en 2 casos), no sólo el regex; restaurado y verde.
+      ⚠️ Ojo al restaurar: `SesionTokenCalculos.cs` es archivo NUEVO, `git checkout --` no lo revierte
+      y quedó mutado hasta que se revirtió a mano.
+- [ ] ⚠️ Rehacer el merge a `main-produccion` (el preparado en `5c47795` quedó desactualizado).
