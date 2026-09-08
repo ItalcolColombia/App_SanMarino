@@ -7996,3 +7996,25 @@ controles vivos (ruta del SPA 200, `.json` inexistente 404, CSP presente). **Pru
 una copia de `nginx.conf` sin `location ~ /\.`: los 3 pasan a **200 con `Content-Type: text/html`**
 —el index del SPA, tal como predice el comentario del workflow— y el gate los marca FALLA. Los dos
 contenedores se eliminaron; `nginx.conf` quedó intacto.
+
+---
+
+## Cerrar los limites de verificacion de la firma de plataforma
+
+Plan: [`cerrar_limites_verificacion_firma_plataforma_plan.md`](fase_de_desarrollo/cerrar_limites_verificacion_firma_plataforma_plan.md)
+
+Pedido del usuario (8-sep-2026): corregir los limites declarados al cerrar la auditoria. El 3 no es
+un defecto (la firma es filtro de origen POR DISENO); lo accionable ahi es la metrica que destraba la
+Fase B, que queda propuesta y NO implementada.
+
+- [ ] L1. `Application/Calculos/SesionTokenCalculos.cs` + `SesionTokenCalculosTests.cs`: la
+      invariante emisor-verificador pasa de regex a test EJECUTABLE. `AuthService` toma de ahi los
+      dos valores. Criterio 7 reescrito (no borrado) para cuidar el carril.
+- [ ] L2. Bloque opcional de login real en `smoke-firma-plataforma.js`, activado por
+      `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Sin credenciales corre igual e informa el tramo no ejercitado.
+      Aborta si el host no es localhost (el login ESCRIBE en la BD).
+- [ ] L3. (propuesta, sin implementar) Contador por camino en el middleware para poder decidir la
+      Fase B. Falta definir donde se expone sin abrir superficie.
+- [ ] Validar: `dotnet build` 0/0 · `dotnet test` sin regresiones (base 4030) · gate 7/7 · smoke 8/8
+      sin credenciales · prueba negativa del test nuevo.
+- [ ] ⚠️ Rehacer el merge a `main-produccion` (el preparado queda desactualizado con esto).
