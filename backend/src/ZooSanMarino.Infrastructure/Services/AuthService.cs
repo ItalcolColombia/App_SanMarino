@@ -353,11 +353,15 @@ public class AuthService : IAuthService
     var jti = Guid.NewGuid();
     var emitidoEn = DateTime.UtcNow;
 
+    // Único productor del claim `jti` y de la firma de plataforma que depende de él — ver
+    // SesionTokenCalculos. Mismo `jti` (Guid) que se persiste en `sesiones_activas` más abajo.
+    var datosSesion = SesionTokenCalculos.ConstruirDatosDeSesion(jti, _config["PlatformSecret:DerivationKey"]);
+
     var claims = new List<Claim>
     {
         new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
         new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-        new Claim(JwtRegisteredClaimNames.Jti, jti.ToString()),
+        new Claim(JwtRegisteredClaimNames.Jti, datosSesion.JtiClaim),
         new Claim(JwtRegisteredClaimNames.Iat,
             EpochTime.GetIntDate(emitidoEn).ToString(), ClaimValueTypes.Integer64),
         new Claim(JwtRegisteredClaimNames.UniqueName, login.email),
@@ -478,9 +482,8 @@ public class AuthService : IAuthService
 
         // Firma de plataforma por sesión (header X-Secret-Up). Deriva del `jti` de ESTA sesión, que
         // B1 ya valida contra `sesiones_activas` en cada request. `null` si PlatformSecret:DerivationKey
-        // no está configurada ⇒ el frontend cae al secreto estático legacy. Ver PlatformSecretCalculos.
-        PlatformKey = PlatformSecretCalculos.DerivarClaveSesion(
-            jti.ToString(), _config["PlatformSecret:DerivationKey"]),
+        // no está configurada ⇒ el frontend cae al secreto estático legacy. Ver SesionTokenCalculos.
+        PlatformKey = datosSesion.PlatformKey,
 
         Roles    = userRoles.Select(r => r.Role?.Name)
                             .Where(n => !string.IsNullOrWhiteSpace(n))

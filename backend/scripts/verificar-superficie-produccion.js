@@ -363,52 +363,67 @@ function criterioGuardasPorEndpoint() {
 // firma que el backend nunca va a aceptar y **nadie puede usar la aplicación** — falla todo, no una
 // pantalla.
 //
-// Hoy la coherencia es estructural: una sola variable `jti` alimenta el claim del JWT, el registro en
-// `sesiones_activas` (B1) y la derivación de la firma; y ambos lados llaman a la MISMA función pura.
-// Eso no lo garantiza el compilador: derivar de `user.Id` en vez del `jti` compila igual.
+// La invariante REAL —que DerivarClaveSesion(datos.JtiClaim, key) sea exactamente datos.PlatformKey,
+// para cualquier jti— ya NO la vigila un regex sobre el texto de AuthService: la EJECUTA
+// `SesionTokenCalculosTests` (xUnit, en Application.Tests), que es donde una invariante se puede
+// probar de verdad en vez de suponerse por la forma del código. Antes ese regex tenía dos fallas
+// opuestas: falso positivo (renombrar `jti` o extraer su generación a un helper lo rompía sin que
+// nada estuviera roto) y falso negativo (miraba la forma, no el valor; un cambio que conservara la
+// forma y alterara el insumo real pasaba igual).
 //
-// Este criterio es el "una sola fórmula por número" del CLAUDE.md aplicado acá: el emisor y el
-// verificador comparten `PlatformSecretCalculos`, y ninguno se escribe su propio HMAC.
+// Lo que este criterio cuida ahora es más angosto y más estable: que nadie se salga del CARRIL.
+// AuthService.GenerateResponseAsync tiene que obtener el claim jti y la firma de plataforma de una
+// sola llamada a `SesionTokenCalculos.ConstruirDatosDeSesion` (un solo productor, ver Límite 1 del
+// plan `cerrar_limites_verificacion_firma_plataforma_plan.md`), SesionTokenCalculos tiene que derivar
+// con `PlatformSecretCalculos.DerivarClaveSesion` (no reimplementar el HMAC), y ni el emisor ni el
+// verificador ni el cálculo intermedio se escriben su propio `HMACSHA256` — el "una sola fórmula por
+// número" del CLAUDE.md aplicado acá.
 //
 // Es la parte del smoke (`backend/scripts/smoke-firma-plataforma.js`) que no se puede ejercitar sin
 // un login con usuario real: el smoke prueba que el middleware valida bien lo que se le manda; esto
 // congela que el login mande exactamente eso.
 function criterioFirmaMismoJti() {
   const rutaAuth = 'src/ZooSanMarino.Infrastructure/Services/AuthService.cs';
+  const rutaCalc = 'src/ZooSanMarino.Application/Calculos/SesionTokenCalculos.cs';
+  const rutaMw = 'src/ZooSanMarino.API/Middleware/PlatformSecretMiddleware.cs';
+
   const auth = leer(rutaAuth);
   if (auth === null) { falla('7 · firma del mismo jti', `No se encontró ${rutaAuth}`); return; }
 
   // Si el login todavía no emite firma por sesión (ambiente previo a la Fase A), no hay nada que
   // congelar y el criterio no aplica: el cliente va por el camino legacy.
-  if (!auth.includes('DerivarClaveSesion')) {
+  if (!auth.includes('SesionTokenCalculos')) {
     ok('7 · el login no emite firma por sesión (camino legacy) — criterio no aplica');
     return;
   }
 
-  const declaraciones = (auth.match(/var\s+jti\s*=\s*Guid\.NewGuid\(\)/g) || []).length;
-  if (declaraciones !== 1) {
+  // (1) Un solo productor: AuthService obtiene AMBOS valores de SesionTokenCalculos.ConstruirDatosDeSesion.
+  const llamadas = (auth.match(/SesionTokenCalculos\.ConstruirDatosDeSesion\s*\(/g) || []).length;
+  if (llamadas === 0) {
     falla('7 · firma del mismo jti',
-      `${rutaAuth} declara ${declaraciones} veces \`var jti = Guid.NewGuid()\`. Tiene que haber ` +
-      'exactamente una: el claim del token, el registro en sesiones_activas y la firma de ' +
-      'plataforma se derivan todos de ella. Dos generadores ⇒ el front manda una firma que el ' +
-      'backend nunca acepta y no entra nadie.');
+      `${rutaAuth} ya no llama a SesionTokenCalculos.ConstruirDatosDeSesion(...). Tiene que ser el ` +
+      'único productor del claim jti y de la firma de plataforma: derivarlos por separado reabre la ' +
+      'posibilidad de que diverjan sin que nada avise.');
+  } else if (llamadas > 1) {
+    falla('7 · firma del mismo jti',
+      `${rutaAuth} llama a ConstruirDatosDeSesion ${llamadas} veces. Tiene que ser una sola: dos ` +
+      'llamadas pueden terminar recibiendo jti distintos y el front mandaría una firma que el ' +
+      'backend nunca acepta — no entra nadie.');
   }
 
-  if (!/new Claim\(JwtRegisteredClaimNames\.Jti,\s*jti\.ToString\(\)\)/.test(auth)) {
+  // (2) SesionTokenCalculos deriva con la fórmula central, no con una propia.
+  const calc = leer(rutaCalc);
+  if (calc === null) {
+    falla('7 · firma del mismo jti', `No se encontró ${rutaCalc}.`);
+  } else if (!calc.includes('PlatformSecretCalculos.DerivarClaveSesion')) {
     falla('7 · firma del mismo jti',
-      `${rutaAuth}: el claim Jti del token ya no se escribe con \`jti.ToString()\`.`);
+      `${rutaCalc} ya no deriva la firma con PlatformSecretCalculos.DerivarClaveSesion.`);
   }
 
-  if (!/DerivarClaveSesion\(\s*[\r\n\s]*jti\.ToString\(\)/.test(auth)) {
-    falla('7 · firma del mismo jti',
-      `${rutaAuth}: la firma de plataforma ya no se deriva de \`jti.ToString()\`. El insumo tiene ` +
-      'que ser el mismo `jti` que viaja en el token, porque es lo que el middleware lee de vuelta.');
-  }
-
-  // Una sola fórmula por número: nadie se escribe su propio HMAC para esto.
-  const rutaMw = 'src/ZooSanMarino.API/Middleware/PlatformSecretMiddleware.cs';
+  // (3) Una sola fórmula por número: ni el emisor, ni el cálculo intermedio, ni el verificador se
+  // escriben su propio HMAC.
   const mw = leer(rutaMw);
-  for (const [ruta, texto] of [[rutaAuth, auth], [rutaMw, mw]]) {
+  for (const [ruta, texto] of [[rutaAuth, auth], [rutaCalc, calc], [rutaMw, mw]]) {
     if (texto && /new\s+HMACSHA(256|384|512)\s*\(/.test(texto)) {
       falla('7 · firma del mismo jti',
         `${ruta} construye su propio HMAC. La fórmula vive SOLO en PlatformSecretCalculos: ` +
@@ -416,13 +431,15 @@ function criterioFirmaMismoJti() {
     }
   }
 
+  // (4) El verificador sigue verificando con la misma función central.
   if (mw && !mw.includes('PlatformSecretCalculos.DerivarClaveSesion')) {
     falla('7 · firma del mismo jti',
       `${rutaMw} ya no verifica con PlatformSecretCalculos.DerivarClaveSesion.`);
   }
 
   if (fallos.every(f => !f.criterio.startsWith('7 ·'))) {
-    ok('7 · emisor y verificador comparten fórmula (PlatformSecretCalculos) e insumo (el jti del token)');
+    ok('7 · un solo productor (SesionTokenCalculos) y una sola fórmula (PlatformSecretCalculos) — ' +
+       'la invariante la prueba SesionTokenCalculosTests; esto sólo cuida que nadie se salga del carril');
   }
 }
 
