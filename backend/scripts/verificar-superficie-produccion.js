@@ -444,6 +444,102 @@ function criterioFirmaMismoJti() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Criterio 8 — producción y desarrollo no comparten secretos NUEVOS
+// ─────────────────────────────────────────────────────────────────────────────
+// Medido el 8-sep-2026: ocho claves sensibles tienen EL MISMO VALOR en `appsettings.json`
+// (producción) y en `appsettings.Development.json`. No es cosmético: el task definition de ECS sólo
+// sobrescribe la connection string, `JwtSettings__*` y las de entorno — todo lo demás corre en
+// producción con el valor versionado en el repo, legible por cualquiera que lo clone.
+//
+// Rotarlas no se puede hacer de un plumazo: `Encryption:*` y `PlatformSecret:SecretUpFrontend`/
+// `EncryptionKey` viven TAMBIÉN en el bundle del navegador y en la app móvil, así que cambiar sólo
+// el backend deja la aplicación inutilizable para todos. Ese trabajo es coordinado y tiene su propio
+// procedimiento (`node backend/scripts/generar-secretos-produccion.js`).
+//
+// Por eso este criterio NO exige cero: congela la lista de las que ya están así y corta si aparece
+// UNA MÁS. La deuda se paga con el plan; lo que el gate impide es que siga creciendo por descuido.
+const SECRETOS_COMPARTIDOS_CONOCIDOS = new Set([
+  'JwtSettings:Key',                    // en prod la pisa JwtSettings__Key del task definition
+  'PlatformSecret:SecretUpFrontend',    // también en el bundle del navegador y en la app móvil
+  'PlatformSecret:SecretUpBackend',
+  'PlatformSecret:EncryptionKey',       // idem
+  'Encryption:RemitenteFrontend',       // idem — es la del cifrado del login
+  'Encryption:RemitenteBackend',        // idem
+  'Swagger:Password',                   // inocuo en prod: Swagger no se monta ahí
+  'Email:Smtp:Password',                // credencial de O365; se rota en el tenant
+]);
+
+/** ¿El nombre de la clave sugiere que su valor es un secreto? */
+function esClaveSensible(ruta) {
+  const r = ruta.toLowerCase();
+  return ['key', 'password', 'secret', 'pwd', 'token', 'remitente', 'connectionstring']
+    .some((s) => r.includes(s));
+}
+
+function aplanarJson(obj, prefijo = '', salida = {}) {
+  for (const [k, v] of Object.entries(obj ?? {})) {
+    const ruta = prefijo ? `${prefijo}:${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) aplanarJson(v, ruta, salida);
+    else if (typeof v === 'string') salida[ruta] = v;
+  }
+  return salida;
+}
+
+function leerJson(rutaRelativa) {
+  const texto = leer(rutaRelativa);
+  if (texto === null) return null;
+  try {
+    return JSON.parse(texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto);
+  } catch {
+    return null;
+  }
+}
+
+function criterioSecretosDistintos() {
+  const rutaProd = 'src/ZooSanMarino.API/appsettings.json';
+  const rutaDev = 'src/ZooSanMarino.API/appsettings.Development.json';
+  const prod = leerJson(rutaProd);
+  const dev = leerJson(rutaDev);
+
+  if (prod === null || dev === null) {
+    falla('8 · secretos prod ≠ dev',
+      `No se pudieron leer ambos appsettings (${rutaProd} / ${rutaDev}) como JSON.`);
+    return;
+  }
+
+  const planoProd = aplanarJson(prod);
+  const planoDev = aplanarJson(dev);
+
+  const compartidos = Object.keys(planoProd).filter((k) =>
+    esClaveSensible(k) &&
+    planoProd[k].trim() !== '' &&
+    planoDev[k] === planoProd[k]);
+
+  const nuevos = compartidos.filter((k) => !SECRETOS_COMPARTIDOS_CONOCIDOS.has(k));
+  const yaRotados = [...SECRETOS_COMPARTIDOS_CONOCIDOS].filter((k) => !compartidos.includes(k));
+
+  if (nuevos.length > 0) {
+    falla('8 · secretos prod ≠ dev',
+      `Estas claves NUEVAS tienen el mismo valor en producción y en desarrollo: ` +
+      `${nuevos.join(', ')}. El task definition de ECS no sobrescribe casi ninguna clave, así que ` +
+      'un secreto versionado es el secreto REAL de producción. Generá uno distinto con ' +
+      '`node backend/scripts/generar-secretos-produccion.js` y cargalo en el task definition; ' +
+      'si la clave no es realmente sensible, renombrala o agregala a SECRETOS_COMPARTIDOS_CONOCIDOS ' +
+      'explicando por qué.');
+  }
+
+  if (yaRotados.length > 0) {
+    // No es un fallo: es deuda saldada. Se avisa para que la lista no quede mintiendo.
+    ok(`8 · ya no comparten valor (sacar de la lista del gate): ${yaRotados.join(', ')}`);
+  }
+
+  if (nuevos.length === 0) {
+    ok(`8 · sin secretos compartidos nuevos entre prod y dev ` +
+       `(${compartidos.length} conocidos pendientes de rotar — ver generar-secretos-produccion.js)`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function main() {
   criterioSwagger();
   criterioEntorno();
@@ -452,6 +548,7 @@ function main() {
   criterioConsolaBd();
   criterioGuardasPorEndpoint();
   criterioFirmaMismoJti();
+  criterioSecretosDistintos();
 
   for (const o of oks) console.log(`  OK    ${o}`);
 
@@ -471,7 +568,7 @@ function main() {
   }
 
   console.log('');
-  console.log('✅ Superficie de producción intacta (7/7 criterios).');
+  console.log('✅ Superficie de producción intacta (8/8 criterios).');
 }
 
 main();
