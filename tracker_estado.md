@@ -7910,10 +7910,16 @@ aceptadas); Fase B (quitar el estático del bundle) queda sin marcar. Ver
       **Camino legacy** (el de las sesiones ya abiertas, lo que garantiza que el deploy no corta el
       servicio): secreto estático válido ⇒ pasa · secreto equivocado ⇒ 401 · llave equivocada ⇒ 401.
       Backend apagado al terminar, `:5002` libre.
-- [ ] **Lo único que queda sin cubrir**: que el `platformKey` que emite `AuthService` en el login
-      coincida con lo que el middleware espera — eso sí necesita un login con usuario real. El
-      middleware quedó verificado del otro lado (valida bien lo que se le mande) y la fórmula del
-      smoke es la misma de `PlatformSecretCalculos.DerivarClaveSesion`.
+- [x] **Coherencia emisor↔verificador — cerrada por gate (criterio 7).** Lo que faltaba era que el
+      `platformKey` que emite `AuthService` coincidiera con lo que el middleware espera. Verificado en
+      el código: **una sola variable** `var jti = Guid.NewGuid()` (`AuthService.cs:353`) alimenta el
+      claim del token (`:360`), el registro en `sesiones_activas` (`:411`) y la derivación de la firma
+      (`:483`), y ambos lados llaman a la MISMA función pura
+      `PlatformSecretCalculos.DerivarClaveSesion`. La coherencia es estructural, no una coincidencia
+      que haya que re-verificar a mano. Congelada en el criterio 7 de
+      `verificar-superficie-produccion.js`: un solo generador de `jti`, el claim y la derivación
+      usando esa variable, y prohibición de HMAC propio en emisor o verificador («una sola fórmula por
+      número»). Probado en negativo: derivar de `user.Id` ⇒ falla; HMAC propio en `AuthService` ⇒ falla.
 
 ### Fase B — NO ejecutar hasta confirmar que ~todo el tráfico web usa la firma derivada (≤ 3 días)
 - [ ] Métrica en el middleware: contar requests por firma derivada vs legacy.

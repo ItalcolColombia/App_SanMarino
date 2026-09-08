@@ -356,6 +356,77 @@ function criterioGuardasPorEndpoint() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Criterio 7 — la firma de plataforma se deriva del MISMO `jti` que va en el token
+// ─────────────────────────────────────────────────────────────────────────────
+// El emisor (AuthService, en el login) y el verificador (PlatformSecretMiddleware, en cada request)
+// tienen que estar de acuerdo en dos cosas: la FÓRMULA y el INSUMO. Si divergen, el front manda una
+// firma que el backend nunca va a aceptar y **nadie puede usar la aplicación** — falla todo, no una
+// pantalla.
+//
+// Hoy la coherencia es estructural: una sola variable `jti` alimenta el claim del JWT, el registro en
+// `sesiones_activas` (B1) y la derivación de la firma; y ambos lados llaman a la MISMA función pura.
+// Eso no lo garantiza el compilador: derivar de `user.Id` en vez del `jti` compila igual.
+//
+// Este criterio es el "una sola fórmula por número" del CLAUDE.md aplicado acá: el emisor y el
+// verificador comparten `PlatformSecretCalculos`, y ninguno se escribe su propio HMAC.
+//
+// Es la parte del smoke (`backend/scripts/smoke-firma-plataforma.js`) que no se puede ejercitar sin
+// un login con usuario real: el smoke prueba que el middleware valida bien lo que se le manda; esto
+// congela que el login mande exactamente eso.
+function criterioFirmaMismoJti() {
+  const rutaAuth = 'src/ZooSanMarino.Infrastructure/Services/AuthService.cs';
+  const auth = leer(rutaAuth);
+  if (auth === null) { falla('7 · firma del mismo jti', `No se encontró ${rutaAuth}`); return; }
+
+  // Si el login todavía no emite firma por sesión (ambiente previo a la Fase A), no hay nada que
+  // congelar y el criterio no aplica: el cliente va por el camino legacy.
+  if (!auth.includes('DerivarClaveSesion')) {
+    ok('7 · el login no emite firma por sesión (camino legacy) — criterio no aplica');
+    return;
+  }
+
+  const declaraciones = (auth.match(/var\s+jti\s*=\s*Guid\.NewGuid\(\)/g) || []).length;
+  if (declaraciones !== 1) {
+    falla('7 · firma del mismo jti',
+      `${rutaAuth} declara ${declaraciones} veces \`var jti = Guid.NewGuid()\`. Tiene que haber ` +
+      'exactamente una: el claim del token, el registro en sesiones_activas y la firma de ' +
+      'plataforma se derivan todos de ella. Dos generadores ⇒ el front manda una firma que el ' +
+      'backend nunca acepta y no entra nadie.');
+  }
+
+  if (!/new Claim\(JwtRegisteredClaimNames\.Jti,\s*jti\.ToString\(\)\)/.test(auth)) {
+    falla('7 · firma del mismo jti',
+      `${rutaAuth}: el claim Jti del token ya no se escribe con \`jti.ToString()\`.`);
+  }
+
+  if (!/DerivarClaveSesion\(\s*[\r\n\s]*jti\.ToString\(\)/.test(auth)) {
+    falla('7 · firma del mismo jti',
+      `${rutaAuth}: la firma de plataforma ya no se deriva de \`jti.ToString()\`. El insumo tiene ` +
+      'que ser el mismo `jti` que viaja en el token, porque es lo que el middleware lee de vuelta.');
+  }
+
+  // Una sola fórmula por número: nadie se escribe su propio HMAC para esto.
+  const rutaMw = 'src/ZooSanMarino.API/Middleware/PlatformSecretMiddleware.cs';
+  const mw = leer(rutaMw);
+  for (const [ruta, texto] of [[rutaAuth, auth], [rutaMw, mw]]) {
+    if (texto && /new\s+HMACSHA(256|384|512)\s*\(/.test(texto)) {
+      falla('7 · firma del mismo jti',
+        `${ruta} construye su propio HMAC. La fórmula vive SOLO en PlatformSecretCalculos: ` +
+        'duplicarla es cómo emisor y verificador terminan calculando cosas distintas.');
+    }
+  }
+
+  if (mw && !mw.includes('PlatformSecretCalculos.DerivarClaveSesion')) {
+    falla('7 · firma del mismo jti',
+      `${rutaMw} ya no verifica con PlatformSecretCalculos.DerivarClaveSesion.`);
+  }
+
+  if (fallos.every(f => !f.criterio.startsWith('7 ·'))) {
+    ok('7 · emisor y verificador comparten fórmula (PlatformSecretCalculos) e insumo (el jti del token)');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function main() {
   criterioSwagger();
   criterioEntorno();
@@ -363,6 +434,7 @@ function main() {
   criterioExenciones();
   criterioConsolaBd();
   criterioGuardasPorEndpoint();
+  criterioFirmaMismoJti();
 
   for (const o of oks) console.log(`  OK    ${o}`);
 
@@ -382,7 +454,7 @@ function main() {
   }
 
   console.log('');
-  console.log('✅ Superficie de producción intacta (6/6 criterios).');
+  console.log('✅ Superficie de producción intacta (7/7 criterios).');
 }
 
 main();
