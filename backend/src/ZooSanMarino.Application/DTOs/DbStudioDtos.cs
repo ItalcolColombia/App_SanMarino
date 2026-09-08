@@ -400,7 +400,7 @@ namespace ZooSanMarino.Application.DTOs
     {
         public int PoolMinSize { get; set; }
         public int PoolMaxSize { get; set; }
-        public int DbStudioConnections { get; set; }
+        public int PoolActiveConnections { get; set; }
         public string ApplicationName { get; set; } = string.Empty;
     }
 

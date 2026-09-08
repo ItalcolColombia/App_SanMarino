@@ -434,7 +434,7 @@
         </div>
 
         @if (pool(); as p) {
-          <p class="text-[11px] text-slate-400 mb-3">Pool de conexiones: {{ p.dbStudioConnections }} activas · min {{ p.poolMinSize }} / max {{ p.poolMaxSize }} · app "{{ p.applicationName }}"</p>
+          <p class="text-[11px] text-slate-400 mb-3">Pool de conexiones: {{ p.poolActiveConnections }} activas · min {{ p.poolMinSize }} / max {{ p.poolMaxSize }} · app "{{ p.applicationName }}"</p>
         }
 
         <div class="overflow-auto border border-slate-200 rounded-lg bg-white">

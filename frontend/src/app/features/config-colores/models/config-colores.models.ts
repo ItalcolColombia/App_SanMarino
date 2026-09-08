@@ -84,7 +84,7 @@ export interface ActivitySnapshot {
 }
 
 export interface PoolStats {
-  poolMinSize: number; poolMaxSize: number; dbStudioConnections: number; applicationName: string;
+  poolMinSize: number; poolMaxSize: number; poolActiveConnections: number; applicationName: string;
 }
 
 export interface LockDto {

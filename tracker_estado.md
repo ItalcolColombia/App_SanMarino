@@ -7942,3 +7942,39 @@ Swagger: idénticos).
       `/api/ConfigColores`, chunk `config-colores-module`).
 
 ---
+
+---
+
+## Gates de regresión para los 3 hallazgos de la auditoría (sep-2026)
+
+Plan: [`gates_hallazgos_auditoria_2026-09_plan.md`](fase_de_desarrollo/gates_hallazgos_auditoria_2026-09_plan.md)
+
+Pedido del usuario (8-sep-2026): validar que los 3 hallazgos **no puedan repetirse**. Las mitigaciones
+existen pero ninguna está verificada por una máquina; y el señuelo del §2 tiene una fuga viva
+(`dbStudioConnections` en el bundle — el grep de validación del rename era case-sensitive).
+
+- [x] A. Cerrar la fuga: `DbStudioConnections` → `PoolActiveConnections` en `DbStudioDtos.cs`,
+      `DbStudioConcurrencyService.cs`, `config-colores.models.ts` y `config-colores-main.component.html`.
+- [x] B. `frontend/scripts/verificar-senuelo-modulo.js` — cero ocurrencias case-insensitive de
+      `dbstudio`/`db-studio`/`db_studio` en `frontend/src`.
+- [x] C. `backend/scripts/verificar-superficie-produccion.js` — 5 criterios: swagger/debug dentro de
+      `!IsProduction()`; `ASPNETCORE_ENVIRONMENT=Production` en Dockerfile + taskdefs;
+      `UsePlatformSecret()` antes de `UseAuthentication()`/`MapControllers()`; exenciones del filtro
+      congeladas; ruta/atributos del `DbStudioController`.
+- [x] D. Tres `check` de dotfiles (`/.env`, `/.git/config`, `/.aws/credentials` ⇒ 403) en el paso
+      «Validar nginx y política de caché del borde» del workflow.
+- [x] E. Cablear B y C en el job `tests` de `deploy-production.yml`.
+- [x] Validar: gates B y C corriendo (positivo y negativo por criterio) · `dotnet build` + `dotnet test`
+      · `yarn build` · actualizar §2 de `respuesta_auditoria_ciberseguridad_2026-09.md` con la fuga y su cierre.
+
+**Resultado (8-sep-2026):** `dotnet build` 0 err / 0 warn · `dotnet test` 4030 pass / 0 fail ·
+`yarn build` OK · gate señuelo: positivo (1147 archivos) y negativo (señalaba las 2 líneas reales
+de la fuga) · gate superficie: 5/5 verde y los 5 criterios probados en negativo uno por uno ·
+**verificación de extremo a extremo**: `grep -ril dbstudio frontend/dist` ⇒ 0 ocurrencias, con
+controles (`config-colores`, `poolActiveConnections` sí aparecen) que descartan un falso negativo.
+
+**Pendiente de la primera corrida del CI:** los 3 `check` de dotfiles del gate del borde (D) no se
+pudieron ejecutar en local — necesitan Docker, que no estaba levantado. Están razonados sobre la
+semántica de nginx (los `location ~` regex ganan sobre el prefijo `location /`, y no hay `error_page`
+que altere el 403 de `deny all`), pero si fallaran frenarían el deploy del front en el paso previo
+al push a ECR.

@@ -125,9 +125,19 @@ efectivamente un lector de estado de migraciones. La consola completa existe en 
 pero está cercada a **una identidad fija con segundo factor (rol)**, decidido en el servidor.
 
 > **Actualización 7-sep-2026:** la ruta se renombró a **`/api/ConfigColores`** y en la UI el módulo
-> se llama **"Configuración de colores"** (nombre-señuelo). El string `DbStudio` ya no aparece en el
-> bundle JS. La clase, los servicios y la config `DbStudio:` conservan el nombre interno. Los `curl`
-> de abajo usan la ruta nueva. Ver `renombrar_db_studio_a_config_colores_plan.md`.
+> se llama **"Configuración de colores"** (nombre-señuelo). La clase, los servicios y la config
+> `DbStudio:` conservan el nombre interno. Los `curl` de abajo usan la ruta nueva. Ver
+> `renombrar_db_studio_a_config_colores_plan.md`.
+>
+> **Corrección 8-sep-2026 — el rename estaba incompleto.** Al validarlo se encontró que el string
+> **seguía en el bundle**: el DTO `PoolStatsDto` exponía `DbStudioConnections`, que serializa como
+> `dbStudioConnections`, y el front lo consumía por nombre en su modelo y en su template. El checkbox
+> que había dado por cerrado el rename fue un `grep` **case-sensitive**
+> (`grep -rn "db-studio\|DbStudio\|db_studio"`), que no ve la forma camelCase — mientras que el
+> `grep -i dbstudio main.js` del analista sí. Campo renombrado a `poolActiveConnections` en los dos
+> lados del contrato, y el grep case-insensitive quedó como **gate de CI**
+> (`frontend/scripts/verificar-senuelo-modulo.js`). Ver
+> `gates_hallazgos_auditoria_2026-09_plan.md`.
 
 ### Cómo verificarlo
 Con una **cuenta de prueba de bajo privilegio** (recomendado entregarla al analista):
@@ -259,6 +269,25 @@ contiene ninguna firma que sirva** — el hallazgo del §4 cierra del todo. La a
 | 2 | `/api/DbStudio` | `curl` con cuenta de prueba (§2): `migration-summary` 200 minimal, resto 403, sin token 401 | **Sí, con endurecimiento** | Mover correo a config (#1 de §2); evaluar `Enabled=false` en prod; confirmar MFA de la cuenta con acceso completo |
 | 3 | `.env` / `.aws` / `.git` → 403 | `curl` (§3): 403 del WAF (`server: awselb/2.0`) y/o del nginx; sin archivo detrás | **Sí** | Registrar el *rule group* del WAF que emite el Block |
 | 4 | Secretos en el bundle JS | Descarga de `main.js`: `secretUpFrontend` + `encryptionKey` visibles (§4) | **Sí, con aclaración** | Documentar que `X-Secret-Up` es filtro de origen, no auth; la auth (JWT/authz/multiempresa) no depende del bundle |
+
+---
+
+## 6) Gates de regresión — por qué estos hallazgos no vuelven
+
+Plan: `gates_hallazgos_auditoria_2026-09_plan.md` (8-sep-2026). Las mitigaciones de arriba existían
+pero **ninguna estaba verificada por una máquina**: se sostenían por memoria del equipo, y el §2 ya se
+había filtrado una vez por eso. Ahora cada una corta el pipeline de despliegue.
+
+| Gate | Dónde corre | Qué impide |
+|---|---|---|
+| `frontend/scripts/verificar-senuelo-modulo.js` | job `tests` | Que cualquier forma de `dbstudio`/`db-studio`/`db_studio` —**case-insensitive**— vuelva a `frontend/src` y por lo tanto al bundle. Tolerancia cero. |
+| `backend/scripts/verificar-superficie-produccion.js` | job `tests` | (1) Que un `UseSwagger`/`UseSwaggerUI`/`Map*("/swagger…")`/`Map*("/debug…")` quede fuera de `if (!app.Environment.IsProduction())` — se resuelve por balanceo de llaves, no por proximidad. (2) Que el `ENV ASPNETCORE_ENVIRONMENT=Production` desaparezca del Dockerfile o de los task definitions. (3) Que `UsePlatformSecret()` pase a correr después de `UseAuthentication()`/`MapControllers()` — ahí el 401 dejaría de ser uniforme y el par 401/404 **enumeraría rutas** para un anónimo. (4) Que se agregue una exención al filtro de origen sin que se vea en el diff (lista congelada en el propio gate). (5) Que el controlador de la consola de BD pierda la ruta-señuelo, el `[Authorize]` o el ocultamiento de Swagger. |
+| 3 `check` nuevos en «Validar nginx y política de caché del borde» | job `frontend`, **antes** del push a ECR | Que se borre `location ~ /\. { deny all; }` de `nginx.conf`. Sin ellos, borrarla no rompe ningún test: los dotfiles pasarían a caer en el `try_files … /index.html` y responderían **200 con el index**, convirtiendo en falsa la respuesta que dimos en el §3. |
+
+Lo que estos gates **no** son: controles de seguridad. El control real sigue siendo JWT por usuario +
+authz *deny-by-default* + alcance multiempresa *fail-closed* + la doble validación de la consola de
+BD. Los gates cuidan que no volvamos a **regalar superficie ni pistas de reconocimiento** por un
+refactor distraído.
 
 ### Para entregar al analista
 - Una **cuenta de prueba de bajo privilegio** (para verificar la pared de 403 de DB Studio).
