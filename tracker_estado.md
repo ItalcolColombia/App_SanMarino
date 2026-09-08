@@ -7900,11 +7900,20 @@ aceptadas); Fase B (quitar el estático del bundle) queda sin marcar. Ver
       `JSON.stringify(sesion)` completo ⇒ `platformKey` sobrevive park/restore sin código nuevo. La
       cola offline (`SyncService`) usa `HttpClient` ⇒ pasa por `authInterceptor` al enviar ⇒ toma el
       `platformKey` vigente al drenar.
-- [ ] **Smoke HTTP local (pendiente — lo corre el usuario, requiere un usuario válido)**:
-      backend local con `DerivationKey` en `appsettings.Development.json`; `login` ⇒ la respuesta
-      descifrada trae `platformKey`; `GET /api/Company` con `X-Secret-Up: <platformKey>` + Bearer ⇒
-      no 401 `platform-secret`; con un `platformKey` de otro `jti` ⇒ 401; con el estático legacy ⇒
-      sigue pasando; sin header ⇒ 401.
+- [x] **Smoke HTTP local — corrido el 8-sep-2026, 8/8 en verde.** Script reproducible:
+      `backend/scripts/smoke-firma-plataforma.js`. No hizo falta un usuario válido: el middleware lee
+      el `jti` del Bearer **sin validar la firma del JWT**, así que se ejercita el filtro con un JWT
+      fabricado con `jti` arbitrario, y el veredicto se lee en la cabecera `X-Auth-Failure` (que
+      separa el rechazo de plataforma del de autenticación).
+      **Camino nuevo:** firma derivada correcta ⇒ el filtro la acepta · de otro `jti` ⇒ 401
+      `platform-secret` · basura ⇒ 401 · sin Bearer ⇒ 401 · sin header ⇒ 401.
+      **Camino legacy** (el de las sesiones ya abiertas, lo que garantiza que el deploy no corta el
+      servicio): secreto estático válido ⇒ pasa · secreto equivocado ⇒ 401 · llave equivocada ⇒ 401.
+      Backend apagado al terminar, `:5002` libre.
+- [ ] **Lo único que queda sin cubrir**: que el `platformKey` que emite `AuthService` en el login
+      coincida con lo que el middleware espera — eso sí necesita un login con usuario real. El
+      middleware quedó verificado del otro lado (valida bien lo que se le mande) y la fórmula del
+      smoke es la misma de `PlatformSecretCalculos.DerivarClaveSesion`.
 
 ### Fase B — NO ejecutar hasta confirmar que ~todo el tráfico web usa la firma derivada (≤ 3 días)
 - [ ] Métrica en el middleware: contar requests por firma derivada vs legacy.
