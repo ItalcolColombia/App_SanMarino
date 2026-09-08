@@ -89,8 +89,13 @@ Dockerfile ⇒ falla (2); mover `UsePlatformSecret()` después de `UseAuthentica
 agregar `/api/loquesea` a las exenciones ⇒ falla (4); cambiar la ruta del controller a
 `api/[controller]` ⇒ falla (5).
 
-**D** — se valida en el CI del deploy (necesita Docker + la imagen del front). Local: `docker build`
-del front + los tres `curl`.
+**D** — ✅ validado el 8-sep-2026 sin rebuild, replicando el runtime del CI: `nginx:1.27-alpine` con
+`nginx.conf` montada en `conf.d/default.conf`, `nginx-security-headers.conf` en
+`/etc/nginx/security-headers.conf` y `dist/browser` como root (las mismas rutas del `Dockerfile`).
+`nginx -t` OK; los tres `check` en 403; controles vivos (SPA 200, `.json` inexistente 404, CSP).
+Prueba negativa con una copia de la conf sin `location ~ /\.`: los tres responden **200 con
+`Content-Type: text/html`** (el index del SPA) y el gate los marca FALLA — que es exactamente la
+regresión que este bloque existe para atajar.
 
 ## Lo que este plan NO hace (y por qué)
 

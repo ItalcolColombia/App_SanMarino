@@ -7973,8 +7973,11 @@ de la fuga) · gate superficie: 5/5 verde y los 5 criterios probados en negativo
 **verificación de extremo a extremo**: `grep -ril dbstudio frontend/dist` ⇒ 0 ocurrencias, con
 controles (`config-colores`, `poolActiveConnections` sí aparecen) que descartan un falso negativo.
 
-**Pendiente de la primera corrida del CI:** los 3 `check` de dotfiles del gate del borde (D) no se
-pudieron ejecutar en local — necesitan Docker, que no estaba levantado. Están razonados sobre la
-semántica de nginx (los `location ~` regex ganan sobre el prefijo `location /`, y no hay `error_page`
-que altere el 403 de `deny all`), pero si fallaran frenarían el deploy del front en el paso previo
-al push a ECR.
+**Gate del borde (D) — validado con Docker el 8-sep-2026** (quedaba pendiente porque Docker no estaba
+levantado). Se replicó el runtime del CI (`nginx:1.27-alpine` con `nginx.conf` en
+`conf.d/default.conf`, `nginx-security-headers.conf` y `dist/browser` como root), sin rebuild:
+`nginx -t` OK · los 3 `check` en verde (`.env`, `.git/config`, `.aws/credentials` ⇒ **403**) ·
+controles vivos (ruta del SPA 200, `.json` inexistente 404, CSP presente). **Prueba negativa** sobre
+una copia de `nginx.conf` sin `location ~ /\.`: los 3 pasan a **200 con `Content-Type: text/html`**
+—el index del SPA, tal como predice el comentario del workflow— y el gate los marca FALLA. Los dos
+contenedores se eliminaron; `nginx.conf` quedó intacto.
