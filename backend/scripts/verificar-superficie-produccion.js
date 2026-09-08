@@ -281,12 +281,88 @@ function criterioConsolaBd() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Criterio 6 — NINGÚN endpoint de la consola de BD sin guarda explícita
+// ─────────────────────────────────────────────────────────────────────────────
+// El `[Authorize]` de la clase solo exige "sesión válida": por sí solo dejaría entrar a CUALQUIER
+// usuario autenticado. Lo que cierra la consola es la guarda que cada acción llama en su cuerpo, y
+// eso no lo garantiza el compilador: un endpoint nuevo sin la línea compila, pasa los tests y queda
+// abierto a todo usuario logueado. Medido el 8-sep-2026: 48 endpoints, 46 con doble validación
+// (correo autorizado Y admin) y 2 con la de migration-summary. Este criterio congela ese 0 sin guarda.
+//
+// Las cuatro guardas equivalen a lo mismo (todas terminan en IsAdminAsync => TieneAccesoCompleto);
+// tienen nombres distintos por historia, no por semántica.
+const GUARDAS_ACCESO_COMPLETO = [
+  'EnsureAdminAsync',
+  'EnsureFullAccessAsync',
+  'EnsureCanReadAsync',        // delega en EnsureFullAccessAsync
+  'EnsureCanWriteDataAsync',   // idem
+];
+
+/** La única guarda que admite cualquier sesión autenticada. Solo para la superficie pública. */
+const GUARDA_PUBLICA = 'EnsureMigrationSummaryAccessAsync';
+
+/** Endpoints que legítimamente responden a cualquier sesión autenticada. */
+const PUBLICOS_APROBADOS = new Set(['access-mode', 'migration-summary']);
+
+function criterioGuardasPorEndpoint() {
+  const ruta = 'src/ZooSanMarino.API/Controllers/DbStudioController.cs';
+  const texto = leer(ruta);
+  if (texto === null) return; // ya reportado en el criterio 5
+
+  // Posición de cada atributo [HttpX("plantilla")] / [HttpX]; el cuerpo de un endpoint es lo que va
+  // hasta el atributo siguiente.
+  const marcas = [];
+  let m;
+  const conPlantilla = /\[Http(?:Get|Post|Put|Patch|Delete)\("([^"]*)"\)\]/g;
+  while ((m = conPlantilla.exec(texto)) !== null) marcas.push({ pos: m.index, ruta: m[1] });
+  const sinPlantilla = /\[Http(?:Get|Post|Put|Patch|Delete)\]/g;
+  while ((m = sinPlantilla.exec(texto)) !== null) marcas.push({ pos: m.index, ruta: '(sin plantilla)' });
+  marcas.sort((a, b) => a.pos - b.pos);
+
+  if (marcas.length === 0) {
+    falla('6 · guardas por endpoint', `No se detectó ningún endpoint en ${ruta}. ¿Cambió la forma del archivo?`);
+    return;
+  }
+
+  const lineaDe = (idx) => texto.slice(0, idx).split('\n').length;
+  let completos = 0, publicos = 0;
+
+  marcas.forEach((marca, i) => {
+    const fin = i + 1 < marcas.length ? marcas[i + 1].pos : texto.length;
+    const cuerpo = texto.slice(marca.pos, fin);
+
+    if (GUARDAS_ACCESO_COMPLETO.some(g => cuerpo.includes(g))) { completos++; return; }
+
+    if (cuerpo.includes(GUARDA_PUBLICA)) {
+      publicos++;
+      if (!PUBLICOS_APROBADOS.has(marca.ruta)) {
+        falla('6 · guardas por endpoint',
+          `${ruta}:${lineaDe(marca.pos)} — "${marca.ruta}" quedó accesible a CUALQUIER sesión ` +
+          'autenticada. La superficie pública aprobada es solo access-mode y migration-summary; ' +
+          'si esto es deliberado, agregalo a PUBLICOS_APROBADOS para que se revise en el PR.');
+      }
+      return;
+    }
+
+    falla('6 · guardas por endpoint',
+      `${ruta}:${lineaDe(marca.pos)} — "${marca.ruta}" NO llama a ninguna guarda. El [Authorize] de ` +
+      'la clase solo exige sesión válida: sin la guarda, este endpoint de la consola de BD queda ' +
+      'abierto a todo usuario logueado.');
+  });
+
+  if (fallos.every(f => !f.criterio.startsWith('6 ·'))) {
+    ok(`6 · ${marcas.length} endpoints de la consola de BD: ${completos} con doble validación, ${publicos} públicos aprobados, 0 sin guarda`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function main() {
   criterioSwagger();
   criterioEntorno();
   criterioOrdenPipeline();
   criterioExenciones();
   criterioConsolaBd();
+  criterioGuardasPorEndpoint();
 
   for (const o of oks) console.log(`  OK    ${o}`);
 
@@ -306,7 +382,7 @@ function main() {
   }
 
   console.log('');
-  console.log('✅ Superficie de producción intacta (5/5 criterios).');
+  console.log('✅ Superficie de producción intacta (6/6 criterios).');
 }
 
 main();
