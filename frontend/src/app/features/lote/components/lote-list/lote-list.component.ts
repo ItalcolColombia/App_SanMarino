@@ -36,6 +36,7 @@ import { ModalAsignarHuevoItemsComponent } from '../modal-asignar-huevo-items/mo
 import { LoteHuevoItemsService } from '../../services/lote-huevo-items.service';
 import { GrupoHuevoItems } from '../../models/huevo-items.model';
 import { agruparHuevoItemsPorTipo, seleccionInicialHuevoItems } from '../../funciones/agrupar-huevo-items.funcion';
+import { mensajeErrorAnosGuiaGenetica } from '../../funciones/anos-guia-genetica-error.funcion';
 import {
   calcularEdadDias as calcularEdadDiasFn,
   calcularEdadSemanas as calcularEdadSemanasFn,
@@ -46,7 +47,10 @@ import {
   encasetMachosProduccion as encasetMachosProduccionFn,
   encasetTotal as encasetTotalFn,
   estadoCierreLevante as estadoCierreLevanteFn,
-  estadoCierreProduccion as estadoCierreProduccionFn
+  estadoCierreProduccion as estadoCierreProduccionFn,
+  filtrarLotesPorEstadoCierre,
+  filtrarLoteBasePorEstadoCierre,
+  EstadoCierreFiltro
 } from '../../funciones/lote-list-encasetamiento.funcion';
 import {
   formatNumber as formatNumberFn,
@@ -223,6 +227,15 @@ export class LoteListComponent implements OnInit {
   sortKey: 'edad' | 'fecha' = 'edad';
   sortDir: 'asc' | 'desc' = 'desc';
 
+  /**
+   * Filtro Abiertos/Cerrados/Todos de los tabs "Lote" y "Lote Base". Default `'abiertos'`: sin él
+   * las dos listas se llenan de lotes/bases que ya liquidaron todo su ciclo. Un mismo control por
+   * pestaña (no comparten estado) porque "abierto" significa algo distinto en cada una: en Lote es
+   * `!cerradoCompleto`; en Lote Base es "sin lotes asignados todavía, o con al menos uno abierto".
+   */
+  estadoLoteFilter: EstadoCierreFiltro = 'abiertos';
+  estadoBaseFilter: EstadoCierreFiltro = 'abiertos';
+
   // Form
   form!: FormGroup;
   baseForm!: FormGroup;
@@ -240,6 +253,15 @@ export class LoteListComponent implements OnInit {
   selectedAnoTabla: number | null = null;
   loadingAnos: boolean = false;
   razaValida: boolean = true;
+  /**
+   * La consulta de años FALLÓ (red, sesión vencida, 500). `null` = la consulta respondió.
+   *
+   * Existe para no volver a confundir «la guía no tiene años para esta raza» con «no pude
+   * preguntarle a la guía»: hasta el 9-sep-2026 los dos casos dejaban `razaValida = false` y
+   * pintaban el mismo texto rojo, así que una sesión vencida se leía como guía genética sin datos.
+   * Ver `mensajeErrorAnosGuiaGenetica`.
+   */
+  errorAnos: string | null = null;
   companies: Company[]  = [];
 
   /**
@@ -305,6 +327,8 @@ export class LoteListComponent implements OnInit {
   viewLotes: LoteDto[] = [];
   // Lotes postura base (creación rápida)
   lotesPosturaBase: LotePosturaBaseDto[] = [];
+  /** Tab "Lote Base": bases ya recortadas por granja del usuario, ANTES del filtro Abiertos/Cerrados/Todos. */
+  private basesPosturaBaseTab: LotePosturaBaseDto[] = [];
   baseLotesOptions: LotePosturaBaseDto[] = [];          // todos los cargados del servidor
   filteredBaseLotesOptions: LotePosturaBaseDto[] = []; // filtrados por granja seleccionada
   sinLoteBaseEnGranja = false;                          // true = granja seleccionada sin base asignada
@@ -666,14 +690,30 @@ export class LoteListComponent implements OnInit {
         const userFarmIds = new Set(farms.map(f => f.id));
         // Mostrar bases cuyo farmId pertenece a las granjas del usuario,
         // o si farmId es null (sin granja asignada aún, solo si hay bases)
-        this.viewLotesPosturaBase = (bases ?? []).filter(
+        this.basesPosturaBaseTab = (bases ?? []).filter(
           b => b.farmId == null || userFarmIds.has(b.farmId)
         );
+        this.recomputeLoteBaseList();
         // También actualizar farms disponibles para el modal
         this.farms = farms;
       },
       error: () => this.toastService.error('No se pudieron cargar los lotes base.', 'Error')
     });
+  }
+
+  /** Aplica `estadoBaseFilter` sobre las bases ya recortadas por granja del usuario. */
+  private recomputeLoteBaseList(): void {
+    this.viewLotesPosturaBase = filtrarLoteBasePorEstadoCierre(this.basesPosturaBaseTab, this.estadoBaseFilter);
+  }
+
+  onEstadoLoteFilterChange(v: EstadoCierreFiltro): void {
+    this.estadoLoteFilter = v;
+    this.recomputeList();
+  }
+
+  onEstadoBaseFilterChange(v: EstadoCierreFiltro): void {
+    this.estadoBaseFilter = v;
+    this.recomputeLoteBaseList();
   }
 
   private loadLotesPosturaBase(): void {
@@ -750,7 +790,10 @@ export class LoteListComponent implements OnInit {
     this.selectedFarmId = null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
+    this.estadoLoteFilter = 'abiertos';
+    this.estadoBaseFilter = 'abiertos';
     this.recomputeList();
+    this.recomputeLoteBaseList();
   }
 
   // ===================== Ordenamiento =======================
@@ -804,6 +847,7 @@ export class LoteListComponent implements OnInit {
       this.viewLotesProduccion = res;
     } else {
       let res = [...this.lotes];
+      res = filtrarLotesPorEstadoCierre(res, this.estadoLoteFilter);
       if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
       if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
       if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
@@ -1996,12 +2040,14 @@ export class LoteListComponent implements OnInit {
     if (!raza || raza.trim() === '') {
       
       this.anosDisponibles = [];
+      this.errorAnos = null;
       this.loadingAnos = false;
       return;
     }
 
     this.loadingAnos = true;
     this.razaValida = true;
+    this.errorAnos = null;
     
     
     this.guiaGeneticaSvc.obtenerInformacionRaza(raza).subscribe({
@@ -2021,6 +2067,9 @@ export class LoteListComponent implements OnInit {
         console.error('❌ Error cargando años disponibles:', error);
         this.anosDisponibles = [];
         this.razaValida = false;
+        // La consulta no respondió: NO se puede afirmar que la raza no tenga años cargados.
+        // `errorAnos` apaga ese mensaje y muestra el motivo real (sesión vencida, 500, red).
+        this.errorAnos = mensajeErrorAnosGuiaGenetica(error);
         this.loadingAnos = false;
       }
     });

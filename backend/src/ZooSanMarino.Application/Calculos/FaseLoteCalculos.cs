@@ -134,4 +134,21 @@ public static class FaseLoteCalculos
     /// <summary>¿El texto del estado de cierre significa «cerrado»? Null/vacío ⇒ no.</summary>
     public static bool EsCierreCerrado(string? estadoCierre) =>
         string.Equals(estadoCierre?.Trim(), CierreCerrado, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ¿El lote terminó por completo su ciclo de postura (levante Y producción, las dos fases)?
+    ///
+    /// <para>
+    /// Se usa para sacar de las listas de trabajo (Seguimiento Diario, Lote Management) los lotes
+    /// que ya no tienen nada pendiente — evita que se llenen de lotes liquidados hace meses. Exige
+    /// las TRES señales: un levante cerrado sin producción todavía (<paramref name="tieneProduccion"/>
+    /// en <c>false</c>) NO cuenta como cerrado completo — es un estado a medio transicionar y debe
+    /// seguir visible, no esconderse como si ya no hubiera nada que hacer con ese lote.
+    /// </para>
+    /// </summary>
+    /// <param name="levanteCerrado"><c>lote_postura_levante.estado_cierre == "Cerrado"</c>.</param>
+    /// <param name="tieneProduccion">Existe una fila viva en <c>lote_postura_produccion</c>.</param>
+    /// <param name="produccionCerrada"><c>lote_postura_produccion.estado_cierre == "Cerrada"</c>.</param>
+    public static bool EstaLoteCerradoCompleto(bool levanteCerrado, bool tieneProduccion, bool produccionCerrada) =>
+        levanteCerrado && tieneProduccion && produccionCerrada;
 }

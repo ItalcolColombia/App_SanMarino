@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -42,9 +43,12 @@ public class SeguimientoProduccionController : ControllerBase
         // lote_postura_produccion CON FechaEncaset (+ aves iniciales/actuales y estado de cierre).
         // Antes el endpoint devolvía el item genérico SIN fechaEncaset → el front calculaba la edad
         // con base null (EDAD DÍAS=0, EDAD SEMANAS clamp fijo). El front lee `fechaEncaset` (camelCase).
+        // No listar producción ya cerrada/liquidada: no hay nada que registrar a diario y solo
+        // ensucia el desplegable (isLoteCerrado ya bloqueaba alta/edición/borrado, pero recién al
+        // seleccionarlo — mejor no ofrecerlo).
         var lppSvc = sp.GetRequiredService<ILotePosturaProduccionService>();
         var lotes = (await lppSvc.GetAllAsync(ct))
-            .Where(l => farmIds.Contains(l.GranjaId))
+            .Where(l => farmIds.Contains(l.GranjaId) && !CicloVidaPosturaCalculos.EstaCerrado(l.EstadoCierre))
             .Select(l => new LotePosturaProduccionFilterItemDto(
                 LotePosturaProduccionId: l.LotePosturaProduccionId,
                 LoteNombre: l.LoteNombre,

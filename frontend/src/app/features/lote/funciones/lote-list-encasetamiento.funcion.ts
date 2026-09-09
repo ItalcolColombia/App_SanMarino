@@ -5,6 +5,7 @@
 import { LoteDto } from '../services/lote.service';
 import { LotePosturaLevanteDto } from '../services/lote-postura-levante.service';
 import { LotePosturaProduccionDto } from '../services/lote-postura-produccion.service';
+import { LotePosturaBaseDto } from '../services/lote-postura-base.service';
 
 /** Edad en días desde fechaEncaset (día del encaset = día 1). */
 export function calcularEdadDias(fechaEncaset?: string | Date | null): number {
@@ -100,4 +101,41 @@ export function estadoCierreLevante(l: LotePosturaLevanteDto): 'Abierto' | 'Cerr
 export function estadoCierreProduccion(l: LotePosturaProduccionDto): 'Abierto' | 'Cerrado' {
   const v = (l.estadoCierre ?? 'Abierta').toString().trim().toLowerCase();
   return v === 'cerrada' ? 'Cerrado' : 'Abierto';
+}
+
+// ─── Filtro Abiertos / Cerrados / Todos (tabs Lote y Lote Base) ─────────────────────────────────
+// Sin este filtro las dos listas crecen para siempre: un lote o una base que ya liquidaron todo su
+// ciclo se quedan en pantalla igual que uno activo. Por defecto se ven solo los abiertos; el filtro
+// deja volver a traer los cerrados sin perder el resto de los filtros (granja/núcleo/galpón/búsqueda).
+
+export type EstadoCierreFiltro = 'abiertos' | 'cerrados' | 'todos';
+
+/**
+ * Filtra lotes por `cerradoCompleto` (backend, `FaseLoteCalculos.EstaLoteCerradoCompleto`).
+ * `'abiertos'` es el default: un lote sin la señal calculada (`cerradoCompleto` ausente/`null`) se
+ * trata como abierto — más seguro mostrar de más que esconder un lote real por un dato faltante.
+ */
+export function filtrarLotesPorEstadoCierre(lotes: LoteDto[], estado: EstadoCierreFiltro): LoteDto[] {
+  if (estado === 'todos') return lotes;
+  if (estado === 'cerrados') return lotes.filter(l => l.cerradoCompleto === true);
+  return lotes.filter(l => l.cerradoCompleto !== true);
+}
+
+/**
+ * Una base se muestra por defecto si todavía no tiene ningún lote asignado ("sin asignar": no puede
+ * estar cerrada si no existe) o si tiene al menos un lote sin cerrar por completo. Solo se oculta
+ * cuando TODOS sus lotes ya terminaron el ciclo (levante + producción cerrados).
+ */
+export function mostrarLoteBasePorDefecto(totalLotes: number, tieneLoteAbierto: boolean): boolean {
+  return totalLotes === 0 || tieneLoteAbierto;
+}
+
+/** `filtrarLotesPorEstadoCierre`, para la lista de Lote Base. */
+export function filtrarLoteBasePorEstadoCierre(
+  bases: LotePosturaBaseDto[],
+  estado: EstadoCierreFiltro
+): LotePosturaBaseDto[] {
+  if (estado === 'todos') return bases;
+  const abierta = (b: LotePosturaBaseDto) => mostrarLoteBasePorDefecto(b.totalLotes, b.tieneLoteAbierto);
+  return estado === 'cerrados' ? bases.filter(b => !abierta(b)) : bases.filter(abierta);
 }

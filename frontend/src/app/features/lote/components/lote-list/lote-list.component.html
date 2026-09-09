@@ -186,6 +186,30 @@
         </div>
       </div>
 
+      <!-- Estado: Abiertos (default, evita que la lista se llene de lotes ya liquidados) / Cerrados / Todos -->
+      @if (activeTab === 'lote' || activeTab === 'loteBase') {
+        <div class="filter-field filter-field--fixed">
+          <label for="l-estado" class="filter-step__label">Estado</label>
+          @if (activeTab === 'lote') {
+            <select id="l-estado" class="filter-step__select"
+              [ngModel]="estadoLoteFilter"
+              (ngModelChange)="onEstadoLoteFilterChange($event)">
+              <option [ngValue]="'abiertos'">Abiertos</option>
+              <option [ngValue]="'cerrados'">Cerrados</option>
+              <option [ngValue]="'todos'">Todos</option>
+            </select>
+          } @else {
+            <select id="l-estado" class="filter-step__select"
+              [ngModel]="estadoBaseFilter"
+              (ngModelChange)="onEstadoBaseFilterChange($event)">
+              <option [ngValue]="'abiertos'">Abiertos</option>
+              <option [ngValue]="'cerrados'">Cerrados</option>
+              <option [ngValue]="'todos'">Todos</option>
+            </select>
+          }
+        </div>
+      }
+
       <!-- Ordenar por -->
       <div class="filter-field filter-field--fixed">
         <label for="l-sort-key" class="filter-step__label">Ordenar</label>
@@ -890,12 +914,20 @@
                               Seleccione primero una raza para ver los años disponibles
                             </div>
                           }
-                          @if (selectedRaza && !loadingAnos && !razaValida) {
+                          <!-- La consulta FALLÓ: se muestra el motivo real (sesión vencida, 500, red)
+                               y se callan los dos mensajes de abajo, que afirmarían que la guía no
+                               tiene años cuando en realidad no se le pudo preguntar. -->
+                          @if (errorAnos && !loadingAnos) {
+                            <div class="ux-error">
+                              {{ errorAnos }}
+                            </div>
+                          }
+                          @if (!errorAnos && selectedRaza && !loadingAnos && !razaValida) {
                             <div class="ux-error">
                               No se encontraron años disponibles para la raza "{{ selectedRaza }}"
                             </div>
                           }
-                          @if (selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0) {
+                          @if (!errorAnos && selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0) {
                             <div class="ux-warning">
                               La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
                             </div>

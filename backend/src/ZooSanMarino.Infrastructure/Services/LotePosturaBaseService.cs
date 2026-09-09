@@ -33,12 +33,34 @@ public class LotePosturaBaseService : ILotePosturaBaseService
             {
                 lpb,
                 FarmName  = (string?)farm.Name,
-                PaisNombre = (string?)pais.PaisNombre
+                PaisNombre = (string?)pais.PaisNombre,
+                // Lotes derivados de esta base, sin contar el hijo de producción (mismo criterio que
+                // LoteService.GetAllAsync). Sirven para el filtro Abiertos/Cerrados/Todos de Lote
+                // Management: una base sin lotes ("sin asignar") o con al menos uno abierto se sigue
+                // mostrando por defecto; solo desaparece cuando TODOS sus lotes cerraron las dos fases.
+                TotalLotes = _ctx.Lotes.Count(l => l.LotePosturaBaseId == lpb.LotePosturaBaseId
+                                                 && l.DeletedAt == null
+                                                 && !(l.Fase == "Produccion" && l.LotePadreId != null)),
+                TieneLoteAbierto = _ctx.Lotes.Any(l => l.LotePosturaBaseId == lpb.LotePosturaBaseId
+                                                 && l.DeletedAt == null
+                                                 && !(l.Fase == "Produccion" && l.LotePadreId != null)
+                                                 && !(
+                                                     _ctx.LotePosturaLevante.Any(x => x.LoteId == l.LoteId
+                                                         && x.DeletedAt == null
+                                                         && x.EstadoCierre != null
+                                                         && x.EstadoCierre.ToLower() == "cerrado")
+                                                     && _ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId
+                                                         && p.DeletedAt == null)
+                                                     && _ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId
+                                                         && p.DeletedAt == null
+                                                         && p.EstadoCierre != null
+                                                         && p.EstadoCierre.ToLower() == "cerrada")
+                                                 ))
             };
 
         var items = await query.ToListAsync();
 
-        return items.Select(x => Map(x.lpb, companyName, x.FarmName, x.PaisNombre));
+        return items.Select(x => Map(x.lpb, companyName, x.FarmName, x.PaisNombre, x.TotalLotes, x.TieneLoteAbierto));
     }
 
     public async Task<LotePosturaBaseDto?> GetByIdAsync(int id)
@@ -162,7 +184,9 @@ public class LotePosturaBaseService : ILotePosturaBaseService
         LotePosturaBase e,
         string?  companyNombre,
         string?  farmNombre,
-        string?  paisNombre) =>
+        string?  paisNombre,
+        int      totalLotes = 0,
+        bool     tieneLoteAbierto = true) =>
         new(
             e.LotePosturaBaseId,
             e.LoteNombre,
@@ -182,6 +206,8 @@ public class LotePosturaBaseService : ILotePosturaBaseService
             e.FarmId,
             farmNombre,
             e.ErpCreate,
-            e.CreatedAt
+            e.CreatedAt,
+            totalLotes,
+            tieneLoteAbierto
         );
 }

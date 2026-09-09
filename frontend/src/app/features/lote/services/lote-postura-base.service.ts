@@ -29,6 +29,14 @@ export interface LotePosturaBaseDto {
   erpCreate: string | null;   // date ISO string (yyyy-MM-dd)
   // Auditoría
   createdAt: string;
+  /** Cantidad de lotes (tabla `lotes`) derivados de esta base, sin contar el hijo de producción. */
+  totalLotes: number;
+  /**
+   * Existe al menos un lote de esta base sin cerrar por completo (levante + producción). Junto con
+   * `totalLotes === 0` (base "sin asignar", todavía sin lotes) decide si la base se muestra por
+   * defecto en el filtro Abiertos de Lote Management.
+   */
+  tieneLoteAbierto: boolean;
 }
 
 export interface CreateLotePosturaBaseDto {
