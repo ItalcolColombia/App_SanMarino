@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using System.Reflection;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -105,6 +106,17 @@ public class ExcelImportService : IExcelImportService
                         if (missingKeys.Count > 0)
                         {
                             errors.Add($"Fila {row}: Faltan campos clave: {string.Join(", ", missingKeys)}");
+                            errorRows++;
+                            continue;
+                        }
+
+                        // anio_guia es texto libre, pero el destino (lotes.ano_tabla_genetica) es integer y la
+                        // lectura lo filtra con int.TryParse: un año no usable (p. ej. "G21") se aceptaba en
+                        // silencio y quedaba inservible. Se rechaza POR FILA -sin abortar el archivo- y el resto
+                        // se importa igual. Regla única en AnioGuiaGeneticaCalculos.
+                        if (!AnioGuiaGeneticaCalculos.EsAnioUsable(createDto.AnioGuia))
+                        {
+                            errors.Add($"Fila {row}: {AnioGuiaGeneticaCalculos.MensajeAnioInvalido(createDto.AnioGuia)}");
                             errorRows++;
                             continue;
                         }
@@ -361,6 +373,10 @@ public class ExcelImportService : IExcelImportService
 
                     var missingKeys = GetMissingKeyFields(createDto);
                     if (missingKeys.Count > 0) continue;
+
+                    // Un año no usable se rechaza en el import (rechazo por fila); acá se descarta de la
+                    // vista previa para que no se muestre como válida una fila que la importación va a rechazar.
+                    if (!AnioGuiaGeneticaCalculos.EsAnioUsable(createDto.AnioGuia)) continue;
 
                     // Simular la creación para validar los datos
                     var simulatedDto = new ProduccionAvicolaRawDto(

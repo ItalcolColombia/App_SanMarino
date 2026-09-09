@@ -336,6 +336,12 @@ public static class GuiaGeneticaSantaReyesCalculos
         if (faltantes.Count > 0)
             return Rechazo($"Faltan campos clave: {string.Join(", ", faltantes)}.");
 
+        // El anio_guia es texto libre en la columna, pero el destino (lotes.ano_tabla_genetica) es
+        // integer y la lectura lo filtra con int.TryParse: un año no usable ("G21", "2026.0", …) se
+        // rechaza acá con el mismo mensaje que los otros dos escritores. Ver AnioGuiaGeneticaCalculos.
+        if (!AnioGuiaGeneticaCalculos.EsAnioUsable(anioGuia))
+            return Rechazo(AnioGuiaGeneticaCalculos.MensajeAnioInvalido(anioGuia));
+
         if (!TryParsearEdad(edad, out var edadNumerica))
             return Rechazo($"«{ColumnaEdad}» no es un número entero: «{edad!.Trim()}».");
 

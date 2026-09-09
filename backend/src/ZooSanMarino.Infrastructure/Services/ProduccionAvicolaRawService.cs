@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/ProduccionAvicolaRawService.cs
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.Interfaces;
@@ -32,8 +33,24 @@ public class ProduccionAvicolaRawService : IProduccionAvicolaRawService
         return _currentUser.CompanyId;
     }
 
+    /// <summary>
+    /// Rechaza en la ESCRITURA un <c>anio_guia</c> que ningún consumidor podría usar. La columna es
+    /// texto libre, pero el destino real (<c>lotes.ano_tabla_genetica</c>) es <c>integer</c> y la
+    /// lectura lo filtra con <c>int.TryParse</c>: un valor como <c>«G21»</c> se aceptaba en silencio y
+    /// quedaba inservible. Regla única en <see cref="AnioGuiaGeneticaCalculos"/>; el controller
+    /// traduce esta <see cref="ArgumentException"/> a <c>400</c>. El <c>CodigoGuiaGenetica</c> derivado
+    /// (<c>Raza + AnioGuia + Edad</c>) no cambia para un año válido ⇒ delta cero.
+    /// </summary>
+    private static void ValidarAnioGuia(string? anioGuia)
+    {
+        if (!AnioGuiaGeneticaCalculos.EsAnioUsable(anioGuia))
+            throw new ArgumentException(AnioGuiaGeneticaCalculos.MensajeAnioInvalido(anioGuia));
+    }
+
     public async Task<ProduccionAvicolaRawDto> CreateAsync(CreateProduccionAvicolaRawDto dto)
     {
+        ValidarAnioGuia(dto.AnioGuia);
+
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var entity = new ProduccionAvicolaRaw
         {
@@ -119,6 +136,8 @@ public class ProduccionAvicolaRawService : IProduccionAvicolaRawService
 
     public async Task<ProduccionAvicolaRawDto> UpdateAsync(UpdateProduccionAvicolaRawDto dto)
     {
+        ValidarAnioGuia(dto.AnioGuia);
+
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var entity = await _context.ProduccionAvicolaRaw
             .FirstOrDefaultAsync(x => x.Id == dto.Id && x.CompanyId == effectiveCompanyId);
