@@ -1,4 +1,4 @@
-using ZooSanMarino.Application.Calculos;
+﻿using ZooSanMarino.Application.Calculos;
 
 using static ZooSanMarino.Application.Calculos.AjusteCuadreAlimentoCalculos;
 
@@ -243,5 +243,42 @@ public class AjusteCuadreAlimentoCalculosTests
 
         Assert.Contains("inventario", texto);
         Assert.Contains("tabla diaria", texto);
+    }
+
+    // ─── El ajuste huérfano: eliminar stock en un galpón sin ciclo vivo ─────────
+
+    /// <summary>
+    /// Ticket de operación 10-sep-2026 (DOÑA MARIA / núcleo C / galpón 2, lote 257). El 05-sep
+    /// borraron los lotes 168/169 y, 55 segundos después, el stock sobrante del galpón. Sin lote
+    /// vivo el <c>AjusteCuadreTablaSalida</c> nace huérfano y la ventana de alimento previo al
+    /// encaset se lo cobraba al ciclo siguiente: el lote 257 abrió en −3.996,56 kg.
+    /// </summary>
+    [Fact]
+    public void Sin_lote_vivo_en_el_galpon_no_se_escribe_ajuste_de_tabla()
+    {
+        Assert.False(EscribeAjusteDeTablaPorEliminacion(null));
+    }
+
+    /// <summary>Con un ciclo vivo hay tabla diaria que corregir: se escribe, igual que siempre.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(254)]
+    [InlineData(int.MaxValue)]
+    public void Con_lote_vivo_se_escribe_el_ajuste_de_tabla(int loteId)
+    {
+        Assert.True(EscribeAjusteDeTablaPorEliminacion(loteId));
+    }
+
+    /// <summary>
+    /// Fail-closed: un id que no identifica a nadie (0 o negativo) se trata como «no hay lote».
+    /// <c>fn_lote_ave_engorde_id_desde_ubicacion</c> devuelve NULL, pero si alguna vez devolviera 0
+    /// escribir el ajuste sería peor que no escribirlo — volvería a ser huérfano.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Un_id_que_no_identifica_a_nadie_no_escribe_ajuste(int loteId)
+    {
+        Assert.False(EscribeAjusteDeTablaPorEliminacion(loteId));
     }
 }

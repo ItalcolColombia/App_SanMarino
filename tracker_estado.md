@@ -8129,3 +8129,61 @@ despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecu
 - [ ] F9. **NO verificado en pantalla**: se valido por build + spec, no abriendo el modal con la
       empresa Panama activa. El `@if` compila (una plantilla mal anidada seria error de build), pero
       nadie lo vio ocultarse.
+
+---
+
+## Apertura de engorde: la limpieza de un ciclo borrado se le cobra al ciclo siguiente
+
+Ticket de operacion 10sep26 — «en el diario de alimento aparece una cantidad y en el stock otra,
+Doña Maria C-2». Plan: [`fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md`](fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md)
+
+Lote 257 (ItalcolPanama, DOÑA MARIA / nucleo C / galpon 2 = `G0490`): stock 11.715,000 kg contra
+saldo de tabla 7.718,44 ⇒ **3.996,56 kg exactos**, que son un `AjusteCuadreTablaSalida` HUERFANO
+(sin lote) nacido al borrar el stock sobrante del ciclo anterior 55 s despues de borrar sus lotes.
+Radio: 11 ajustes / 45.183,08 kg del 05 al 10sep, 10 sin lote, **39.040,18 kg pendientes** en 7
+galpones sin ciclo vivo que el proximo encaset heredaria.
+
+- [x] A1. Diagnostico cerrado y verificado contra la copia local (aritmetica exacta, cadena de
+      causa con horas, radio medido). Ver plan seccion 1-3.
+- [x] A2. `fn_seguimiento_diario_engorde` **v19**: en `apert_mov` / `apertura_docs`, un
+      `INV_AJUSTE_CUADRE_ENTRADA`/`_SALIDA` con `lote_ave_engorde_id IS NULL` NO entra a la
+      apertura. Complemento exacto de la guarda v11 (que con lote NULL es tautologica).
+- [x] A3. Migracion `20260910120000_FnSeguimientoEngordeV19AperturaIgnoraAjusteHuerfano`
+      (`.cs` + `.Fn.cs` + `.Designer.cs`), `Down` = v18 verbatim, sin cambio de firma ni de
+      ModelSnapshot. Espejo `backend/sql/fn_seguimiento_diario_engorde.sql` actualizado en el
+      MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
+- [x] A4. **GATE MULTIPAIS** (obligatorio): `EXCEPT` en los dos sentidos, todas las columnas, todos
+      los lotes vivos de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino deben dar 0
+      (tienen 0 filas de ajuste de cuadre). Unico cambio esperado: lote 257.
+- [x] A5. T1-T3 medidos: 257 apertura -3.996,56 → 0 y saldo → 11.715 = stock · 256 sin cambio
+      (8.350 = stock, prueba de que la variante «solo el propio lote» habria roto un galpon que
+      cuadra) · 254 sin cambio (8.804).
+- [x] A6. `EliminarStockAsync`: si el galpon no tiene lote vivo, NO escribe el
+      `AjusteCuadreTablaSalida` (el `EliminacionStock` se conserva siempre). Decision pura en
+      `AjusteCuadreAlimentoCalculos` + tests xUnit. «Cuadrar galpon» intacto (siempre trae lote).
+- [x] A7. Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4.087 + 1 pass / 0 fail**
+      (base 4.081 + 1; los 6 casos nuevos cierran la cuenta) · **prueba negativa**: anulando la regla
+      fallan **exactamente los 3** casos que la cubren, ninguno mas ·
+      `verificar-sql-llega-por-migracion.js` OK · `dotnet ef migrations list` la muestra
+      **(Pending)** y ULTIMA en el orden — la prueba de que EF la ve y el deploy la corre ·
+      T10 `Down`: v18 vuelve **byte a byte** (0 y 0 sobre 7.051 filas) ·
+      `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` antes/despues:
+      G0490 `dif_kg` **3.996,560 → 0,000**.
+      ⚠️ **NO se corrio `dotnet ef database update` ni se aplico la fn a la BD local compartida**:
+      toda la medicion fue en transacciones revertidas, para no cambiarle el comportamiento de la fn
+      a la otra sesion que trabaja el mismo repo. Front sin cambios ⇒ `yarn build` no aplica.
+- [x] A8. Respuesta al ticket: stock 11.715,000 contra tabla 7.718,44; la diferencia es un
+      `AjusteCuadreTablaSalida` huerfano de 3.996,56 kg del ciclo anterior. Con la v19 la tabla
+      cierra en 11.715,000 = stock.
+- [ ] A9. **Sin commitear**: el working tree tiene trabajo de otra sesion (V6/F7). Los archivos de
+      este bloque son: `fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md`,
+      `backend/sql/fn_seguimiento_diario_engorde.sql`,
+      `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql`,
+      `backend/src/ZooSanMarino.Infrastructure/Migrations/20260910120000_FnSeguimientoEngordeV19AperturaIgnoraAjusteHuerfano.{cs,Fn.cs,Designer.cs}`,
+      `backend/src/ZooSanMarino.Application/Calculos/AjusteCuadreAlimentoCalculos.cs`,
+      `backend/src/ZooSanMarino.Infrastructure/Services/InventarioGestion/Funciones/InventarioGestionService.StockMutacion.cs`,
+      `backend/tests/ZooSanMarino.Application.Tests/AjusteCuadreAlimentoCalculosTests.cs` y este tracker.
+- [ ] A10. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`).
+      Verificar despues con `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` (consulta 3
+      ajustando la fecha al dia del despliegue: tiene que salir VACIA; consulta 4: `dif_kg` sin los
+      kilos huerfanos).
