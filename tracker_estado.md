@@ -8026,3 +8026,43 @@ Fase B, que queda propuesta y NO implementada.
       ⚠️ Ojo al restaurar: `SesionTokenCalculos.cs` es archivo NUEVO, `git checkout --` no lo revierte
       y quedó mutado hasta que se revirtió a mano.
 - [ ] ⚠️ Rehacer el merge a `main-produccion` (el preparado en `5c47795` quedó desactualizado).
+
+---
+
+## Ventas de engorde con 0 kg netos (Panama) — cierre del hueco + correccion del dato
+
+Plan: [`venta_engorde_panama_neto_cero_plan.md`](fase_de_desarrollo/venta_engorde_panama_neto_cero_plan.md)
+
+Pedido del usuario (9-sep-2026): el seguimiento diario de engorde de Panama trae las aves
+despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecuador**.
+
+- [x] D1. Diagnostico medido: 206 de 207 ventas de Panama con `peso_bruto = peso_tara` ⇒ `peso_neto = 0`.
+      `peso_bruto` promedia 2,357 kg/ave = el peso NETO del pollo. 476.894 aves, 17 lotes, 1.124.026 kg.
+- [x] D2. **Ecuador limpio**: 0 de 1.472 con `bruto = tara`; bruto/ave 7,21 y neto/ave 2,836. Su unico
+      neto en 0 (`MPE-20260401-000102`, mar-2026) tiene los tres pesos NULL, no el patron.
+- [x] D3. Huecos identificados: `ValidarPesoObligatorioEnVenta` acepta `bruto = tara`; el detector
+      `MOV_SIN_PESO` filtra `peso_neto IS NULL` y no ve el `0`.
+- [x] D4. **Hallazgo no previsto:** 4 de los 17 lotes de Panama (161/163/164/165, 176.930 aves) estan
+      LIQUIDADOS y su tabla diaria sale de la copia CONGELADA, no del calculo vivo ⇒ el backfill NO los
+      arregla. Re-congelar (`fn_recongelar_liquidacion_engorde`) si los arregla, pero medido mueve
+      **57 de esas 171 filas** en columnas que no son la de kilos (saldo aves, saldo alimento, consumo,
+      mortalidad) porque la formula avanzo de v13/v15 a v18. Queda FUERA de la migracion: reescribir
+      una liquidacion aprobada es decision de operacion.
+- [x] A. Gate: `ValidarPesoObligatorioEnVenta` rechaza `bruto == tara` (neto 0) + 9 tests xUnit
+      (los mensajes previos se verifican byte a byte).
+- [x] A2. Espejo del mensaje en `modal-venta-panama`, `modal-registro-peso` y
+      `modal-movimiento-pollo-engorde` (los 3 formularios que registran venta).
+- [x] C. `MOV_SIN_PESO` pasa a `COALESCE(peso_neto,0)=0`, y `fn_aplicar_correccion_despachos_sin_peso`
+      con el MISMO criterio (son un par: uno reporta, el otro corrige). Espejos `.sql` + migracion.
+- [x] B. Backfill de los 206 movimientos: migracion `20260910010000_FixVentaEngordeNetoCeroBrutoIgualTara`
+      (idempotente, respaldo previo en `_backup_mpe_peso_neto_cero`, Down que revierte fila a fila).
+      Seleccion por PATRON (`bruto = tara > 0` con neto 0), sin nombrar ninguna company_id.
+      Espejo `backend/sql/backfill_venta_engorde_neto_cero_bruto_igual_tara.sql`.
+- [x] V1. Ensayo en transaccion sobre la copia local (rollback): Panama 8 kg → **1.124.034 kg**
+      (2,381 kg/ave) y **Ecuador identico** (4.978.966,246145746 antes y despues). El espejo
+      `lote_registro_historico_unificado` se actualiza SOLO (lo hace el trigger). `fn_seguimiento_diario_engorde`
+      de un lote NO congelado trae kilos; el de uno congelado sigue en 0 (ver D4).
+- [x] V2. Diagnostico reusable `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (solo lectura,
+      gate multipais + lista de lotes congelados en 0 kg). Gate `verificar-sql-llega-por-migracion.js` OK.
+- [ ] V3. `dotnet build` + `dotnet test` + `yarn build`.
+- [ ] V4. Decidir con el usuario si se re-congelan los 4 lotes liquidados (ver D4).
