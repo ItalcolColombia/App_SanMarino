@@ -73,6 +73,23 @@ namespace ZooSanMarino.Domain.Entities
         public bool VentaEngordePesoDiferido { get; set; }
 
         /// <summary>
+        /// <c>true</c> = la empresa recibe de planta UNA SOLA cifra de kilos por despacho —el peso
+        /// NETO del pollo— en vez de las dos pesadas de báscula (Panamá). El formulario de venta
+        /// oculta «Peso tara», rotula el campo restante como los kilos del despacho y manda la tara
+        /// en 0, de modo que neto = lo digitado.
+        /// <c>false</c> (default) = comportamiento actual: se piden bruto (camión CARGADO) y tara
+        /// (camión VACÍO), y el neto sale de la resta.
+        /// <para>
+        /// Existe porque pedir un campo que nunca se llena es lo que produjo el incidente del
+        /// 9-sep-2026: 206 de las 207 ventas de Panamá tenían el MISMO número en bruto y en tara
+        /// ⇒ neto 0 ⇒ 1.124.026 kg que no llegaban al seguimiento diario, al informe semanal ni a la
+        /// liquidación. Es un flag propio y no <see cref="VentaEngordePesoDiferido"/> porque son dos
+        /// hechos distintos: CUÁNDO llega el peso y CUÁNTAS cifras trae. Panamá tiene los dos.
+        /// </para>
+        /// </summary>
+        public bool VentaEngordePesoNetoUnico { get; set; }
+
+        /// <summary>
         /// <c>true</c> = la empresa NO maneja el pollo engorde por sexo una vez que el lote sale de
         /// reproductora (Panamá): mortalidad, selección y consumo se digitan como un único total
         /// MIXTO. Solo cambia la PRESENTACIÓN de la carga masiva — la plantilla descargable emite

@@ -32,6 +32,7 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     permiteTrasladoAvesCrossEtapa: false,
     capturaHuevosEnLevante: false,
     ventaEngordePesoDiferido: false,
+    ventaEngordePesoNetoUnico: false,
     primerRegistroSegunHoraLlegada: false,
     programacionLotesEngorde: false,
     nombreLoteIncluyeCorrida: false,

@@ -65,5 +65,8 @@ public record CreateCompanyDto(
     /// <c>null</c> ⇒ el DEFAULT 25 de la BD (comportamiento de siempre).</summary>
     int?     SemanaInicioIndicadoresProduccion  = null,
     /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día.</summary>
-    bool     PermiteMultiplesSeguimientosDiarios = false
+    bool     PermiteMultiplesSeguimientosDiarios = false,
+    /// <summary>La empresa recibe UNA sola cifra de kilos por despacho (el neto) ⇒ el formulario de
+    /// venta de engorde oculta «Peso tara» y la manda en 0.</summary>
+    bool     VentaEngordePesoNetoUnico          = false
 );

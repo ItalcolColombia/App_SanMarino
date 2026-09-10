@@ -8097,3 +8097,35 @@ despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecu
 - [ ] V6. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`). Verificar
       despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (las 3 consultas: la 3
       tiene que salir VACIA).
+
+### Ampliacion 2 (10sep26): ocultar «Peso tara» donde nunca se llena
+
+- [x] F1. Flag nuevo `companies.venta_engorde_peso_neto_unico` (bool, NOT NULL DEFAULT false). NO se
+      reuso `venta_engorde_peso_diferido`: son dos hechos distintos (CUANDO llega el peso vs CUANTAS
+      cifras trae) y una empresa con bascula diferida y bruto/tara reales existiria.
+- [x] F2. Backend: entidad + CompanyConfiguration + los 3 DTOs (en `CompanyDto` va al FINAL para no
+      desalinear construcciones posicionales entre flags `bool` vecinos; en `UpdateCompanyDto` es
+      `bool?` + `?? valorActual`) + **las 4 proyecciones** (ToDto, Crud alta/edicion, CompanyResolver
+      x2, CompanyPaisService).
+- [x] F3. Migracion `20260910020000_AddVentaEngordePesoNetoUnico`: columna idempotente
+      (`ADD COLUMN IF NOT EXISTS`) + `UPDATE` que la enciende para ItalcolPanama con
+      `IS DISTINCT FROM` (no ensucia si ya estaba). ModelSnapshot y `.Designer.cs` actualizados.
+- [x] F4. Front runtime: `ActiveCompanyConfigService` en sus 7 puntos (interfaz, FLAGS_APAGADOS,
+      response, observable, azucar, mapFlags, comparacion de publish) + `company.service.ts`.
+- [x] F5. Front admin: `flags-empresa.funcion.ts` + el spec-gate (`satisfies CompanyFlags`) que
+      convierte en error de build cualquier flag del runtime que no se pueda configurar.
+- [x] F6. Los 3 formularios: se oculta «Peso tara», «Peso bruto» pasa a «Kilos del despacho (kg)» y
+      la tara la escribe el componente (0 con kilos, null sin kilos — el null preserva la venta
+      Pendiente de la bascula diferida). Fail-closed en los tres. El aviso rojo de tara se apaga
+      cuando el campo no se ve. En el modal generico tambien se oculta en la vista de detalle.
+- [x] F7. Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4087 + 1 pass / 0 fail** ·
+      `yarn build` **0 err** · `ng test` del spec-gate de flags **11/11** ·
+      `dotnet ef migrations list` la ve **(Pending)** y `dotnet ef database update` la aplico:
+      en BD **ItalcolPanama queda `neto_unico = t`** y las otras cuatro empresas en `f`.
+- [x] F8. Riesgo revisado a proposito: si el mapper tratara el `0` como falsy, la tara oculta viajaria
+      como `null` y el backend la rechazaria como «peso a medias». Los dos `numOrNull` usan
+      `value != null && value !== ''` ⇒ el 0 sobrevive; y `numOrNull(...) ?? undefined` tambien
+      (el `??` solo mira null/undefined).
+- [ ] F9. **NO verificado en pantalla**: se valido por build + spec, no abriendo el modal con la
+      empresa Panama activa. El `@if` compila (una plantilla mal anidada seria error de build), pero
+      nadie lo vio ocultarse.

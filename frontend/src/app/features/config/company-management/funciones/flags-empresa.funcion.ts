@@ -130,6 +130,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     grupo: 'Pollo engorde'
   },
   {
+    key: 'ventaEngordePesoNetoUnico',
+    titulo: 'La venta se registra con los kilos netos',
+    descripcion: 'La planta entrega una sola cifra de kilos por despacho: el formulario pide sólo esos kilos y oculta el peso tara.',
+    grupo: 'Pollo engorde'
+  },
+  {
     key: 'programacionLotesEngorde',
     titulo: 'Programación de lotes de engorde',
     descripcion: 'Permite crear el lote antes del encasetamiento y cargarle gastos mientras está programado.',

@@ -77,5 +77,10 @@ public record UpdateCompanyDto(
     int?     SemanaInicioIndicadoresProduccion  = null,
     /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día.
     /// <c>null</c> = el cliente no lo mandó ⇒ se conserva el valor actual.</summary>
-    bool?    PermiteMultiplesSeguimientosDiarios = null
+    bool?    PermiteMultiplesSeguimientosDiarios = null,
+    /// <summary>La empresa recibe UNA sola cifra de kilos por despacho (el neto) ⇒ el formulario de
+    /// venta de engorde oculta «Peso tara» y la manda en 0. <c>null</c> = el cliente no lo mandó ⇒
+    /// se conserva el valor actual (el form de Config→Empresas manda sólo datos de contacto y
+    /// apagaba los flags en silencio cuando eran <c>bool</c> no anulable).</summary>
+    bool?    VentaEngordePesoNetoUnico          = null
 );
