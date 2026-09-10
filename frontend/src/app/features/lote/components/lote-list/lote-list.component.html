@@ -594,16 +594,12 @@
                 <label class="ux-label">Descripción ERP</label>
                 <input formControlName="descripcionErp" class="ux-input" placeholder="Descripción del centro de costo..." />
               </div>
-              <!-- Raza -->
-              <div>
-                <label class="ux-label">🐔 Raza</label>
-                <input formControlName="raza" class="ux-input" placeholder="Ej: LOHMANN LSL, BABCOK BROWN..." />
-              </div>
-              <!-- Tipo de línea -->
-              <div>
-                <label class="ux-label">Tipo de línea</label>
-                <input formControlName="tipoLinea" class="ux-input" placeholder="Ej: ROJA, BLANCA..." />
-              </div>
+              <!--
+                Raza y Tipo de línea salieron de acá (9-sep-2026): son un duplicado real de lo que
+                ya captura —y valida contra la guía genética— el formulario de Lote. El valor que la
+                base ya tenía se conserva (ver `payloadLoteBaseConCamposPreservados`) y sigue
+                visible de sólo lectura en el modal de detalle del base.
+              -->
               <!-- Fecha de encasetamiento -->
               <div>
                 <label class="ux-label">📅 Fecha encasetamiento</label>

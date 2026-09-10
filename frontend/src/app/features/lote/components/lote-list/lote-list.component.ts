@@ -37,6 +37,7 @@ import { LoteHuevoItemsService } from '../../services/lote-huevo-items.service';
 import { GrupoHuevoItems } from '../../models/huevo-items.model';
 import { agruparHuevoItemsPorTipo, seleccionInicialHuevoItems } from '../../funciones/agrupar-huevo-items.funcion';
 import { mensajeErrorAnosGuiaGenetica } from '../../funciones/anos-guia-genetica-error.funcion';
+import { payloadLoteBaseConCamposPreservados } from '../../funciones/payload-lote-base.funcion';
 import {
   calcularEdadDias as calcularEdadDiasFn,
   calcularEdadSemanas as calcularEdadSemanasFn,
@@ -618,15 +619,16 @@ export class LoteListComponent implements OnInit {
       loteNombre:      ['', [Validators.required, Validators.minLength(2)]],
       codigoErp:       [''],
       descripcionErp:  [''],
-      raza:            [''],
-      tipoLinea:       [''],
       fechaEncaset:    [null],   // Fecha de encasetamiento declarada
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
       cantidadMachos:  [0, [Validators.required, Validators.min(0)]],
-      // TK-2026-000024: las aves mixtas son un concepto de POLLO DE ENGORDE. En reproductoras
-      // nunca se diligencian (0 filas con valor en toda la base) y acá encima el campo era
-      // `required`, o sea obligaba a llenar algo que no aplica. El valor sigue viajando en el
-      // payload —lo arma `payloadBaseConMixtasPreservadas`— para no pisar el histórico al editar.
+      // `raza` / `tipoLinea` (9-sep-2026) y `cantidadMixtas` (TK-2026-000024) salieron de este
+      // form. `raza`/`tipoLinea` son un duplicado real de lo que ya captura —y valida contra la
+      // guía genética— el formulario de Lote; `lote_postura_base.raza`/`tipo_linea` no los lee
+      // ningún otro servicio y en más de la mitad de las bases ya divergen del lote. Las mixtas
+      // son un concepto de pollo de engorde que en reproductoras nunca se diligencia. Los tres
+      // siguen viajando en el payload —lo arma `payloadLoteBaseConCamposPreservados`, que los
+      // toma del registro que se edita— para no pisar el histórico (hay 14 bases con `raza`).
       farmId:          [null],   // Granja asignada al lote base
       erpCreate:       [null],   // Fecha de creación en ERP externo
     });
@@ -1333,8 +1335,6 @@ export class LoteListComponent implements OnInit {
       loteNombre:      b?.loteNombre      ?? '',
       codigoErp:       b?.codigoErp       ?? '',
       descripcionErp:  b?.descripcionErp  ?? '',
-      raza:            b?.raza            ?? '',
-      tipoLinea:       b?.tipoLinea       ?? '',
       fechaEncaset:    b?.fechaEncaset
         ? new Date(b.fechaEncaset).toISOString().substring(0, 10)
         : null,
@@ -1358,23 +1358,11 @@ export class LoteListComponent implements OnInit {
 
   saveBase(): void {
     if (this.baseForm.invalid) return;
-    const v = this.baseForm.value;
-    const payload = {
-      loteNombre:      (v.loteNombre ?? '').toString().trim(),
-      codigoErp:       (v.codigoErp ?? '').toString().trim() || null,
-      descripcionErp:  (v.descripcionErp ?? '').toString().trim() || null,
-      raza:            (v.raza ?? '').toString().trim() || null,
-      tipoLinea:       (v.tipoLinea ?? '').toString().trim() || null,
-      fechaEncaset:    v.fechaEncaset ? String(v.fechaEncaset) : null,
-      cantidadHembras: Number(v.cantidadHembras) || 0,
-      cantidadMachos:  Number(v.cantidadMachos)  || 0,
-      // TK-2026-000024: el campo salió de la pantalla, pero el valor que ya tenía el registro se
-      // conserva. Mandar 0 fijo pisaría el histórico de cualquier lote que lo tuviera cargado
-      // —quitar un campo de la vista no puede borrar un dato—. En un lote nuevo va 0.
-      cantidadMixtas:  Number(this.editingBase?.cantidadMixtas ?? 0) || 0,
-      farmId:          v.farmId   ? Number(v.farmId)   : null,
-      erpCreate:       v.erpCreate ? String(v.erpCreate) : null,
-    };
+    // `raza` / `tipoLinea` / `cantidadMixtas` salieron de la pantalla del Lote Base pero siguen
+    // viajando en el payload: la función los toma del registro que se edita (`this.editingBase`),
+    // no del form, para no pisar el histórico —hay 14 bases con `raza` cargada—. Todo lo demás
+    // sale del formulario con la misma normalización de antes. Ver `payloadLoteBaseConCamposPreservados`.
+    const payload = payloadLoteBaseConCamposPreservados(this.baseForm.value, this.editingBase);
 
     this.loading = true;
     const op$ = this.editingBase
