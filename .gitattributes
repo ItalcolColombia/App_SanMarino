@@ -1,0 +1,58 @@
+# .gitattributes — normalizacion de finales de linea (EOL)
+#
+# Por que existe: el repo se edita desde Windows (core.autocrlf=true), Linux/CI y
+# ahora tambien desde otros agentes (Codex). Sin este archivo cada maquina decide
+# sola y un archivo reescrito desde otro entorno aparece con TODAS las lineas
+# cambiadas en el diff, escondiendo el cambio real.
+#
+# Estado que congela: el indice ya esta en LF (4556 de 4560 archivos de texto),
+# asi que esto documenta la realidad, no la cambia. El working tree solo se
+# reescribe la proxima vez que git haga checkout de cada archivo.
+
+# ---------------------------------------------------------------
+# Base: git detecta que es texto y lo guarda SIEMPRE en LF en el indice.
+# En el working tree respeta core.autocrlf (en Windows queda CRLF).
+# ---------------------------------------------------------------
+* text=auto
+
+# ---------------------------------------------------------------
+# LF tambien en disco: archivos que se leen desde Linux/CI o que otro
+# agente reescribe entero. Aca el CRLF no aporta y ensucia el diff.
+# ---------------------------------------------------------------
+*.md        text eol=lf
+*.toml      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+
+# Scripts que corren dentro de un contenedor Linux: un CRLF los rompe con
+# "bad interpreter: /bin/bash^M". Hoy estan en CRLF en el working tree.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.Dockerfile text eol=lf
+.dockerignore text eol=lf
+Makefile    text eol=lf
+
+# ---------------------------------------------------------------
+# CRLF en disco: scripts de Windows. En el indice igual van en LF.
+# ---------------------------------------------------------------
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# ---------------------------------------------------------------
+# Binarios: sin conversion ni diff de texto.
+# ---------------------------------------------------------------
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.ttf   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+*.dll   binary
