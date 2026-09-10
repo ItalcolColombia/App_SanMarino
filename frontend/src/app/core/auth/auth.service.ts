@@ -58,6 +58,9 @@ export class AuthService {
         const companyPaises = rawRes.companyPaises || rawRes.CompanyPaises || [];
         const permisos = rawRes.permisos || rawRes.Permisos || [];
         const isSuperAdmin = rawRes.isSuperAdmin ?? rawRes.IsSuperAdmin ?? false;
+        // Firma de plataforma por sesión (X-Secret-Up). Ausente si el backend no tiene
+        // PlatformSecret:DerivationKey ⇒ el interceptor cae al secreto estático legacy.
+        const platformKey: string | undefined = rawRes.platformKey || rawRes.PlatformKey || undefined;
         // NOTA: El menú ya NO viene en el login, se carga por separado después
         const menu: MenuItem[] = [];
         const menusByRole: RoleMenusLite[] = [];
@@ -123,6 +126,7 @@ export class AuthService {
         const session: AuthSession = {
           accessToken: token,
           refreshToken: (res as any).refreshToken || (res as any).RefreshToken, // El backend no retorna refreshToken por ahora
+          platformKey,
           user: {
             id: userId ? String(userId) : '',
             userId: userIdNumeric,

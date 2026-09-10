@@ -85,7 +85,7 @@ public sealed class DbStudioConcurrencyService : IDbStudioConcurrencyService
         {
             PoolMinSize = _opts.PoolMinSize,
             PoolMaxSize = _opts.PoolMaxSize,
-            DbStudioConnections = n,
+            PoolActiveConnections = n,
             ApplicationName = _opts.ApplicationName
         };
     }

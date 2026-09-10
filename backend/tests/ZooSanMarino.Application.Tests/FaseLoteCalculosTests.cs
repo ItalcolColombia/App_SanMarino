@@ -181,4 +181,19 @@ public class FaseLoteCalculosTests
                 FaseLoteCalculos.ResolverFaseVisible(FaseLoteCalculos.EsCierreCerrado(crudo), prod),
                 FaseLoteCalculos.ResolverFaseVisible(crudo, prod));
     }
+
+    // ── EstaLoteCerradoCompleto: oculta de las listas de trabajo un lote sin nada pendiente ──────
+    [Theory]
+    [InlineData(false, false, false, false)] // recien encasetado
+    [InlineData(false, false, true,  false)] // produccionCerrada=true sin tieneProduccion: dato inconsistente, no cuenta
+    [InlineData(false, true,  false, false)] // produccion a medio cargar, levante todavia abierto
+    [InlineData(false, true,  true,  false)] // levante nunca se cerro: no puede estar "completo"
+    [InlineData(true,  false, false, false)] // levante cerrado, produccion todavia no existe
+    [InlineData(true,  false, true,  false)] // idem, dato inconsistente
+    [InlineData(true,  true,  false, false)] // produccion existe pero sigue abierta: falta la tercera señal
+    [InlineData(true,  true,  true,  true)]  // el UNICO caso verdadero: las tres señales
+    public void EstaLoteCerradoCompleto_exige_las_tres_condiciones(
+        bool levanteCerrado, bool tieneProduccion, bool produccionCerrada, bool esperado) =>
+        Assert.Equal(esperado,
+            FaseLoteCalculos.EstaLoteCerradoCompleto(levanteCerrado, tieneProduccion, produccionCerrada));
 }

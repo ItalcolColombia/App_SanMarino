@@ -1,4 +1,5 @@
 // src/ZooSanMarino.Infrastructure/Services/LoteLevanteFilterDataService.cs
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Shared;
 using ZooSanMarino.Application.Interfaces;
@@ -57,9 +58,12 @@ public class LoteLevanteFilterDataService : ILoteLevanteFilterDataService
             .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId))
             .ToList();
 
-        // Solo incluir levantes con LoteId (FK a lotes) para que seguimiento_diario.lote_id coincida
+        // Solo incluir levantes con LoteId (FK a lotes) para que seguimiento_diario.lote_id coincida,
+        // y que sigan ABIERTOS: un levante cerrado ya no tiene nada que registrar a diario y solo
+        // ensucia el desplegable (el usuario se enteraba recien al seleccionarlo, porque isLoteCerrado
+        // ya bloqueaba alta/edicion/borrado pero no ocultaba la opcion).
         var lotes = levantesDetail
-            .Where(l => l.LoteId.HasValue)
+            .Where(l => l.LoteId.HasValue && !CicloVidaPosturaCalculos.EstaCerrado(l.EstadoCierre))
             .Select(l => new LoteFilterItemDto(
                 l.LoteId!.Value,
                 l.LoteNombre,

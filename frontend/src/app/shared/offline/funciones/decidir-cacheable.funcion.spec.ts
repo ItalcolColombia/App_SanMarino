@@ -29,8 +29,8 @@ describe('decidirCacheable', () => {
     expect(decidirCacheable('GET', '/api/session/heartbeat')).toBeFalse();
   });
 
-  it('excluye DbStudio: devuelve lo que se le pida, no se puede razonar sobre su contenido', () => {
-    expect(decidirCacheable('GET', '/api/DbStudio/query')).toBeFalse();
+  it('excluye ConfigColores (explorador de BD, nombre-señuelo): devuelve lo que se le pida', () => {
+    expect(decidirCacheable('GET', '/api/ConfigColores/query')).toBeFalse();
   });
 
   it('🔴 excluye el cuadre de alimento: cachear un DETECTOR lo vuelve mentiroso', () => {

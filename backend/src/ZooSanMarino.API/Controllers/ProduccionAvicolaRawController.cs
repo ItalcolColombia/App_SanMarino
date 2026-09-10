@@ -154,10 +154,15 @@ public class ProduccionAvicolaRawController : ControllerBase
             var created = await _service.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
+        catch (ArgumentException ex)
+        {
+            // Regla de negocio (p. ej. anio_guia no usable): mismo patrón que GuiaGeneticaSantaReyesController.
+            return BadRequest(new { message = ex.Message, error = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al crear registro de producción avícola");
-            return StatusCode(StatusCodes.Status500InternalServerError, 
+            return StatusCode(StatusCodes.Status500InternalServerError,
                 new { message = "Error interno del servidor" });
         }
     }
@@ -190,10 +195,15 @@ public class ProduccionAvicolaRawController : ControllerBase
         {
             return NotFound(new { message = $"Registro con ID {id} no encontrado" });
         }
+        catch (ArgumentException ex)
+        {
+            // Regla de negocio (p. ej. anio_guia no usable): mismo patrón que GuiaGeneticaSantaReyesController.
+            return BadRequest(new { message = ex.Message, error = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al actualizar registro de producción avícola con ID {Id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, 
+            return StatusCode(StatusCodes.Status500InternalServerError,
                 new { message = "Error interno del servidor" });
         }
     }

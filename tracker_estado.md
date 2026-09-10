@@ -7830,3 +7830,270 @@ Plan: [`fase_de_desarrollo/db_studio_resumen_seguro_plan.md`](fase_de_desarrollo
       build normal; `yarn build` OK.
 
 ---
+
+## Ocultar lotes/lote base cerrados en Seguimiento Diario y Lote Management
+
+Plan: [`ocultar_lotes_cerrados_seguimiento_y_lote_management_plan.md`](fase_de_desarrollo/ocultar_lotes_cerrados_seguimiento_y_lote_management_plan.md)
+
+Pedido del usuario (7-sep-2026): los selectores de lote de Seguimiento Diario Levante/Producción
+listan lotes ya liquidados; el tab "Lote" y el tab "Lote Base" de Lote Management no tienen techo y
+se llenan de lotes/bases con todas sus fases cerradas.
+
+- [x] `FaseLoteCalculos.EstaLoteCerradoCompleto` (nueva función pura) + 8 tests xUnit (las tres
+      señales, cada combinación).
+- [x] `LoteDetailDto`: campo `ProduccionCerrada` + derivada `CerradoCompleto`; subquery en
+      `LoteService.Consulta.cs` → `ProjectToDetail` (mismo estilo inline que `LevanteCerrado`).
+- [x] `LoteLevanteFilterDataService.GetFilterDataAsync`: excluye levante con `EstadoCierre` cerrado
+      (`CicloVidaPosturaCalculos.EstaCerrado`, en memoria, único consumidor confirmado).
+- [x] `SeguimientoProduccionController.GetFilterData`: excluye producción con `EstadoCierre` cerrado,
+      mismo criterio.
+- [x] `LotePosturaBaseDto` + `LotePosturaBaseService.GetAllAsync`: `TotalLotes` / `TieneLoteAbierto`
+      vía subqueries correlacionadas (default `TieneLoteAbierto=true` para Create/Update/GetById).
+- [x] Front: `LoteDto`/`LotePosturaBaseDto` (services) con los campos nuevos; funciones puras
+      `filtrarLotesPorEstadoCierre`/`filtrarLoteBasePorEstadoCierre`/`mostrarLoteBasePorDefecto` +
+      spec nuevo (10 casos).
+- [x] `lote-list.component.ts/html`: filtro Abiertos/Cerrados/Todos (default Abiertos, estado
+      independiente por tab) en tab Lote y tab Lote Base, combinable con los filtros existentes.
+- [x] Validar: `dotnet build` 0/0 (6 proyectos) + `dotnet test` 4000/4000; `yarn build` 0 errores +
+      `ng test` 841/841 (Chrome Headless). Smoke EF directo contra Postgres local (sin HTTP) para las
+      subqueries nuevas: traducen y devuelven datos correctos (bases sin lotes ⇒ `tieneLoteAbierto=
+      false` pero se muestran igual por el OR con `totalLotes===0`; K345/K404 con datos reales).
+      Smoke en navegador real (back :5002 + front :4200, sesión inyectada — limpiada al terminar):
+      tab Lote con K345A/B + K404A/B — Abiertos=4, Cerrados=0, Todos=4; tab Lote Base con K345/K404 —
+      mismo patrón. Pendiente (no crítico, cero riesgo de traducción SQL — filtrado en memoria con
+      función ya testeada): confirmar en navegador que un lote con LEVANTE cerrado de verdad
+      desaparece del selector de Seguimiento Diario Levante (medido por SQL que existe: lote 124 de
+      la empresa 4, `LOTE 235A`).
+
+---
+
+## Llave de plataforma por sesión (derivada del `jti`)
+
+Plan: [`llave_plataforma_por_sesion_plan.md`](fase_de_desarrollo/llave_plataforma_por_sesion_plan.md)
+
+Motivación: hallazgo de auditoría sept-2026 — `environment.prod.ts` embebe `secretUpFrontend` +
+`encryptionKey` en el bundle JS. Se reemplaza (frontend web) por una firma **por sesión** derivada
+del `jti` del JWT (`HMAC(PlatformSecret:DerivationKey, jti)`), que ya se valida en cada request
+contra `sesiones_activas` (B1). Filtro de origen, no autenticación. Fase A (mecanismo, ambas firmas
+aceptadas); Fase B (quitar el estático del bundle) queda sin marcar. Ver
+`respuesta_auditoria_ciberseguridad_2026-09.md` §4.
+
+### Fase A — código completo + validado (build/tests verdes). Sin commit, sin deploy.
+- [x] `Application/Calculos/PlatformSecretCalculos.cs` (puro: `DerivarClaveSesion`, `FirmasCoinciden`
+      tiempo constante, `LeerJtiDeAuthorizationHeader` sin validar firma) + `PlatformSecretCalculosTests`
+      (xUnit, **29 casos, verde**).
+- [x] `AuthResponseDto` + `string? PlatformKey`.
+- [x] `AuthService`: `+ IConfiguration`; en `GenerateResponseAsync` setear `PlatformKey` desde el `jti`
+      si `PlatformSecret:DerivationKey` está configurada (fail-safe: ausente ⇒ null ⇒ legacy).
+- [x] `PlatformSecretMiddleware`: acepta la firma derivada del `jti` del bearer ANTES del decrypt
+      legacy; exenciones y camino legacy (front estático + móvil) **intactos**.
+- [x] `appsettings.json` (`DerivationKey: ""` ⇒ fail-safe) + `appsettings.Development.json` (valor de
+      DEV). **`.example` NO tocados**: no tienen bloque `PlatformSecret` (incompletos) — agregarlo era
+      scope creep; prod pasa `PlatformSecret__DerivationKey` por env var del task definition.
+- [x] Front: `auth.models.ts` (`AuthSession`/`LoginResult` + `platformKey?`), `auth.service.ts`
+      (capturar `platformKey` del login), `auth.interceptor.ts` (mandar la derivada si existe, si no
+      el estático legacy), función pura `resolver-firma-plataforma.funcion.ts` + spec (6 casos).
+- [x] Validar: `dotnet build` 0/0 · `dotnet test` 4027 pass (2 fallas ajenas `RazaGuiaAliasParidadSqlTests`,
+      solo bajo `--artifacts-path`, ya documentadas) · `yarn build` OK · `yarn test` 846 pass ·
+      gate change-detection 237 componentes OK.
+- [x] Verificación de integración por inspección: el llavero (`cripto-llavero.funcion.ts`) hace
+      `JSON.stringify(sesion)` completo ⇒ `platformKey` sobrevive park/restore sin código nuevo. La
+      cola offline (`SyncService`) usa `HttpClient` ⇒ pasa por `authInterceptor` al enviar ⇒ toma el
+      `platformKey` vigente al drenar.
+- [x] **Smoke HTTP local — corrido el 8-sep-2026, 8/8 en verde.** Script reproducible:
+      `backend/scripts/smoke-firma-plataforma.js`. No hizo falta un usuario válido: el middleware lee
+      el `jti` del Bearer **sin validar la firma del JWT**, así que se ejercita el filtro con un JWT
+      fabricado con `jti` arbitrario, y el veredicto se lee en la cabecera `X-Auth-Failure` (que
+      separa el rechazo de plataforma del de autenticación).
+      **Camino nuevo:** firma derivada correcta ⇒ el filtro la acepta · de otro `jti` ⇒ 401
+      `platform-secret` · basura ⇒ 401 · sin Bearer ⇒ 401 · sin header ⇒ 401.
+      **Camino legacy** (el de las sesiones ya abiertas, lo que garantiza que el deploy no corta el
+      servicio): secreto estático válido ⇒ pasa · secreto equivocado ⇒ 401 · llave equivocada ⇒ 401.
+      Backend apagado al terminar, `:5002` libre.
+- [x] **Coherencia emisor↔verificador — cerrada por gate (criterio 7).** Lo que faltaba era que el
+      `platformKey` que emite `AuthService` coincidiera con lo que el middleware espera. Verificado en
+      el código: **una sola variable** `var jti = Guid.NewGuid()` (`AuthService.cs:353`) alimenta el
+      claim del token (`:360`), el registro en `sesiones_activas` (`:411`) y la derivación de la firma
+      (`:483`), y ambos lados llaman a la MISMA función pura
+      `PlatformSecretCalculos.DerivarClaveSesion`. La coherencia es estructural, no una coincidencia
+      que haya que re-verificar a mano. Congelada en el criterio 7 de
+      `verificar-superficie-produccion.js`: un solo generador de `jti`, el claim y la derivación
+      usando esa variable, y prohibición de HMAC propio en emisor o verificador («una sola fórmula por
+      número»). Probado en negativo: derivar de `user.Id` ⇒ falla; HMAC propio en `AuthService` ⇒ falla.
+
+### Fase B — NO ejecutar hasta confirmar que ~todo el tráfico web usa la firma derivada (≤ 3 días)
+- [ ] Métrica en el middleware: contar requests por firma derivada vs legacy.
+- [ ] Cuando legacy-web ≈ 0 durante 48 h: quitar `secretUpFrontend`/`encryptionKey` de
+      `environment.prod.ts` + `environment.ts`; middleware deja de aceptar el `SecretUpFrontend`
+      estático (conserva `SecretUpMovil`); interceptor sin fallback.
+- [ ] Setear `PlatformSecret__DerivationKey` en el task definition de ECS (acción AWS).
+
+---
+
+## Renombrar DB Studio → "Configuración de colores" (señuelo, solo lo visible)
+
+Plan: [`renombrar_db_studio_a_config_colores_plan.md`](fase_de_desarrollo/renombrar_db_studio_a_config_colores_plan.md)
+
+Pedido del usuario (7-sep-2026): que el módulo no sea fácil de identificar en la app. Se le pone
+identidad-señuelo "configuración de colores". Alcance = **solo lo visible** (bundle, red, rutas, UI);
+NO se tocan clases/servicios del backend, config `DbStudio:`, tablas `dbstudio_*`, ni el permiso
+`db_studio.admin`. Sin cambio de comportamiento (autorización, gate de plataforma, ocultamiento de
+Swagger: idénticos).
+
+- [ ] Backend: `DbStudioController` `[Route("api/[controller]")]` → `[Route("api/ConfigColores")]`.
+- [ ] Migración data-only `RenombraMenuDbStudioAConfigColores` (Designer clonado, sin ModelSnapshot):
+      `UPDATE menus SET label='Configuración de colores', route='/config/config-colores',
+      key='config-colores', icon='palette' WHERE route='/config/db-studio'`. Idempotente por route.
+- [ ] Front: `git mv features/db-studio features/config-colores` + renombrar módulo/routing/service/
+      models/funciones/main-component (clases, selector `app-config-colores-main`, `data.title`,
+      `const API='/api/ConfigColores'`); `app.config.ts` (`path: 'config-colores'`, import,
+      `ConfigColoresModule`).
+- [ ] Front: `decidir-cacheable.funcion.ts` token `'dbstudio'` → `'configcolores'` + su spec.
+- [ ] Doc: `respuesta_auditoria_ciberseguridad_2026-09.md` §2 — nota del rename como endurecimiento.
+- [ ] Validar: `dotnet build` 0/0 + `dotnet test` · `dotnet ef database update` local (idempotente) ·
+      `yarn build` + `yarn test` + gates change-detection y lista-cacheable ·
+      `grep -rn "db-studio\|DbStudio\|db_studio" frontend/src` ⇒ 0 · smoke navegador (menú
+      "Configuración de colores" con ícono paleta, `/config/config-colores`, requests a
+      `/api/ConfigColores`, chunk `config-colores-module`).
+
+---
+
+---
+
+## Gates de regresión para los 3 hallazgos de la auditoría (sep-2026)
+
+Plan: [`gates_hallazgos_auditoria_2026-09_plan.md`](fase_de_desarrollo/gates_hallazgos_auditoria_2026-09_plan.md)
+
+Pedido del usuario (8-sep-2026): validar que los 3 hallazgos **no puedan repetirse**. Las mitigaciones
+existen pero ninguna está verificada por una máquina; y el señuelo del §2 tiene una fuga viva
+(`dbStudioConnections` en el bundle — el grep de validación del rename era case-sensitive).
+
+- [x] A. Cerrar la fuga: `DbStudioConnections` → `PoolActiveConnections` en `DbStudioDtos.cs`,
+      `DbStudioConcurrencyService.cs`, `config-colores.models.ts` y `config-colores-main.component.html`.
+- [x] B. `frontend/scripts/verificar-senuelo-modulo.js` — cero ocurrencias case-insensitive de
+      `dbstudio`/`db-studio`/`db_studio` en `frontend/src`.
+- [x] C. `backend/scripts/verificar-superficie-produccion.js` — 5 criterios: swagger/debug dentro de
+      `!IsProduction()`; `ASPNETCORE_ENVIRONMENT=Production` en Dockerfile + taskdefs;
+      `UsePlatformSecret()` antes de `UseAuthentication()`/`MapControllers()`; exenciones del filtro
+      congeladas; ruta/atributos del `DbStudioController`.
+- [x] D. Tres `check` de dotfiles (`/.env`, `/.git/config`, `/.aws/credentials` ⇒ 403) en el paso
+      «Validar nginx y política de caché del borde» del workflow.
+- [x] E. Cablear B y C en el job `tests` de `deploy-production.yml`.
+- [x] Validar: gates B y C corriendo (positivo y negativo por criterio) · `dotnet build` + `dotnet test`
+      · `yarn build` · actualizar §2 de `respuesta_auditoria_ciberseguridad_2026-09.md` con la fuga y su cierre.
+
+**Resultado (8-sep-2026):** `dotnet build` 0 err / 0 warn · `dotnet test` 4030 pass / 0 fail ·
+`yarn build` OK · gate señuelo: positivo (1147 archivos) y negativo (señalaba las 2 líneas reales
+de la fuga) · gate superficie: 5/5 verde y los 5 criterios probados en negativo uno por uno ·
+**verificación de extremo a extremo**: `grep -ril dbstudio frontend/dist` ⇒ 0 ocurrencias, con
+controles (`config-colores`, `poolActiveConnections` sí aparecen) que descartan un falso negativo.
+
+**Gate del borde (D) — validado con Docker el 8-sep-2026** (quedaba pendiente porque Docker no estaba
+levantado). Se replicó el runtime del CI (`nginx:1.27-alpine` con `nginx.conf` en
+`conf.d/default.conf`, `nginx-security-headers.conf` y `dist/browser` como root), sin rebuild:
+`nginx -t` OK · los 3 `check` en verde (`.env`, `.git/config`, `.aws/credentials` ⇒ **403**) ·
+controles vivos (ruta del SPA 200, `.json` inexistente 404, CSP presente). **Prueba negativa** sobre
+una copia de `nginx.conf` sin `location ~ /\.`: los 3 pasan a **200 con `Content-Type: text/html`**
+—el index del SPA, tal como predice el comentario del workflow— y el gate los marca FALLA. Los dos
+contenedores se eliminaron; `nginx.conf` quedó intacto.
+
+---
+
+## Cerrar los limites de verificacion de la firma de plataforma
+
+Plan: [`cerrar_limites_verificacion_firma_plataforma_plan.md`](fase_de_desarrollo/cerrar_limites_verificacion_firma_plataforma_plan.md)
+
+Pedido del usuario (8-sep-2026): corregir los limites declarados al cerrar la auditoria. El 3 no es
+un defecto (la firma es filtro de origen POR DISENO); lo accionable ahi es la metrica que destraba la
+Fase B, que queda propuesta y NO implementada.
+
+- [x] L1. `Application/Calculos/SesionTokenCalculos.cs` + `SesionTokenCalculosTests.cs` (5 tests): la
+      invariante emisor-verificador pasa de regex a test EJECUTABLE. `AuthService` toma de ahí los dos
+      valores (equivalencia exacta: `JtiClaim` es `jti.ToString()`). Criterio 7 reescrito, no borrado.
+- [x] L2. Bloque opcional de login real en `smoke-firma-plataforma.js`, activado por
+      `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Sin credenciales corre igual e informa el tramo no ejercitado.
+      Aborta si el host no es localhost (el login ESCRIBE en la BD).
+- [x] **Extra no planeado:** el smoke dejó de tener secretos escritos; los lee de
+      `appsettings.Development.json` en runtime. **Hallazgo:** esas llaves (`Encryption:*`,
+      `PlatformSecret:*`) tienen **el mismo valor en el appsettings de dev y en el de prod** — ya
+      estaban versionadas (problema aparte, sin resolver), pero copiarlas a un tercer archivo las
+      duplicaba y las desincronizaba ante una rotación.
+- [ ] L3. (propuesta, sin implementar) Contador por camino en el middleware para poder decidir la
+      Fase B. Falta definir dónde se expone sin abrir superficie. **Requiere decisión del usuario.**
+- [x] Validar: `dotnet build` **0 err / 0 warn** · `dotnet test` **4041 pass / 0 fail** (base 4030) ·
+      gate **7/7** · **prueba negativa**: mutando el cálculo para derivar de otro `Guid`, falla el
+      **TEST** (`Assert.Equal Strings differ` en 2 casos), no sólo el regex; restaurado y verde.
+      ⚠️ Ojo al restaurar: `SesionTokenCalculos.cs` es archivo NUEVO, `git checkout --` no lo revierte
+      y quedó mutado hasta que se revirtió a mano.
+- [ ] ⚠️ Rehacer el merge a `main-produccion` (el preparado en `5c47795` quedó desactualizado).
+
+---
+
+## Ventas de engorde con 0 kg netos (Panama) — cierre del hueco + correccion del dato
+
+Plan: [`venta_engorde_panama_neto_cero_plan.md`](fase_de_desarrollo/venta_engorde_panama_neto_cero_plan.md)
+
+Pedido del usuario (9-sep-2026): el seguimiento diario de engorde de Panama trae las aves
+despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecuador**.
+
+- [x] D1. Diagnostico medido: 206 de 207 ventas de Panama con `peso_bruto = peso_tara` ⇒ `peso_neto = 0`.
+      `peso_bruto` promedia 2,357 kg/ave = el peso NETO del pollo. 476.894 aves, 17 lotes, 1.124.026 kg.
+- [x] D2. **Ecuador limpio**: 0 de 1.472 con `bruto = tara`; bruto/ave 7,21 y neto/ave 2,836. Su unico
+      neto en 0 (`MPE-20260401-000102`, mar-2026) tiene los tres pesos NULL, no el patron.
+- [x] D3. Huecos identificados: `ValidarPesoObligatorioEnVenta` acepta `bruto = tara`; el detector
+      `MOV_SIN_PESO` filtra `peso_neto IS NULL` y no ve el `0`.
+- [x] D4. **Hallazgo no previsto:** 4 de los 17 lotes de Panama (161/163/164/165, 176.930 aves) estan
+      LIQUIDADOS y su tabla diaria sale de la copia CONGELADA, no del calculo vivo ⇒ el backfill NO los
+      arregla. Re-congelar (`fn_recongelar_liquidacion_engorde`) si los arregla, pero medido mueve
+      **57 de esas 171 filas** en columnas que no son la de kilos (saldo aves, saldo alimento, consumo,
+      mortalidad) porque la formula avanzo de v13/v15 a v18. Queda FUERA de la migracion: reescribir
+      una liquidacion aprobada es decision de operacion.
+- [x] A. Gate: `ValidarPesoObligatorioEnVenta` rechaza `bruto == tara` (neto 0) + 9 tests xUnit
+      (los mensajes previos se verifican byte a byte).
+- [x] A2. Espejo del mensaje en `modal-venta-panama`, `modal-registro-peso` y
+      `modal-movimiento-pollo-engorde` (los 3 formularios que registran venta).
+- [x] C. `MOV_SIN_PESO` pasa a `COALESCE(peso_neto,0)=0`, y `fn_aplicar_correccion_despachos_sin_peso`
+      con el MISMO criterio (son un par: uno reporta, el otro corrige). Espejos `.sql` + migracion.
+- [x] B. Backfill de los 206 movimientos: migracion `20260910010000_FixVentaEngordeNetoCeroBrutoIgualTara`
+      (idempotente, respaldo previo en `_backup_mpe_peso_neto_cero`, Down que revierte fila a fila).
+      Seleccion por PATRON (`bruto = tara > 0` con neto 0), sin nombrar ninguna company_id.
+      Espejo `backend/sql/backfill_venta_engorde_neto_cero_bruto_igual_tara.sql`.
+- [x] V1. Ensayo en transaccion sobre la copia local (rollback): Panama 8 kg → **1.124.034 kg**
+      (2,381 kg/ave) y **Ecuador identico** (4.978.966,246145746 antes y despues). El espejo
+      `lote_registro_historico_unificado` se actualiza SOLO (lo hace el trigger). `fn_seguimiento_diario_engorde`
+      de un lote NO congelado trae kilos; el de uno congelado sigue en 0 (ver D4).
+- [x] V2. Diagnostico reusable `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (solo lectura,
+      gate multipais + lista de lotes congelados en 0 kg). Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V3. `dotnet build` de la solucion **0 err / 0 warn** (34 min: Infrastructure son 71 MB de DLL) ·
+      `dotnet test` **4081 + 1 pass / 0 fail** · `yarn build` OK (solo el warning preexistente de yarn).
+      **Prueba negativa del gate:** anulandolo fallan exactamente los 2 tests de `bruto == tara`;
+      restaurado y verde. El `.Designer.cs` se verifico identico al `ModelSnapshot` (migracion
+      model-neutral). Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V5. Detector, antes/despues en transaccion: con el criterio nuevo el lote 163 de Panama SI
+      devuelve `MOV_SIN_PESO` (antes era mudo) y deja de devolverlo tras el backfill. Ecuador
+      (lote 19) da **exactamente los mismos 3 hallazgos** con el criterio viejo y con el nuevo.
+- [x] V4. **Resuelto (10sep26, pedido del usuario): se corrigen los 4 liquidados, por migracion.**
+      NO por `fn_recongelar_liquidacion_engorde` —eso re-liquida: reescribe 57 de 171 filas fuera de
+      los kilos— sino con un UPDATE quirurgico de las 3 columnas del despacho de la copia vigente.
+      Medido: **0 filas cambian fuera de esas 3 columnas**, el resumen de cabecera queda intacto
+      (nunca dependio de los kilos de venta), el `checksum` se recalcula con la MISMA expresion de
+      `fn_congelar_liquidacion_engorde` y queda rastro en `metadata->'correccionKilosVenta'`.
+      Recupera 429.660 kg en 28 filas (161: 104.390 · 163: 111.068 · 164: 106.942 · 165: 107.260).
+      Espejo `backend/sql/backfill_liquidacion_congelada_kilos_venta.sql`, paso 4 de la migracion.
+- [x] V7. **Down probado**: aplicando Up y luego Down en transaccion, las 3 superficies vuelven byte
+      a byte (0 diferencias en movimientos, filas congeladas y cabeceras).
+- [x] V8. **Aviso en rojo** donde el dato falta (pedido del usuario): badge `Falta peso tara` en las
+      dos celdas de kilos del seguimiento diario cuando hay aves despachadas y 0 kg (con tooltip), y
+      aviso rojo bajo el campo de tara en los 3 formularios de venta cuando esta vacia con el bruto
+      cargado o es igual al bruto. Con bascula diferida y AMBOS vacios no avisa: ese camino es legitimo.
+- [x] V9. Revalidado tras la ampliacion: `yarn build` **0 err** (solo el warning de yarn) ·
+      `dotnet build` **0 err / 0 warn** · `dotnet test` **4081 + 1 pass / 0 fail** ·
+      `dotnet ef migrations list` la muestra **(Pending)** — la prueba de que EF la ve y el deploy la
+      corre · `dotnet ef database update` la aplico en local **sin error** (el aviso de
+      «cannot be executed in a transaction» es el `suppressTransaction` de las dos fn, esperado).
+      Estado final en local: Panama **0** filas con bruto = tara, **1.124.034 kg** (2,346 kg/ave),
+      Ecuador **identico** (4.978.966,2 · 2,800) y la consulta 3 del verificador **vacia**.
+      `fn_seguimiento_diario_engorde(163)` —lote congelado— ya devuelve kilos en sus 6 dias.
+- [ ] V6. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`). Verificar
+      despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (las 3 consultas: la 3
+      tiene que salir VACIA).

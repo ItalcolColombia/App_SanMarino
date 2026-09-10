@@ -777,6 +777,16 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.error = 'El peso bruto no puede ser menor que el peso tara.';
         return;
       }
+      // Neto 0 (bruto == tara): la venta contaría las aves y aportaría 0 kg al seguimiento diario,
+      // al informe semanal y a la liquidación. Espejo del gate del backend
+      // (`MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta`).
+      if (neto === 0) {
+        this.error =
+          'El peso neto de la venta no puede ser 0 kg: el peso bruto y el peso tara son iguales. ' +
+          'El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos ' +
+          'del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+        return;
+      }
     }
 
     if (this.ventaPorGranjaMode && !this.editingMovimiento) {
@@ -1078,6 +1088,26 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   get isDespacho(): boolean {
     if (this.ventaPorGranjaMode && !this.editingMovimiento) return true;
     return (this.form?.getRawValue()?.tipoMovimiento ?? '') === 'Venta';
+  }
+
+  /**
+   * Aviso en ROJO bajo el campo de tara: la tara vacía con el bruto cargado, o la tara igual al
+   * bruto (neto 0). Sin él, el despacho se guarda —o se rechaza— sin que nadie entienda por qué la
+   * columna de kilos del seguimiento diario sale vacía. Sólo aplica a ventas.
+   */
+  get avisoPesoTara(): string | null {
+    if (!this.isDespacho) return null;
+    const v = this.form?.getRawValue();
+    if (!v) return null;
+    const hayBruto = v.pesoBruto != null && v.pesoBruto !== '';
+    const hayTara = v.pesoTara != null && v.pesoTara !== '';
+    if (hayBruto && !hayTara)
+      return 'Falta el peso tara (el camión VACÍO). Sin él el despacho queda sin kilos: no suman en '
+           + 'el seguimiento diario, ni en el informe semanal, ni en la liquidación.';
+    if (hayBruto && hayTara && Number(v.pesoBruto) === Number(v.pesoTara))
+      return 'El peso bruto y el peso tara son iguales: el neto daría 0 kg. Si sólo tiene los kilos '
+           + 'netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+    return null;
   }
 
   get pesoNeto(): number | null {

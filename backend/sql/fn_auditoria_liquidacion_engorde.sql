@@ -169,7 +169,10 @@ BEGIN
       WHERE lote_ave_engorde_origen_id = ANY(v_lotes)
         AND estado='Completado' AND deleted_at IS NULL
         AND tipo_movimiento IN ('Venta','Despacho','Retiro')
-        AND peso_neto IS NULL AND (peso_bruto IS NULL OR peso_tara IS NULL)
+        -- Criterio: el despacho APORTA 0 kg. Cubre el peso ausente (NULL) y el peso
+        -- declarado que da neto 0 — el caso de Panamá (9-sep-2026): bruto y tara con el
+        -- MISMO número en 206 de 207 ventas. Filtrar sólo por NULL dejaba ese caso invisible.
+        AND COALESCE(peso_neto, 0) = 0
     ) x;
 
     v_avg_peso := CASE WHEN (v_sac - v_sinpeso_aves) > 0 THEN v_prod/(v_sac - v_sinpeso_aves) ELSE 0 END;
@@ -179,7 +182,7 @@ BEGIN
       v_hallazgos := v_hallazgos || jsonb_build_array(jsonb_build_object(
         'codigo','MOV_SIN_PESO','severidad','critico','tipo','dato',
         'titulo','Despachos sin peso registrado',
-        'descripcion', format('%s despacho(s) con %s aves no tienen peso (peso_neto y báscula en NULL): se cuentan las aves pero aportan 0 kg, lo que baja producción kilo en pie, peso promedio y sube la conversión. Cargar el tiquete de báscula de esos movimientos.', v_sinpeso_n, v_sinpeso_aves),
+        'descripcion', format('%s despacho(s) con %s aves no aportan kilos (peso neto ausente o en 0): se cuentan las aves pero aportan 0 kg, lo que baja producción kilo en pie, peso promedio y sube la conversión. Cargar el tiquete de báscula de esos movimientos.', v_sinpeso_n, v_sinpeso_aves),
         'impactoKgEstimado', v_impacto,
         'pesoAvePromedioResto', round(v_avg_peso,4),
         'registros', v_sinpeso));

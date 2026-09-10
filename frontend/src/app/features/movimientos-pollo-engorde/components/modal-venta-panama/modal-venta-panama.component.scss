@@ -83,3 +83,13 @@
 }
 .vp-footer-total { font-size: 0.85rem; color: #374151; }
 .vp-footer-actions { display: flex; gap: 0.6rem; }
+
+/* Aviso de peso tara faltante o igual al bruto. Rojo --danger: no es una sugerencia, es el dato que
+   deja el despacho en 0 kg y arrastra al seguimiento diario, al informe semanal y a la liquidacion. */
+.vp-aviso-peso {
+  margin: .3rem 0 0;
+  font-size: .74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--danger, #DC2626);
+}

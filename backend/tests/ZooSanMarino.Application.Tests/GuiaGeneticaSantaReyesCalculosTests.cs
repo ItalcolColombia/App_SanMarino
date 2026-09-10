@@ -412,4 +412,42 @@ public class GuiaGeneticaSantaReyesCalculosTests
         Assert.False(r.EsVacia);
         Assert.NotNull(r.Motivo);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // anio_guia no usable — plan validacion_anio_guia_genetica_plan.md §4
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// El año es texto libre en la columna, pero el destino (<c>lotes.ano_tabla_genetica</c>) es
+    /// <c>integer</c>: una fila con año no usable (<c>«G21»</c>, <c>«2026.0»</c>, fuera de rango…) se
+    /// rechaza <b>por fila</b> —el import sigue con el resto del archivo— con el mismo mensaje que los
+    /// otros dos escritores (<see cref="AnioGuiaGeneticaCalculos.MensajeAnioInvalido"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("G21")]
+    [InlineData("2026.0")]
+    [InlineData("20,26")]
+    [InlineData("1899")]
+    [InlineData("2101")]
+    public void Un_anio_no_usable_rechaza_la_fila_con_el_mensaje_comun(string anio)
+    {
+        var r = GuiaGeneticaSantaReyesCalculos.InterpretarFila("Babcock Brown", anio, "18", "5.9", "0.0", "95.0");
+
+        Assert.False(r.EsVacia);
+        Assert.Null(r.Fila);
+        Assert.Equal(AnioGuiaGeneticaCalculos.MensajeAnioInvalido(anio), r.Motivo);
+    }
+
+    /// <summary>Delta cero a nivel fila: los años que ya viven en la BD siguen entrando.</summary>
+    [Theory]
+    [InlineData("2021")]
+    [InlineData("2026")]
+    public void Un_anio_que_ya_vive_en_la_bd_no_bloquea_la_fila(string anio)
+    {
+        var r = GuiaGeneticaSantaReyesCalculos.InterpretarFila("Babcock Brown", anio, "18", "5.9", "0.0", "95.0");
+
+        Assert.Null(r.Motivo);
+        Assert.NotNull(r.Fila);
+        Assert.Equal(anio, r.Fila!.AnioGuia);
+    }
 }

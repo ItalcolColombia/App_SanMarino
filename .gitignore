@@ -250,3 +250,17 @@ logs/
 
 # Estado de la plataforma devpilot (ADR-0003) — no versionar
 .devpilot/
+
+# ============================================
+# Agentes / IA — estado local, NO reglas
+# ============================================
+# Lock de runtime de las tareas programadas (se regenera solo)
+.claude/scheduled_tasks.lock
+
+# Skills duplicados: el contenido canonico vive en .claude/skills/ (ya versionado).
+# .agents/skills/frontend-design SI se versiona (es el origen del symlink .claude/skills/frontend-design).
+.agents/skills/code-reviewer/
+.agents/skills/database/
+.agents/skills/senior-backend/
+.agents/skills/senior-frontend/
+.agents/skills/senior-fullstack/

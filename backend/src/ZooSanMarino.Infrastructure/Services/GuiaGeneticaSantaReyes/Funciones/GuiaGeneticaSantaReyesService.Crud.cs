@@ -179,6 +179,15 @@ public partial class GuiaGeneticaSantaReyesService
     /// Validación mínima del alta/edición. La raza es <b>texto libre</b> a propósito (F2.6 del plan):
     /// no se valida contra una lista de razas conocidas porque sin guía cargada no habría ninguna, y
     /// ese es el <i>deadlock de arranque</i> que hoy vuelve inservible la pantalla de Ecuador.
+    ///
+    /// <para>
+    /// El <c>anio_guia</c> sí se valida: es texto libre en la columna, pero el destino real
+    /// (<c>lotes.ano_tabla_genetica</c>) es <c>integer</c> y la lectura lo filtra con
+    /// <c>int.TryParse</c> — un año no usable se aceptaba en silencio y quedaba inservible. Regla
+    /// única en <see cref="AnioGuiaGeneticaCalculos"/>; el <c>ArgumentException</c> sin
+    /// <c>paramName</c> deja el mensaje idéntico al del import y al de la tabla ancha (el controller
+    /// lo traduce a <c>400</c>).
+    /// </para>
     /// </summary>
     private static void ValidarClaveNatural(string? raza, string? anioGuia, int edad)
     {
@@ -187,6 +196,9 @@ public partial class GuiaGeneticaSantaReyesService
 
         if (string.IsNullOrWhiteSpace(anioGuia))
             throw new ArgumentException("El año de la guía es obligatorio.", nameof(anioGuia));
+
+        if (!AnioGuiaGeneticaCalculos.EsAnioUsable(anioGuia))
+            throw new ArgumentException(AnioGuiaGeneticaCalculos.MensajeAnioInvalido(anioGuia));
 
         if (edad <= 0)
             throw new ArgumentException("La semana (edad) debe ser mayor que cero.", nameof(edad));

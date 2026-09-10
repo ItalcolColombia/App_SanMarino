@@ -48,6 +48,13 @@ export interface LoginResult {
   token: string;
   refreshToken?: string;
 
+  /**
+   * Firma de plataforma por sesión (header `X-Secret-Up`): `Base64(HMAC-SHA256(DerivationKey, jti))`,
+   * derivada en el backend del `jti` de esta sesión. Reemplaza al secreto estático del bundle.
+   * Ausente si el backend no tiene `PlatformSecret:DerivationKey` ⇒ el interceptor cae al legacy.
+   */
+  platformKey?: string;
+
   // ===== campos que devuelve el backend (AuthResponseDto) =====
   userId?: string; // Guid desde el backend se serializa como string en JSON
   username?: string;
@@ -66,6 +73,13 @@ export interface LoginResult {
 export interface AuthSession {
   accessToken: string;
   refreshToken?: string;
+
+  /**
+   * Firma de plataforma por sesión (`X-Secret-Up`). La emite el backend en el login, derivada del
+   * `jti` del JWT. Viaja dentro de este blob: si la sesión se aparca en el llavero, se restaura con
+   * ella. Ausente en sesiones anteriores a este cambio ⇒ el interceptor usa el secreto estático.
+   */
+  platformKey?: string;
 
   user: {
     id?: string;              // Guid del usuario (desde el backend)

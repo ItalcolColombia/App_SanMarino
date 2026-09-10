@@ -60,7 +60,9 @@ public sealed record LoteDetailDto(
     /// <summary>El levante del lote está cerrado (<c>lote_postura_levante.estado_cierre</c>).</summary>
     bool      LevanteCerrado  = false,
     /// <summary>Existe el lote de producción: una fila viva en <c>lote_postura_produccion</c>.</summary>
-    bool      TieneProduccion = false
+    bool      TieneProduccion = false,
+    /// <summary>La producción del lote está cerrada (<c>lote_postura_produccion.estado_cierre == "Cerrada"</c>).</summary>
+    bool      ProduccionCerrada = false
 )
 {
     /// <summary>
@@ -75,4 +77,12 @@ public sealed record LoteDetailDto(
     /// </para>
     /// </summary>
     public string FaseActual => FaseLoteCalculos.ResolverFaseVisible(LevanteCerrado, TieneProduccion);
+
+    /// <summary>
+    /// El lote terminó por completo su ciclo de postura (levante Y producción cerrados). Lo usa el
+    /// listado de Lote Management para ocultar por defecto los lotes ya liquidados, sin necesidad de
+    /// volver a pedirle nada a la BD — misma razón de ser que <see cref="FaseActual"/>.
+    /// </summary>
+    public bool CerradoCompleto =>
+        FaseLoteCalculos.EstaLoteCerradoCompleto(LevanteCerrado, TieneProduccion, ProduccionCerrada);
 }

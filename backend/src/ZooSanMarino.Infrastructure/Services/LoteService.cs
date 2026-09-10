@@ -195,7 +195,11 @@ namespace ZooSanMarino.Infrastructure.Services
                                                  && x.DeletedAt == null
                                                  && x.EstadoCierre != null
                                                  && x.EstadoCierre.ToLower() == "cerrado"),
-                    ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId && p.DeletedAt == null)
+                    ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId && p.DeletedAt == null),
+                    ctx.LotePosturaProduccion.Any(p => p.LoteId == l.LoteId
+                                                 && p.DeletedAt == null
+                                                 && p.EstadoCierre != null
+                                                 && p.EstadoCierre.ToLower() == "cerrada")
                 ));
         }
 

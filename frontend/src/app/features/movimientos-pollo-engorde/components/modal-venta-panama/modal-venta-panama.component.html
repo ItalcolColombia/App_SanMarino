@@ -120,6 +120,9 @@
                   <div class="vp-field">
                     <label for="vp-tara">Peso tara @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
                     <input id="vp-tara" type="number" step="0.001" formControlName="pesoTara" />
+                    @if (avisoPesoTara) {
+                      <p class="vp-aviso-peso">{{ avisoPesoTara }}</p>
+                    }
                   </div>
                   @if (pesoDiferido) {
                     <p class="vp-hint vp-field--wide">

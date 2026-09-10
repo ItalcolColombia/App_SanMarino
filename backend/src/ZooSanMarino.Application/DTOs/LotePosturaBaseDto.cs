@@ -26,7 +26,21 @@ public record LotePosturaBaseDto(
     // ERP
     DateTime? ErpCreate,
     // Auditoría
-    DateTime  CreatedAt
+    DateTime  CreatedAt,
+    // ─── Señales para el filtro Abiertos/Cerrados/Todos de Lote Management ───
+    /// <summary>
+    /// Cantidad de lotes (tabla <c>lotes</c>) que se derivaron de esta base — sin contar el lote
+    /// "hijo de producción" (mismo criterio que <c>LoteService.GetAllAsync</c>, que ya lo excluye
+    /// para no duplicar en pantalla el padre y el registro creado para seguimiento diario).
+    /// </summary>
+    int       TotalLotes = 0,
+    /// <summary>
+    /// Existe al menos un lote de esta base sin <c>FaseLoteCalculos.EstaLoteCerradoCompleto</c>.
+    /// Default <c>true</c> a propósito: <c>CreateAsync</c>/<c>UpdateAsync</c> mapean la base sin
+    /// correr la subquery, y una base recién creada o editada nunca tiene lotes cerrados — sigue
+    /// siendo la respuesta correcta, no solo un fallback seguro.
+    /// </summary>
+    bool      TieneLoteAbierto = true
 );
 
 public record CreateLotePosturaBaseDto(

@@ -105,6 +105,23 @@ export class ModalRegistroPesoComponent implements OnChanges {
     return neto != null && this.totalAves > 0 ? neto / this.totalAves : null;
   }
 
+  /**
+   * Aviso en ROJO bajo el campo de tara: la tara vacía con el bruto cargado, o la tara igual al
+   * bruto (neto 0). Este modal es justo el de la báscula diferida de Panamá, donde el operario tiene
+   * UNA sola cifra de kilos en la mano: sin el aviso la repite en los dos campos y el despacho queda
+   * en 0 kg (206 ventas así hasta el 9-sep-2026).
+   */
+  get avisoPesoTara(): string | null {
+    if (this.pesoBruto == null) return null;
+    if (this.pesoTara == null)
+      return 'Falta el peso tara (el camión VACÍO). Sin él el despacho queda sin kilos: no suman en '
+           + 'el seguimiento diario, ni en el informe semanal, ni en la liquidación.';
+    if (this.pesoBruto === this.pesoTara)
+      return 'El peso bruto y el peso tara son iguales: el neto daría 0 kg. Si sólo tiene los kilos '
+           + 'netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+    return null;
+  }
+
   get puedeGuardar(): boolean {
     return (
       !this.loading &&
@@ -112,7 +129,8 @@ export class ModalRegistroPesoComponent implements OnChanges {
       this.pesoTara != null &&
       this.pesoBruto > 0 &&
       this.pesoTara >= 0 &&
-      this.pesoBruto >= this.pesoTara &&
+      // Estricto, no `>=`: bruto == tara es neto 0 — la venta contaría las aves y aportaría 0 kg.
+      this.pesoBruto > this.pesoTara &&
       this.movimientos.length > 0
     );
   }
@@ -176,6 +194,9 @@ export class ModalRegistroPesoComponent implements OnChanges {
     if (this.pesoBruto <= 0) return 'El peso bruto debe ser mayor a 0 kg.';
     if (this.pesoTara < 0) return 'El peso tara no puede ser negativo.';
     if (this.pesoBruto < this.pesoTara) return 'El peso bruto no puede ser menor que el peso tara.';
+    // Espejo del gate del backend (MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta).
+    if (this.pesoBruto === this.pesoTara)
+      return 'El peso neto no puede ser 0 kg: el bruto y la tara son iguales. El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
     return 'Revise el peso del despacho.';
   }
 }

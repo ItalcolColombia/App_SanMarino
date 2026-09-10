@@ -403,6 +403,26 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return (f.aperturaDocumentos || '').trim();
   }
 
+  // ─── «Falta peso» en las columnas de kilos del despacho ─────────────────────────────────────
+  // Un día con aves despachadas y 0 kg dejaba las dos celdas en un guion mudo, y el usuario no
+  // tenía cómo saber si el día no tuvo venta o si la venta se cargó sin báscula. Es el reclamo que
+  // destapó todo esto («me trae las ventas mas no los kilos»): la causa era que la venta se había
+  // guardado con peso bruto = peso tara, o sea neto 0. El aviso lo dice en la celda, en rojo.
+
+  /** Día con aves despachadas pero sin kilos: la venta existe, el peso báscula falta. */
+  faltaPesoDespacho(f: SeguimientoDiarioTablaFilaDto): boolean {
+    const aves = (f.despachoHembras ?? 0) + (f.despachoMachos ?? 0) + (f.despachoMixtas ?? 0);
+    return aves > 0 && (f.despachoPesoNeto ?? 0) <= 0;
+  }
+
+  /** Tooltip del aviso: qué falta y dónde se carga. */
+  tituloFaltaPesoDespacho(f: SeguimientoDiarioTablaFilaDto): string {
+    const aves = (f.despachoHembras ?? 0) + (f.despachoMachos ?? 0) + (f.despachoMixtas ?? 0);
+    return `Se despacharon ${aves} aves pero la venta no tiene peso neto: falta el peso tara `
+         + '(o se digitó igual al peso bruto, que da 0 kg). Cárguelo en Movimientos de pollo '
+         + 'engorde y estos kilos aparecen solos.';
+  }
+
   /** Celda «Documento»: concatena el documento propio del día con los de apertura, si los hay. */
   documentoCeldaTexto(f: SeguimientoDiarioTablaFilaDto): string {
     const propio = (f.documento || '').trim();

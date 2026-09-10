@@ -131,6 +131,16 @@ export interface LoteDto {
   /** Existe el lote de produccion. Es la otra senal de `faseActual`. */
   tieneProduccion?: boolean;
 
+  /** La produccion del lote esta cerrada (`lote_postura_produccion.estado_cierre == "Cerrada"`). */
+  produccionCerrada?: boolean;
+
+  /**
+   * El lote terminó por completo su ciclo de postura (levante Y produccion cerrados). Resuelto por
+   * el backend (`FaseLoteCalculos.EstaLoteCerradoCompleto`) — se usa para ocultarlo por defecto de
+   * la lista de Lote Management, sin volver a calcular la regla en el front.
+   */
+  cerradoCompleto?: boolean;
+
   /** ID y nombre del país en sesión al crear; nombre de la empresa en sesión. */
   paisId?: number | null;
   paisNombre?: string | null;

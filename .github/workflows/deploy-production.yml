@@ -138,6 +138,19 @@ jobs:
         working-directory: backend
         run: node scripts/verificar-cuadre-solo-en-sync.js
 
+      # Auditoría externa sep-2026 (fase_de_desarrollo/respuesta_auditoria_ciberseguridad_2026-09.md).
+      # Las dos mitades de lo que el analista encontró desde afuera: el nombre interno de la consola
+      # de BD llegando al bundle, y la superficie que la API publica en producción. Ambas se
+      # sostenían solas hasta acá; el rename del módulo ya se había filtrado una vez por un grep de
+      # validación case-sensitive.
+      - name: Gate — el nombre de la consola de BD no llega al bundle
+        working-directory: frontend
+        run: node scripts/verificar-senuelo-modulo.js
+
+      - name: Gate — superficie de producción (swagger/debug, entorno, filtro de origen)
+        working-directory: backend
+        run: node scripts/verificar-superficie-produccion.js
+
       - name: Resumen
         if: success()
         run: echo "### Gate de tests superado" >> "$GITHUB_STEP_SUMMARY"
@@ -484,6 +497,18 @@ jobs:
           [ -n "$JS" ] && check "$JS -> CSP"         "$H/$JS"                    "^Content-Security-Policy:"
           [ -n "$JS" ] && check "$JS -> HSTS"        "$H/$JS"                    "^Strict-Transport-Security:"
           check "ruta del SPA -> CSP"               "$H/lotes/detalle/9"        "^Content-Security-Policy:"
+
+          echo "== C6: archivos ocultos denegados en el borde =="
+          # Hallazgo #3 de la auditoría externa de sep-2026: el analista probó .env, .git/config y
+          # .aws/credentials y obtuvo 403 consistente. Ese 403 lo emite `location ~ /\. { deny all; }`
+          # en nginx.conf (el WAF del ALB es la otra capa, y no se puede probar desde acá).
+          # Sin este bloque, borrar esa `location` no rompe ningún test: los dotfiles pasarían a caer
+          # en el `try_files ... /index.html` del SPA y responderían 200 con el index — que no filtra
+          # nada hoy, pero convierte el "bloqueo deliberado" que le respondimos al analista en una
+          # afirmación falsa, y deja el camino abierto el día que el build copie un archivo oculto.
+          check ".env -> 403"                       "$H/.env"                   "^HTTP/[0-9.]+ 403"
+          check ".git/config -> 403"                "$H/.git/config"            "^HTTP/[0-9.]+ 403"
+          check ".aws/credentials -> 403"           "$H/.aws/credentials"       "^HTTP/[0-9.]+ 403"
 
           docker logs front-check 2>&1 | tail -20 || true
           docker rm -f front-check >/dev/null 2>&1 || true

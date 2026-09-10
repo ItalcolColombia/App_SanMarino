@@ -93,8 +93,9 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
  *
  * Decisión D3 del plan madre: no cifrar el dato local, pero **minimizarlo** — nada de precios ni
  * facturación. Un reporte de costos guardado en una tablet que se pierde es un problema distinto
- * (y peor) que un seguimiento diario. `DbStudio` queda fuera porque devuelve lo que sea que se le
- * pida, o sea que no se puede razonar sobre su contenido; y todo lo de identidad
+ * (y peor) que un seguimiento diario. `ConfigColores` (el explorador de BD, nombre-señuelo) queda
+ * fuera porque devuelve lo que sea que se le pida, o sea que no se puede razonar sobre su
+ * contenido; y todo lo de identidad
  * (`Auth`/`Users`/`Roles`/`session`) porque cachear una respuesta de autorización es cómo se
  * construye un bypass sin querer.
  */
@@ -143,8 +144,9 @@ const EXCLUIDOS: readonly string[] = [
   'permission',
   'session',
 
-  // Devuelve lo que se le pida: no se puede razonar sobre su contenido.
-  'dbstudio',
+  // Devuelve lo que se le pida: no se puede razonar sobre su contenido. (Explorador de BD; el
+  // primer segmento es 'configcolores' por el rename-señuelo — ver features/config-colores/.)
+  'configcolores',
 
   // Reportes: no son operación de campo. Se consultan desde una oficina con red, son pesados, y
   // guardarlos en la tablet agranda el dato en reposo sin que nadie los mire en el galpón.
