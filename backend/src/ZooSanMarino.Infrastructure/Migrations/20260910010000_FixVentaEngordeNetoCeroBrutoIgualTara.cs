@@ -14,7 +14,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
         // neto, y tiene 0 filas con bruto = tara). Planta entrega UNA sola cifra de kilos y el
         // formulario pide dos, así que se repetía el número.
         //
-        // Tres piezas:
+        // Cuatro pasos:
         //   1) El detector MOV_SIN_PESO deja de mirar sólo NULL: `COALESCE(peso_neto,0) = 0` cubre el
         //      peso ausente Y el neto 0. La red de seguridad que existía justo para «cuentan aves,
         //      0 kg» era ciega a este caso: la auditoría del lote 163 (20 despachos, 45.479 aves,
@@ -22,33 +22,37 @@ namespace ZooSanMarino.Infrastructure.Migrations
         //   2) `fn_aplicar_correccion_despachos_sin_peso` toma el MISMO criterio (son un par: el
         //      detector reporta y la fn corrige; separarlos deja hallazgos que el botón no puede
         //      resolver).
-        //   3) Backfill: mueve el valor digitado a `peso_neto` y deja `peso_tara = 0`. No inventa
-        //      kilos — reubica los que ya estaban. Respaldo previo en `_backup_mpe_peso_neto_cero`.
+        //   3) Backfill de `movimiento_pollo_engorde`: mueve el valor digitado a `peso_neto` y deja
+        //      `peso_tara = 0`. No inventa kilos — reubica los que ya estaban.
+        //   4) Backfill de las liquidaciones CONGELADAS. La tabla diaria de un lote liquidado no se
+        //      calcula: `fn_seguimiento_diario_engorde` devuelve la FOTO, así que el paso 3 no le
+        //      mueve un kilo. Se corrigen SÓLO las 3 columnas del despacho de la copia vigente
+        //      —medido: 0 filas cambian fuera de ellas— en vez de re-congelar, que regeneraría la
+        //      copia entera con la fórmula de hoy y reescribiría 57 de esas 171 filas en saldo de
+        //      aves, saldo de alimento, consumo y mortalidad (la fn avanzó de v13/v15 a v18). Eso
+        //      sería re-liquidar, no corregir los kilos.
         //
         // El gate de escritura que impide que vuelva a pasar vive en
         // MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta (con tests).
         //
-        // NO re-congela liquidaciones. 4 lotes de Panamá (161/163/164/165, 176.930 aves) ya están
-        // liquidados y su tabla diaria sale de la copia CONGELADA, que seguirá en 0 kg hasta que se
-        // re-congele con `fn_recongelar_liquidacion_engorde`. Eso se dejó FUERA a propósito: medido,
-        // re-congelar mueve 57 de esas 171 filas en columnas que no son la de kilos (saldo de aves,
-        // saldo de alimento, consumo, mortalidad) porque la fórmula avanzó de v13/v15 a v18. Reescribir
-        // una liquidación aprobada es decisión de operación, no efecto colateral de un deploy.
+        // El orden importa: el paso 4 lee `lote_registro_historico_unificado`, que el paso 3 deja
+        // corregido vía el trigger del espejo.
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(FN_AUDITORIA_SQL, suppressTransaction: true);
             migrationBuilder.Sql(FN_CORRECCION_SQL, suppressTransaction: true);
             migrationBuilder.Sql(BACKFILL_SQL);
+            migrationBuilder.Sql(BACKFILL_CONGELADA_SQL);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             // Sólo se revierte el DATO, que es lo único que este Down puede deshacer sin adivinar:
-            // los pesos vuelven exactamente a como estaban (respaldo fila a fila). El criterio de los
-            // dos detectores queda ampliado a propósito — no escriben nada, sólo reportan, y volver a
-            // filtrar por NULL re-escondería el caso.
+            // los pesos y las 3 columnas de la copia congelada vuelven exactamente a como estaban
+            // (respaldo fila a fila). El criterio de los dos detectores queda ampliado a propósito —
+            // no escriben nada, sólo reportan, y volver a filtrar por NULL re-escondería el caso.
             migrationBuilder.Sql(DOWN_SQL);
         }
 
@@ -616,7 +620,136 @@ UPDATE public.movimiento_pollo_engorde m
  WHERE m.id = f.id;
 ";
 
+        private const string BACKFILL_CONGELADA_SQL = @"-- ============================================================================
+-- backfill_liquidacion_congelada_kilos_venta.sql
+-- ESPEJO de la 2ª parte de la migración FixVentaEngordeNetoCeroBrutoIgualTara
+-- (el vehículo es la migración; este archivo es la versión legible).
+-- ----------------------------------------------------------------------------
+-- POR QUÉ HACE FALTA
+--   La tabla diaria de un lote LIQUIDADO no se calcula: `fn_seguimiento_diario_engorde` arranca con
+--   un `SELECT ... FROM liquidacion_lote_engorde_congelada_fila ... UNION ALL <cálculo vivo>`, así
+--   que si el lote tiene copia vigente devuelve la FOTO. Corregir `movimiento_pollo_engorde` no
+--   mueve un solo kilo ahí. Medido el 9-sep-2026: 4 lotes de Panamá (161/163/164/165, 176.930 aves)
+--   quedaron congelados con 0 kg.
+--
+-- POR QUÉ **NO** SE RE-CONGELA
+--   `fn_recongelar_liquidacion_engorde` regenera la copia entera con la fórmula de HOY. Medido:
+--   reescribe **57 de esas 171 filas** en columnas que no son la de kilos (saldo de aves, saldo de
+--   alimento, consumo, mortalidad), porque la fn avanzó de v13/v15 a v18 desde que se congelaron.
+--   Eso no es corregir los kilos: es re-liquidar. Acá se tocan **sólo las 3 columnas del despacho**,
+--   y el resto de la liquidación aprobada queda byte a byte igual — incluido el resumen de la
+--   cabecera, que nunca dependió de los kilos de venta (son conteos de aves y saldo de alimento).
+--
+-- DE DÓNDE SALEN LOS KILOS
+--   Del MISMO CTE `ventas_por_fecha` que usa la fn: suma por fecha de `lote_registro_historico_unificado`
+--   (`VENTA_AVES`, no anulado). Se corre DESPUÉS del backfill de `movimiento_pollo_engorde`, así que
+--   el espejo ya trae los kilos corregidos.
+--
+-- GUARDA: sólo se toca una fila si (a) su copia está vigente, (b) hoy tiene 0 kg, (c) el día trae
+--   kilos, y (d) las aves H/M/mixtas de la fila coinciden EXACTO con las del día. Si no coinciden,
+--   la fila no es el mismo día del mismo lote y se deja quieta (aparecerá en el verificador).
+--
+-- FECHAS REPETIDAS: un día puede tener dos seguimientos ⇒ dos filas. La fn hace
+--   `LEFT JOIN ventas_por_fecha ON fecha`, o sea le pone a las DOS filas el total del día; el UPDATE
+--   junta por fecha y reproduce exactamente eso.
+--
+-- IDEMPOTENTE: tras correr, esas filas tienen kg > 0 y dejan de cumplir la guarda (b).
+-- ============================================================================
+
+-- 1) Respaldo previo de las 3 columnas (para revertir sin adivinar).
+CREATE TABLE IF NOT EXISTS public._backup_liq_congelada_fila_kilos (
+    fila_id                     BIGINT PRIMARY KEY,
+    liquidacion_id              BIGINT,
+    despacho_peso_neto          NUMERIC,
+    despacho_peso_tara          NUMERIC,
+    despacho_promedio_peso_ave  NUMERIC,
+    checksum_cabecera           VARCHAR(64),
+    respaldado_en               TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO public._backup_liq_congelada_fila_kilos (
+    fila_id, liquidacion_id, despacho_peso_neto, despacho_peso_tara,
+    despacho_promedio_peso_ave, checksum_cabecera)
+SELECT f.id, f.liquidacion_id, f.despacho_peso_neto, f.despacho_peso_tara,
+       f.despacho_promedio_peso_ave, c.checksum
+FROM public.liquidacion_lote_engorde_congelada_fila f
+JOIN public.liquidacion_lote_engorde_congelada c ON c.id = f.liquidacion_id
+WHERE c.anulada_at IS NULL
+  AND (f.despacho_hembras + f.despacho_machos + f.despacho_mixtas) > 0
+  AND COALESCE(f.despacho_peso_neto, 0) = 0
+  AND NOT EXISTS (SELECT 1 FROM public._backup_liq_congelada_fila_kilos b WHERE b.fila_id = f.id);
+
+-- 2) Corrección de las 3 columnas del despacho.
+WITH ventas AS (
+    SELECT h.lote_ave_engorde_id                                  AS lote,
+           DATE(h.fecha_operacion)                                AS fecha,
+           COALESCE(SUM(COALESCE(h.cantidad_hembras, 0)), 0)      AS dh,
+           COALESCE(SUM(COALESCE(h.cantidad_machos,  0)), 0)      AS dm,
+           COALESCE(SUM(COALESCE(h.cantidad_mixtas,  0)), 0)      AS dx,
+           COALESCE(SUM(COALESCE(h.peso_neto,      0)), 0)        AS kg,
+           COALESCE(SUM(COALESCE(h.peso_tara_real, 0)), 0)        AS tara
+    FROM public.lote_registro_historico_unificado h
+    WHERE h.tipo_evento = 'VENTA_AVES'
+      AND NOT h.anulado
+    GROUP BY 1, 2
+)
+UPDATE public.liquidacion_lote_engorde_congelada_fila f
+   SET despacho_peso_neto         = v.kg,
+       despacho_peso_tara         = v.tara,
+       despacho_promedio_peso_ave = v.kg / (f.despacho_hembras + f.despacho_machos + f.despacho_mixtas)
+  FROM public.liquidacion_lote_engorde_congelada c,
+       ventas v
+ WHERE c.id = f.liquidacion_id
+   AND c.anulada_at IS NULL
+   AND v.lote  = c.lote_ave_engorde_id
+   AND v.fecha = f.fecha
+   AND (f.despacho_hembras + f.despacho_machos + f.despacho_mixtas) > 0
+   AND COALESCE(f.despacho_peso_neto, 0) = 0
+   AND v.kg > 0
+   AND f.despacho_hembras = v.dh
+   AND f.despacho_machos  = v.dm
+   AND f.despacho_mixtas  = v.dx;
+
+-- 3) Checksum y rastro. El checksum se recalcula con la MISMA expresión de
+--    `fn_congelar_liquidacion_engorde` — y como el lote tiene copia vigente,
+--    `fn_seguimiento_diario_engorde` devuelve justamente estas filas ya corregidas, así que el
+--    valor vuelve a describir el contenido. Dejar el viejo sería un checksum que miente.
+UPDATE public.liquidacion_lote_engorde_congelada c
+   SET checksum = COALESCE((
+           SELECT md5(string_agg(x::text, '|' ORDER BY x.orden))
+           FROM (SELECT row_number() OVER (ORDER BY g.fecha, COALESCE(g.seg_id, 0)) AS orden, g.*
+                   FROM fn_seguimiento_diario_engorde(c.lote_ave_engorde_id) g) x
+       ), md5('')),
+       metadata = COALESCE(c.metadata, '{}'::jsonb) || jsonb_build_object(
+           'correccionKilosVenta', jsonb_build_object(
+               'aplicadaEn', now(),
+               'motivo', 'Ventas registradas con peso bruto = peso tara (neto 0). Se corrigieron '
+                      || 'SOLO las columnas de despacho de la copia congelada; el resto de la '
+                      || 'liquidacion aprobada quedo intacto.',
+               'filas', (SELECT count(*) FROM public._backup_liq_congelada_fila_kilos b
+                          WHERE b.liquidacion_id = c.id)))
+ WHERE c.anulada_at IS NULL
+   AND EXISTS (SELECT 1 FROM public._backup_liq_congelada_fila_kilos b WHERE b.liquidacion_id = c.id)
+   AND NOT (COALESCE(c.metadata, '{}'::jsonb) ? 'correccionKilosVenta');
+";
+
         private const string DOWN_SQL = @"
+UPDATE public.liquidacion_lote_engorde_congelada c
+   SET checksum = b.checksum_cabecera,
+       metadata = c.metadata - 'correccionKilosVenta'
+  FROM (SELECT DISTINCT liquidacion_id, checksum_cabecera
+          FROM public._backup_liq_congelada_fila_kilos) b
+ WHERE c.id = b.liquidacion_id;
+
+UPDATE public.liquidacion_lote_engorde_congelada_fila f
+   SET despacho_peso_neto         = b.despacho_peso_neto,
+       despacho_peso_tara         = b.despacho_peso_tara,
+       despacho_promedio_peso_ave = b.despacho_promedio_peso_ave
+  FROM public._backup_liq_congelada_fila_kilos b
+ WHERE f.id = b.fila_id;
+
+DROP TABLE IF EXISTS public._backup_liq_congelada_fila_kilos;
+
 UPDATE public.movimiento_pollo_engorde m
    SET peso_bruto        = b.peso_bruto,
        peso_tara         = b.peso_tara,

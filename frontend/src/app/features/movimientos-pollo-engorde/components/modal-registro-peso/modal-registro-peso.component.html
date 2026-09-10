@@ -40,6 +40,9 @@
             <input id="rp-tara" type="number" step="0.001" min="0"
               [(ngModel)]="pesoTara" [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="recalcular()" />
+            @if (avisoPesoTara) {
+              <p class="rp-aviso-peso">{{ avisoPesoTara }}</p>
+            }
           </div>
           <div class="rp-field rp-field--readonly">
             <label>Peso neto (kg)</label>

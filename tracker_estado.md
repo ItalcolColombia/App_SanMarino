@@ -8072,6 +8072,28 @@ despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecu
 - [x] V5. Detector, antes/despues en transaccion: con el criterio nuevo el lote 163 de Panama SI
       devuelve `MOV_SIN_PESO` (antes era mudo) y deja de devolverlo tras el backfill. Ecuador
       (lote 19) da **exactamente los mismos 3 hallazgos** con el criterio viejo y con el nuevo.
-- [ ] V4. Decidir con el usuario si se re-congelan los 4 lotes liquidados (ver D4).
+- [x] V4. **Resuelto (10sep26, pedido del usuario): se corrigen los 4 liquidados, por migracion.**
+      NO por `fn_recongelar_liquidacion_engorde` —eso re-liquida: reescribe 57 de 171 filas fuera de
+      los kilos— sino con un UPDATE quirurgico de las 3 columnas del despacho de la copia vigente.
+      Medido: **0 filas cambian fuera de esas 3 columnas**, el resumen de cabecera queda intacto
+      (nunca dependio de los kilos de venta), el `checksum` se recalcula con la MISMA expresion de
+      `fn_congelar_liquidacion_engorde` y queda rastro en `metadata->'correccionKilosVenta'`.
+      Recupera 429.660 kg en 28 filas (161: 104.390 · 163: 111.068 · 164: 106.942 · 165: 107.260).
+      Espejo `backend/sql/backfill_liquidacion_congelada_kilos_venta.sql`, paso 4 de la migracion.
+- [x] V7. **Down probado**: aplicando Up y luego Down en transaccion, las 3 superficies vuelven byte
+      a byte (0 diferencias en movimientos, filas congeladas y cabeceras).
+- [x] V8. **Aviso en rojo** donde el dato falta (pedido del usuario): badge `Falta peso tara` en las
+      dos celdas de kilos del seguimiento diario cuando hay aves despachadas y 0 kg (con tooltip), y
+      aviso rojo bajo el campo de tara en los 3 formularios de venta cuando esta vacia con el bruto
+      cargado o es igual al bruto. Con bascula diferida y AMBOS vacios no avisa: ese camino es legitimo.
+- [x] V9. Revalidado tras la ampliacion: `yarn build` **0 err** (solo el warning de yarn) ·
+      `dotnet build` **0 err / 0 warn** · `dotnet test` **4081 + 1 pass / 0 fail** ·
+      `dotnet ef migrations list` la muestra **(Pending)** — la prueba de que EF la ve y el deploy la
+      corre · `dotnet ef database update` la aplico en local **sin error** (el aviso de
+      «cannot be executed in a transaction» es el `suppressTransaction` de las dos fn, esperado).
+      Estado final en local: Panama **0** filas con bruto = tara, **1.124.034 kg** (2,346 kg/ave),
+      Ecuador **identico** (4.978.966,2 · 2,800) y la consulta 3 del verificador **vacia**.
+      `fn_seguimiento_diario_engorde(163)` —lote congelado— ya devuelve kilos en sus 6 dias.
 - [ ] V6. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`). Verificar
-      despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql`.
+      despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (las 3 consultas: la 3
+      tiene que salir VACIA).

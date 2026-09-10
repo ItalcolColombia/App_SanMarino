@@ -46,9 +46,11 @@ GROUP BY c.name
 ORDER BY c.name;
 
 \echo '=== 3) Lotes con liquidación CONGELADA cuya copia quedó en 0 kg =========='
-\echo '    (el backfill NO los arregla: su tabla diaria sale de la foto, no del cálculo vivo;'
-\echo '     hay que re-congelar con fn_recongelar_liquidacion_engorde, y eso reescribe la'
-\echo '     liquidación aprobada con la fórmula de HOY — decisión de operación, no automática)'
+\echo '    Tiene que salir VACÍO. La tabla diaria de un lote liquidado no se calcula: sale de la'
+\echo '    foto (fn_seguimiento_diario_engorde arranca con un UNION sobre la copia congelada), así'
+\echo '    que corregir los movimientos no le mueve un kilo. La migración corrige esas copias'
+\echo '    tocando SÓLO las 3 columnas del despacho — no re-congela, que regeneraría la'
+\echo '    liquidación aprobada entera con la fórmula de hoy.'
 SELECT c.name                                                          AS empresa,
        l.lote_ave_engorde_id                                           AS lote,
        l.lote_nombre,

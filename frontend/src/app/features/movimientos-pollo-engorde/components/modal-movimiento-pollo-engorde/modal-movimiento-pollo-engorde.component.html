@@ -531,6 +531,9 @@
                                         Obligatorio en ventas: peso tara (0 o más).
                                       </small>
                                     }
+                                    @if (avisoPesoTara) {
+                                      <small class="field-error">{{ avisoPesoTara }}</small>
+                                    }
                                   </div>
                                 </div>
                                 @if (pesoNeto != null || promedioPesoAve != null) {

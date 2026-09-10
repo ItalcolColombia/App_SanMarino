@@ -1090,6 +1090,26 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     return (this.form?.getRawValue()?.tipoMovimiento ?? '') === 'Venta';
   }
 
+  /**
+   * Aviso en ROJO bajo el campo de tara: la tara vacía con el bruto cargado, o la tara igual al
+   * bruto (neto 0). Sin él, el despacho se guarda —o se rechaza— sin que nadie entienda por qué la
+   * columna de kilos del seguimiento diario sale vacía. Sólo aplica a ventas.
+   */
+  get avisoPesoTara(): string | null {
+    if (!this.isDespacho) return null;
+    const v = this.form?.getRawValue();
+    if (!v) return null;
+    const hayBruto = v.pesoBruto != null && v.pesoBruto !== '';
+    const hayTara = v.pesoTara != null && v.pesoTara !== '';
+    if (hayBruto && !hayTara)
+      return 'Falta el peso tara (el camión VACÍO). Sin él el despacho queda sin kilos: no suman en '
+           + 'el seguimiento diario, ni en el informe semanal, ni en la liquidación.';
+    if (hayBruto && hayTara && Number(v.pesoBruto) === Number(v.pesoTara))
+      return 'El peso bruto y el peso tara son iguales: el neto daría 0 kg. Si sólo tiene los kilos '
+           + 'netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+    return null;
+  }
+
   get pesoNeto(): number | null {
     const v = this.form?.getRawValue();
     if (!v) return null;

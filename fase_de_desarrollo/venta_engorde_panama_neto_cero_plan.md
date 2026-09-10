@@ -99,3 +99,53 @@ no se vuelva a ensuciar):
 - `fn_seguimiento_diario_engorde(163)`: los 6 días con despacho dejan de traer 0.
 - `fn_auditoria_liquidacion_engorde`: con el detector ampliado, un lote con ventas de 0 kg devuelve
   `MOV_SIN_PESO`; corrido **después** del backfill vuelve a no devolverlo.
+
+---
+
+# Ampliación (10-sep-2026): liquidaciones congeladas + aviso en rojo
+
+Pedido del usuario tras el primer entregable: **(1)** corregir también los lotes ya liquidados y que
+eso vaya **por migración** para que se aplique en producción; **(2)** confirmar que lo anterior
+también está en migración; **(3)** que el campo que sale vacío avise **en rojo** que falta el peso
+tara, para que se entienda por qué no hay kilos.
+
+## 6. Liquidaciones congeladas — corregir, no re-liquidar
+
+La tabla diaria de un lote liquidado **no se calcula**: `fn_seguimiento_diario_engorde` arranca con
+`SELECT … FROM liquidacion_lote_engorde_congelada_fila … UNION ALL <cálculo vivo>`, así que con copia
+vigente devuelve la **foto**. Por eso el backfill de `movimiento_pollo_engorde` no les mueve un kilo.
+
+**Dos caminos, y el motivo de elegir el segundo:**
+
+| | `fn_recongelar_liquidacion_engorde` | UPDATE de las 3 columnas del despacho |
+|---|---|---|
+| Kilos corregidos | sí | sí |
+| Filas tocadas fuera de los kilos | **57 de 171** (saldo aves, saldo alimento, consumo, mortalidad) | **0** (medido) |
+| Motivo | regenera la copia entera con la fn de HOY (v18) y las copias son v13/v15 | sólo escribe lo que estaba mal |
+| Resumen de cabecera | lo pierde (la fn SQL no lo llena; lo llena el C#) | intacto — nunca dependió de los kilos de venta |
+
+Se elige el UPDATE quirúrgico: **corregir los kilos no es re-liquidar**. La cabecera conserva su
+resumen aprobado, el `checksum` se recalcula con la MISMA expresión de `fn_congelar_liquidacion_engorde`
+(que sobre un lote congelado lee justo estas filas ya corregidas, así que vuelve a describir el
+contenido) y queda rastro en `metadata->'correccionKilosVenta'`.
+
+**Guardas del UPDATE:** copia vigente · la fila hoy trae 0 kg · el día trae kilos · y las aves H/M/mixtas
+de la fila coinciden EXACTO con las del día. Un día con dos seguimientos son dos filas y la fn le pone
+a las dos el total del día (`LEFT JOIN … ON fecha`); el UPDATE junta por fecha y reproduce eso.
+
+## 7. Aviso en rojo donde el dato falta
+
+Un día con aves despachadas y 0 kg dejaba **un guion mudo** en las dos celdas de kilos: no había forma
+de distinguir «ese día no hubo venta» de «la venta se cargó sin báscula». Es exactamente el reclamo que
+destapó todo esto.
+
+- **Seguimiento diario** (`tabs-principal-engorde`): las celdas «Peso despacho neto» y «Peso prom»
+  muestran un badge rojo **«Falta peso tara»** cuando hay aves despachadas y 0 kg, con tooltip que dice
+  cuántas aves y dónde se carga. Sin despacho el guion se queda como estaba.
+- **Los 3 formularios de venta** (`modal-venta-panama`, `modal-registro-peso`,
+  `modal-movimiento-pollo-engorde`): aviso rojo bajo el campo de tara cuando está vacía con el bruto
+  cargado, o cuando es igual al bruto. Con báscula diferida y **ambos** campos vacíos no avisa nada:
+  ese camino es legítimo.
+
+Rojo `--danger` a propósito (la paleta lo reserva para peligro): es un dato obligatorio que falta y
+arrastra al seguimiento diario, al informe semanal, a la liquidación y a los indicadores.

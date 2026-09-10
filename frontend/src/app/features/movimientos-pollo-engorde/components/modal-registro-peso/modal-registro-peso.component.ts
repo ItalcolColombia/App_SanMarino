@@ -105,6 +105,23 @@ export class ModalRegistroPesoComponent implements OnChanges {
     return neto != null && this.totalAves > 0 ? neto / this.totalAves : null;
   }
 
+  /**
+   * Aviso en ROJO bajo el campo de tara: la tara vacía con el bruto cargado, o la tara igual al
+   * bruto (neto 0). Este modal es justo el de la báscula diferida de Panamá, donde el operario tiene
+   * UNA sola cifra de kilos en la mano: sin el aviso la repite en los dos campos y el despacho queda
+   * en 0 kg (206 ventas así hasta el 9-sep-2026).
+   */
+  get avisoPesoTara(): string | null {
+    if (this.pesoBruto == null) return null;
+    if (this.pesoTara == null)
+      return 'Falta el peso tara (el camión VACÍO). Sin él el despacho queda sin kilos: no suman en '
+           + 'el seguimiento diario, ni en el informe semanal, ni en la liquidación.';
+    if (this.pesoBruto === this.pesoTara)
+      return 'El peso bruto y el peso tara son iguales: el neto daría 0 kg. Si sólo tiene los kilos '
+           + 'netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+    return null;
+  }
+
   get puedeGuardar(): boolean {
     return (
       !this.loading &&
