@@ -129,9 +129,12 @@ tiene lote vivo, el `AjusteCuadreTablaSalida` nace huérfano y (con la v19) iner
 El `EliminacionStock` se conserva intacto — sigue siendo el registro de que alguien eliminó el
 stock. Es defensa en profundidad y, sobre todo, deja de generar filas que después hay que explicar.
 
-**Qué NO se toca:** `CuadreAlimentoEngordeService.CuadrarGalponAsync` («Cuadrar galpón») parte de
-una fila del cuadre que **siempre** trae `LoteAveEngordeId` ⇒ sus ajustes nunca son huérfanos y su
-comportamiento queda idéntico.
+> ⚠️ **Corrección (ver §6).** Acá se escribió que `CuadrarGalponAsync` («Cuadrar galpón») no hacía
+> falta tocarlo, *«porque parte de una fila del cuadre que siempre trae `LoteAveEngordeId`»*. **Eso
+> era falso** y el error es instructivo: el service tiene el lote, pero **el movimiento no lo lleva —
+> se lo pone el trigger, por UBICACIÓN**. Cuando los dos criterios no coinciden (un lote `Cerrado`
+> que el cuadre todavía lista) el ajuste nace huérfano igual. Medido: 2 de 37 filas en Ecuador. La
+> guarda entra también ahí en §6.
 
 ### 4.2 Por qué esto resuelve los puntos 2 y 3 sin tocar un solo dato
 
@@ -242,3 +245,45 @@ que usa el trigger, sobre las 9 ubicaciones reales que hoy tienen ajustes de cua
 **Tampoco se aplico la fn a la BD local compartida**: toda la medicion se hizo en transacciones
 revertidas, para no cambiarle el comportamiento de la fn a la otra sesion que esta trabajando en el
 mismo repo. La migracion la aplica el deploy (`Database__RunMigrations=true`).
+
+---
+
+## 6. Cerrar la CLASE, no la instancia (10-sep-2026)
+
+Al preguntarse *«puede volver a pasar por otro camino?»* aparecio que hay **dos** escritores de
+`AjusteCuadreTabla*`, y el otro tenia el mismo agujero.
+
+**«Cuadrar galpón»** parte de una fila del cuadre que SÍ trae `LoteAveEngordeId` — por eso el
+análisis inicial lo descartó—, pero **el lote del movimiento no lo pone el service: lo resuelve el
+trigger por UBICACIÓN**, con `deleted_at IS NULL` y `estado_operativo_lote <> 'Cerrado'`. Cuando esos
+dos criterios no coinciden, el ajuste nace huérfano igual.
+
+Medido sobre la copia del 10-sep:
+
+| | ItalcolEcuador | ItalcolPanamá |
+|---|---|---|
+| filas del cuadre | 37 | 24 |
+| resuelven a **NULL** (huérfano) | **2** | 0 |
+| resuelven a **otro** lote | 3 | 3 |
+
+Las 2 que dan NULL son lotes **`Cerrado`** y las dos con **descuadre 0,0** ⇒ **hoy nadie choca con
+esto**, pero el camino estaba abierto. Las 6 que resuelven a otro lote son galpones con dos ciclos
+conviviendo: bodega compartida (v10), da igual a cuál se atribuya.
+
+**Lo que entra:**
+
+1. `LoteVivoDelGalponResolver` — un solo lugar que consulta `fn_lote_ave_engorde_id_desde_ubicacion`.
+   Antes la consulta vivía como helper **privado** de `InventarioGestionService`, invisible para el
+   otro escritor; repetirla en LINQ hubiera sido dos definiciones de «lote vivo» que se separan.
+2. `EscribirAjusteDeTablaAsync` **rechaza con mensaje** cuando no hay ciclo vivo. Va dentro de la
+   transacción que ya envuelve los dos lados, así que el lado stock tampoco queda aplicado a medias.
+   Sin esto, con la v19 puesta, la pantalla diría «cuadrado» y no cambiaría nada: el tipo de silencio
+   que genera el ticket siguiente.
+3. La decisión pura pasa a `HayCicloVivoQueCorregir` (ya no es solo de la eliminación).
+
+Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4.087 + 1 pass / 0 fail**.
+
+> 🔑 **La garantía de «no vuelve a pasar» la da la v19, no estas guardas.** Aunque mañana
+> aparezca un tercer escritor y genere un huérfano, la fn lo ignora: no puede cobrárselo al ciclo
+> siguiente. Las guardas de C# evitan **generar** basura; la v19 hace que la basura sea **inofensiva**.
+> Es la diferencia entre tapar la instancia y cerrar la clase.

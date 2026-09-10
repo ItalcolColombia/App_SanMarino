@@ -120,31 +120,6 @@ public partial class InventarioGestionService
     private const string MovimientoAjusteTablaSalidaPorEliminacion = "AjusteCuadreTablaSalida";
 
     /// <summary>
-    /// El lote de engorde vivo del galpón, o <c>null</c> si no queda ninguno — leído de la MISMA
-    /// función que usa el trigger <c>trg_lote_hist_desde_inventario_gestion</c> para atribuir el
-    /// movimiento en <c>lote_registro_historico_unificado</c>.
-    ///
-    /// <para>
-    /// Se consulta la función en vez de repetir su criterio (<c>deleted_at IS NULL</c> +
-    /// <c>estado_operativo_lote &lt;&gt; 'Cerrado'</c> + el último id) en LINQ **a propósito**: dos
-    /// definiciones de «lote vivo» que se separen dejan el movimiento decidido de un lado y
-    /// atribuido de otro. Una sola fórmula por número.
-    /// </para>
-    /// </summary>
-    private async Task<int?> ResolverLoteVivoDelGalponAsync(
-        int farmId, string? nucleoId, string? galponId, CancellationToken ct)
-    {
-        // El alias `Value` es la convención de EF para `SqlQueryRaw<T>` sobre un escalar.
-        var ids = await _db.Database
-            .SqlQueryRaw<int?>(
-                "SELECT public.fn_lote_ave_engorde_id_desde_ubicacion({0}::int, {1}::varchar, {2}::varchar) AS \"Value\"",
-                farmId, (object?)nucleoId ?? DBNull.Value, (object?)galponId ?? DBNull.Value)
-            .ToListAsync(ct);
-
-        return ids.Count > 0 ? ids[0] : null;
-    }
-
-    /// <summary>
     /// Elimina un registro de stock: el stock se va y la TABLA DIARIA baja los mismos kilos.
     ///
     /// <para>
@@ -208,11 +183,11 @@ public partial class InventarioGestionService
         //    Se pregunta a la MISMA función que usa el trigger (`fn_lote_ave_engorde_id_desde_ubicacion`)
         //    en vez de repetir su criterio en LINQ: dos definiciones de «lote vivo» que se separen
         //    dejan el movimiento atribuido de un lado y no del otro. Ver
-        //    AjusteCuadreAlimentoCalculos.EscribeAjusteDeTablaPorEliminacion.
-        var loteVivoId = await ResolverLoteVivoDelGalponAsync(
-            stock.FarmId, stock.NucleoId, stock.GalponId, ct);
+        //    AjusteCuadreAlimentoCalculos.HayCicloVivoQueCorregir.
+        var loteVivoId = await LoteVivoDelGalponResolver.ResolverAsync(
+            _db, stock.FarmId, stock.NucleoId, stock.GalponId, ct);
         var escribeAjusteDeTabla =
-            AjusteCuadreAlimentoCalculos.EscribeAjusteDeTablaPorEliminacion(loteVivoId);
+            AjusteCuadreAlimentoCalculos.HayCicloVivoQueCorregir(loteVivoId);
 
         if (kilos > 0)
         {

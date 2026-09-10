@@ -1,4 +1,4 @@
-namespace ZooSanMarino.Application.Calculos;
+﻿namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
 /// Qué hay que escribir de cada lado para que un galpón de engorde vuelva a cuadrar
@@ -181,7 +181,9 @@ public static class AjusteCuadreAlimentoCalculos
     }
 
     /// <summary>
-    /// ¿La eliminación de un registro de stock tiene una tabla diaria que corregir?
+    /// ¿Hay un ciclo vivo al que corregirle la tabla diaria? Lo consultan los DOS escritores de
+    /// <c>AjusteCuadreTablaEntrada</c>/<c>Salida</c>: la eliminación de un registro de stock y
+    /// «Cuadrar galpón».
     ///
     /// <para>
     /// <b>El defecto que cierra (ticket de operación 10-sep-2026, DOÑA MARIA / núcleo C / galpón 2,
@@ -212,7 +214,7 @@ public static class AjusteCuadreAlimentoCalculos
     /// vivo. Se consulta la MISMA función que usa el trigger a propósito: dos criterios distintos
     /// para «hay lote vivo» es como este módulo se rompió antes.
     /// </param>
-    public static bool EscribeAjusteDeTablaPorEliminacion(int? loteAveEngordeIdVivo) =>
+    public static bool HayCicloVivoQueCorregir(int? loteAveEngordeIdVivo) =>
         loteAveEngordeIdVivo is > 0;
 
     private static string Kg(decimal v) => v.ToString("N1", System.Globalization.CultureInfo.InvariantCulture);

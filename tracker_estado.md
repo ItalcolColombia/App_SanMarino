@@ -8175,14 +8175,24 @@ galpones sin ciclo vivo que el proximo encaset heredaria.
 - [x] A8. Respuesta al ticket: stock 11.715,000 contra tabla 7.718,44; la diferencia es un
       `AjusteCuadreTablaSalida` huerfano de 3.996,56 kg del ciclo anterior. Con la v19 la tabla
       cierra en 11.715,000 = stock.
-- [ ] A9. **Sin commitear**: el working tree tiene trabajo de otra sesion (V6/F7). Los archivos de
-      este bloque son: `fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md`,
-      `backend/sql/fn_seguimiento_diario_engorde.sql`,
-      `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql`,
-      `backend/src/ZooSanMarino.Infrastructure/Migrations/20260910120000_FnSeguimientoEngordeV19AperturaIgnoraAjusteHuerfano.{cs,Fn.cs,Designer.cs}`,
-      `backend/src/ZooSanMarino.Application/Calculos/AjusteCuadreAlimentoCalculos.cs`,
-      `backend/src/ZooSanMarino.Infrastructure/Services/InventarioGestion/Funciones/InventarioGestionService.StockMutacion.cs`,
-      `backend/tests/ZooSanMarino.Application.Tests/AjusteCuadreAlimentoCalculosTests.cs` y este tracker.
+- [x] A9. Commiteado en `92ac94d` (10 archivos). El working tree ya no tenia trabajo de la otra
+      sesion: habia cerrado en `6489369`.
+- [x] A11. **Cerrar la CLASE, no la instancia** (pedido del usuario: «que no pase otra vez»).
+      Medido: hay **DOS** escritores de `AjusteCuadreTabla*`, y el otro —«Cuadrar galpon»— tenia el
+      mismo agujero: su fila trae `LoteAveEngordeId`, pero el trigger etiqueta el movimiento por
+      UBICACION. Sobre la copia: Ecuador **2 de 37** filas resuelven a NULL (las dos de lotes
+      `Cerrado` y con descuadre **0,0** ⇒ hoy nadie choca) y 3+3 resuelven a OTRO lote (galpones con
+      dos ciclos conviviendo: bodega compartida, da igual a cual). Cambios:
+      (a) `LoteVivoDelGalponResolver` — un solo lugar que consulta
+      `fn_lote_ave_engorde_id_desde_ubicacion`, compartido por los dos escritores (antes era un
+      helper privado de un service);
+      (b) `EscribirAjusteDeTablaAsync` **rechaza con mensaje** si no hay ciclo vivo, en vez de
+      escribir algo inerte — sin esto la pantalla diria «cuadrado» y no cambiaria nada;
+      (c) la decision pura pasa a llamarse `HayCicloVivoQueCorregir` (ya no es solo de la eliminacion).
+      Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4.087 + 1 pass / 0 fail**.
+      🔑 **La garantia real la da la v19, no estas guardas**: aunque aparezca un tercer escritor
+      y genere un huerfano, la fn lo ignora y no puede cobrarselo al ciclo siguiente. Las guardas
+      evitan generar basura; la v19 la vuelve inofensiva.
 - [ ] A10. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`).
       Verificar despues con `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` (consulta 3
       ajustando la fecha al dia del despliegue: tiene que salir VACIA; consulta 4: `dif_kg` sin los

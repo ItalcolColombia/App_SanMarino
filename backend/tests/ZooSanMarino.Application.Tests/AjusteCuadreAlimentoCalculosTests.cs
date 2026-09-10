@@ -256,7 +256,7 @@ public class AjusteCuadreAlimentoCalculosTests
     [Fact]
     public void Sin_lote_vivo_en_el_galpon_no_se_escribe_ajuste_de_tabla()
     {
-        Assert.False(EscribeAjusteDeTablaPorEliminacion(null));
+        Assert.False(HayCicloVivoQueCorregir(null));
     }
 
     /// <summary>Con un ciclo vivo hay tabla diaria que corregir: se escribe, igual que siempre.</summary>
@@ -266,7 +266,7 @@ public class AjusteCuadreAlimentoCalculosTests
     [InlineData(int.MaxValue)]
     public void Con_lote_vivo_se_escribe_el_ajuste_de_tabla(int loteId)
     {
-        Assert.True(EscribeAjusteDeTablaPorEliminacion(loteId));
+        Assert.True(HayCicloVivoQueCorregir(loteId));
     }
 
     /// <summary>
@@ -279,6 +279,6 @@ public class AjusteCuadreAlimentoCalculosTests
     [InlineData(-1)]
     public void Un_id_que_no_identifica_a_nadie_no_escribe_ajuste(int loteId)
     {
-        Assert.False(EscribeAjusteDeTablaPorEliminacion(loteId));
+        Assert.False(HayCicloVivoQueCorregir(loteId));
     }
 }
