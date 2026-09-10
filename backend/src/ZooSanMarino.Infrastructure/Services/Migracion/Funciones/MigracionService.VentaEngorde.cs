@@ -123,6 +123,11 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Cantidad", null, "Debe vender al menos un ave (Cantidad H/M/Mixtas).")); continue; }
             if (pesoBruto is double b && pesoTara is double t && b < t)
             { errores.Add(new(fila.Numero, "Peso", $"{b}/{t}", "El peso bruto no puede ser menor que la tara.")); continue; }
+            // Mismo gate que la venta por pantalla (MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta):
+            // bruto == tara es neto 0 — la venta cuenta las aves y aporta 0 kg. Es el error que dejó a
+            // Panamá con 206 ventas sin kilos (planta entrega UNA cifra y el formulario pide dos).
+            if (pesoBruto is double b0 && pesoTara is double t0 && b0 == t0)
+            { errores.Add(new(fila.Numero, "Peso", $"{b0}/{t0}", "El peso neto no puede ser 0 kg: bruto y tara son iguales. El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos, cárguelos en Peso Bruto y deje Peso Tara en 0.")); continue; }
             if (pesoBruto.HasValue != pesoTara.HasValue)
             { errores.Add(new(fila.Numero, "Peso", null, "Indique peso bruto Y peso tara, o deje ambos vacíos.")); continue; }
 
@@ -275,7 +280,7 @@ public partial class MigracionService
             "• Granja / Núcleo / Galpón / Lote: opcionales. Si indicás 'Lote', la fila se carga en ESE lote (se busca por nombre, sin distinguir mayúsculas ni acentos, y Granja/Núcleo/Galpón sirven para desambiguar). Si los dejás vacíos, la fila va al lote seleccionado en pantalla.",
             "• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa).",
             "• Cantidad H / M / Mixtas: enteros ≥ 0 (vacío = 0); debe venderse al menos un ave por fila.",
-            "• Peso Bruto / Peso Tara: opcionales, en kg, ambos o ninguno (bruto ≥ tara). El neto y el promedio por ave se calculan.",
+            "• Peso Bruto / Peso Tara: opcionales, en kg, ambos o ninguno (bruto > tara: el neto no puede dar 0). El neto y el promedio por ave se calculan.",
             "• N° Despacho: las filas con el MISMO N° Despacho + Fecha + Granja son un solo despacho (varios lotes en un camión): comparten factura y el peso se reparte entre ellas en proporción a las aves. Repetí el mismo peso bruto/tara en todas las filas del despacho.",
             "• Estado: 'Completado' (default) descuenta las aves del lote. 'Pendiente' deja la venta a la espera de la báscula; el descuento ocurre al confirmarla desde Movimientos.",
             "• Venta sobre mixtas: 'Sí' (Panamá) reparte H/M sobre las MIXTAS del lote — el descuento sale de mixtas y Cantidad Mixtas debe quedar vacía.",

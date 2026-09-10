@@ -777,6 +777,16 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.error = 'El peso bruto no puede ser menor que el peso tara.';
         return;
       }
+      // Neto 0 (bruto == tara): la venta contaría las aves y aportaría 0 kg al seguimiento diario,
+      // al informe semanal y a la liquidación. Espejo del gate del backend
+      // (`MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta`).
+      if (neto === 0) {
+        this.error =
+          'El peso neto de la venta no puede ser 0 kg: el peso bruto y el peso tara son iguales. ' +
+          'El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos ' +
+          'del despacho, cárguelos en el peso bruto y deje la tara en 0.';
+        return;
+      }
     }
 
     if (this.ventaPorGranjaMode && !this.editingMovimiento) {

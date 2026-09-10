@@ -38,6 +38,16 @@ public static class MovimientoPolloEngordeCalculos
             throw new InvalidOperationException("El peso tara no puede ser negativo.");
         if (pesoBruto.Value < pesoTara.Value)
             throw new InvalidOperationException("El peso bruto no puede ser menor que el peso tara.");
+        // Bruto == tara ⇒ neto 0: la venta cuenta las aves y aporta 0 kg. Medido el 9-sep-2026,
+        // 206 de las 207 ventas de Panamá estaban así (1.124.026 kg digitados dentro de `peso_bruto`
+        // y repetidos en `peso_tara`, porque planta entrega UNA sola cifra y el formulario pide dos).
+        // El detector MOV_SIN_PESO de la auditoría no lo veía —filtra por NULL, no por 0— así que
+        // nadie se enteró hasta que operación reclamó los kilos del seguimiento diario.
+        if (pesoBruto.Value == pesoTara.Value)
+            throw new InvalidOperationException(
+                "El peso neto de la venta no puede ser 0 kg: el peso bruto y el peso tara son iguales. " +
+                "El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos " +
+                "del despacho, cárguelos en el peso bruto y deje la tara en 0.");
     }
 
     /// <summary>

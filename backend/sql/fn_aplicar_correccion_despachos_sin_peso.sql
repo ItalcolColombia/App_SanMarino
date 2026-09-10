@@ -1,7 +1,7 @@
 -- ============================================================================
 -- fn_aplicar_correccion_despachos_sin_peso — Aplica la corrección sugerida por el
--- verificador de liquidación: carga el peso faltante en los despachos sin peso
--- (peso_neto y báscula en NULL) de una corrida, distribuyendo p_kg_total entre
+-- verificador de liquidación: carga el peso faltante en los despachos que aportan
+-- 0 kg (peso neto ausente O en 0) de una corrida, distribuyendo p_kg_total entre
 -- ellos proporcional a las aves. Escribe peso_neto + peso_neto_global y audita
 -- (updated_at / updated_by_user_id). NO es STABLE (modifica datos).
 -- Pensada para llamarse desde un endpoint gateado por el permiso
@@ -41,14 +41,15 @@ BEGIN
         RETURN jsonb_build_object('ok', false, 'error', 'No se encontraron lotes en el alcance indicado.');
     END IF;
 
-    -- Aves de los despachos SIN peso (mismo criterio que el detector MOV_SIN_PESO)
+    -- Aves de los despachos que aportan 0 kg (mismo criterio que el detector MOV_SIN_PESO:
+    -- peso neto ausente O en 0; el segundo caso es el de Panamá, bruto == tara)
     SELECT coalesce(sum(cantidad_hembras + cantidad_machos + cantidad_mixtas), 0)
       INTO v_total_aves
     FROM public.movimiento_pollo_engorde
     WHERE lote_ave_engorde_origen_id = ANY(v_lotes)
       AND estado = 'Completado' AND deleted_at IS NULL
       AND tipo_movimiento IN ('Venta','Despacho','Retiro')
-      AND peso_neto IS NULL AND (peso_bruto IS NULL OR peso_tara IS NULL);
+      AND COALESCE(peso_neto, 0) = 0;
 
     IF v_total_aves = 0 THEN
         RETURN jsonb_build_object('ok', false,
@@ -62,7 +63,7 @@ BEGIN
         WHERE lote_ave_engorde_origen_id = ANY(v_lotes)
           AND estado = 'Completado' AND deleted_at IS NULL
           AND tipo_movimiento IN ('Venta','Despacho','Retiro')
-          AND peso_neto IS NULL AND (peso_bruto IS NULL OR peso_tara IS NULL)
+          AND COALESCE(peso_neto, 0) = 0
     ),
     upd AS (
         UPDATE public.movimiento_pollo_engorde m

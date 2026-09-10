@@ -280,6 +280,20 @@ export class ModalVentaPanamaComponent implements OnChanges {
     return 'Revise los datos del despacho: hay campos con valores inválidos.';
   }
 
+  /**
+   * Bruto == tara ⇒ neto 0: la venta contaría las aves y aportaría 0 kg al seguimiento diario, al
+   * informe semanal y a la liquidación. Es exactamente lo que venía pasando en Panamá (planta
+   * entrega UNA sola cifra de kilos y el formulario pide dos, así que se repetía el número).
+   * Espejo del gate del backend (`MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta`).
+   */
+  private pesoNetoEnCero(): boolean {
+    const bruto = this.form.get('pesoBruto')?.value;
+    const tara = this.form.get('pesoTara')?.value;
+    if (bruto === null || bruto === undefined || bruto === '') return false;
+    if (tara === null || tara === undefined || tara === '') return false;
+    return Number(bruto) === Number(tara);
+  }
+
   /** Con peso diferido, un peso a medias es un error de digitación (el backend lo rechaza igual). */
   private pesoIncompleto(): boolean {
     const bruto = this.form.get('pesoBruto')?.value;
@@ -306,6 +320,13 @@ export class ModalVentaPanamaComponent implements OnChanges {
     }
     if (this.pesoIncompleto()) {
       this.error = 'Indique peso bruto Y peso tara, o deje ambos vacíos para cargarlos al confirmar la venta.';
+      return;
+    }
+    if (this.pesoNetoEnCero()) {
+      this.error =
+        'El peso neto de la venta no puede ser 0 kg: el peso bruto y el peso tara son iguales. ' +
+        'El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos ' +
+        'del despacho, cárguelos en el peso bruto y deje la tara en 0.';
       return;
     }
     const session = this.tokenStorage.get();

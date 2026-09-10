@@ -112,7 +112,8 @@ export class ModalRegistroPesoComponent implements OnChanges {
       this.pesoTara != null &&
       this.pesoBruto > 0 &&
       this.pesoTara >= 0 &&
-      this.pesoBruto >= this.pesoTara &&
+      // Estricto, no `>=`: bruto == tara es neto 0 — la venta contaría las aves y aportaría 0 kg.
+      this.pesoBruto > this.pesoTara &&
       this.movimientos.length > 0
     );
   }
@@ -176,6 +177,9 @@ export class ModalRegistroPesoComponent implements OnChanges {
     if (this.pesoBruto <= 0) return 'El peso bruto debe ser mayor a 0 kg.';
     if (this.pesoTara < 0) return 'El peso tara no puede ser negativo.';
     if (this.pesoBruto < this.pesoTara) return 'El peso bruto no puede ser menor que el peso tara.';
+    // Espejo del gate del backend (MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta).
+    if (this.pesoBruto === this.pesoTara)
+      return 'El peso neto no puede ser 0 kg: el bruto y la tara son iguales. El bruto es el camión CARGADO y la tara el camión VACÍO; si sólo tiene los kilos netos del despacho, cárguelos en el peso bruto y deje la tara en 0.';
     return 'Revise el peso del despacho.';
   }
 }

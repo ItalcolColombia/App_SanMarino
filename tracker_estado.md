@@ -8064,5 +8064,14 @@ despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecu
       de un lote NO congelado trae kilos; el de uno congelado sigue en 0 (ver D4).
 - [x] V2. Diagnostico reusable `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (solo lectura,
       gate multipais + lista de lotes congelados en 0 kg). Gate `verificar-sql-llega-por-migracion.js` OK.
-- [ ] V3. `dotnet build` + `dotnet test` + `yarn build`.
+- [x] V3. `dotnet build` de la solucion **0 err / 0 warn** (34 min: Infrastructure son 71 MB de DLL) ·
+      `dotnet test` **4081 + 1 pass / 0 fail** · `yarn build` OK (solo el warning preexistente de yarn).
+      **Prueba negativa del gate:** anulandolo fallan exactamente los 2 tests de `bruto == tara`;
+      restaurado y verde. El `.Designer.cs` se verifico identico al `ModelSnapshot` (migracion
+      model-neutral). Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V5. Detector, antes/despues en transaccion: con el criterio nuevo el lote 163 de Panama SI
+      devuelve `MOV_SIN_PESO` (antes era mudo) y deja de devolverlo tras el backfill. Ecuador
+      (lote 19) da **exactamente los mismos 3 hallazgos** con el criterio viejo y con el nuevo.
 - [ ] V4. Decidir con el usuario si se re-congelan los 4 lotes liquidados (ver D4).
+- [ ] V6. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`). Verificar
+      despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql`.

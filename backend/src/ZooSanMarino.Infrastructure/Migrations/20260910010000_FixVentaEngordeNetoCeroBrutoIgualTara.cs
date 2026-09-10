@@ -1,8 +1,62 @@
--- ============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class FixVentaEngordeNetoCeroBrutoIgualTara : Migration
+    {
+        // Ventas de pollo engorde que cuentan las aves y aportan 0 kg, porque el operario digitó el
+        // MISMO número en `peso_bruto` y en `peso_tara`. Medido el 9-sep-2026: 206 de las 207 ventas
+        // de ItalcolPanama; `peso_bruto` promedia 2,357 kg/ave — el peso NETO del pollo, no el de un
+        // camión cargado (ItalcolEcuador, que usa los campos bien, promedia 7,21 en bruto y 2,836 en
+        // neto, y tiene 0 filas con bruto = tara). Planta entrega UNA sola cifra de kilos y el
+        // formulario pide dos, así que se repetía el número.
+        //
+        // Tres piezas:
+        //   1) El detector MOV_SIN_PESO deja de mirar sólo NULL: `COALESCE(peso_neto,0) = 0` cubre el
+        //      peso ausente Y el neto 0. La red de seguridad que existía justo para «cuentan aves,
+        //      0 kg» era ciega a este caso: la auditoría del lote 163 (20 despachos, 45.479 aves,
+        //      0 kg) no devolvía un solo hallazgo de peso.
+        //   2) `fn_aplicar_correccion_despachos_sin_peso` toma el MISMO criterio (son un par: el
+        //      detector reporta y la fn corrige; separarlos deja hallazgos que el botón no puede
+        //      resolver).
+        //   3) Backfill: mueve el valor digitado a `peso_neto` y deja `peso_tara = 0`. No inventa
+        //      kilos — reubica los que ya estaban. Respaldo previo en `_backup_mpe_peso_neto_cero`.
+        //
+        // El gate de escritura que impide que vuelva a pasar vive en
+        // MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta (con tests).
+        //
+        // NO re-congela liquidaciones. 4 lotes de Panamá (161/163/164/165, 176.930 aves) ya están
+        // liquidados y su tabla diaria sale de la copia CONGELADA, que seguirá en 0 kg hasta que se
+        // re-congele con `fn_recongelar_liquidacion_engorde`. Eso se dejó FUERA a propósito: medido,
+        // re-congelar mueve 57 de esas 171 filas en columnas que no son la de kilos (saldo de aves,
+        // saldo de alimento, consumo, mortalidad) porque la fórmula avanzó de v13/v15 a v18. Reescribir
+        // una liquidación aprobada es decisión de operación, no efecto colateral de un deploy.
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_AUDITORIA_SQL, suppressTransaction: true);
+            migrationBuilder.Sql(FN_CORRECCION_SQL, suppressTransaction: true);
+            migrationBuilder.Sql(BACKFILL_SQL);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sólo se revierte el DATO, que es lo único que este Down puede deshacer sin adivinar:
+            // los pesos vuelven exactamente a como estaban (respaldo fila a fila). El criterio de los
+            // dos detectores queda ampliado a propósito — no escriben nada, sólo reportan, y volver a
+            // filtrar por NULL re-escondería el caso.
+            migrationBuilder.Sql(DOWN_SQL);
+        }
+
+        private const string FN_AUDITORIA_SQL = @"-- ============================================================================
 -- fn_auditoria_liquidacion_engorde — Verificador de Liquidación Pollo Engorde EC
 -- ----------------------------------------------------------------------------
 -- Recibe el alcance (company/granja/núcleo/código de lote) y los valores
--- "correctos" del Excel (JSONB clave→valor del TOTAL de la corrida) y devuelve
+-- ""correctos"" del Excel (JSONB clave→valor del TOTAL de la corrida) y devuelve
 -- UN jsonb armado con:
 --   * reconciliacion: sistema vs Excel por indicador (clase 'dato'|'definicion')
 --   * hallazgos: detectores de datos con los registros exactos afectados
@@ -84,7 +138,7 @@ BEGIN
     v_consave := CASE WHEN v_sac  > 0 THEN v_cons / v_sac          ELSE 0 END;
 
     -- Validación del Excel: valores clave deben venir presentes y > 0 (si no, es plantilla/archivo
-    -- equivocado o con fórmulas en error #DIV/0!). 0 se trata como "sin dato válido".
+    -- equivocado o con fórmulas en error #DIV/0!). 0 se trata como ""sin dato válido"".
     v_excel_enc  := NULLIF((p_excel->>'aves_encasetadas')::numeric, 0);
     v_excel_sac  := NULLIF((p_excel->>'aves_sacrificadas')::numeric, 0);
     v_excel_prod := NULLIF((p_excel->>'produccion_kilo_en_pie')::numeric, 0);
@@ -262,7 +316,7 @@ BEGIN
     END IF;
 
     -- 4f) DETECTOR: Excel incompleto / archivo equivocado (valores clave vacíos o en cero).
-    -- Se antepone (es el más importante): explica por qué "no cuadra" antes que la reconciliación ruidosa.
+    -- Se antepone (es el más importante): explica por qué ""no cuadra"" antes que la reconciliación ruidosa.
     IF NOT v_excel_valido THEN
       v_hallazgos := jsonb_build_array(jsonb_build_object(
         'codigo','EXCEL_INCOMPLETO','severidad','critico','tipo','excel',
@@ -352,3 +406,231 @@ BEGIN
     );
 END;
 $$;
+";
+
+        private const string FN_CORRECCION_SQL = @"-- ============================================================================
+-- fn_aplicar_correccion_despachos_sin_peso — Aplica la corrección sugerida por el
+-- verificador de liquidación: carga el peso faltante en los despachos que aportan
+-- 0 kg (peso neto ausente O en 0) de una corrida, distribuyendo p_kg_total entre
+-- ellos proporcional a las aves. Escribe peso_neto + peso_neto_global y audita
+-- (updated_at / updated_by_user_id). NO es STABLE (modifica datos).
+-- Pensada para llamarse desde un endpoint gateado por el permiso
+-- 'liquidacion.aplicar_correccion'. Transaccional (un solo UPDATE).
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.fn_aplicar_correccion_despachos_sin_peso(
+    p_company_id  INT,
+    p_granja_id   INT,
+    p_nucleo_id   TEXT,
+    p_lote_codigo TEXT,
+    p_kg_total    NUMERIC,
+    p_user_id     INT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_lotes      INT[];
+    v_total_aves INT;
+    v_aplicados  JSONB;
+BEGIN
+    IF p_kg_total IS NULL OR p_kg_total <= 0 THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'El total de kg a aplicar debe ser mayor a 0.');
+    END IF;
+
+    SELECT array_agg(lote_ave_engorde_id)
+      INTO v_lotes
+    FROM public.lote_ave_engorde
+    WHERE company_id = p_company_id
+      AND granja_id  = p_granja_id
+      AND (p_nucleo_id   IS NULL OR nucleo_id   = p_nucleo_id)
+      AND (p_lote_codigo IS NULL OR lote_nombre LIKE p_lote_codigo || '%')
+      AND deleted_at IS NULL;
+
+    IF v_lotes IS NULL THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'No se encontraron lotes en el alcance indicado.');
+    END IF;
+
+    -- Aves de los despachos que aportan 0 kg (mismo criterio que el detector MOV_SIN_PESO:
+    -- peso neto ausente O en 0; el segundo caso es el de Panamá, bruto == tara)
+    SELECT coalesce(sum(cantidad_hembras + cantidad_machos + cantidad_mixtas), 0)
+      INTO v_total_aves
+    FROM public.movimiento_pollo_engorde
+    WHERE lote_ave_engorde_origen_id = ANY(v_lotes)
+      AND estado = 'Completado' AND deleted_at IS NULL
+      AND tipo_movimiento IN ('Venta','Despacho','Retiro')
+      AND COALESCE(peso_neto, 0) = 0;
+
+    IF v_total_aves = 0 THEN
+        RETURN jsonb_build_object('ok', false,
+            'error', 'No hay despachos sin peso para corregir en este alcance (puede que ya se haya aplicado).');
+    END IF;
+
+    -- Distribuir p_kg_total proporcional a las aves y escribir peso_neto (auditado)
+    WITH objetivo AS (
+        SELECT id, (cantidad_hembras + cantidad_machos + cantidad_mixtas) AS aves
+        FROM public.movimiento_pollo_engorde
+        WHERE lote_ave_engorde_origen_id = ANY(v_lotes)
+          AND estado = 'Completado' AND deleted_at IS NULL
+          AND tipo_movimiento IN ('Venta','Despacho','Retiro')
+          AND COALESCE(peso_neto, 0) = 0
+    ),
+    upd AS (
+        UPDATE public.movimiento_pollo_engorde m
+        SET peso_neto          = round((p_kg_total * o.aves / v_total_aves)::numeric, 2),
+            peso_neto_global   = round((p_kg_total * o.aves / v_total_aves)::numeric, 2),
+            updated_at         = now(),
+            updated_by_user_id = p_user_id
+        FROM objetivo o
+        WHERE m.id = o.id
+        RETURNING m.id, o.aves, m.peso_neto
+    )
+    SELECT jsonb_agg(jsonb_build_object('id', id, 'aves', aves, 'pesoAsignado', peso_neto) ORDER BY id)
+      INTO v_aplicados
+    FROM upd;
+
+    RETURN jsonb_build_object(
+        'ok',          true,
+        'kgTotal',     p_kg_total,
+        'avesTotales', v_total_aves,
+        'movimientos', jsonb_array_length(v_aplicados),
+        'aplicados',   v_aplicados
+    );
+END;
+$$;
+";
+
+        private const string BACKFILL_SQL = @"-- ============================================================================
+-- backfill_venta_engorde_neto_cero_bruto_igual_tara.sql
+-- ESPEJO de la migración FixVentaEngordeNetoCeroBrutoIgualTara (el vehículo es la migración).
+-- ----------------------------------------------------------------------------
+-- QUÉ CORRIGE
+--   Ventas de pollo engorde donde el operario digitó el MISMO número en `peso_bruto` y en
+--   `peso_tara` ⇒ `peso_neto = 0`: la venta cuenta las aves y aporta 0 kg al seguimiento diario,
+--   al informe semanal, a la liquidación y a los indicadores.
+--
+-- POR QUÉ ESE NÚMERO ES EL NETO (medido 9-sep-2026 sobre la copia de prod del 3-sep)
+--   ItalcolPanama: 206 de 207 ventas con `peso_bruto = peso_tara`; `peso_bruto` promedia
+--   2,357 kg/ave — el peso de un pollo de 32-42 días, NO el de un camión cargado. La empresa que
+--   usa los campos como corresponde (ItalcolEcuador, 0 de 1.472 con bruto = tara) promedia
+--   7,21 kg/ave en bruto y 2,836 en neto. Planta entrega UNA sola cifra de kilos y el formulario
+--   pide dos, así que se repetía el número.
+--
+-- QUÉ HACE
+--   Mueve ese valor a `peso_neto` y deja `peso_tara = 0` («no se reportó tara»), que es la verdad
+--   de lo que hay: no inventa kilos, reubica los que ya estaban digitados.
+--
+-- SELECCIÓN POR PATRÓN, NO POR EMPRESA
+--   El WHERE no nombra ninguna company_id: describe el defecto (bruto = tara > 0 con neto 0). Hoy
+--   sólo Panamá cae, pero los ids de empresa difieren local↔prod y una regla por tenant no escala.
+--
+-- MULTI-LÍNEA
+--   `peso_bruto` es el peso del camión CLONADO en cada línea de la factura; el individual correcto
+--   es el prorrateo por aves. Se replica MovimientoPolloEngordeCalculos.ProrratearPesoPorLinea:
+--   redondeo a 3 decimales y residuo a la línea con más aves. Con tara 0, bruto prorrateado == neto.
+--   (Las 206 filas de hoy son facturas de UNA línea ⇒ el prorrateo es la identidad y el residuo 0.)
+--
+-- IDEMPOTENTE
+--   Tras correr, las filas tienen `peso_neto > 0` y dejan de cumplir el WHERE ⇒ re-ejecutar es no-op.
+--   El respaldo se llena una sola vez por fila (NOT EXISTS).
+--
+-- EL ESPEJO HISTÓRICO SE ACTUALIZA SOLO
+--   `trg_movimiento_pollo_engorde_lote_hist` escucha `UPDATE OF … peso_neto, peso_tara_real,
+--   promedio_peso_ave …` ⇒ `lote_registro_historico_unificado` se reescribe sin tocarlo a mano.
+-- ============================================================================
+
+-- 1) Respaldo previo (para revertir sin adivinar).
+CREATE TABLE IF NOT EXISTS public._backup_mpe_peso_neto_cero (
+    id                  INTEGER PRIMARY KEY,
+    peso_bruto          DOUBLE PRECISION,
+    peso_tara           DOUBLE PRECISION,
+    peso_bruto_global   DOUBLE PRECISION,
+    peso_tara_global    DOUBLE PRECISION,
+    peso_neto_global    DOUBLE PRECISION,
+    peso_bruto_real     DOUBLE PRECISION,
+    peso_tara_real      DOUBLE PRECISION,
+    peso_neto           DOUBLE PRECISION,
+    promedio_peso_ave   DOUBLE PRECISION,
+    respaldado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO public._backup_mpe_peso_neto_cero (
+    id, peso_bruto, peso_tara, peso_bruto_global, peso_tara_global, peso_neto_global,
+    peso_bruto_real, peso_tara_real, peso_neto, promedio_peso_ave)
+SELECT m.id, m.peso_bruto, m.peso_tara, m.peso_bruto_global, m.peso_tara_global, m.peso_neto_global,
+       m.peso_bruto_real, m.peso_tara_real, m.peso_neto, m.promedio_peso_ave
+FROM public.movimiento_pollo_engorde m
+WHERE m.deleted_at IS NULL
+  AND m.tipo_movimiento = 'Venta'
+  AND m.peso_bruto IS NOT NULL
+  AND m.peso_bruto > 0
+  AND m.peso_bruto = m.peso_tara
+  AND COALESCE(m.peso_neto, 0) = 0
+  AND (m.cantidad_hembras + m.cantidad_machos + m.cantidad_mixtas) > 0
+  AND NOT EXISTS (SELECT 1 FROM public._backup_mpe_peso_neto_cero b WHERE b.id = m.id);
+
+-- 2) Corrección.
+WITH objetivo AS (
+    SELECT m.id,
+           -- Sin factura, la línea es su propio despacho (no agrupar todos los NULL juntos).
+           COALESCE(m.factura_id::text, 'mov-' || m.id) AS despacho,
+           m.peso_bruto::numeric                        AS global_kg,
+           (m.cantidad_hembras + m.cantidad_machos + m.cantidad_mixtas)::numeric AS aves
+    FROM public.movimiento_pollo_engorde m
+    WHERE m.deleted_at IS NULL
+      AND m.tipo_movimiento = 'Venta'
+      AND m.peso_bruto IS NOT NULL
+      AND m.peso_bruto > 0
+      AND m.peso_bruto = m.peso_tara
+      AND COALESCE(m.peso_neto, 0) = 0
+      AND (m.cantidad_hembras + m.cantidad_machos + m.cantidad_mixtas) > 0
+),
+prorrateo AS (
+    SELECT o.id, o.despacho, o.aves, o.global_kg,
+           ROUND(o.global_kg * o.aves / SUM(o.aves) OVER (PARTITION BY o.despacho), 3) AS neto_base,
+           ROW_NUMBER() OVER (PARTITION BY o.despacho ORDER BY o.aves DESC, o.id)      AS rn
+    FROM objetivo o
+),
+residuo AS (
+    SELECT p.despacho, MAX(p.global_kg) - SUM(p.neto_base) AS resto
+    FROM prorrateo p
+    GROUP BY p.despacho
+),
+final AS (
+    SELECT p.id, p.aves, p.global_kg,
+           ROUND(p.neto_base + CASE WHEN p.rn = 1 THEN r.resto ELSE 0 END, 3) AS neto
+    FROM prorrateo p
+    JOIN residuo r ON r.despacho = p.despacho
+)
+UPDATE public.movimiento_pollo_engorde m
+   SET peso_tara         = 0,
+       peso_tara_global  = 0,
+       peso_tara_real    = 0,
+       peso_bruto_global = f.global_kg::double precision,
+       peso_bruto_real   = f.neto::double precision,   -- con tara 0, el bruto prorrateado ES el neto
+       peso_neto_global  = f.global_kg::double precision,
+       peso_neto         = f.neto::double precision,
+       promedio_peso_ave = (f.neto / f.aves)::double precision,
+       updated_at        = now()
+  FROM final f
+ WHERE m.id = f.id;
+";
+
+        private const string DOWN_SQL = @"
+UPDATE public.movimiento_pollo_engorde m
+   SET peso_bruto        = b.peso_bruto,
+       peso_tara         = b.peso_tara,
+       peso_bruto_global = b.peso_bruto_global,
+       peso_tara_global  = b.peso_tara_global,
+       peso_neto_global  = b.peso_neto_global,
+       peso_bruto_real   = b.peso_bruto_real,
+       peso_tara_real    = b.peso_tara_real,
+       peso_neto         = b.peso_neto,
+       promedio_peso_ave = b.promedio_peso_ave
+  FROM public._backup_mpe_peso_neto_cero b
+ WHERE m.id = b.id;
+
+DROP TABLE IF EXISTS public._backup_mpe_peso_neto_cero;
+";
+    }
+}

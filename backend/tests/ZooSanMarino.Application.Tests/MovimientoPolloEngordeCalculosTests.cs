@@ -87,4 +87,82 @@ public class MovimientoPolloEngordeCalculosTests
         Assert.Equal(6500d, r[0].Neto!.Value, 3);
         Assert.Equal(6500d / 4200, r[0].Promedio!.Value, 6);
     }
+
+    // ── ValidarPesoObligatorioEnVenta ────────────────────────────────────────────────────────
+    // El caso que motivó el gate: Panamá digitaba el MISMO número en bruto y tara (planta entrega
+    // UNA sola cifra de kilos y el formulario pide dos) ⇒ neto 0, la venta contaba las aves y
+    // aportaba 0 kg al seguimiento diario, al informe semanal y a la liquidación.
+
+    [Fact]
+    public void ValidarPeso_BrutoIgualTara_Rechaza()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 5060d, 5060d));
+
+        Assert.Contains("no puede ser 0 kg", ex.Message);
+    }
+
+    [Fact]
+    public void ValidarPeso_BrutoIgualTara_TambienConPesoDiferido()
+    {
+        // El flag sólo tolera la AUSENCIA total de peso; un neto 0 declarado sigue siendo error.
+        Assert.Throws<InvalidOperationException>(() =>
+            MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 5060d, 5060d, true));
+    }
+
+    [Fact]
+    public void ValidarPeso_SoloKilosNetos_TaraEnCero_Pasa()
+    {
+        // La salida que se le indica al operario en el mensaje del gate.
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 5060d, 0d);
+    }
+
+    [Fact]
+    public void ValidarPeso_BrutoMayorQueTara_Pasa()
+    {
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 10170d, 7530d);
+    }
+
+    // ── Equivalencia: los mensajes previos quedan byte a byte iguales ────────────────────────
+
+    [Fact]
+    public void ValidarPeso_BrutoMenorQueTara_ConservaSuMensaje()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 100d, 200d));
+
+        Assert.Equal("El peso bruto no puede ser menor que el peso tara.", ex.Message);
+    }
+
+    [Fact]
+    public void ValidarPeso_SinPeso_ConservaSuMensaje()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", null, null));
+
+        Assert.Equal(
+            "El peso báscula es obligatorio para registrar la venta: indique peso bruto y peso tara.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void ValidarPeso_SinPeso_ConDiferido_Pasa()
+    {
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", null, null, true);
+    }
+
+    [Fact]
+    public void ValidarPeso_PesoAMedias_ConDiferido_SigueSiendoError()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", 5060d, null, true));
+    }
+
+    [Fact]
+    public void ValidarPeso_NoEsVenta_NoValida()
+    {
+        // Los traslados no pasan por báscula: bruto == tara (o ausente) es legal.
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Traslado", 5060d, 5060d);
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Traslado", null, null);
+    }
 }
