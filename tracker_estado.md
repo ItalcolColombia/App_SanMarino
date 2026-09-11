@@ -8097,3 +8097,103 @@ despachadas pero no los kilos; validar la causa y **verificar que no pase en Ecu
 - [ ] V6. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`). Verificar
       despues con `backend/sql/verificar_venta_engorde_kilos_por_empresa.sql` (las 3 consultas: la 3
       tiene que salir VACIA).
+
+### Ampliacion 2 (10sep26): ocultar «Peso tara» donde nunca se llena
+
+- [x] F1. Flag nuevo `companies.venta_engorde_peso_neto_unico` (bool, NOT NULL DEFAULT false). NO se
+      reuso `venta_engorde_peso_diferido`: son dos hechos distintos (CUANDO llega el peso vs CUANTAS
+      cifras trae) y una empresa con bascula diferida y bruto/tara reales existiria.
+- [x] F2. Backend: entidad + CompanyConfiguration + los 3 DTOs (en `CompanyDto` va al FINAL para no
+      desalinear construcciones posicionales entre flags `bool` vecinos; en `UpdateCompanyDto` es
+      `bool?` + `?? valorActual`) + **las 4 proyecciones** (ToDto, Crud alta/edicion, CompanyResolver
+      x2, CompanyPaisService).
+- [x] F3. Migracion `20260910020000_AddVentaEngordePesoNetoUnico`: columna idempotente
+      (`ADD COLUMN IF NOT EXISTS`) + `UPDATE` que la enciende para ItalcolPanama con
+      `IS DISTINCT FROM` (no ensucia si ya estaba). ModelSnapshot y `.Designer.cs` actualizados.
+- [x] F4. Front runtime: `ActiveCompanyConfigService` en sus 7 puntos (interfaz, FLAGS_APAGADOS,
+      response, observable, azucar, mapFlags, comparacion de publish) + `company.service.ts`.
+- [x] F5. Front admin: `flags-empresa.funcion.ts` + el spec-gate (`satisfies CompanyFlags`) que
+      convierte en error de build cualquier flag del runtime que no se pueda configurar.
+- [x] F6. Los 3 formularios: se oculta «Peso tara», «Peso bruto» pasa a «Kilos del despacho (kg)» y
+      la tara la escribe el componente (0 con kilos, null sin kilos — el null preserva la venta
+      Pendiente de la bascula diferida). Fail-closed en los tres. El aviso rojo de tara se apaga
+      cuando el campo no se ve. En el modal generico tambien se oculta en la vista de detalle.
+- [x] F7. Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4087 + 1 pass / 0 fail** ·
+      `yarn build` **0 err** · `ng test` del spec-gate de flags **11/11** ·
+      `dotnet ef migrations list` la ve **(Pending)** y `dotnet ef database update` la aplico:
+      en BD **ItalcolPanama queda `neto_unico = t`** y las otras cuatro empresas en `f`.
+- [x] F8. Riesgo revisado a proposito: si el mapper tratara el `0` como falsy, la tara oculta viajaria
+      como `null` y el backend la rechazaria como «peso a medias». Los dos `numOrNull` usan
+      `value != null && value !== ''` ⇒ el 0 sobrevive; y `numOrNull(...) ?? undefined` tambien
+      (el `??` solo mira null/undefined).
+- [ ] F9. **NO verificado en pantalla**: se valido por build + spec, no abriendo el modal con la
+      empresa Panama activa. El `@if` compila (una plantilla mal anidada seria error de build), pero
+      nadie lo vio ocultarse.
+
+---
+
+## Apertura de engorde: la limpieza de un ciclo borrado se le cobra al ciclo siguiente
+
+Ticket de operacion 10sep26 — «en el diario de alimento aparece una cantidad y en el stock otra,
+Doña Maria C-2». Plan: [`fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md`](fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md)
+
+Lote 257 (ItalcolPanama, DOÑA MARIA / nucleo C / galpon 2 = `G0490`): stock 11.715,000 kg contra
+saldo de tabla 7.718,44 ⇒ **3.996,56 kg exactos**, que son un `AjusteCuadreTablaSalida` HUERFANO
+(sin lote) nacido al borrar el stock sobrante del ciclo anterior 55 s despues de borrar sus lotes.
+Radio: 11 ajustes / 45.183,08 kg del 05 al 10sep, 10 sin lote, **39.040,18 kg pendientes** en 7
+galpones sin ciclo vivo que el proximo encaset heredaria.
+
+- [x] A1. Diagnostico cerrado y verificado contra la copia local (aritmetica exacta, cadena de
+      causa con horas, radio medido). Ver plan seccion 1-3.
+- [x] A2. `fn_seguimiento_diario_engorde` **v19**: en `apert_mov` / `apertura_docs`, un
+      `INV_AJUSTE_CUADRE_ENTRADA`/`_SALIDA` con `lote_ave_engorde_id IS NULL` NO entra a la
+      apertura. Complemento exacto de la guarda v11 (que con lote NULL es tautologica).
+- [x] A3. Migracion `20260910120000_FnSeguimientoEngordeV19AperturaIgnoraAjusteHuerfano`
+      (`.cs` + `.Fn.cs` + `.Designer.cs`), `Down` = v18 verbatim, sin cambio de firma ni de
+      ModelSnapshot. Espejo `backend/sql/fn_seguimiento_diario_engorde.sql` actualizado en el
+      MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
+- [x] A4. **GATE MULTIPAIS** (obligatorio): `EXCEPT` en los dos sentidos, todas las columnas, todos
+      los lotes vivos de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino deben dar 0
+      (tienen 0 filas de ajuste de cuadre). Unico cambio esperado: lote 257.
+- [x] A5. T1-T3 medidos: 257 apertura -3.996,56 → 0 y saldo → 11.715 = stock · 256 sin cambio
+      (8.350 = stock, prueba de que la variante «solo el propio lote» habria roto un galpon que
+      cuadra) · 254 sin cambio (8.804).
+- [x] A6. `EliminarStockAsync`: si el galpon no tiene lote vivo, NO escribe el
+      `AjusteCuadreTablaSalida` (el `EliminacionStock` se conserva siempre). Decision pura en
+      `AjusteCuadreAlimentoCalculos` + tests xUnit. «Cuadrar galpon» intacto (siempre trae lote).
+- [x] A7. Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4.087 + 1 pass / 0 fail**
+      (base 4.081 + 1; los 6 casos nuevos cierran la cuenta) · **prueba negativa**: anulando la regla
+      fallan **exactamente los 3** casos que la cubren, ninguno mas ·
+      `verificar-sql-llega-por-migracion.js` OK · `dotnet ef migrations list` la muestra
+      **(Pending)** y ULTIMA en el orden — la prueba de que EF la ve y el deploy la corre ·
+      T10 `Down`: v18 vuelve **byte a byte** (0 y 0 sobre 7.051 filas) ·
+      `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` antes/despues:
+      G0490 `dif_kg` **3.996,560 → 0,000**.
+      ⚠️ **NO se corrio `dotnet ef database update` ni se aplico la fn a la BD local compartida**:
+      toda la medicion fue en transacciones revertidas, para no cambiarle el comportamiento de la fn
+      a la otra sesion que trabaja el mismo repo. Front sin cambios ⇒ `yarn build` no aplica.
+- [x] A8. Respuesta al ticket: stock 11.715,000 contra tabla 7.718,44; la diferencia es un
+      `AjusteCuadreTablaSalida` huerfano de 3.996,56 kg del ciclo anterior. Con la v19 la tabla
+      cierra en 11.715,000 = stock.
+- [x] A9. Commiteado en `92ac94d` (10 archivos). El working tree ya no tenia trabajo de la otra
+      sesion: habia cerrado en `6489369`.
+- [x] A11. **Cerrar la CLASE, no la instancia** (pedido del usuario: «que no pase otra vez»).
+      Medido: hay **DOS** escritores de `AjusteCuadreTabla*`, y el otro —«Cuadrar galpon»— tenia el
+      mismo agujero: su fila trae `LoteAveEngordeId`, pero el trigger etiqueta el movimiento por
+      UBICACION. Sobre la copia: Ecuador **2 de 37** filas resuelven a NULL (las dos de lotes
+      `Cerrado` y con descuadre **0,0** ⇒ hoy nadie choca) y 3+3 resuelven a OTRO lote (galpones con
+      dos ciclos conviviendo: bodega compartida, da igual a cual). Cambios:
+      (a) `LoteVivoDelGalponResolver` — un solo lugar que consulta
+      `fn_lote_ave_engorde_id_desde_ubicacion`, compartido por los dos escritores (antes era un
+      helper privado de un service);
+      (b) `EscribirAjusteDeTablaAsync` **rechaza con mensaje** si no hay ciclo vivo, en vez de
+      escribir algo inerte — sin esto la pantalla diria «cuadrado» y no cambiaria nada;
+      (c) la decision pura pasa a llamarse `HayCicloVivoQueCorregir` (ya no es solo de la eliminacion).
+      Validado: `dotnet build` **0 err / 0 warn** · `dotnet test` **4.087 + 1 pass / 0 fail**.
+      🔑 **La garantia real la da la v19, no estas guardas**: aunque aparezca un tercer escritor
+      y genere un huerfano, la fn lo ignora y no puede cobrarselo al ciclo siguiente. Las guardas
+      evitan generar basura; la v19 la vuelve inofensiva.
+- [ ] A10. Aplicar en prod: la migracion la corre el deploy (`Database__RunMigrations=true`).
+      Verificar despues con `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` (consulta 3
+      ajustando la fecha al dia del despliegue: tiene que salir VACIA; consulta 4: `dif_kg` sin los
+      kilos huerfanos).

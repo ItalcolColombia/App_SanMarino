@@ -196,6 +196,25 @@ public partial class CuadreAlimentoEngordeService
             fila.UltimoSeguimiento.Year, fila.UltimoSeguimiento.Month, fila.UltimoSeguimiento.Day,
             12, 0, 0, TimeSpan.Zero);
 
+        // ⭐ 10-sep-2026 — el ajuste de tabla necesita un ciclo VIVO al que corregirle la grilla.
+        //    La fila del cuadre trae su `LoteAveEngordeId`, pero el lote del movimiento no lo pone
+        //    esta clase: lo resuelve el trigger por UBICACIÓN, con `deleted_at IS NULL` y
+        //    `estado_operativo_lote <> 'Cerrado'`. Cuando esos dos no coinciden —un lote liquidado
+        //    que el cuadre todavía lista— el movimiento nacería HUÉRFANO: la fn v19 lo ignora, así
+        //    que la pantalla diría «cuadrado» y no cambiaría nada; y antes de la v19 era peor, se lo
+        //    cobraba el ciclo siguiente (ticket DOÑA MARIA / núcleo C / galpón 2, lote 257).
+        //    Medido el 10-sep sobre la copia: 2 de 37 filas de Ecuador resuelven a NULL, las dos de
+        //    lotes 'Cerrado' y con descuadre 0,0 ⇒ hoy nadie choca con esto, pero el camino existe.
+        //    Se rechaza con mensaje en vez de escribir algo inerte.
+        var loteVivoId = await LoteVivoDelGalponResolver.ResolverAsync(
+            _db, fila.GranjaId, fila.NucleoId, fila.GalponId, ct);
+
+        if (!AjusteCuadreAlimentoCalculos.HayCicloVivoQueCorregir(loteVivoId))
+            throw new InvalidOperationException(
+                "Ese galpón no tiene un ciclo vivo al que corregirle la tabla diaria: el lote está " +
+                "liquidado o ya no existe. Corrija el inventario desde la pestaña Stock; la tabla " +
+                "del ciclo cerrado quedó congelada con la liquidación y no se recalcula.");
+
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
         {
             CompanyId = fila.CompanyId,

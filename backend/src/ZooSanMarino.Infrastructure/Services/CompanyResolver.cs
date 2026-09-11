@@ -90,7 +90,8 @@ public class CompanyResolver : ICompanyResolver
                 c.DescuentaInventarioDesdeMovil,
                 c.GuiaGeneticaPerfil,
                 c.SemanaInicioIndicadoresProduccion,
-                c.PermiteMultiplesSeguimientosDiarios
+                c.PermiteMultiplesSeguimientosDiarios,
+                c.VentaEngordePesoNetoUnico
             ))
             .FirstOrDefaultAsync();
 
@@ -153,7 +154,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.DescuentaInventarioDesdeMovil,
                 uc.Company.GuiaGeneticaPerfil,
                 uc.Company.SemanaInicioIndicadoresProduccion,
-                uc.Company.PermiteMultiplesSeguimientosDiarios
+                uc.Company.PermiteMultiplesSeguimientosDiarios,
+                uc.Company.VentaEngordePesoNetoUnico
             ))
             .ToListAsync();
 

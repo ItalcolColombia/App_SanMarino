@@ -64,6 +64,17 @@ export class ModalVentaPanamaComponent implements OnChanges {
    */
   pesoDiferido = false;
 
+  /**
+   * Empresa que recibe UNA sola cifra de kilos por despacho (`venta_engorde_peso_neto_unico`):
+   * planta entrega el peso NETO del pollo, no las dos pesadas del camión. Con el flag activo se
+   * OCULTA «Peso tara» y se manda en 0, así que el neto es exactamente lo digitado.
+   *
+   * Existe porque pedir un campo que nunca se llena es lo que produjo el incidente: el operario
+   * repetía el mismo número en bruto y tara y la venta quedaba en 0 kg. Fail-closed: arranca en
+   * false ⇒ si el flag no resuelve, se piden los dos campos como siempre.
+   */
+  pesoNetoUnico = false;
+
   galpones: Array<{ id: string; label: string }> = [];
   selectedGalponId: string | null = null;
   lineas: VentaPanamaLineaUI[] = [];
@@ -78,6 +89,7 @@ export class ModalVentaPanamaComponent implements OnChanges {
     private permService: UserPermissionService
   ) {
     this.buildForm();
+    this.escucharKilosDespacho();
   }
 
   /** Permiso `registros.fecha_retroactiva`: destraba `fechaMovimiento` más allá de la ventana base. */
@@ -256,15 +268,58 @@ export class ModalVentaPanamaComponent implements OnChanges {
         this.cdr.detectChanges();
       }
     });
+    this.companyConfig.ventaEngordePesoNetoUnico().subscribe({
+      next: (activo) => {
+        this.pesoNetoUnico = activo;
+        this.aplicarValidadoresPeso();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        // Fail-closed: sin flag resuelto se piden los dos pesos, como siempre.
+        this.pesoNetoUnico = false;
+        this.aplicarValidadoresPeso();
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   private aplicarValidadoresPeso(): void {
     const bruto = this.form.get('pesoBruto');
     const tara = this.form.get('pesoTara');
     bruto?.setValidators(this.pesoDiferido ? [Validators.min(0.01)] : [Validators.required, Validators.min(0.01)]);
-    tara?.setValidators(this.pesoDiferido ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+    if (this.pesoNetoUnico) {
+      // El campo está oculto: no valida nada y su valor lo fija el componente, no el usuario.
+      // Se pone en 0 sólo cuando hay kilos digitados; con el campo de kilos vacío se deja en null
+      // para no romper la báscula diferida, donde AMBOS pesos ausentes = venta Pendiente legítima.
+      tara?.setValidators([]);
+      this.sincronizarTaraOculta();
+    } else {
+      tara?.setValidators(this.pesoDiferido ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+    }
     bruto?.updateValueAndValidity({ emitEvent: false });
     tara?.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * Con «Peso tara» oculto, la tara la escribe el componente: 0 si hay kilos, null si no los hay.
+   * `emitEvent: false` a propósito — escribir un control dentro de su propio ciclo de validación
+   * con eventos encendidos dispara un `valueChanges` reentrante (ver el RangeError de Zone.js del
+   * modal de traslado de huevos).
+   */
+  private sincronizarTaraOculta(): void {
+    if (!this.pesoNetoUnico) return;
+    const bruto = this.form.get('pesoBruto')?.value;
+    const hayKilos = bruto !== null && bruto !== undefined && bruto !== '';
+    this.form.get('pesoTara')?.setValue(hayKilos ? 0 : null, { emitEvent: false });
+  }
+
+  /**
+   * Mantiene la tara oculta al día mientras se escriben los kilos. Se engancha una sola vez, en el
+   * constructor: `formControlName` es reactivo (no lleva NgModel), así que un `(input)` en el
+   * template competiría con el value accessor por el orden de los listeners.
+   */
+  private escucharKilosDespacho(): void {
+    this.form.get('pesoBruto')?.valueChanges.subscribe(() => this.sincronizarTaraOculta());
   }
 
   /** Mensaje del primer control inválido (antes asumía que la única causa era el peso). */
@@ -301,6 +356,8 @@ export class ModalVentaPanamaComponent implements OnChanges {
    * Con la báscula diferida y AMBOS campos vacíos no avisa nada: ese camino es legítimo.
    */
   get avisoPesoTara(): string | null {
+    // Con el campo oculto no hay nada que avisar: la tara la pone el componente en 0.
+    if (this.pesoNetoUnico) return null;
     const bruto = this.form.get('pesoBruto')?.value;
     const tara = this.form.get('pesoTara')?.value;
     const hayBruto = bruto !== null && bruto !== undefined && bruto !== '';

@@ -149,3 +149,53 @@ destapó todo esto.
 
 Rojo `--danger` a propósito (la paleta lo reserva para peligro): es un dato obligatorio que falta y
 arrastra al seguimiento diario, al informe semanal, a la liquidación y a los indicadores.
+
+---
+
+# Ampliación 2 (10-sep-2026): ocultar «Peso tara» donde nunca se llena
+
+Pedido del usuario: *«ocultar campo que no se va a llenar»* + *«cuando esté, generamos migración para
+activar a Panamá el flag»*.
+
+## 8. Por qué ocultar y no seguir pidiendo
+
+El gate del neto 0 evita el **dato malo**, pero no la **fricción**: quien tiene UNA cifra en la mano
+y ve DOS casillas obligatorias, repite el número. Eso fue el incidente. La solución de raíz es no
+mostrar el campo que esa empresa nunca va a llenar.
+
+## 9. Alcance: flag propio, no reuso
+
+Ecuador **sí** usa los dos campos (7,21 kg/ave en bruto contra 2,836 en neto: dos pesadas reales),
+así que ocultarlo para todos sería una regresión. Va condicionado por empresa.
+
+Se descartó reusar `venta_engorde_peso_diferido` —hoy ON sólo en Panamá, o sea que el resultado
+inmediato sería idéntico— porque **son dos hechos distintos**: CUÁNDO llega el peso y CUÁNTAS cifras
+trae. Una empresa con báscula diferida y bruto/tara reales existiría perfectamente, y el reuso le
+escondería un campo que sí usa. Regla del repo: una columna por comportamiento, nombrada por el
+comportamiento.
+
+**Flag: `companies.venta_engorde_peso_neto_unico`** (bool, `NOT NULL DEFAULT false`).
+
+## 10. Superficies
+
+| Capa | Cambio |
+|---|---|
+| BD | Columna + `UPDATE` que la enciende para ItalcolPanama (migración `20260910020000`, idempotente). |
+| Dominio / EF | `Company.VentaEngordePesoNetoUnico` + `CompanyConfiguration`. |
+| DTOs | `CompanyDto` (al FINAL, para no desalinear construcciones posicionales entre flags `bool` vecinos), `CreateCompanyDto`, `UpdateCompanyDto` (`bool?` + `?? valorActual`). |
+| Proyecciones (las 4) | `CompanyService.ToDto`, `CompanyService.Crud` (alta y edición), `CompanyResolver` (×2), `CompanyPaisService`. |
+| Front runtime | `ActiveCompanyConfigService`: interfaz, `FLAGS_APAGADOS`, response, observable, azúcar, `mapFlags`, comparación de `publish`. |
+| Front admin | `flags-empresa.funcion.ts` (una línea) + el spec-gate que exige que todo flag del runtime sea configurable. |
+| Formularios | `modal-venta-panama`, `modal-registro-peso`, `modal-movimiento-pollo-engorde` (form y vista de detalle). |
+
+## 11. Comportamiento con el flag ON
+
+- «Peso tara» **no se renderiza**; «Peso bruto» pasa a rotularse **«Kilos del despacho (kg)»**.
+- La tara la escribe el componente: **0 si hay kilos digitados, `null` si no los hay**. El `null` es
+  deliberado: con báscula diferida, AMBOS pesos ausentes es una venta `Pendiente` legítima, y poner
+  0 la convertiría en «peso a medias», que el backend rechaza.
+- El aviso rojo de tara (Ampliación 1) se apaga: no hay nada que avisar sobre un campo que no se ve.
+- **Fail-closed** en los tres formularios: el flag arranca en `false`, así que si no resuelve se
+  piden los dos pesos, como siempre.
+- El backend **no cambia**: recibe `pesoTara = 0`, que ya era válido. El gate del neto 0 sigue vivo
+  para las empresas que usan las dos pesadas.

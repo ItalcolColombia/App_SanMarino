@@ -115,6 +115,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   permitirSobrante = false;
   showConfirmModal = false;
   private fechaMovimientoSub?: Subscription;
+  /** Mantiene la tara OCULTA al día mientras se escriben los kilos (ver `pesoNetoUnico`). */
+  private kilosDespachoSub?: Subscription;
   confirmModalData: ConfirmationModalData = {
     title: 'Confirmar movimiento',
     message: '¿Confirmar registro del movimiento?',
@@ -326,6 +328,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
+    this.escucharKilosDespacho();
   }
 
   /**
@@ -334,6 +337,13 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
    * venta que acaba de registrar. Fail-closed: arranca apagado ⇒ peso obligatorio.
    */
   pesoDiferido = false;
+
+  /**
+   * Empresa que recibe UNA sola cifra de kilos por despacho (`venta_engorde_peso_neto_unico`): se
+   * OCULTA «Peso tara» y se manda en 0, de modo que el neto es lo digitado. Fail-closed: arranca en
+   * false ⇒ sin flag resuelto se piden los dos pesos, como siempre.
+   */
+  pesoNetoUnico = false;
 
   /**
    * ¿El usuario tiene el permiso de bypass?
@@ -465,6 +475,22 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   ngOnDestroy(): void {
     this.fechaMovimientoSub?.unsubscribe();
+    this.kilosDespachoSub?.unsubscribe();
+  }
+
+  /**
+   * Con «Peso tara» oculto, la tara la escribe el componente y tiene que seguir a los kilos: si no,
+   * el neto que se previsualiza y el que se manda quedan en null hasta el próximo re-cálculo de
+   * validadores. Se engancha una sola vez sobre el control (`emitEvent: false` al escribir la tara,
+   * para no reentrar en el mismo ciclo).
+   */
+  private escucharKilosDespacho(): void {
+    this.kilosDespachoSub?.unsubscribe();
+    this.kilosDespachoSub = this.form?.get('pesoBruto')?.valueChanges.subscribe((kilos) => {
+      if (!this.pesoNetoUnico || !this.isDespacho) return;
+      const hayKilos = kilos !== null && kilos !== undefined && kilos !== '';
+      this.form.get('pesoTara')?.setValue(hayKilos ? 0 : null, { emitEvent: false });
+    });
   }
 
   private buildForm(): void {
@@ -629,6 +655,18 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.cdr.detectChanges();
       }
     });
+    this.companyConfig.ventaEngordePesoNetoUnico().subscribe({
+      next: (activo) => {
+        this.pesoNetoUnico = activo;
+        this.syncPesoValidators();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.pesoNetoUnico = false;
+        this.syncPesoValidators();
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   /**
@@ -640,6 +678,20 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     const bruto = this.form?.get('pesoBruto');
     const tara = this.form?.get('pesoTara');
     if (!bruto || !tara) return;
+    // Campo oculto: la tara no la valida nadie y su valor lo escribe el componente (0 cuando hay
+    // kilos, null cuando no). El control de kilos conserva sus validadores.
+    if (this.isDespacho && this.pesoNetoUnico) {
+      bruto.setValidators(this.pesoDiferido
+        ? [Validators.min(0.01)]
+        : [Validators.required, Validators.min(0.01)]);
+      tara.setValidators([]);
+      const kilos = bruto.value;
+      const hayKilos = kilos !== null && kilos !== undefined && kilos !== '';
+      tara.setValue(hayKilos ? 0 : null, { emitEvent: false });
+      bruto.updateValueAndValidity({ emitEvent: false });
+      tara.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
     if (this.isDespacho && this.pesoDiferido) {
       // Báscula diferida: el peso es opcional (se carga al confirmar), pero si se digita se
       // valida igual que siempre.
@@ -1097,6 +1149,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
    */
   get avisoPesoTara(): string | null {
     if (!this.isDespacho) return null;
+    // Con el campo oculto no hay nada que avisar: la tara la pone el componente en 0.
+    if (this.pesoNetoUnico) return null;
     const v = this.form?.getRawValue();
     if (!v) return null;
     const hayBruto = v.pesoBruto != null && v.pesoBruto !== '';

@@ -135,7 +135,8 @@ public class CompanyPaisService : ICompanyPaisService
             SeparaLotesPosturaPorEtapa: cp.Company.SeparaLotesPosturaPorEtapa,
             DescuentaInventarioDesdeMovil: cp.Company.DescuentaInventarioDesdeMovil,
             GuiaGeneticaPerfil: cp.Company.GuiaGeneticaPerfil,
-            SemanaInicioIndicadoresProduccion: cp.Company.SemanaInicioIndicadoresProduccion
+            SemanaInicioIndicadoresProduccion: cp.Company.SemanaInicioIndicadoresProduccion,
+            VentaEngordePesoNetoUnico: cp.Company.VentaEngordePesoNetoUnico
         )).ToList();
     }
 

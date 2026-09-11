@@ -65,6 +65,7 @@ public partial class CompanyService : ICompanyService
         c.DescuentaInventarioDesdeMovil,
         c.GuiaGeneticaPerfil,
         c.SemanaInicioIndicadoresProduccion,
-        c.PermiteMultiplesSeguimientosDiarios
+        c.PermiteMultiplesSeguimientosDiarios,
+        c.VentaEngordePesoNetoUnico
     );
 }

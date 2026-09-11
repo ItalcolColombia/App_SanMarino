@@ -30,20 +30,26 @@
 
         <div class="rp-grid">
           <div class="rp-field">
-            <label for="rp-bruto">Peso bruto (kg)</label>
+            <label for="rp-bruto">{{ pesoNetoUnico ? 'Kilos del despacho (kg)' : 'Peso bruto (kg)' }}</label>
             <input id="rp-bruto" type="number" step="0.001" min="0"
               [(ngModel)]="pesoBruto" [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="recalcular()" />
           </div>
-          <div class="rp-field">
-            <label for="rp-tara">Peso tara (kg)</label>
-            <input id="rp-tara" type="number" step="0.001" min="0"
-              [(ngModel)]="pesoTara" [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="recalcular()" />
-            @if (avisoPesoTara) {
-              <p class="rp-aviso-peso">{{ avisoPesoTara }}</p>
-            }
-          </div>
+          <!-- «Peso tara» se OCULTA en las empresas que reciben UNA sola cifra de kilos
+               (venta_engorde_peso_neto_unico): el componente la manda en 0 y el neto es lo digitado
+               arriba. Es el modal de la báscula diferida — pedir dos cifras a quien tiene una fue lo
+               que dejó 206 despachos de Panamá en 0 kg. -->
+          @if (!pesoNetoUnico) {
+            <div class="rp-field">
+              <label for="rp-tara">Peso tara (kg)</label>
+              <input id="rp-tara" type="number" step="0.001" min="0"
+                [(ngModel)]="pesoTara" [ngModelOptions]="{ standalone: true }"
+                (ngModelChange)="recalcular()" />
+              @if (avisoPesoTara) {
+                <p class="rp-aviso-peso">{{ avisoPesoTara }}</p>
+              }
+            </div>
+          }
           <div class="rp-field rp-field--readonly">
             <label>Peso neto (kg)</label>
             <span class="rp-calc">{{ formatearNumero(pesoNeto) }}</span>

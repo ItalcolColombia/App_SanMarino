@@ -97,7 +97,8 @@ public partial class CompanyService
             // null/vacío ⇒ 'sanmarino' (default neutro); un valor desconocido LANZA en vez de caer
             // al default — persistirlo dejaría a la empresa mirando la tabla equivocada en silencio.
             GuiaGeneticaPerfil = GuiaGeneticaPerfilCalculos.Resolver(dto.GuiaGeneticaPerfil),
-            PermiteMultiplesSeguimientosDiarios = dto.PermiteMultiplesSeguimientosDiarios
+            PermiteMultiplesSeguimientosDiarios = dto.PermiteMultiplesSeguimientosDiarios,
+            VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico
         };
 
         _ctx.Companies.Add(c);
@@ -170,6 +171,7 @@ public partial class CompanyService
             dto.SemanaInicioIndicadoresProduccion ?? c.SemanaInicioIndicadoresProduccion;
         c.PermiteMultiplesSeguimientosDiarios =
             dto.PermiteMultiplesSeguimientosDiarios ?? c.PermiteMultiplesSeguimientosDiarios;
+        c.VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico ?? c.VentaEngordePesoNetoUnico;
         c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
         c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
         c.SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa ?? c.SeparaLotesPosturaPorEtapa;

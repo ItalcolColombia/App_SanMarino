@@ -51,6 +51,8 @@ export interface Company {
   seguimientoEngordeMixto?: boolean;
   /** La venta de engorde se registra sin peso y se completa con la báscula. */
   ventaEngordePesoDiferido?: boolean;
+  /** La venta de engorde pide UNA sola cifra de kilos (el neto): se oculta el peso tara. */
+  ventaEngordePesoNetoUnico?: boolean;
   /** Permite crear lotes de engorde antes del encasetamiento. */
   programacionLotesEngorde?: boolean;
   /** El nombre del lote se arma con el número de corrida del galpón. */

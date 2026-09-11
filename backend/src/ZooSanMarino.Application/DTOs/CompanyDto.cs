@@ -100,5 +100,11 @@ public record CompanyDto(
     int SemanaInicioIndicadoresProduccion = 25,
     /// <summary>Seguimiento diario de producción y levante aceptan más de un registro por lote+día;
     /// los registros del mismo día se agrupan para reportes/indicadores.</summary>
-    bool PermiteMultiplesSeguimientosDiarios = false
+    bool PermiteMultiplesSeguimientosDiarios = false,
+    /// <summary>
+    /// La empresa recibe de planta UNA sola cifra de kilos por despacho (el peso NETO), no las dos
+    /// pesadas de báscula: el formulario de venta de engorde oculta «Peso tara», rotula el campo
+    /// restante como los kilos del despacho y manda la tara en 0.
+    /// </summary>
+    bool VentaEngordePesoNetoUnico = false
 );

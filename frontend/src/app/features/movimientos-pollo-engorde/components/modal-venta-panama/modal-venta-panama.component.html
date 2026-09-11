@@ -114,16 +114,26 @@
                     <input id="vp-conductor" type="text" formControlName="conductor" />
                   </div>
                   <div class="vp-field">
-                    <label for="vp-bruto">Peso bruto @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
+                    <label for="vp-bruto">
+                      @if (pesoNetoUnico) { Kilos del despacho <span class="vp-opcional">(kg)</span> }
+                      @else { Peso bruto }
+                      @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }
+                    </label>
                     <input id="vp-bruto" type="number" step="0.001" formControlName="pesoBruto" />
                   </div>
-                  <div class="vp-field">
-                    <label for="vp-tara">Peso tara @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
-                    <input id="vp-tara" type="number" step="0.001" formControlName="pesoTara" />
-                    @if (avisoPesoTara) {
-                      <p class="vp-aviso-peso">{{ avisoPesoTara }}</p>
-                    }
-                  </div>
+                  <!-- «Peso tara» se OCULTA en las empresas que reciben UNA sola cifra de kilos
+                       (venta_engorde_peso_neto_unico): el componente la manda en 0 y el neto es lo
+                       digitado arriba. Pedir un campo que nunca se llena fue la causa de las 206
+                       ventas de Panamá con neto 0. -->
+                  @if (!pesoNetoUnico) {
+                    <div class="vp-field">
+                      <label for="vp-tara">Peso tara @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
+                      <input id="vp-tara" type="number" step="0.001" formControlName="pesoTara" />
+                      @if (avisoPesoTara) {
+                        <p class="vp-aviso-peso">{{ avisoPesoTara }}</p>
+                      }
+                    </div>
+                  }
                   @if (pesoDiferido) {
                     <p class="vp-hint vp-field--wide">
                       Si la báscula todavía no llegó, dejá el peso vacío: la venta queda

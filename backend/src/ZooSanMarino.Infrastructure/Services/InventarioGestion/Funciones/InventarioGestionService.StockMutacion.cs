@@ -143,6 +143,27 @@ public partial class InventarioGestionService
     /// </para>
     ///
     /// <para>
+    /// 🔴 <b>El segundo defecto, que este mismo mecanismo creó (ticket 10-sep-2026, DOÑA MARIA /
+    /// núcleo C / galpón 2, lote 257).</b> El razonamiento de arriba contempló dos casos —la fecha
+    /// cae dentro de la grilla, o cae después del último seguimiento— y se le escapó el tercero:
+    /// <b>cae entre dos ciclos</b>. Si el galpón se quedó sin lote vivo, el trigger no puede
+    /// atribuir el ajuste (<c>fn_lote_ave_engorde_id_desde_ubicacion</c> exige
+    /// <c>deleted_at IS NULL</c>) y el movimiento nace <b>huérfano</b>; la ventana de alimento
+    /// previo al encaset se lo cobraba entonces al ciclo SIGUIENTE. Medido: el 05-sep borraron los
+    /// lotes 168/169 y, 55 segundos después, el stock sobrante de su galpón — el lote 257,
+    /// encasetado al día siguiente, abrió en <b>−3.996,56 kg</b> y su tabla quedó exactamente esos
+    /// kilos por debajo del stock.
+    /// </para>
+    ///
+    /// <para>
+    /// Se cierra por los dos lados: <c>fn_seguimiento_diario_engorde</c> <b>v19</b> ignora los
+    /// ajustes huérfanos en sus 5 CTE (eso además repara lo ya escrito, sin tocar datos), y acá
+    /// directamente <b>no se escribe</b> el ajuste cuando no hay ciclo que corregir. El
+    /// <c>EliminacionStock</c> se escribe siempre: es la auditoría, y eso pasó igual. Plan:
+    /// <c>fase_de_desarrollo/apertura_engorde_ajuste_cuadre_huerfano_plan.md</c>.
+    /// </para>
+    ///
+    /// <para>
     /// Los dos movimientos comparten <b>el mismo timestamp</b>, así que el histórico los fecha el
     /// mismo día (<c>fecha_operacion = (created_at AT TIME ZONE 'UTC')::DATE</c>) y se leen como el
     /// par que son. El invariante <c>saldo == stock − movimientos posteriores</c> cierra en los dos
@@ -157,6 +178,16 @@ public partial class InventarioGestionService
         var unidad = UnidadInventarioCalculos.Resolver(stock.ItemInventario?.Unidad, stock.Unit);
         var ahora = DateTimeOffset.UtcNow;
         var kilos = stock.Quantity;
+
+        // ⭐ 10-sep-2026: ¿hay un ciclo vivo en el galpón al que el trigger le atribuya el ajuste?
+        //    Se pregunta a la MISMA función que usa el trigger (`fn_lote_ave_engorde_id_desde_ubicacion`)
+        //    en vez de repetir su criterio en LINQ: dos definiciones de «lote vivo» que se separen
+        //    dejan el movimiento atribuido de un lado y no del otro. Ver
+        //    AjusteCuadreAlimentoCalculos.HayCicloVivoQueCorregir.
+        var loteVivoId = await LoteVivoDelGalponResolver.ResolverAsync(
+            _db, stock.FarmId, stock.NucleoId, stock.GalponId, ct);
+        var escribeAjusteDeTabla =
+            AjusteCuadreAlimentoCalculos.HayCicloVivoQueCorregir(loteVivoId);
 
         if (kilos > 0)
         {
@@ -183,26 +214,31 @@ public partial class InventarioGestionService
             // 2) El espejo del lado de la TABLA DIARIA, que es lo que faltaba. No toca stock —ya lo
             //    descontó la eliminación—, y la cantidad va en valor absoluto porque el signo lo
             //    lleva el tipo, igual que en TrasladoEntrada/TrasladoSalida.
-            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            //    Solo si hay un ciclo vivo que corregir: sin lote el movimiento nace huérfano, la
+            //    fn v19 lo ignora, y antes de ella se lo cobraba el ciclo siguiente.
+            if (escribeAjusteDeTabla)
             {
-                CompanyId = stock.CompanyId,
-                PaisId = stock.PaisId,
-                FarmId = stock.FarmId,
-                NucleoId = stock.NucleoId,
-                GalponId = stock.GalponId,
-                ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
-                Quantity = kilos,
-                Unit = unidad,
-                MovementType = MovimientoAjusteTablaSalidaPorEliminacion,
-                Estado = "Ajuste por eliminación",
-                // La referencia es lo que la tabla diaria muestra en la columna Documento del día.
-                Reference = "Eliminación de stock",
-                Reason =
-                    $"Baja de la tabla diaria por la eliminación del registro de stock ({kilos:N3} " +
-                    $"{unidad}). No toca el stock: esos kilos ya salieron con la eliminación.",
-                CreatedAt = ahora,
-                CreatedByUserId = _current?.UserId.ToString()
-            });
+                _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+                {
+                    CompanyId = stock.CompanyId,
+                    PaisId = stock.PaisId,
+                    FarmId = stock.FarmId,
+                    NucleoId = stock.NucleoId,
+                    GalponId = stock.GalponId,
+                    ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
+                    Quantity = kilos,
+                    Unit = unidad,
+                    MovementType = MovimientoAjusteTablaSalidaPorEliminacion,
+                    Estado = "Ajuste por eliminación",
+                    // La referencia es lo que la tabla diaria muestra en la columna Documento del día.
+                    Reference = "Eliminación de stock",
+                    Reason =
+                        $"Baja de la tabla diaria por la eliminación del registro de stock ({kilos:N3} " +
+                        $"{unidad}). No toca el stock: esos kilos ya salieron con la eliminación.",
+                    CreatedAt = ahora,
+                    CreatedByUserId = _current?.UserId.ToString()
+                });
+            }
         }
 
         _db.InventarioGestionStock.Remove(stock);

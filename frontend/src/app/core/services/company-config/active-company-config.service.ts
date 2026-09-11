@@ -49,6 +49,16 @@ export interface CompanyFlags {
    */
   ventaEngordePesoDiferido: boolean;
   /**
+   * La empresa recibe de planta UNA sola cifra de kilos por despacho (el peso NETO del pollo), no
+   * las dos pesadas de báscula. El formulario de venta de engorde OCULTA «Peso tara», rotula el
+   * campo restante como los kilos del despacho y manda la tara en 0.
+   *
+   * Es un flag propio y no una consecuencia de `ventaEngordePesoDiferido`: son dos hechos distintos
+   * —CUÁNDO llega el peso y CUÁNTAS cifras trae—, aunque Panamá tenga los dos. Pedir un campo que
+   * nunca se llena fue justamente la causa de que 206 de sus 207 ventas quedaran en 0 kg.
+   */
+  ventaEngordePesoNetoUnico: boolean;
+  /**
    * La HORA de llegada de las aves decide el primer día con registro del lote (engorde y
    * reproductora): desde las 13:00 el primer consumo pasa al día siguiente del encasetamiento.
    * La fecha de encaset y la edad no cambian — solo se corre el primer día con registro.
@@ -134,6 +144,7 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   permiteTrasladoAvesCrossEtapa: false,
   capturaHuevosEnLevante: false,
   ventaEngordePesoDiferido: false,
+  ventaEngordePesoNetoUnico: false,
   primerRegistroSegunHoraLlegada: false,
   programacionLotesEngorde: false,
   nombreLoteIncluyeCorrida: false,
@@ -164,6 +175,7 @@ interface CompanyFlagsResponse {
   permiteTrasladoAvesCrossEtapa?: boolean | null;
   capturaHuevosEnLevante?: boolean | null;
   ventaEngordePesoDiferido?: boolean | null;
+  ventaEngordePesoNetoUnico?: boolean | null;
   primerRegistroSegunHoraLlegada?: boolean | null;
   programacionLotesEngorde?: boolean | null;
   nombreLoteIncluyeCorrida?: boolean | null;
@@ -219,6 +231,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa carga el peso de la venta de engorde al confirmarla (báscula diferida)? */
   readonly ventaEngordePesoDiferido$: Observable<boolean> = this.flags$.pipe(
     map(f => f.ventaEngordePesoDiferido),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa recibe UNA sola cifra de kilos por despacho (sin tara)? */
+  readonly ventaEngordePesoNetoUnico$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.ventaEngordePesoNetoUnico),
     distinctUntilChanged()
   );
 
@@ -375,6 +393,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.ventaEngordePesoDiferido));
   }
 
+  /** Azúcar: sólo el flag de "una sola cifra de kilos por despacho" de la empresa activa. */
+  ventaEngordePesoNetoUnico(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.ventaEngordePesoNetoUnico));
+  }
+
   /** Azúcar: sólo el flag de "el primer registro lo decide la hora de llegada" de la empresa activa. */
   primerRegistroSegunHoraLlegada(): Observable<boolean> {
     return this.getFlags().pipe(map(f => f.primerRegistroSegunHoraLlegada));
@@ -409,6 +432,7 @@ export class ActiveCompanyConfigService {
       permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true,
       capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true,
       ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true,
+      ventaEngordePesoNetoUnico: dto?.ventaEngordePesoNetoUnico === true,
       primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true,
       programacionLotesEngorde: dto?.programacionLotesEngorde === true,
       nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true,
@@ -442,6 +466,7 @@ export class ActiveCompanyConfigService {
       actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa &&
       actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante &&
       actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido &&
+      actual.ventaEngordePesoNetoUnico === flags.ventaEngordePesoNetoUnico &&
       actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada &&
       actual.programacionLotesEngorde === flags.programacionLotesEngorde &&
       actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida &&

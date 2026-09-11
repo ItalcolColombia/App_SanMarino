@@ -23,6 +23,7 @@ import {
   ProrateoDespachoRow
 } from '../../funciones/prorateo-peso-despacho.funcion';
 import { formatearNumero as fmtNumero } from '../../funciones/formato.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 /**
  * Modal de REGISTRO DE PESO de un despacho (empresas con `venta_engorde_peso_diferido`).
@@ -58,12 +59,21 @@ export class ModalRegistroPesoComponent implements OnChanges {
   loading = false;
   error: string | null = null;
 
+  /**
+   * Empresa que recibe UNA sola cifra de kilos por despacho (`venta_engorde_peso_neto_unico`): se
+   * OCULTA «Peso tara» y se manda en 0, así que el neto es lo digitado. Este modal es justo el de
+   * la báscula diferida, donde el operario tiene una sola cifra en la mano — pedirle dos es lo que
+   * lo llevaba a repetir el número y dejar el despacho en 0 kg. Fail-closed: arranca en false.
+   */
+  pesoNetoUnico = false;
+
   /** Filas del prorrateo, memoizadas: un getter que alocara por ciclo rompe change detection. */
   prorrateo: ProrateoDespachoRow[] = [];
   totales = totalesProrateoDespacho([]);
 
   constructor(
     private movimientoSvc: MovimientoPolloEngordeService,
+    private companyConfig: ActiveCompanyConfigService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -75,6 +85,7 @@ export class ModalRegistroPesoComponent implements OnChanges {
       const conPeso = this.movimientos.find((m) => m.pesoBrutoGlobal != null || m.pesoBruto != null);
       this.pesoBruto = conPeso?.pesoBrutoGlobal ?? conPeso?.pesoBruto ?? null;
       this.pesoTara = conPeso?.pesoTaraGlobal ?? conPeso?.pesoTara ?? null;
+      this.resolverPesoNetoUnico();
       this.recalcular();
     }
   }
@@ -112,6 +123,8 @@ export class ModalRegistroPesoComponent implements OnChanges {
    * en 0 kg (206 ventas así hasta el 9-sep-2026).
    */
   get avisoPesoTara(): string | null {
+    // Con el campo oculto no hay nada que avisar: la tara la pone el componente en 0.
+    if (this.pesoNetoUnico) return null;
     if (this.pesoBruto == null) return null;
     if (this.pesoTara == null)
       return 'Falta el peso tara (el camión VACÍO). Sin él el despacho queda sin kilos: no suman en '
@@ -135,8 +148,33 @@ export class ModalRegistroPesoComponent implements OnChanges {
     );
   }
 
+  /**
+   * Resuelve el flag de la empresa activa. Fail-closed: ante error se piden los dos pesos, que es el
+   * comportamiento de siempre.
+   */
+  private resolverPesoNetoUnico(): void {
+    this.companyConfig.ventaEngordePesoNetoUnico().subscribe({
+      next: (activo) => {
+        this.pesoNetoUnico = activo;
+        this.recalcular();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.pesoNetoUnico = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  /** Con «Peso tara» oculto la escribe el componente: 0 si hay kilos digitados, null si no. */
+  private sincronizarTaraOculta(): void {
+    if (!this.pesoNetoUnico) return;
+    this.pesoTara = this.pesoBruto == null ? null : 0;
+  }
+
   /** Recalcula el prorrateo. Se llama desde los inputs, no desde un getter del template. */
   recalcular(): void {
+    this.sincronizarTaraOculta();
     const lineas: LineaDespachoPeso[] = this.movimientos.map((m) => ({
       id: m.id,
       loteNombre: m.loteOrigenNombre ?? `Lote ${m.loteOrigenId ?? ''}`.trim(),

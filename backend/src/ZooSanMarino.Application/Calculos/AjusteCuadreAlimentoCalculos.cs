@@ -1,4 +1,4 @@
-namespace ZooSanMarino.Application.Calculos;
+﻿namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
 /// Qué hay que escribir de cada lado para que un galpón de engorde vuelva a cuadrar
@@ -179,6 +179,43 @@ public static class AjusteCuadreAlimentoCalculos
 
         return $"Cuadre a {Kg(plan.KilosRealesKg)} kg reales: " + string.Join(" y ", partes) + ".";
     }
+
+    /// <summary>
+    /// ¿Hay un ciclo vivo al que corregirle la tabla diaria? Lo consultan los DOS escritores de
+    /// <c>AjusteCuadreTablaEntrada</c>/<c>Salida</c>: la eliminación de un registro de stock y
+    /// «Cuadrar galpón».
+    ///
+    /// <para>
+    /// <b>El defecto que cierra (ticket de operación 10-sep-2026, DOÑA MARIA / núcleo C / galpón 2,
+    /// lote 257).</b> <c>EliminarStockAsync</c> escribe, además del <c>EliminacionStock</c>, un
+    /// <c>AjusteCuadreTablaSalida</c> para que la baja llegue también a la tabla diaria. El lote se
+    /// lo pone el trigger vía <c>fn_lote_ave_engorde_id_desde_ubicacion</c>, que exige
+    /// <c>deleted_at IS NULL</c>: si el galpón se quedó sin lote vivo —lo normal cuando alguien
+    /// limpia el ciclo anterior y borra sus lotes— el movimiento nace <b>huérfano</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Un ajuste huérfano no corrige nada: no hay tabla diaria que muestre esos kilos. Lo que hacía
+    /// era peor que nada — la ventana de alimento previo al encaset se lo cobraba al ciclo
+    /// SIGUIENTE, que abría con la limpieza del anterior en negativo. Medido: −3.996,56 kg exactos
+    /// de apertura en el lote 257, y 39.040,18 kg más esperando en 7 galpones sin ciclo vivo.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>fn_seguimiento_diario_engorde</c> <b>v19</b> ya ignora los ajustes huérfanos en sus 5 CTE
+    /// —ése es el arreglo que además repara lo ya escrito—. Esto es el otro lado: dejar de generar
+    /// filas inertes que después hay que explicar. El <c>EliminacionStock</c> se escribe
+    /// <b>siempre</b>: es la auditoría de que alguien eliminó el registro, y eso pasó igual.
+    /// </para>
+    /// </summary>
+    /// <param name="loteAveEngordeIdVivo">
+    /// Lo que devuelve <c>fn_lote_ave_engorde_id_desde_ubicacion</c> para el galpón del stock:
+    /// el lote al que el trigger le va a atribuir el movimiento, o <c>null</c> si no queda ninguno
+    /// vivo. Se consulta la MISMA función que usa el trigger a propósito: dos criterios distintos
+    /// para «hay lote vivo» es como este módulo se rompió antes.
+    /// </param>
+    public static bool HayCicloVivoQueCorregir(int? loteAveEngordeIdVivo) =>
+        loteAveEngordeIdVivo is > 0;
 
     private static string Kg(decimal v) => v.ToString("N1", System.Globalization.CultureInfo.InvariantCulture);
 }

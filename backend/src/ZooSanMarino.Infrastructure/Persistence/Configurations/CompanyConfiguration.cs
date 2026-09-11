@@ -62,6 +62,14 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: la empresa recibe UNA sola cifra de kilos (el neto) por
+        // despacho ⇒ el formulario oculta «Peso tara» y la manda en 0. Pedir un campo que nunca se
+        // llena fue la causa de las 206 ventas de Panamá con neto 0.
+        builder.Property(x => x.VentaEngordePesoNetoUnico)
+            .HasColumnName("venta_engorde_peso_neto_unico")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // Flag tipado por comportamiento: el pollo engorde no se maneja por sexo tras salir de
         // reproductora ⇒ la plantilla de carga masiva habla de «Mixta/Mixto» en vez de H/M.
         builder.Property(x => x.SeguimientoEngordeMixto)
