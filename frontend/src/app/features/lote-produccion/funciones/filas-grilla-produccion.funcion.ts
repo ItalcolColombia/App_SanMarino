@@ -33,6 +33,31 @@ export function filasGrillaProduccion(seguimientos: readonly SeguimientoItemDto[
   return filas;
 }
 
+/**
+ * Busca un registro por id en lo que devolvió el listado, mirando **primero** los `registrosDelDia`.
+ *
+ * El orden importa: en un día con varios registros la fila agrupada lleva el id del primero
+ * (`MIN(seg_id)`) pero los TOTALES del día. Buscar solo en `seguimientos` no encuentra al 2.º
+ * registro y, para el 1.º, devuelve la fila agrupada: un diálogo que lea mortalidad o traslado de
+ * ahí mostraría números que no son de ese registro. Sin días desplegados es un `find` por id común.
+ */
+export function buscarRegistroPorId(
+  seguimientos: readonly SeguimientoItemDto[] | null | undefined,
+  id: number | null | undefined
+): SeguimientoItemDto | undefined {
+  if (id == null) return undefined;
+  for (const dia of seguimientos ?? []) {
+    const registros = dia.registrosDelDia;
+    if (registros && registros.length > 1) {
+      const hijo = registros.find(r => r.id === id);
+      if (hijo) return hijo;
+      continue;
+    }
+    if (dia.id === id) return dia;
+  }
+  return undefined;
+}
+
 /** Todos los registros visibles en la tabla (para los mapas indexados por id). */
 export function registrosDeLaGrilla(filas: readonly FilaGrillaProduccion[]): SeguimientoItemDto[] {
   return filas.map(f => f.seg);

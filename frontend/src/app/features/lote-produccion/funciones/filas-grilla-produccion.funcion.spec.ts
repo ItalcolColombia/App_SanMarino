@@ -1,4 +1,4 @@
-import { filasGrillaProduccion, registrosDeLaGrilla } from './filas-grilla-produccion.funcion';
+import { buscarRegistroPorId, filasGrillaProduccion, registrosDeLaGrilla } from './filas-grilla-produccion.funcion';
 import type { SeguimientoItemDto } from '../services/produccion.service';
 
 const seg = (id: number, extra: Partial<SeguimientoItemDto> = {}): SeguimientoItemDto =>
@@ -37,6 +37,29 @@ describe('filasGrillaProduccion', () => {
   it('null o vacío ⇒ sin filas', () => {
     expect(filasGrillaProduccion(null)).toEqual([]);
     expect(filasGrillaProduccion([])).toEqual([]);
+  });
+
+  describe('buscarRegistroPorId', () => {
+    it('sin días desplegados es un find por id', () => {
+      const a = seg(1);
+      expect(buscarRegistroPorId([a, seg(2)], 1)).toBe(a);
+      expect(buscarRegistroPorId([a], 99)).toBeUndefined();
+      expect(buscarRegistroPorId([a], null)).toBeUndefined();
+    });
+
+    it('encuentra el 2.º registro de un día, que no está en la lista de días', () => {
+      const r2 = seg(11, { mortalidadH: 7 });
+      const dia = seg(10, { mortalidadH: 12, registrosDelDia: [seg(10, { mortalidadH: 5 }), r2] });
+      expect(buscarRegistroPorId([dia], 11)).toBe(r2);
+    });
+
+    it('para el 1.º devuelve el REGISTRO, no la fila agrupada que comparte su id', () => {
+      const r1 = seg(10, { mortalidadH: 5 });
+      const dia = seg(10, { mortalidadH: 12, registrosDelDia: [r1, seg(11, { mortalidadH: 7 })] });
+      const encontrado = buscarRegistroPorId([dia], 10);
+      expect(encontrado).toBe(r1);
+      expect(encontrado?.mortalidadH).toBe(5);
+    });
   });
 
   it('registrosDeLaGrilla devuelve los registros que pinta la tabla', () => {

@@ -8271,3 +8271,16 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fa
       trae los 2 registros (672, 1030); flags 1=false / 6=true. **NO corrido:** smoke HTTP del endpoint
       ni prueba por pantalla (exige JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
 - [x] B7. Commit `e84dd0f` (fase A en `d7ee3df`). Sin push ni deploy.
+- [x] B6'. **Smoke por pantalla con Santa Reyes (12-sep)** sobre un CLON descartable de la BD local
+      (`sanmarinoapp_smoke_sr`, backend :5002 con content root propio; el arranque aplicó la migración
+      `20260912100000` por el pipeline real de EF). Admin Santa Reyes → P-LOTE 218A (LPP 20):
+      «Nuevo registro» 04/09 ⇒ POST 201; grilla `672 · 2 registros` + `1101 ↳ 2.º del día` con sus
+      botones; BD: los dos a la MISMA hora (el índice por instante ya no bloquea), fn 1 fila mort 5+7=12,
+      header «Registros» = 3 (días). Editar 1101 ⇒ PUT 204 (antes 400 «Ya existe…»), grilla 9 y 672
+      intacto. Eliminar 1101 ⇒ DELETE 204, 672 intacto. Clon borrado, puertos libres.
+- [x] B8. 🔴 **Defecto que solo vio el smoke:** el diálogo de Eliminar buscaba el registro con
+      `seguimientos.find(id)` ⇒ para el 2.º del día «con fecha .» y «H: 0» (tampoco detectaría un
+      traslado), y para el 1.º mostraba los TOTALES del día (H: 12). Fix: `buscarRegistroPorId` en
+      `filas-grilla-produccion.funcion.ts` (+3 casos de spec, 8/8). Re-smoke: 672 «4/9/2026 … H: 5»,
+      1102 «4/9/2026 … H: 7».
+- [x] B9. `yarn build` del fix 0 errores + commit `fix(produccion): el dialogo de eliminar...`. Sin push ni deploy.
