@@ -8254,4 +8254,20 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fa
       `Down` restaura los 4 índices únicos con predicados idénticos a los de hoy y quita los triggers.
       ⚠️ Reproductora con flag no se pudo ejercitar: la BD local no tiene filas `reproductora` en
       `seguimiento_diario_levante` (lo cubre el test puro + el literal `'levante'` del trigger).
-- [ ] V8. Fase B (grilla de producción fila por registro): pendiente de decisión del usuario.
+- [x] V8. Commit fase A (`d7ee3df`). Usuario pidió seguir con la fase B.
+
+## Fase B · Grilla de producción: una fila por registro
+
+- [x] B1. Diseño: la fila agrupada de la fn NO se reemplaza (indicadores/gráfica/Excel cuentan días);
+      viaja `SeguimientoItemDto.RegistrosDelDia` solo en días con 2+ registros y solo con el flag ON.
+- [x] B2. Cálculo puro `SeguimientoProduccionRegistrosDelDiaCalculos` (día Bogotá como la fn) + tests.
+- [x] B3. `ProduccionService.ListarSeguimientoAsync` adjunta los registros crudos (misma población que `crudos`).
+- [x] B4. Front: `funciones/filas-grilla-produccion.funcion.ts` + spec; `tabs-principal` itera `filasGrilla`
+      (fecha/edad/semana/etapa solo en el 1.º, «↳ N.º del día» en el resto) y Primera/Pnc por registro.
+- [x] B5. `dotnet build ZooSanMarino.sln` 0 err / 0 warn · Application.Tests 4134/4134 (5 nuevos) ·
+      `yarn build` 0 err / 0 warn · `ng test --include filas-grilla-produccion.funcion.spec.ts` 5/5.
+- [~] B6. Smoke en BD con ROLLBACK (12-sep): LPP 20 / lote 152 de Santa Reyes, 2.º registro el mismo día
+      ⇒ la fn da 1 fila (seg 672, mortalidad H 5+7=12) y el filtro espejo del C# de `ListarSeguimientoAsync`
+      trae los 2 registros (672, 1030); flags 1=false / 6=true. **NO corrido:** smoke HTTP del endpoint
+      ni prueba por pantalla (exige JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
+- [ ] B7. Commit.

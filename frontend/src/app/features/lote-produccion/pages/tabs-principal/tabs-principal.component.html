@@ -289,7 +289,9 @@
                         </td>
                       </tr>
                     }
-                    @for (s of seguimientos; track s) {
+                    <!-- Una fila por REGISTRO: un día con varios (flag de empresa) se despliega. -->
+                    @for (f of filasGrilla; track f) {
+                      @let s = f.seg;
                       <tr class="ux-row"
                         [class.fila--traslado]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)+(s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
                         [class.fila--traslado-salida]="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
@@ -304,10 +306,22 @@
                           }
                           {{ s.id }}
                         </td>
-                        <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
-                        <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
-                        <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
-                        <td>{{ getEtapaEnVivo(s.fechaRegistro) }}</td>
+                        @if (f.esPrimero) {
+                          <td>
+                            {{ s.fechaRegistro | date:'dd/MM/yyyy' }}
+                            @if (f.total > 1) {
+                              <span class="ux-hint" [title]="'Este día tiene ' + f.total + ' registros'">· {{ f.total }} registros</span>
+                            }
+                          </td>
+                          <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
+                          <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
+                          <td>{{ getEtapaEnVivo(s.fechaRegistro) }}</td>
+                        } @else {
+                          <td class="ux-hint" [title]="'Registro ' + f.ordinal + ' de ' + f.total + ' del día'">↳ {{ f.ordinal }}.º del día</td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                        }
                         <td>{{ s.mortalidadH }}</td>
                         @if (!ocultaMachosEnPostura) {
                           <td>{{ s.mortalidadM }}</td>

@@ -74,7 +74,24 @@ Flag OFF ⇒ comportamiento idéntico al actual (mensajes incluidos).
 Validación: `dotnet build` + `dotnet test`; migración por transacción con ROLLBACK (dos pasadas = idempotencia)
 ejercitando la tabla de arriba con INSERTs reales sobre Santa Reyes (ON) y Sanmarino/Demo (OFF).
 
-## 5. Fase B (pendiente de decisión, no incluida)
+## 5. Fase B — grilla de producción fila por registro (aprobada 12-sep-2026)
+
+**Enfoque.** La fila agrupada de `fn_seguimiento_diario_produccion` NO se reemplaza: el mismo arreglo
+alimenta en el front indicadores, gráfica y Excel, que cuentan días. Con el flag ON, el listado le
+agrega a cada día con 2+ registros `RegistrosDelDia` (registros crudos, misma población que `crudos`
+de la fn, agrupados por día de Bogotá). La tabla despliega una fila por registro con sus acciones;
+fecha/edad/semana/etapa las rotula solo el primero, el resto muestra «↳ N.º del día» (patrón de
+levante). Flag OFF: no se consulta nada extra ⇒ respuesta idéntica.
+
+**Archivos.** `Application/Calculos/SeguimientoProduccionRegistrosDelDiaCalculos.cs` + tests ·
+`DTOs/Produccion/SeguimientoItemDto.cs` · `ProduccionService.Consultas.cs` · front
+`lote-produccion/funciones/filas-grilla-produccion.funcion.ts` + spec · `produccion.service.ts` ·
+`tabs-principal.component.{ts,html}`.
+
+**Casos.** Día con 1 registro ⇒ misma fila y mismo objeto · día con 2 ⇒ 2 filas, ids propios, Validar/Editar/
+Eliminar sobre cada id · fila agrupada intacta para indicadores · borde de día Bogotá (03:00Z = día anterior).
+
+### Nota original (antes de aprobar)
 
 H7: la grilla de producción agrupa el día y oculta el 2.º registro para editar/borrar/validar. Levante
 lo resolvió listando fila por registro (`posicionesEnElDia`). Producción necesita lo mismo antes de

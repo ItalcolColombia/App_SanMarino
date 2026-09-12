@@ -81,7 +81,11 @@ public record SeguimientoItemDto(
     // front con la función compartida, que es la única que conoce el día del usuario.
     bool Validado = false,
     DateTime? ValidadoAt = null,
-    string? ValidadoPor = null
+    string? ValidadoPor = null,
+    // ── Varios registros el mismo día (flag permite_multiples_seguimientos_diarios) ──
+    // Solo el listado lo llena, y solo en un día con 2+ registros: son los registros reales que
+    // componen esta fila agrupada, para que la grilla les dé fila propia. Null en el resto.
+    IReadOnlyList<SeguimientoItemDto>? RegistrosDelDia = null
 );
 
 

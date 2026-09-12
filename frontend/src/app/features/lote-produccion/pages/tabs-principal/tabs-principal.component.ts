@@ -15,6 +15,7 @@ import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-ta
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
+import { FilaGrillaProduccion, filasGrillaProduccion, registrosDeLaGrilla } from '../../funciones/filas-grilla-produccion.funcion';
 
 @Component({
   selector: 'app-tabs-principal',
@@ -82,6 +83,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   /** seguimiento.id → totales Primera/Pnc. Se calcula UNA vez por carga de registros (no por ciclo de CD). */
   private readonly huevoPorTipoPorRegistro = new Map<number, ResumenHuevoPorTipo>();
 
+  /**
+   * Filas de la tabla «Registros diarios»: una por registro. Un día con varios registros (flag de
+   * empresa) trae `registrosDelDia` y se despliega; el resto es 1 a 1 con `seguimientos`. Se arma
+   * una vez por carga (referencia estable para el CD). Indicadores, gráfica y Excel NO la usan.
+   */
+  filasGrilla: FilaGrillaProduccion[] = [];
+
   constructor() { }
 
   ngOnInit(): void {
@@ -90,6 +98,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos']) {
+      this.filasGrilla = filasGrillaProduccion(this.seguimientos);
       this.preloadCatalogNamesFromSeguimientos();
       this.recalcularHuevoPorTipo();
     }
@@ -116,7 +125,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   private recalcularHuevoPorTipo(): void {
     this.huevoPorTipoPorRegistro.clear();
     if (!this.clasificacionHuevoPorItems) return;
-    for (const s of this.seguimientos || []) {
+    // Sobre las filas de la tabla, no sobre `seguimientos`: un día desplegado pinta sus registros,
+    // cuyos ids no están en la fila agrupada. Con un registro por día es el mismo conjunto.
+    for (const s of registrosDeLaGrilla(this.filasGrilla)) {
       const items = leerHuevoItemsDeMetadata(s?.metadata);
       if (!items.length) continue;
       this.huevoPorTipoPorRegistro.set(s.id, resumirHuevoItemsPorTipo(items));
