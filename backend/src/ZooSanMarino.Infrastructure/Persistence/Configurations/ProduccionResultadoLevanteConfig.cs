@@ -9,7 +9,9 @@ public class ProduccionResultadoLevanteConfig : IEntityTypeConfiguration<Producc
     {
         b.HasNoKey();
         b.ToTable("produccion_resultado_levante");
-        b.Property(x => x.LoteId).HasColumnName("lote_id");
+        // La columna es TEXT (la escribe sp_recalcular_seguimiento_levante con su l_lote_id text); la
+        // entidad sigue int. Sin la conversión, el filtro por lote comparaba text = integer.
+        b.Property(x => x.LoteId).HasColumnName("lote_id").HasConversion<string>();
         b.Property(x => x.Fecha).HasColumnName("fecha");
         b.Property(x => x.EdadSemana).HasColumnName("edad_semana");
 

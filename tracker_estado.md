@@ -8308,3 +8308,26 @@ Lotes: levante LOTE 217A (LPL 47, silo 13) y producción P-LOTE 218A (LPP 20, si
       `FirstOrDefault(lote, fecha)` sobre filas crudas ⇒ con 2 registros el día muestra UNO: medido levante
       15 / 0 / 3.000 kg / saldo 9.985 (real 18 / 1 / 3.100 / 9.981) y producción 5 / 399 kg / 2.860
       (real 7 / 449 / 2.858). Pendiente de decisión del usuario.
+
+## Corrección V-X1 / V-X2 (aprobada 12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md)
+
+- [x] X1.1 `Consultas.cs:119` SP con texto + `HasConversion<string>()` en `LoteId` + snapshot `text`
+      (la entidad declaraba integer y la columna es text: arreglar solo el SP no alcanzaba).
+- [x] X1.2 Migración idempotente `20260912130000_ProduccionResultadoLevanteLoteIdTexto` + Designer.
+- [x] X1.3 Gate: `sp_recalcular_seguimiento_levante(text)` para los 18 lotes de levante de la BD local
+      (Sanmarino 11 / Demo 5 / Santa Reyes 2) en transacción revertida ⇒ **0 errores**, 1.156 filas;
+      tabla intacta tras el ROLLBACK (11 filas).
+- [x] X2.1 `ReporteContableSeguimientoDiaCalculos` (puro, nulls preservados) + 10 tests.
+- [x] X2.2 `CalculoSemanal.cs` agrupa levante / producción / fallback antes del `FirstOrDefault`.
+      Único cambio medido en local: 3 días de Demo (manual + fila de traslado) donde el reporte podía
+      mostrar mortalidad 0 — ahora muestra la del manual.
+- [x] X3 `dotnet build ZooSanMarino.sln` 0 err / 0 warn · Application.Tests 4144/4144 (10 nuevos) · gate
+      sql-migración OK · snapshot: 1 línea (`integer`→`text`), Designer = snapshot + 4 cambios.
+- [x] X4 Smoke en clon `sanmarinoapp_smoke_sr3` (backend con el fix; el arranque aplicó `20260912130000`):
+      `/resultado` lote 155 = **200** ya sin registros nuevos (antes 500); con el 2.º registro del 04/09
+      la fila pasa de 15/3.000 a **18/3.100** y `produccion_resultado_levante` guarda esa fila. Reporte
+      contable 04/09: levante **18 / 1 / 3.100 kg / saldo 9.981** (antes 15/0/3.000/9.985), producción
+      **7 / 449 kg / saldo 2.858** (antes 5/399/2.860). Clon borrado, puertos libres.
+- [x] X5 Commit (este). Sin push ni deploy.
