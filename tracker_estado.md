@@ -8270,4 +8270,4 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fa
       ⇒ la fn da 1 fila (seg 672, mortalidad H 5+7=12) y el filtro espejo del C# de `ListarSeguimientoAsync`
       trae los 2 registros (672, 1030); flags 1=false / 6=true. **NO corrido:** smoke HTTP del endpoint
       ni prueba por pantalla (exige JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
-- [ ] B7. Commit.
+- [x] B7. Commit `e84dd0f` (fase A en `d7ee3df`). Sin push ni deploy.
