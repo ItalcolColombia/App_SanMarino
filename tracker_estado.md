@@ -8373,5 +8373,7 @@ Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep2
       Re-test de los 2 specs afectados con el fix: **13/13**. ⚠️ Incidente de la verificación: al borrar el
       worktree `prod-base` con `git worktree remove --force`, la junction vació `frontend/node_modules`
       compartido; reparado con `yarn install --frozen-lockfile` (36.502 archivos, sin cambio de versiones).
-- [ ] D5. OK del usuario ⇒ `git push origin main` + PR #102 main→main-produccion (no despliega).
+- [x] D5. OK del usuario ⇒ `git push origin main` (`f85994d..d2ec998`, 9 commits de la serie, 0 ajenos) +
+      PR **#102** main→main-produccion abierto (https://github.com/ItalcolColombia/App_SanMarino/pull/102).
+      `origin/main-produccion` sigue en `ba34c65`; ningún run de deploy disparado.
 - [ ] D6. OK del usuario ⇒ merge del PR (dispara deploy) + verificación post-deploy ECS + smoke en prod.
