@@ -405,11 +405,14 @@
                   </div>
                   <div class="lrae-field">
                     <label class="lrae-label">Fecha encasetamiento</label>
-                    <input type="date" formControlName="fechaEncasetamiento" class="lrae-input" />
+                    <input type="date" formControlName="fechaEncasetamiento" class="lrae-input" [readonly]="!!editing && !canCorregirFechaEncasetPerm" />
+                    @if (editing && !canCorregirFechaEncasetPerm) {
+                      <span class="lrae-hint">🔒 Requiere el permiso <b>lote.corregir_fecha_encaset</b>.</span>
+                    }
                   </div>
                   <div class="lrae-field">
                     <label class="lrae-label">Hora encasetamiento</label>
-                    <input type="time" formControlName="horaEncasetamiento" class="lrae-input" />
+                    <input type="time" formControlName="horaEncasetamiento" class="lrae-input" [readonly]="!!editing && !canCorregirFechaEncasetPerm" />
                     <span class="lrae-hint">Desde las 13:00 el primer registro pasa al día siguiente.</span>
                   </div>
                 </div>
@@ -638,11 +641,14 @@
                         </div>
                         <div class="lrae-field">
                           <label class="lrae-label">Fecha encasetamiento</label>
-                          <input type="date" formControlName="fechaEncasetamiento" class="lrae-input" />
+                          <input type="date" formControlName="fechaEncasetamiento" class="lrae-input" [readonly]="!!editing && !canCorregirFechaEncasetPerm" />
+                          @if (editing && !canCorregirFechaEncasetPerm) {
+                            <span class="lrae-hint">🔒 Requiere el permiso <b>lote.corregir_fecha_encaset</b>.</span>
+                          }
                         </div>
                         <div class="lrae-field">
                           <label class="lrae-label">Hora encasetamiento</label>
-                          <input type="time" formControlName="horaEncasetamiento" class="lrae-input" />
+                          <input type="time" formControlName="horaEncasetamiento" class="lrae-input" [readonly]="!!editing && !canCorregirFechaEncasetPerm" />
                           <span class="lrae-hint">Desde las 13:00 el primer registro pasa al día siguiente.</span>
                         </div>
                       </div>

@@ -352,16 +352,26 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.NombreLote = (dto.NombreLote ?? "").Trim();
         ent.CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim();
         var nuevaFechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
+        var cambiaEncasetamiento =
+            dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncasetamiento;
 
         // Mismo criterio que en el lote pollo engorde: informar una hora tardía en un lote que ya tiene
         // días de recogida cargados dejaría el registro del día del encasetamiento fuera de la ventana.
         // Se diagnostica ANTES de escribir y se rechaza con el detalle, en vez de guardar en silencio.
-        if (dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncasetamiento)
+        if (cambiaEncasetamiento)
         {
             var fechasSeguimiento = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
                 .Where(s => s.LoteReproductoraAveEngordeId == ent.Id)
                 .Select(s => s.Fecha)
                 .ToListAsync();
+
+            // Mismo gate que el lote de engorde padre: mover la fecha acá corre las EDADES de todos
+            // los registros y, con ellas, qué día consolida el cruce hacia pollo engorde. Gatear solo
+            // el padre sería una puerta con candado al lado de una ventana abierta.
+            if (!CorreccionFechaEncasetAutorizacionCalculos.PuedeAplicar(
+                    true, fechasSeguimiento.Count > 0, _current.Permissions))
+                throw new UnauthorizedAccessException(
+                    CorreccionFechaEncasetAutorizacionCalculos.MensajeSinPermiso);
 
             // La hora que rige es la efectiva: la que el usuario está guardando o, si viene null,
             // la heredada del lote de engorde (misma regla que usan los guardas de captura).
@@ -390,7 +400,26 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         // no emitiría UPDATE. Forzar Modified para persistir la edición (mismo patrón que
         // SeguimientoDiarioLoteReproductoraService.UpdateAsync).
         _ctx.Entry(ent).State = EntityState.Modified;
-        await _ctx.SaveChangesAsync();
+
+        // Mover la fecha de encasetamiento del lote reproductora cambia la EDAD de todos sus registros
+        // y, por lo tanto, qué día consolida el cruce hacia pollo engorde. El trigger de BD solo se
+        // dispara al tocar la tabla de seguimiento, así que la cascada hay que correrla acá — si no,
+        // el cruce queda fechado contra un encasetamiento que ya no existe (era el motivo por el que
+        // estos casos terminaban en un ticket para desarrollo). Va en la MISMA transacción que el
+        // cambio: guardar la fecha y dejar el cruce viejo es el estado que se vino a eliminar.
+        if (cambiaEncasetamiento)
+        {
+            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            await _ctx.SaveChangesAsync();
+            await RecalculoEncasetamientoEngordeAplicador.AplicarAsync(
+                _ctx, companyId, ent.LoteAveEngordeId);
+            await tx.CommitAsync();
+        }
+        else
+        {
+            await _ctx.SaveChangesAsync();
+        }
+
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
         var stU = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
         var mortU = (stU?.MortH ?? 0) + (stU?.MortM ?? 0);

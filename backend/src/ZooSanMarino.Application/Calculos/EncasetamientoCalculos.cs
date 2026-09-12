@@ -109,6 +109,42 @@ public static class EncasetamientoCalculos
             : null;
 
     /// <summary>
+    /// Días que el <b>cruce reproductora → pollo engorde</b> corre la serie al fecharla en el
+    /// calendario del lote de engorde. Es el espejo puro de <c>fn_cruce_reproductora_a_engorde</c>
+    /// (la fn es la dueña del número; esta función es su especificación ejecutable).
+    ///
+    /// <para>
+    /// <b>Por qué no alcanza con <see cref="DiasDesplazamiento"/>.</b> El desplazamiento por llegada
+    /// tardía se escribió para el caso en que la reproductora <b>sí capturó el día del encasetamiento
+    /// (edad 0)</b>: ese consumo es real, pertenece al día siguiente y por eso se corre la serie
+    /// entera. Pero cuando la reproductora <b>ya arrancó en la edad 1</b> —porque es la misma llegada
+    /// tardía y el operario hizo lo correcto— sumarle un día más aterriza el registro del día
+    /// siguiente al encaset en el subsiguiente: el desplazamiento se aplica dos veces.
+    /// </para>
+    ///
+    /// <para>
+    /// Ticket Panamá 11-sep-2026, lote 255 «95 - 3» (encaset 03-sep 21:35, reproductora con registros
+    /// desde el 04-sep): el cruce escribía desde el 05-sep mientras
+    /// <see cref="PrimerDiaConRegistro"/> —el guarda que valida la captura manual— decía 04-sep. La
+    /// BD y el backend se contradecían.
+    /// </para>
+    ///
+    /// <para>
+    /// El <c>Math.Max(0, …)</c> no es defensivo: es la regla. Sin hora informada el desplazamiento es
+    /// 0 y una primera edad ≥ 1 NO puede correr la serie <b>hacia atrás</b> sobre el día del
+    /// encasetamiento — ahí la fila se capturó el día que dice su edad y ahí se queda.
+    /// </para>
+    /// </summary>
+    /// <param name="horaEncasetamiento">Hora de llegada del lote POLLO ENGORDE (la que fecha el destino).</param>
+    /// <param name="primeraEdadConRegistro">
+    /// Menor edad que el cruce realmente genera (la primera en la que TODOS los lotes reproductora
+    /// tienen registro confirmado). <c>null</c> = el cruce no genera ninguna fila; se devuelve el
+    /// desplazamiento teórico, que es lo que aplicaría el primer día que sí se genere en la edad 0.
+    /// </param>
+    public static int DesplazamientoCruce(TimeOnly? horaEncasetamiento, int? primeraEdadConRegistro) =>
+        Math.Max(0, DiasDesplazamiento(horaEncasetamiento) - Math.Max(0, primeraEdadConRegistro ?? 0));
+
+    /// <summary>
     /// Hora de llegada que rige a un lote REPRODUCTORA aves de engorde: la propia y, si no tiene
     /// (el caso real: la hora se captura en el formulario del lote POLLO ENGORDE y las reproductoras
     /// quedan con NULL), la de su lote de engorde — son la misma llegada física de pollitos.

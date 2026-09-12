@@ -1,3 +1,19 @@
+﻿// Partial de la migracion FnCruceReproductoraEngordeSinDobleDesplazamiento: la constante SQL, para
+// que el archivo principal se pueda leer. Es backend/sql/fn_cruce_reproductora_a_engorde.sql TAL CUAL
+// (espejo).
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    public partial class FnCruceReproductoraEngordeSinDobleDesplazamiento
+    {
+        /// <summary>
+        /// El cruce reproductora -> pollo engorde con el desplazamiento por hora de llegada aplicado
+        /// UNA sola vez: desplazamiento efectivo = GREATEST(0, desp - primera edad generada).
+        /// Espejo exacto de backend/sql/fn_cruce_reproductora_a_engorde.sql.
+        /// </summary>
+        private const string FnCruceReproductoraAEngordeSinDobleDesplazamiento = """
 -- ============================================================================
 -- Cruce automático: Seguimiento Diario Reproductora  →  Seguimiento Diario Pollo Engorde
 -- ----------------------------------------------------------------------------
@@ -295,3 +311,6 @@ CREATE TRIGGER trg_cruce_reproductora_engorde
     ON seguimiento_diario_lote_reproductora_aves_engorde
     FOR EACH ROW
     EXECUTE FUNCTION trg_fn_cruce_reproductora_engorde();
+""";
+    }
+}

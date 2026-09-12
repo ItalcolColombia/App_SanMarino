@@ -398,16 +398,34 @@
                     </div>
                     <div class="le-field">
                       <label class="le-label">Fecha de encasetamiento <span class="le-req">*</span></label>
-                      <input type="date" formControlName="fechaEncaset" class="le-input" [class.le-input--invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched"/>
+                      <input type="date" formControlName="fechaEncaset" class="le-input" [readonly]="editing && !puedeCorregirFechaEncaset" [class.le-input--readonly]="editing && !puedeCorregirFechaEncaset" [class.le-input--invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched"/>
                       @if (form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched) {
                         <small class="le-error">La fecha es requerida</small>
                       }
                     </div>
                     <div class="le-field">
                       <label class="le-label">Hora de encasetamiento</label>
-                      <input type="time" formControlName="horaEncasetamiento" class="le-input"/>
+                      <input type="time" formControlName="horaEncasetamiento" class="le-input" [readonly]="editing && !puedeCorregirFechaEncaset" [class.le-input--readonly]="editing && !puedeCorregirFechaEncaset"/>
                       <small class="le-hint">Desde las 13:00 el primer registro de seguimiento pasa al día siguiente.</small>
                     </div>
+                    @if (editing) {
+                      <div class="le-field le-field--full">
+                        @if (puedeCorregirFechaEncaset) {
+                          <div class="le-form-note">
+                            <strong>Cambiar la fecha o la hora recalcula el lote completo.</strong> La
+                            fecha se propaga a los lotes reproductora, el cruce hacia el seguimiento de
+                            pollo engorde se vuelve a fechar y se reescribe el saldo de alimento de toda
+                            la serie. Si algún registro quedara fuera de la semana de recogida, el
+                            sistema lo rechaza y dice cuál.
+                          </div>
+                        } @else {
+                          <div class="le-form-note">
+                            🔒 No tiene el permiso <b>lote.corregir_fecha_encaset</b>: puede editar el
+                            resto de los datos del lote, pero no la fecha ni la hora de encasetamiento.
+                          </div>
+                        }
+                      </div>
+                    }
                     <div class="le-field">
                       <label class="le-label">Fecha de alistamiento</label>
                       <input type="date" formControlName="fechaAlistamiento" class="le-input"/>

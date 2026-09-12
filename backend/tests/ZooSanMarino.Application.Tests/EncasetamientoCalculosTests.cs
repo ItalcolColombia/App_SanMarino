@@ -1,4 +1,4 @@
-using ZooSanMarino.Application.Calculos;
+﻿using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.Application.Tests;
 
@@ -268,5 +268,74 @@ public class EncasetamientoCalculosTests
         Assert.Equal(new TimeOnly(8, 30), efectiva);
         Assert.Equal(0, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
         Assert.Equal(Encaset, EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, efectiva));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DesplazamientoCruce — espejo puro de fn_cruce_reproductora_a_engorde.
+    // Ticket Panamá 11-sep-2026 (lote 255): el cruce corría la serie DOS veces cuando la
+    // reproductora ya arrancaba en la edad 1 por la misma llegada tardía.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DesplazamientoCruce_LlegadaTardiaConRegistroEnLaEdadCero_CorreLaSerieUnDia()
+    {
+        // El caso para el que se escribió la regla: el consumo del día del encaset es real y
+        // pertenece al día siguiente. Comportamiento IDÉNTICO al previo (lotes 215 y 216).
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 0));
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(13, 0), 0));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_LlegadaTardiaYLaReproductoraYaArrancoEnLaEdadUno_NoVuelveACorrer()
+    {
+        // EL CASO DEL TICKET (lote 255, encaset 03-sep 21:35, reproductora desde el 04-sep):
+        // el día ya está corrido en el origen; sumar otro lo mandaba al 05-sep.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 1));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_PrimeraEdadMayorQueElDesplazamiento_NuncaCorreHaciaAtras()
+    {
+        // El Math.Max es la regla, no una defensa: un hueco de 2 días son días que nadie capturó.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 2));
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, 3));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void DesplazamientoCruce_SinHora_SiempreCero_ComportamientoPrevio(int primeraEdad)
+    {
+        // Los 35 lotes sin hora de la copia de producción: el SQL queda byte a byte como antes.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, primeraEdad));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_HoraTemprana_NoDesplaza()
+    {
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(12, 59), 0));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_SinNingunaEdadGenerada_DevuelveElDesplazamientoTeorico()
+    {
+        // El cruce no escribe nada todavía; el número que aplicaría es el de la edad 0.
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(13, 0), null));
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, null));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_ElPrimerDiaGeneradoCoincideConElGuardaDeCaptura()
+    {
+        // La contradicción que delató el defecto: el guarda de C# decía 04-sep y la fn escribía 05-sep.
+        var encaset = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+        var hora = new TimeOnly(21, 35);
+        const int primeraEdad = 1;
+
+        var destinoDelCruce = encaset.AddDays(EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad) + primeraEdad);
+
+        Assert.Equal(EncasetamientoCalculos.PrimerDiaConRegistro(encaset, hora), destinoDelCruce);
+        Assert.Equal(new DateTime(2026, 9, 4, 12, 0, 0, DateTimeKind.Utc), destinoDelCruce);
     }
 }

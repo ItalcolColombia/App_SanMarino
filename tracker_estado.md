@@ -8209,27 +8209,42 @@ en la edad 1 por la misma llegada tardia. El guarda C# dice que el primer dia de
 **04/09** y la fn escribe el **05/09**. Radio: **4 lotes de Panama** (239, 255, 256, 257); Ecuador,
 Demo y Sanmarino tienen 0 filas de cruce.
 
-- [ ] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
+- [x] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
       `GREATEST(0, desp - primera_edad)` + tests xUnit (incluye el caso del ticket: 21:35 / edad 1 → 0).
-- [ ] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
+- [x] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
       `backend/sql/fn_cruce_reproductora_a_engorde.sql` + migracion (`.cs` + `.Fn.cs` + `.Designer.cs`)
-      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
-- [ ] B3. **GATE MULTIPAIS** obligatorio: `EXCEPT` en los dos sentidos, todas las columnas, todos los
-      lotes de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino = 0. Unicos cambios
-      esperados: 239, 255, 256, 257.
-- [ ] B4. Remediacion de datos por migracion: recalcular el cruce de 255/256/257 y **corregir todo el
-      239** (cruce + sus 5 filas manuales un dia atras, ASC, serie contigua sin hueco).
-- [ ] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
+      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo). Verificado
+      12-sep: la constante de `.Fn.cs` es identica linea a linea al `.sql` (297 lineas).
+- [x] B3. **GATE MULTIPAIS** (12-sep, copia de prod del dia, `verificar_cruce_desplazamiento_doble.sql`):
+      solo ItalcolPanama, **5 lotes** — 239, 255, 256, 257 **y 259** (nacio el 11-sep, misma topologia) —,
+      cifras por lote y edad identicas (0/0 sin la fecha); `fn_seguimiento_diario_engorde` de TODOS los
+      lotes de TODAS las empresas: 57 filas distintas, todas de esos 5 lotes.
+- [x] B4. Remediacion por migracion, seleccion por DATO. Simulada 2 pasadas con ROLLBACK: 239 queda
+      cruce **28/08→03/09** + 6 manuales 04/09→09/09 (ticket 12-sep «95 - 1»: primer registro el 28/08);
+      255 04/09, 256/257 07/09, 259 10/09. 2.ª pasada: 0 cambios en seguimiento, historico y maestro.
+- [x] B4'. 🔴 **Hueco agregado 12-sep:** el cruce reinserta con ids nuevos y la migracion dejaba las
+      `BAJA_SEGUIMIENTO` vivas apuntando a seguimientos inexistentes (nada lo re-sincroniza en 239/255,
+      su reproductora ya cerro). Replicado `SincronizarCruceAsync` en SQL (patron `20260828200000`) +
+      la BAJA de cada fila manual corrida sigue a su registro (como `UpsertHistorico` al editar la
+      fecha). Medido: huerfanas 6 (255, preexistentes) → **0**; maestro de aves y
+      `fn_cuadre_aves_engorde` sin cambios; inventario intacto; cuadre de alimento 8 / 15 → 8 / 15
+      (G0472 solo mueve `ultimo_seguimiento` 10/09→09/09, descuadre 0).
+- [x] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
       `lote.corregir_aves` + rol 1, `company_permissions` en todas las empresas).
-- [ ] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
+- [x] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
       ya tiene registros) + calculo puro de autorizacion con tests.
-- [ ] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
+- [x] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
       pre-validacion que rechaza con detalle), re-correr el cruce, sincronizar bajas y recalcular el
-      saldo de alimento. Misma cascada al editar el lote reproductora.
-- [ ] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
-      recalcula. `yarn build`.
-- [ ] B9. Validacion: `dotnet build` 0 err / 0 warn · `dotnet test` verde · cuadre de alimento
-      antes/despues · smoke HTTP del 403/400/200.
+      saldo de alimento. Misma cascada al editar el lote reproductora. (`BeginTransaction` seguro:
+      `EnableRetryOnFailure` sigue apagado a proposito en `Program.cs`.)
+- [x] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
+      recalcula. `yarn build` 0 errores (12-sep).
+- [~] B9. Validacion 12-sep: `dotnet build ZooSanMarino.sln` OK · Application.Tests 4142/4144 con
+      artifacts aislados (los 2 de `RazaGuiaAliasParidadSqlTests` buscan `backend/sql` subiendo desde el
+      bin: en su ubicacion normal 98/98 del filtro, verdes) · cuadre antes/despues OK.
+      **NO corrido:** smoke HTTP del 403/400/200 de la cascada (exige backend + JWT minteado).
+- [i] Aviso a operacion, no defecto: el lote **257** (ciclo anterior de G0490) muestra −227 kg el
+      07/09 porque la reproductora consumio ese dia y el ingreso de alimento esta cargado el 08/09.
 
 ---
 

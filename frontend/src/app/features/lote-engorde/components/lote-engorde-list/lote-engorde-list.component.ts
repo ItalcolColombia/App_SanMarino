@@ -163,6 +163,20 @@ export class LoteEngordeListComponent implements OnInit {
    */
   readonly permCorregirAves = 'lote.corregir_aves';
   puedeCorregirAves = false;
+  /**
+   * Permiso para corregir la FECHA / HORA de encasetamiento de un lote que ya tiene registros.
+   *
+   * <p>Key aparte de `lote.corregir_aves` a pedido de operación: son dos correcciones distintas
+   * —cuántas aves entraron y cuándo entraron— y quieren poder darlas por separado. La fecha arrastra
+   * una cascada propia: propaga a los lotes reproductora, re-fecha el cruce hacia el seguimiento de
+   * pollo engorde y reescribe el saldo de alimento de toda la serie.</p>
+   *
+   * <p>Igual que el de aves: se guarda en un CAMPO, no en un getter (los permisos solo cambian con la
+   * sesión). El backend gatea el mismo caso por el DELTA contra lo persistido; esconder el input solo
+   * evita el 403.</p>
+   */
+  readonly permCorregirFechaEncaset = 'lote.corregir_fecha_encaset';
+  puedeCorregirFechaEncaset = false;
   lotesBase: LoteBaseEngordeDto[] = [];
   /** Lotes base visibles para la granja seleccionada en el form (activos + asignados a esa granja). */
   lotesBaseParaGranja: LoteBaseEngordeDto[] = [];
@@ -226,6 +240,7 @@ export class LoteEngordeListComponent implements OnInit {
   ngOnInit(): void {
     this.esPanama = this.countryFilter.isPanama();
     this.puedeCorregirAves = this.permSvc.has(this.permCorregirAves);
+    this.puedeCorregirFechaEncaset = this.permSvc.has(this.permCorregirFechaEncaset);
     this.initForm();
     this.loadLotes();
     this.loadLotesBase();

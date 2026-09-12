@@ -98,6 +98,13 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   /** Permission keys de los botones (patrón "modulo.accion"). */
   readonly PERM_EDITAR = 'lote_reproductora_engorde.editar';
   readonly PERM_ELIMINAR = 'lote_reproductora_engorde.eliminar';
+  /**
+   * Corregir la FECHA / HORA de encasetamiento de un lote con registros. Es el mismo permiso que
+   * gatea el lote de pollo engorde padre: mover la fecha acá corre las EDADES de todos los registros
+   * y, con ellas, qué día consolida el cruce hacia el seguimiento de pollo engorde. El backend lo
+   * enforcea por el DELTA contra lo persistido; esconder el input solo evita el 403.
+   */
+  readonly PERM_CORREGIR_FECHA_ENCASET = 'lote.corregir_fecha_encaset';
 
   constructor(
     private fb: FormBuilder,
@@ -114,6 +121,10 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   /** True si el usuario puede eliminar la reproductora. */
   get canEliminarPerm(): boolean {
     return this.permSvc.has(this.PERM_ELIMINAR);
+  }
+  /** True si el usuario puede corregir la fecha/hora de encasetamiento de un lote con registros. */
+  get canCorregirFechaEncasetPerm(): boolean {
+    return this.permSvc.has(this.PERM_CORREGIR_FECHA_ENCASET);
   }
 
   ngOnInit(): void {
