@@ -8331,3 +8331,23 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`]
       contable 04/09: levante **18 / 1 / 3.100 kg / saldo 9.981** (antes 15/0/3.000/9.985), producción
       **7 / 449 kg / saldo 2.858** (antes 5/399/2.860). Clon borrado, puertos libres.
 - [x] X5 Commit (este). Sin push ni deploy.
+
+## Flag de Santa Reyes por migración + revalidación del doble registro (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md) § Flag Santa Reyes
+
+- [x] F1. Migración data-only `20260912140000_SeedFlagMultiplesSeguimientosSantaReyes` (UPDATE por nombre,
+      `IS DISTINCT FROM`, `Down` vacío). `20260905015025` ya lo encendía al crear la columna; esta lo
+      garantiza al final de la serie del 12-sep.
+- [x] F2. Designer (= snapshot + 4 cambios) · `dotnet build` 0 err / 0 warn · Application.Tests 4144/4144.
+- [x] F3. Clon `sanmarinoapp_smoke_sr4` con el flag de SR puesto en **false** a propósito ⇒ el arranque del
+      backend aplicó `20260912100000`, `20260912130000` y `20260912140000` ⇒ `Santa Reyes => true`.
+- [x] F4. Ciclo completo por API contra el backend real:
+      alta (201) ⇒ aves LPL 9.985→9.981 y LPP 2.860→2.858, silo 13 1.500→1.400 y silo 7 401,009→351,009,
+      1 `Consumo #id` + 1 `INV_CONSUMO` por registro, huevos 3.577→3.677; grilla con `registrosDelDia`
+      672 (5/399) + 1101 (2/50); `/resultado` 155 = 200 con 18 / 3.100; reporte contable levante
+      18/1/3.100/saldo 9.981 y producción 7/449/saldo 2.858. Edición (200/204) ⇒ solo el delta (aves −1,
+      `ajuste` 50, `devolución` 20). Borrado (204) ⇒ aves, stock, huevos y fn EXACTOS a la foto inicial.
+      Contraprueba: INSERT de un 2.º registro del día en Sanmarino ⇒ 23505. Clon borrado, puertos libres.
+      Nota: `produccion_resultado_levante` queda con la foto del último `/resultado` hasta que se reabra «Cálculos».
+- [x] F5. Commit (este). Sin push ni deploy.
