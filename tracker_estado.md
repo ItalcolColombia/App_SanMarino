@@ -8284,3 +8284,27 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fa
       `filas-grilla-produccion.funcion.ts` (+3 casos de spec, 8/8). Re-smoke: 672 «4/9/2026 … H: 5»,
       1102 «4/9/2026 … H: 7».
 - [x] B9. `yarn build` del fix 0 errores + commit `fix(produccion): el dialogo de eliminar...`. Sin push ni deploy.
+
+## Validación end-to-end · Santa Reyes varios seguimientos por día, levante + producción (12-sep-2026)
+
+Clon descartable `sanmarinoapp_smoke_sr2` (borrado al terminar) + backend aislado + API firmada y pantalla.
+Lotes: levante LOTE 217A (LPL 47, silo 13) y producción P-LOTE 218A (LPP 20, silo 7), país Colombia.
+
+- [x] V-A. Alta de un 2.º registro el 04/09 en cada fase (201): aves LPL 9.985→9.981 (mort 3 + sel 1);
+      saldo LPP (fn) 2.860→2.858; stock silo 13 1.500→1.400 y silo 7 401,009→351,009; un `Consumo`
+      con referencia `#id` y su fila `INV_CONSUMO` en el histórico por registro, con el silo correcto;
+      espejo de huevos 3.577→3.677; fn de levante y de producción agrupan el día (18/1/3.100 · 7/449/100).
+- [x] V-E. Edición (200/204): levante mort 3→4 y 100→150 kg ⇒ aves −1 y `Consumo (ajuste)` 50; producción
+      50→30 kg ⇒ `Ingreso (devolución)` 20. Solo se movió lo del registro editado.
+- [x] V-D. Borrado (204): aves, stock, espejo y fns vuelven EXACTOS a la foto inicial; compensa con
+      `Ingreso (devolución por eliminación)` (+6 movimientos y +6 histórico, ninguno anulado).
+- [x] V-P. Pantalla: grilla de levante «04/09 · 2 registros» + «↳ 2.º del día» (saldo 9.985 → 9.981) y de
+      producción 672 «2 registros» + 1102 «↳ 2.º del día», cada fila con Ver/Editar/Eliminar.
+- [ ] V-X1. 🔴 PREEXISTENTE (toda empresa, desde may-2026): `GET /api/SeguimientoLoteLevante/por-lote/{id}/resultado`
+      = 500 `sp_recalcular_seguimiento_levante(integer) does not exist` — el SP es `(text)` y
+      `SeguimientoLoteLevanteService.Consultas.cs:119` pasa `int`. El modal «Cálculos» de levante queda vacío
+      sin avisar y `produccion_resultado_levante` no se recalcula. Pendiente de decisión del usuario.
+- [ ] V-X2. 🔴 Reporte contable semanal (`ReporteContableService.CalculoSemanal.cs:301-302`) hace
+      `FirstOrDefault(lote, fecha)` sobre filas crudas ⇒ con 2 registros el día muestra UNO: medido levante
+      15 / 0 / 3.000 kg / saldo 9.985 (real 18 / 1 / 3.100 / 9.981) y producción 5 / 399 kg / 2.860
+      (real 7 / 449 / 2.858). Pendiente de decisión del usuario.
