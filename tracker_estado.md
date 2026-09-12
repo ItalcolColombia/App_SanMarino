@@ -8197,3 +8197,61 @@ galpones sin ciclo vivo que el proximo encaset heredaria.
       Verificar despues con `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` (consulta 3
       ajustando la fecha al dia del despliegue: tiene que salir VACIA; consulta 4: `dif_kg` sin los
       kilos huerfanos).
+
+---
+
+## Ticket Panama 11sep26 — la fecha del encasetamiento se edita y RECALCULA (lote 255 «95 - 3»)
+
+Plan: [`fase_de_desarrollo/fecha_encaset_recalculo_cascada_plan.md`](fase_de_desarrollo/fecha_encaset_recalculo_cascada_plan.md)
+
+Diagnostico: el cruce reproductora->engorde **desplaza dos veces** cuando la reproductora ya arranco
+en la edad 1 por la misma llegada tardia. El guarda C# dice que el primer dia del lote 255 es el
+**04/09** y la fn escribe el **05/09**. Radio: **4 lotes de Panama** (239, 255, 256, 257); Ecuador,
+Demo y Sanmarino tienen 0 filas de cruce.
+
+- [ ] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
+      `GREATEST(0, desp - primera_edad)` + tests xUnit (incluye el caso del ticket: 21:35 / edad 1 → 0).
+- [ ] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
+      `backend/sql/fn_cruce_reproductora_a_engorde.sql` + migracion (`.cs` + `.Fn.cs` + `.Designer.cs`)
+      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
+- [ ] B3. **GATE MULTIPAIS** obligatorio: `EXCEPT` en los dos sentidos, todas las columnas, todos los
+      lotes de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino = 0. Unicos cambios
+      esperados: 239, 255, 256, 257.
+- [ ] B4. Remediacion de datos por migracion: recalcular el cruce de 255/256/257 y **corregir todo el
+      239** (cruce + sus 5 filas manuales un dia atras, ASC, serie contigua sin hueco).
+- [ ] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
+      `lote.corregir_aves` + rol 1, `company_permissions` en todas las empresas).
+- [ ] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
+      ya tiene registros) + calculo puro de autorizacion con tests.
+- [ ] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
+      pre-validacion que rechaza con detalle), re-correr el cruce, sincronizar bajas y recalcular el
+      saldo de alimento. Misma cascada al editar el lote reproductora.
+- [ ] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
+      recalcula. `yarn build`.
+- [ ] B9. Validacion: `dotnet build` 0 err / 0 warn · `dotnet test` verde · cuadre de alimento
+      antes/despues · smoke HTTP del 403/400/200.
+
+---
+
+# Varios seguimientos por día — que el flag de Empresa alcance de verdad (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md)
+
+- [x] V0. Auditoría: H1-H7 (alta/edición de producción y edición de levante no leen el flag; índices
+      únicos por instante y por día con `company_id` horneado). Decisión del usuario: trigger por fila.
+- [x] V1. Cálculo puro `SeguimientoVariosPorDiaCalculos` + tests xUnit.
+- [x] V2. `ProduccionService.Seguimiento.cs`: alta (2 ramas) y edición delegan en el cálculo.
+- [x] V3. `SeguimientoDiarioService.UpdateAsync` (levante) delega en el cálculo.
+- [x] V4. Modelo EF: índice (lote, fecha) de producción no único + snapshot.
+- [x] V5. Migración `20260912100000_SeguimientoUnicoPorDiaSigueFlagEmpresa` + Designer + espejo
+      `fn_trg_seguimiento_unico_por_dia.sql`. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V6. `dotnet build ZooSanMarino.sln` 0 errores · `dotnet test` Application.Tests 4129/4129 verdes ·
+      gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V7. Migración validada por transacción con ROLLBACK sobre `sanmarinoapplocal` (12-sep): 2 pasadas
+      del `Up` sin error; 9/9 casos OK — producción y levante ON (Santa Reyes) insertan el 2.º del día,
+      OFF (Sanmarino, Demo) rechazan 23505, UPDATE no clave pasa, apagar el flag de Santa Reyes al vuelo
+      rechaza el 3.º, encender el de Sanmarino al vuelo deja pasar producción y levante sin migración.
+      `Down` restaura los 4 índices únicos con predicados idénticos a los de hoy y quita los triggers.
+      ⚠️ Reproductora con flag no se pudo ejercitar: la BD local no tiene filas `reproductora` en
+      `seguimiento_diario_levante` (lo cubre el test puro + el literal `'levante'` del trigger).
+- [ ] V8. Fase B (grilla de producción fila por registro): pendiente de decisión del usuario.

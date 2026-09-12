@@ -567,7 +567,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
                 .AnyAsync(s => s.Id != dto.Id && s.TipoSeguimiento == tipo && s.LoteId == loteId
                     && (s.ReproductoraId ?? "") == repForUnique
                     && s.Fecha.Date == fechaNorm.Date, ct);
-        if (duplicado)
+        // Con el flag de empresa ON, un registro de LEVANTE se puede editar aunque su día tenga otro
+        // (mismo criterio que el alta). Reproductora sigue con uno por día.
+        if (duplicado && SeguimientoVariosPorDiaCalculos.AplicaUnicoPorDiaLevante(
+                tipo, await PermiteMultiplesSeguimientosDiariosAsync(ct)))
             throw new InvalidOperationException("Ya existe otro seguimiento para ese tipo, lote, reproductora (si aplica) y fecha.");
 
         // Capturar valores OLD antes de sobrescribir (para descuento LPP)
