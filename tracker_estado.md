@@ -8361,7 +8361,10 @@ Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep2
 - [x] D2. `main-produccion` avanza por PR main→main-produccion (#101 = `ba34c65`); su árbol es idéntico al
       merge-base `f85994d` ⇒ sin divergencia de contenido; `merge-tree` sin conflictos.
 - [x] D3. 7 gates del CI en local: OK.
-- [ ] D4. CI equivalente sobre worktree limpio de `main` (dotnet test Release + yarn test + gates).
+- [x] D4. CI equivalente sobre worktree limpio de `main` (dotnet test Release + yarn test + gates).
+      **Final sobre `35abf15`**: `yarn test` ChromeHeadless **867/867** (859 de prod + 8 nuevos); `dotnet test`
+      Release OK (Application 4.121 + Domain 1, backend sin cambios desde `218dad9`); 7 gates OK. Worktree con
+      `node_modules` propio (sin junction).
       Primera corrida sobre `218dad9`: dotnet test Release OK (Application 4.121 + Domain 1), 7 gates OK,
       **`yarn test` 5 FAILED de 867** — todos en `tabs-principal.component.spec.ts` («no encuentra la fila»).
       Lo desplegado (`ba34c65`) da 859/859 en esta misma máquina ⇒ la regresión era de la fase B, no del
