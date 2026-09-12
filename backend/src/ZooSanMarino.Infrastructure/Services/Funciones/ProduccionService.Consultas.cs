@@ -103,6 +103,23 @@ public partial class ProduccionService
             : ordenadas.Skip((pageSafe - 1) * sizeSafe).Take(sizeSafe).ToList();
 
         var items = pagina.Select(f => MapFnRowToSeguimientoItemDto(f, produccionLoteId)).ToList();
+
+        // Flag de empresa ON: la fn agrupa el día y su fila lleva MIN(seg_id), así que el 2.º registro
+        // no tendría fila para editar/validar/eliminar. Se le cuelgan los registros reales del día
+        // (misma población que `crudos` de la fn). Flag OFF: ni se consulta, respuesta idéntica.
+        if (items.Count > 0 && await PermiteMultiplesSeguimientosDiariosAsync().ConfigureAwait(false))
+        {
+            var crudos = _context.SeguimientoProduccion.AsNoTracking().Where(s => s.DeletedAt == null);
+            crudos = fnLppId.HasValue
+                ? crudos.Where(s => s.LotePosturaProduccionId == fnLppId.Value
+                    || (s.LotePosturaProduccionId == null && produccionLoteId > 0 && s.LoteId == produccionLoteId))
+                : crudos.Where(s => s.LoteId == fnLoteId!.Value);
+
+            var registros = await crudos.ToListAsync().ConfigureAwait(false);
+            items = SeguimientoProduccionRegistrosDelDiaCalculos.Adjuntar(
+                items, registros.Select(e => MapToSeguimientoItemDto(e, produccionLoteId)));
+        }
+
         return new ListaSeguimientoResponse(items, total);
     }
 

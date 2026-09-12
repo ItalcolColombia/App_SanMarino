@@ -8197,3 +8197,181 @@ galpones sin ciclo vivo que el proximo encaset heredaria.
       Verificar despues con `backend/sql/verificar_ajuste_cuadre_huerfano_engorde.sql` (consulta 3
       ajustando la fecha al dia del despliegue: tiene que salir VACIA; consulta 4: `dif_kg` sin los
       kilos huerfanos).
+
+---
+
+## Ticket Panama 11sep26 — la fecha del encasetamiento se edita y RECALCULA (lote 255 «95 - 3»)
+
+Plan: [`fase_de_desarrollo/fecha_encaset_recalculo_cascada_plan.md`](fase_de_desarrollo/fecha_encaset_recalculo_cascada_plan.md)
+
+Diagnostico: el cruce reproductora->engorde **desplaza dos veces** cuando la reproductora ya arranco
+en la edad 1 por la misma llegada tardia. El guarda C# dice que el primer dia del lote 255 es el
+**04/09** y la fn escribe el **05/09**. Radio: **4 lotes de Panama** (239, 255, 256, 257); Ecuador,
+Demo y Sanmarino tienen 0 filas de cruce.
+
+- [ ] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
+      `GREATEST(0, desp - primera_edad)` + tests xUnit (incluye el caso del ticket: 21:35 / edad 1 → 0).
+- [ ] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
+      `backend/sql/fn_cruce_reproductora_a_engorde.sql` + migracion (`.cs` + `.Fn.cs` + `.Designer.cs`)
+      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
+- [ ] B3. **GATE MULTIPAIS** obligatorio: `EXCEPT` en los dos sentidos, todas las columnas, todos los
+      lotes de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino = 0. Unicos cambios
+      esperados: 239, 255, 256, 257.
+- [ ] B4. Remediacion de datos por migracion: recalcular el cruce de 255/256/257 y **corregir todo el
+      239** (cruce + sus 5 filas manuales un dia atras, ASC, serie contigua sin hueco).
+- [ ] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
+      `lote.corregir_aves` + rol 1, `company_permissions` en todas las empresas).
+- [ ] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
+      ya tiene registros) + calculo puro de autorizacion con tests.
+- [ ] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
+      pre-validacion que rechaza con detalle), re-correr el cruce, sincronizar bajas y recalcular el
+      saldo de alimento. Misma cascada al editar el lote reproductora.
+- [ ] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
+      recalcula. `yarn build`.
+- [ ] B9. Validacion: `dotnet build` 0 err / 0 warn · `dotnet test` verde · cuadre de alimento
+      antes/despues · smoke HTTP del 403/400/200.
+
+---
+
+# Varios seguimientos por día — que el flag de Empresa alcance de verdad (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_flag_dinamico_plan.md)
+
+- [x] V0. Auditoría: H1-H7 (alta/edición de producción y edición de levante no leen el flag; índices
+      únicos por instante y por día con `company_id` horneado). Decisión del usuario: trigger por fila.
+- [x] V1. Cálculo puro `SeguimientoVariosPorDiaCalculos` + tests xUnit.
+- [x] V2. `ProduccionService.Seguimiento.cs`: alta (2 ramas) y edición delegan en el cálculo.
+- [x] V3. `SeguimientoDiarioService.UpdateAsync` (levante) delega en el cálculo.
+- [x] V4. Modelo EF: índice (lote, fecha) de producción no único + snapshot.
+- [x] V5. Migración `20260912100000_SeguimientoUnicoPorDiaSigueFlagEmpresa` + Designer + espejo
+      `fn_trg_seguimiento_unico_por_dia.sql`. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V6. `dotnet build ZooSanMarino.sln` 0 errores · `dotnet test` Application.Tests 4129/4129 verdes ·
+      gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V7. Migración validada por transacción con ROLLBACK sobre `sanmarinoapplocal` (12-sep): 2 pasadas
+      del `Up` sin error; 9/9 casos OK — producción y levante ON (Santa Reyes) insertan el 2.º del día,
+      OFF (Sanmarino, Demo) rechazan 23505, UPDATE no clave pasa, apagar el flag de Santa Reyes al vuelo
+      rechaza el 3.º, encender el de Sanmarino al vuelo deja pasar producción y levante sin migración.
+      `Down` restaura los 4 índices únicos con predicados idénticos a los de hoy y quita los triggers.
+      ⚠️ Reproductora con flag no se pudo ejercitar: la BD local no tiene filas `reproductora` en
+      `seguimiento_diario_levante` (lo cubre el test puro + el literal `'levante'` del trigger).
+- [x] V8. Commit fase A (`d7ee3df`). Usuario pidió seguir con la fase B.
+
+## Fase B · Grilla de producción: una fila por registro
+
+- [x] B1. Diseño: la fila agrupada de la fn NO se reemplaza (indicadores/gráfica/Excel cuentan días);
+      viaja `SeguimientoItemDto.RegistrosDelDia` solo en días con 2+ registros y solo con el flag ON.
+- [x] B2. Cálculo puro `SeguimientoProduccionRegistrosDelDiaCalculos` (día Bogotá como la fn) + tests.
+- [x] B3. `ProduccionService.ListarSeguimientoAsync` adjunta los registros crudos (misma población que `crudos`).
+- [x] B4. Front: `funciones/filas-grilla-produccion.funcion.ts` + spec; `tabs-principal` itera `filasGrilla`
+      (fecha/edad/semana/etapa solo en el 1.º, «↳ N.º del día» en el resto) y Primera/Pnc por registro.
+- [x] B5. `dotnet build ZooSanMarino.sln` 0 err / 0 warn · Application.Tests 4134/4134 (5 nuevos) ·
+      `yarn build` 0 err / 0 warn · `ng test --include filas-grilla-produccion.funcion.spec.ts` 5/5.
+- [~] B6. Smoke en BD con ROLLBACK (12-sep): LPP 20 / lote 152 de Santa Reyes, 2.º registro el mismo día
+      ⇒ la fn da 1 fila (seg 672, mortalidad H 5+7=12) y el filtro espejo del C# de `ListarSeguimientoAsync`
+      trae los 2 registros (672, 1030); flags 1=false / 6=true. **NO corrido:** smoke HTTP del endpoint
+      ni prueba por pantalla (exige JWT minteado + `X-Secret-Up` + fila en `sesiones_activas`).
+- [x] B7. Commit `e84dd0f` (fase A en `d7ee3df`). Sin push ni deploy.
+- [x] B6'. **Smoke por pantalla con Santa Reyes (12-sep)** sobre un CLON descartable de la BD local
+      (`sanmarinoapp_smoke_sr`, backend :5002 con content root propio; el arranque aplicó la migración
+      `20260912100000` por el pipeline real de EF). Admin Santa Reyes → P-LOTE 218A (LPP 20):
+      «Nuevo registro» 04/09 ⇒ POST 201; grilla `672 · 2 registros` + `1101 ↳ 2.º del día` con sus
+      botones; BD: los dos a la MISMA hora (el índice por instante ya no bloquea), fn 1 fila mort 5+7=12,
+      header «Registros» = 3 (días). Editar 1101 ⇒ PUT 204 (antes 400 «Ya existe…»), grilla 9 y 672
+      intacto. Eliminar 1101 ⇒ DELETE 204, 672 intacto. Clon borrado, puertos libres.
+- [x] B8. 🔴 **Defecto que solo vio el smoke:** el diálogo de Eliminar buscaba el registro con
+      `seguimientos.find(id)` ⇒ para el 2.º del día «con fecha .» y «H: 0» (tampoco detectaría un
+      traslado), y para el 1.º mostraba los TOTALES del día (H: 12). Fix: `buscarRegistroPorId` en
+      `filas-grilla-produccion.funcion.ts` (+3 casos de spec, 8/8). Re-smoke: 672 «4/9/2026 … H: 5»,
+      1102 «4/9/2026 … H: 7».
+- [x] B9. `yarn build` del fix 0 errores + commit `fix(produccion): el dialogo de eliminar...`. Sin push ni deploy.
+
+## Validación end-to-end · Santa Reyes varios seguimientos por día, levante + producción (12-sep-2026)
+
+Clon descartable `sanmarinoapp_smoke_sr2` (borrado al terminar) + backend aislado + API firmada y pantalla.
+Lotes: levante LOTE 217A (LPL 47, silo 13) y producción P-LOTE 218A (LPP 20, silo 7), país Colombia.
+
+- [x] V-A. Alta de un 2.º registro el 04/09 en cada fase (201): aves LPL 9.985→9.981 (mort 3 + sel 1);
+      saldo LPP (fn) 2.860→2.858; stock silo 13 1.500→1.400 y silo 7 401,009→351,009; un `Consumo`
+      con referencia `#id` y su fila `INV_CONSUMO` en el histórico por registro, con el silo correcto;
+      espejo de huevos 3.577→3.677; fn de levante y de producción agrupan el día (18/1/3.100 · 7/449/100).
+- [x] V-E. Edición (200/204): levante mort 3→4 y 100→150 kg ⇒ aves −1 y `Consumo (ajuste)` 50; producción
+      50→30 kg ⇒ `Ingreso (devolución)` 20. Solo se movió lo del registro editado.
+- [x] V-D. Borrado (204): aves, stock, espejo y fns vuelven EXACTOS a la foto inicial; compensa con
+      `Ingreso (devolución por eliminación)` (+6 movimientos y +6 histórico, ninguno anulado).
+- [x] V-P. Pantalla: grilla de levante «04/09 · 2 registros» + «↳ 2.º del día» (saldo 9.985 → 9.981) y de
+      producción 672 «2 registros» + 1102 «↳ 2.º del día», cada fila con Ver/Editar/Eliminar.
+- [ ] V-X1. 🔴 PREEXISTENTE (toda empresa, desde may-2026): `GET /api/SeguimientoLoteLevante/por-lote/{id}/resultado`
+      = 500 `sp_recalcular_seguimiento_levante(integer) does not exist` — el SP es `(text)` y
+      `SeguimientoLoteLevanteService.Consultas.cs:119` pasa `int`. El modal «Cálculos» de levante queda vacío
+      sin avisar y `produccion_resultado_levante` no se recalcula. Pendiente de decisión del usuario.
+- [ ] V-X2. 🔴 Reporte contable semanal (`ReporteContableService.CalculoSemanal.cs:301-302`) hace
+      `FirstOrDefault(lote, fecha)` sobre filas crudas ⇒ con 2 registros el día muestra UNO: medido levante
+      15 / 0 / 3.000 kg / saldo 9.985 (real 18 / 1 / 3.100 / 9.981) y producción 5 / 399 kg / 2.860
+      (real 7 / 449 / 2.858). Pendiente de decisión del usuario.
+
+## Corrección V-X1 / V-X2 (aprobada 12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md)
+
+- [x] X1.1 `Consultas.cs:119` SP con texto + `HasConversion<string>()` en `LoteId` + snapshot `text`
+      (la entidad declaraba integer y la columna es text: arreglar solo el SP no alcanzaba).
+- [x] X1.2 Migración idempotente `20260912130000_ProduccionResultadoLevanteLoteIdTexto` + Designer.
+- [x] X1.3 Gate: `sp_recalcular_seguimiento_levante(text)` para los 18 lotes de levante de la BD local
+      (Sanmarino 11 / Demo 5 / Santa Reyes 2) en transacción revertida ⇒ **0 errores**, 1.156 filas;
+      tabla intacta tras el ROLLBACK (11 filas).
+- [x] X2.1 `ReporteContableSeguimientoDiaCalculos` (puro, nulls preservados) + 10 tests.
+- [x] X2.2 `CalculoSemanal.cs` agrupa levante / producción / fallback antes del `FirstOrDefault`.
+      Único cambio medido en local: 3 días de Demo (manual + fila de traslado) donde el reporte podía
+      mostrar mortalidad 0 — ahora muestra la del manual.
+- [x] X3 `dotnet build ZooSanMarino.sln` 0 err / 0 warn · Application.Tests 4144/4144 (10 nuevos) · gate
+      sql-migración OK · snapshot: 1 línea (`integer`→`text`), Designer = snapshot + 4 cambios.
+- [x] X4 Smoke en clon `sanmarinoapp_smoke_sr3` (backend con el fix; el arranque aplicó `20260912130000`):
+      `/resultado` lote 155 = **200** ya sin registros nuevos (antes 500); con el 2.º registro del 04/09
+      la fila pasa de 15/3.000 a **18/3.100** y `produccion_resultado_levante` guarda esa fila. Reporte
+      contable 04/09: levante **18 / 1 / 3.100 kg / saldo 9.981** (antes 15/0/3.000/9.985), producción
+      **7 / 449 kg / saldo 2.858** (antes 5/399/2.860). Clon borrado, puertos libres.
+- [x] X5 Commit (este). Sin push ni deploy.
+
+## Flag de Santa Reyes por migración + revalidación del doble registro (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`](fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md) § Flag Santa Reyes
+
+- [x] F1. Migración data-only `20260912140000_SeedFlagMultiplesSeguimientosSantaReyes` (UPDATE por nombre,
+      `IS DISTINCT FROM`, `Down` vacío). `20260905015025` ya lo encendía al crear la columna; esta lo
+      garantiza al final de la serie del 12-sep.
+- [x] F2. Designer (= snapshot + 4 cambios) · `dotnet build` 0 err / 0 warn · Application.Tests 4144/4144.
+- [x] F3. Clon `sanmarinoapp_smoke_sr4` con el flag de SR puesto en **false** a propósito ⇒ el arranque del
+      backend aplicó `20260912100000`, `20260912130000` y `20260912140000` ⇒ `Santa Reyes => true`.
+- [x] F4. Ciclo completo por API contra el backend real:
+      alta (201) ⇒ aves LPL 9.985→9.981 y LPP 2.860→2.858, silo 13 1.500→1.400 y silo 7 401,009→351,009,
+      1 `Consumo #id` + 1 `INV_CONSUMO` por registro, huevos 3.577→3.677; grilla con `registrosDelDia`
+      672 (5/399) + 1101 (2/50); `/resultado` 155 = 200 con 18 / 3.100; reporte contable levante
+      18/1/3.100/saldo 9.981 y producción 7/449/saldo 2.858. Edición (200/204) ⇒ solo el delta (aves −1,
+      `ajuste` 50, `devolución` 20). Borrado (204) ⇒ aves, stock, huevos y fn EXACTOS a la foto inicial.
+      Contraprueba: INSERT de un 2.º registro del día en Sanmarino ⇒ 23505. Clon borrado, puertos libres.
+      Nota: `produccion_resultado_levante` queda con la foto del último `/resultado` hasta que se reabra «Cálculos».
+- [x] F5. Commit (este). Sin push ni deploy.
+
+## Paso a `main-produccion` (preparación, 12-sep-2026)
+
+Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep26.md`
+
+- [x] D1. Rango: 7 commits propios `d7ee3df..218dad9` (origin/main en `f85994d`, sin pushear). 3 migraciones:
+      `20260912100000`, `20260912130000`, `20260912140000`.
+- [x] D2. `main-produccion` avanza por PR main→main-produccion (#101 = `ba34c65`); su árbol es idéntico al
+      merge-base `f85994d` ⇒ sin divergencia de contenido; `merge-tree` sin conflictos.
+- [x] D3. 7 gates del CI en local: OK.
+- [x] D4. CI equivalente sobre worktree limpio de `main` (dotnet test Release + yarn test + gates).
+      **Final sobre `35abf15`**: `yarn test` ChromeHeadless **867/867** (859 de prod + 8 nuevos); `dotnet test`
+      Release OK (Application 4.121 + Domain 1, backend sin cambios desde `218dad9`); 7 gates OK. Worktree con
+      `node_modules` propio (sin junction).
+      Primera corrida sobre `218dad9`: dotnet test Release OK (Application 4.121 + Domain 1), 7 gates OK,
+      **`yarn test` 5 FAILED de 867** — todos en `tabs-principal.component.spec.ts` («no encuentra la fila»).
+      Lo desplegado (`ba34c65`) da 859/859 en esta misma máquina ⇒ la regresión era de la fase B, no del
+      entorno: el spec asigna `component.seguimientos` directo y `filasGrilla` solo se armaba en
+      `ngOnChanges`. Fix: `seguimientos` pasa a setter que arma `filasGrilla`. El CI habría cortado el deploy.
+      Re-test de los 2 specs afectados con el fix: **13/13**. ⚠️ Incidente de la verificación: al borrar el
+      worktree `prod-base` con `git worktree remove --force`, la junction vació `frontend/node_modules`
+      compartido; reparado con `yarn install --frozen-lockfile` (36.502 archivos, sin cambio de versiones).
+- [ ] D5. OK del usuario ⇒ `git push origin main` + PR #102 main→main-produccion (no despliega).
+- [ ] D6. OK del usuario ⇒ merge del PR (dispara deploy) + verificación post-deploy ECS + smoke en prod.

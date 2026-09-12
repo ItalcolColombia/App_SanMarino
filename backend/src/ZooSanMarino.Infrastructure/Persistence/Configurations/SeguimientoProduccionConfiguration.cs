@@ -261,8 +261,10 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
         builder.Property(x => x.ValidadoAt).HasColumnName("validado_at");
         builder.Property(x => x.ValidadoPor).HasColumnName("validado_por").HasMaxLength(64);
 
-        // Índice único por lote y fecha
-        builder.HasIndex(x => new { x.LoteId, x.Fecha }).IsUnique();
+        // Índice por lote y fecha, NO único: «un registro por lote y por día» lo exige el trigger
+        // fn_trg_seguimiento_produccion_unico_por_dia solo en las empresas sin
+        // permite_multiples_seguimientos_diarios (migración 20260912100000).
+        builder.HasIndex(x => new { x.LoteId, x.Fecha });
     }
 }
 

@@ -52,7 +52,9 @@ public partial class ProduccionService
             var existenteLpp = await _context.SeguimientoProduccion
                 .FirstOrDefaultAsync(s => (s.LotePosturaProduccionId == lotePosturaProduccionId || s.LoteId == loteId)
                     && s.Fecha >= diaDesde && s.Fecha < diaHasta);
-            filaArrastre = ResolverFilaDuplicada(existenteLpp, "Ya existe un seguimiento para esta fecha y lote.");
+            filaArrastre = ResolverFilaDuplicada(existenteLpp,
+                existenteLpp is not null && await PermiteMultiplesSeguimientosDiariosAsync(),
+                "Ya existe un seguimiento para esta fecha y lote.");
         }
         else
         {
@@ -71,7 +73,9 @@ public partial class ProduccionService
             var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
             var existente = await _context.SeguimientoProduccion
                 .FirstOrDefaultAsync(s => s.LoteId == loteId && s.Fecha >= diaDesde && s.Fecha < diaHasta);
-            filaArrastre = ResolverFilaDuplicada(existente, "Ya existe un seguimiento para esta fecha.");
+            filaArrastre = ResolverFilaDuplicada(existente,
+                existente is not null && await PermiteMultiplesSeguimientosDiariosAsync(),
+                "Ya existe un seguimiento para esta fecha.");
         }
 
         await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
@@ -313,11 +317,36 @@ public partial class ProduccionService
     /// En cualquier otro caso lanza con el mensaje historico, es decir el 400 de siempre para todos
     /// los casos que ya existian (filas manuales, de traslado de aves, etc.).
     /// </summary>
-    private static SeguimientoProduccion? ResolverFilaDuplicada(SeguimientoProduccion? existente, string mensaje)
+    private static SeguimientoProduccion? ResolverFilaDuplicada(
+        SeguimientoProduccion? existente, bool permiteMultiples, string mensaje)
     {
-        if (existente is null) return null;
-        if (HuevosLevanteCalculos.PermiteMergeSeguimiento(existente.Metadata)) return existente;
-        throw new InvalidOperationException(mensaje);
+        var decision = SeguimientoVariosPorDiaCalculos.ResolverAltaProduccion(
+            hayRegistroDelDia: existente is not null,
+            esFilaDeArrastre: existente is not null && HuevosLevanteCalculos.PermiteMergeSeguimiento(existente.Metadata),
+            permiteMultiples: permiteMultiples);
+
+        return decision switch
+        {
+            AltaSeguimientoDelDia.MergearSobreArrastre => existente,
+            AltaSeguimientoDelDia.Insertar => null,
+            _ => throw new InvalidOperationException(mensaje)
+        };
+    }
+
+    /// <summary>
+    /// ¿La empresa activa acepta más de un seguimiento por lote y por día
+    /// (<c>companies.permite_multiples_seguimientos_diarios</c>)? Fail-closed: sin empresa resoluble
+    /// devuelve <c>false</c>, que es el comportamiento de siempre (uno por día).
+    /// </summary>
+    private async Task<bool> PermiteMultiplesSeguimientosDiariosAsync()
+    {
+        var companyId = _currentUser.CompanyId;
+        if (companyId <= 0) return false;
+        return await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.PermiteMultiplesSeguimientosDiarios)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -522,7 +551,9 @@ public partial class ProduccionService
                     || (lotePosturaProduccionId.HasValue && s.LotePosturaProduccionId == lotePosturaProduccionId))
                 && s.Fecha >= diaDesdeEd && s.Fecha < diaHastaEd)
             .ConfigureAwait(false);
-        if (duplicadoDia)
+        if (duplicadoDia && SeguimientoVariosPorDiaCalculos.RechazaEdicionProduccion(
+                hayOtroRegistroDelDia: true,
+                permiteMultiples: await PermiteMultiplesSeguimientosDiariosAsync().ConfigureAwait(false)))
             throw new InvalidOperationException("Ya existe un seguimiento para esta fecha y lote.");
 
         // Fase 2 (S4) — capturar el consumo ANTERIOR (desde el metadata guardado) ANTES de pisarlo,

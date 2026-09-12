@@ -10,6 +10,7 @@ import { fechaCortaSinTz as fmtFecha } from '../../../../shared/utils/format';
 import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../shared/services/validacion-seguimiento.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { buscarRegistroPorId } from '../../funciones/filas-grilla-produccion.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { finalize, map, tap } from 'rxjs/operators';
@@ -1134,7 +1135,10 @@ Validar DESCUENTA el alimento del inventario y las aves del maestro del lote, y 
    *  tiene traslado (paridad con Levante — Feature 14). */
   deleteDailyTracking(id: number): void {
     if (this.bloqueadoPorLoteCerrado()) return;
-    const seg = (this.seguimientos as any[]).find(s => s.id === id);
+    // Busca también en `registrosDelDia`: en un día con varios registros la fila del día trae los
+    // totales y el id del primero, así que un `find` sobre `seguimientos` daba fecha vacía / 0 aves
+    // para el 2.º y los totales del día para el 1.º.
+    const seg: any = buscarRegistroPorId(this.seguimientos, id);
     this.deleteConfirmId = id;
 
     const ingH = seg?.trasladoIngresoHembras ?? 0;

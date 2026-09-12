@@ -116,7 +116,9 @@ public partial class SeguimientoLoteLevanteService
             throw new InvalidOperationException($"Lote '{loteId}' no existe o no pertenece a la compañía.");
 
         if (recalcular)
-            await _ctx.Database.ExecuteSqlInterpolatedAsync($"select sp_recalcular_seguimiento_levante({loteId})");
+            // El SP es (l_lote_id text) desde 20260531180558: con un int Postgres no encuentra la
+            // firma (42883) y el endpoint respondía 500 en toda empresa.
+            await _ctx.Database.ExecuteSqlInterpolatedAsync($"select sp_recalcular_seguimiento_levante({loteId.ToString()})");
 
         var q = from r in _ctx.ProduccionResultadoLevante.AsNoTracking()
                 where r.LoteId == loteId

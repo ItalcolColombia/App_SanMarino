@@ -256,6 +256,12 @@ export interface SeguimientoItemDto {
   // Error sexaje (paridad con Levante)
   errorSexajeHembras?: number;
   errorSexajeMachos?: number;
+  /**
+   * Varios registros el mismo día (flag `permiteMultiplesSeguimientosDiarios`): solo lo trae el
+   * listado, y solo en un día con 2+ registros. Son los registros reales que componen esta fila
+   * agrupada; la tabla les da fila propia. Indicadores, gráfica y Excel siguen leyendo la fila del día.
+   */
+  registrosDelDia?: SeguimientoItemDto[] | null;
 }
 
 export interface ListaSeguimientoResponse {

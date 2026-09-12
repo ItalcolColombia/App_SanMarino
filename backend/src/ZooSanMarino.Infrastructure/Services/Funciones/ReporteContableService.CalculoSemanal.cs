@@ -174,11 +174,11 @@ public partial class ReporteContableService
         var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
 
         // Plantillas para crear listas vacías con el tipo correcto (patrón C# para anonymous types)
-        var _levanteTemplate = new { LoteId = 0, Fecha = DateTime.MinValue, MortalidadHembras = (int?)null, MortalidadMachos = (int?)null, SelH = (int?)null, SelM = (int?)null, ConsumoKgHembras = (decimal?)null, ConsumoKgMachos = (decimal?)null };
-        var _prodTemplate    = new { LoteId = 0, Fecha = DateTime.MinValue, MortalidadH = 0, MortalidadM = 0, SelH = 0, ConsKgH = 0m, ConsKgM = 0m };
+        // Los registros se consolidan por (lote, día) ANTES del FirstOrDefault de abajo: con
+        // permite_multiples_seguimientos_diarios un día puede tener varios y el reporte mostraba uno.
 
         // ── LEVANTE: datos desde seguimiento_diario (tipo = "levante") ──────────
-        var datosLevante = new[] { _levanteTemplate }.Take(0).ToList();
+        var datosLevante = new List<SeguimientoLevanteContableFila>();
         if (faseLote != "Produccion")
         {
             var queryLevante = _ctx.SeguimientoDiario
@@ -194,14 +194,13 @@ public partial class ReporteContableService
                 .Select(s => new { s.LoteId, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
                 .ToListAsync(ct);
 
-            datosLevante = datosLevanteRaw
-                .Select(s => new { LoteId = int.TryParse(s.LoteId, out var id) ? id : 0, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
-                .Where(x => x.LoteId > 0)
-                .ToList();
+            datosLevante = ReporteContableSeguimientoDiaCalculos.AgruparLevantePorLoteDia(datosLevanteRaw
+                .Select(s => new SeguimientoLevanteContableFila(int.TryParse(s.LoteId, out var id) ? id : 0, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos))
+                .Where(x => x.LoteId > 0));
         }
 
         // ── PRODUCCIÓN: desde SeguimientoProduccion (produccion_diaria) o seguimiento_diario fallback ──
-        var datosProduccion = new[] { _prodTemplate }.Take(0).ToList();
+        var datosProduccion = new List<SeguimientoProduccionContableFila>();
         if (faseLote != "Levante")
         {
             // Primero intentar desde SeguimientoProduccion (tabla produccion_diaria)
@@ -220,7 +219,8 @@ public partial class ReporteContableService
 
             if (produccionDiariaRaw.Any())
             {
-                datosProduccion = produccionDiariaRaw.ToList();
+                datosProduccion = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(produccionDiariaRaw
+                    .Select(s => new SeguimientoProduccionContableFila(s.LoteId, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM)));
             }
             else
             {
@@ -248,10 +248,9 @@ public partial class ReporteContableService
                     })
                     .ToListAsync(ct);
 
-                datosProduccion = datosProduccionRaw
-                    .Select(s => new { LoteId = int.TryParse(s.LoteIdStr, out var id) ? id : 0, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM })
-                    .Where(x => x.LoteId > 0)
-                    .ToList();
+                datosProduccion = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(datosProduccionRaw
+                    .Select(s => new SeguimientoProduccionContableFila(int.TryParse(s.LoteIdStr, out var id) ? id : 0, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM))
+                    .Where(x => x.LoteId > 0));
             }
         }
 
