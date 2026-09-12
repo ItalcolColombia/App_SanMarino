@@ -8351,3 +8351,24 @@ Plan: [`fase_de_desarrollo/seguimiento_varios_por_dia_errores_reportes_plan.md`]
       Contraprueba: INSERT de un 2.º registro del día en Sanmarino ⇒ 23505. Clon borrado, puertos libres.
       Nota: `produccion_resultado_levante` queda con la foto del último `/resultado` hasta que se reabra «Cálculos».
 - [x] F5. Commit (este). Sin push ni deploy.
+
+## Paso a `main-produccion` (preparación, 12-sep-2026)
+
+Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep26.md`
+
+- [x] D1. Rango: 7 commits propios `d7ee3df..218dad9` (origin/main en `f85994d`, sin pushear). 3 migraciones:
+      `20260912100000`, `20260912130000`, `20260912140000`.
+- [x] D2. `main-produccion` avanza por PR main→main-produccion (#101 = `ba34c65`); su árbol es idéntico al
+      merge-base `f85994d` ⇒ sin divergencia de contenido; `merge-tree` sin conflictos.
+- [x] D3. 7 gates del CI en local: OK.
+- [ ] D4. CI equivalente sobre worktree limpio de `main` (dotnet test Release + yarn test + gates).
+      Primera corrida sobre `218dad9`: dotnet test Release OK (Application 4.121 + Domain 1), 7 gates OK,
+      **`yarn test` 5 FAILED de 867** — todos en `tabs-principal.component.spec.ts` («no encuentra la fila»).
+      Lo desplegado (`ba34c65`) da 859/859 en esta misma máquina ⇒ la regresión era de la fase B, no del
+      entorno: el spec asigna `component.seguimientos` directo y `filasGrilla` solo se armaba en
+      `ngOnChanges`. Fix: `seguimientos` pasa a setter que arma `filasGrilla`. El CI habría cortado el deploy.
+      Re-test de los 2 specs afectados con el fix: **13/13**. ⚠️ Incidente de la verificación: al borrar el
+      worktree `prod-base` con `git worktree remove --force`, la junction vació `frontend/node_modules`
+      compartido; reparado con `yarn install --frozen-lockfile` (36.502 archivos, sin cambio de versiones).
+- [ ] D5. OK del usuario ⇒ `git push origin main` + PR #102 main→main-produccion (no despliega).
+- [ ] D6. OK del usuario ⇒ merge del PR (dispara deploy) + verificación post-deploy ECS + smoke en prod.

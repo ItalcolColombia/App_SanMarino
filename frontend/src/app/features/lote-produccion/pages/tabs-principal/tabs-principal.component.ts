@@ -26,7 +26,20 @@ import { FilaGrillaProduccion, filasGrillaProduccion, registrosDeLaGrilla } from
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
-  @Input() seguimientos: SeguimientoItemDto[] = [];
+  /**
+   * Las filas de la tabla se arman en el SETTER, no en `ngOnChanges`: `ngOnChanges` solo corre cuando
+   * el input llega por binding, y una asignación directa (`component.seguimientos = …`, como hacen los
+   * specs) dejaba la tabla sin filas. Se recalcula una vez por asignación ⇒ referencia estable para el CD.
+   */
+  @Input()
+  set seguimientos(value: SeguimientoItemDto[]) {
+    this._seguimientos = value ?? [];
+    this.filasGrilla = filasGrillaProduccion(this._seguimientos);
+  }
+  get seguimientos(): SeguimientoItemDto[] {
+    return this._seguimientos;
+  }
+  private _seguimientos: SeguimientoItemDto[] = [];
 
   /**
    * Capturas de este lote guardadas sin red y todavía sin enviar. Input **aparte** de
@@ -98,7 +111,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos']) {
-      this.filasGrilla = filasGrillaProduccion(this.seguimientos);
+      // `filasGrilla` ya la armó el setter de `seguimientos`.
       this.preloadCatalogNamesFromSeguimientos();
       this.recalcularHuevoPorTipo();
     }
