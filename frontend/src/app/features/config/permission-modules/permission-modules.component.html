@@ -1,0 +1,190 @@
+<div class="pm-page">
+  <header class="mb-4">
+    <h1 class="text-xl font-bold text-slate-800">Módulos y permisos</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-600">
+      Cada empresa se configura prendiendo <strong>módulos</strong> (Postura, Pollo Engorde, Inventario…).
+      Prender un módulo habilita sus permisos en la empresa; apagarlo los saca del modal de Roles y de la
+      sesión de sus usuarios. El ajuste fino de un permiso suelto se hace en Empresas → 🔑.
+    </p>
+  </header>
+
+  <nav class="pm-tabs" role="tablist" aria-label="Secciones">
+    <button type="button" role="tab" class="pm-tab" [class.pm-tab--active]="tab === 'empresas'"
+      [attr.aria-selected]="tab === 'empresas'" (click)="setTab('empresas')">
+      Módulos por empresa
+    </button>
+    <button type="button" role="tab" class="pm-tab" [class.pm-tab--active]="tab === 'catalogo'"
+      [attr.aria-selected]="tab === 'catalogo'" (click)="setTab('catalogo')">
+      Catálogo de módulos
+    </button>
+  </nav>
+
+  @if (cargando) {
+    <p class="text-sm text-slate-500">Cargando…</p>
+  }
+
+  <!-- ── Módulos por empresa ──────────────────────────────────────────────── -->
+  @if (!cargando && tab === 'empresas') {
+    @if (cargandoMatriz) {
+      <p class="mb-2 text-sm text-slate-500">Cargando estado de las empresas…</p>
+    }
+    @if (!matriz.length && !cargandoMatriz) {
+      <p class="text-sm text-slate-500">No hay módulos en el catálogo.</p>
+    }
+    @if (matriz.length) {
+      <div class="pm-card overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50">
+              <th scope="col" class="px-4 py-2 text-left font-semibold text-slate-700">Módulo</th>
+              @for (e of empresas; track e.id) {
+                <th scope="col" class="whitespace-nowrap px-3 py-2 text-center font-semibold text-slate-700">{{ e.name }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (fila of matriz; track fila.modulo.id) {
+              <tr class="border-t border-slate-100">
+                <th scope="row" class="px-4 py-2 text-left align-top font-normal">
+                  <span class="block font-semibold text-slate-800">{{ fila.modulo.nombre }}</span>
+                  @if (fila.modulo.descripcion) {
+                    <span class="block max-w-xs text-xs text-slate-500">{{ fila.modulo.descripcion }}</span>
+                  }
+                </th>
+                @for (celda of fila.celdas; track celda.companyId) {
+                  <td class="px-3 py-2 text-center align-middle">
+                    @if (celda.cargada) {
+                      <button type="button" role="switch" class="pm-switch"
+                        [class.pm-switch--on]="celda.prendido"
+                        [class.pm-switch--busy]="estaGuardando(celda)"
+                        [attr.aria-checked]="celda.prendido"
+                        [attr.aria-label]="fila.modulo.nombre + ' en ' + nombreEmpresa(celda.companyId)"
+                        [disabled]="guardandoCelda !== null"
+                        (click)="toggleCelda(fila, celda)">
+                        <span class="pm-switch__knob"></span>
+                      </button>
+                      <span class="mt-1 block text-[11px] text-slate-500"
+                        title="Permisos del módulo prendidos en la empresa">{{ celda.habilitados }}/{{ celda.total }}</span>
+                    } @else {
+                      <span class="text-xs text-slate-400" title="No se pudo cargar el estado de esta empresa">—</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">
+        <strong>x/y</strong> = permisos del módulo prendidos en la empresa. Un permiso compartido (p. ej.
+        <code>lote.corregir_aves</code>, de Postura y de Pollo Engorde) sigue prendido mientras cualquiera de sus
+        módulos lo esté.
+      </p>
+    }
+  }
+
+  <!-- ── Catálogo de módulos ──────────────────────────────────────────────── -->
+  @if (!cargando && tab === 'catalogo') {
+    <div class="pm-catalogo">
+      <aside class="pm-card p-3">
+        <button type="button" class="pm-btn pm-btn--primary mb-3 w-full" (click)="nuevoModulo()">+ Nuevo módulo</button>
+        <ul class="space-y-1">
+          @for (m of modulos; track m.id) {
+            <li>
+              <button type="button" class="pm-modulo-item" (click)="seleccionarModulo(m)"
+                [class.pm-modulo-item--active]="moduloSeleccionado?.id === m.id && !creandoModulo">
+                <span class="block text-sm font-semibold text-slate-800">{{ m.nombre }}</span>
+                <span class="block text-[11px] text-slate-500">
+                  {{ m.permissionKeys.length }} permiso(s) · {{ m.empresasConModulo }} empresa(s)
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      </aside>
+
+      @if (moduloSeleccionado || creandoModulo) {
+        <section class="pm-card min-w-0 p-4">
+          <form class="pm-form" (ngSubmit)="guardarDatosModulo()">
+            <label class="pm-label">
+              Key
+              <input name="key" class="pm-input font-mono" [(ngModel)]="formModulo.key"
+                [disabled]="!creandoModulo" maxlength="60" placeholder="pollo_engorde" required />
+            </label>
+            <label class="pm-label">
+              Nombre
+              <input name="nombre" class="pm-input" [(ngModel)]="formModulo.nombre" maxlength="120" required />
+            </label>
+            <label class="pm-label">
+              Orden
+              <input name="orden" type="number" class="pm-input" [(ngModel)]="formModulo.orden" />
+            </label>
+            <label class="pm-label pm-form__full">
+              Descripción
+              <textarea name="descripcion" rows="2" class="pm-input" [(ngModel)]="formModulo.descripcion"></textarea>
+            </label>
+            <div class="pm-form__full flex flex-wrap justify-end gap-2">
+              @if (moduloSeleccionado && !creandoModulo) {
+                <button type="button" class="pm-btn pm-btn--danger" (click)="eliminarModulo()"
+                  [disabled]="moduloSeleccionado.empresasConModulo > 0"
+                  [title]="moduloSeleccionado.empresasConModulo > 0 ? 'Apagalo en las empresas antes de eliminarlo' : 'Eliminar módulo'">
+                  Eliminar
+                </button>
+              }
+              <button type="submit" class="pm-btn pm-btn--primary" [disabled]="guardandoModulo">
+                {{ guardandoModulo ? 'Guardando…' : (creandoModulo ? 'Crear módulo' : 'Guardar datos') }}
+              </button>
+            </div>
+          </form>
+
+          @if (moduloSeleccionado && !creandoModulo) {
+            <hr class="my-4 border-slate-200" />
+            <div class="mb-2 flex flex-wrap items-center gap-2">
+              <h2 class="text-sm font-bold text-slate-800">Permisos del módulo</h2>
+              <span class="text-xs text-slate-500">{{ seleccionPermisos.size }} seleccionado(s)</span>
+              <input type="search" name="filtroPermisos" class="pm-input ml-auto w-full max-w-xs"
+                [(ngModel)]="filtroPermisos" (ngModelChange)="aplicarFiltroPermisos()"
+                placeholder="Buscar permiso…" aria-label="Buscar permiso" />
+            </div>
+            <ul class="pm-permisos">
+              @for (p of permisosFiltrados; track p.id) {
+                <li class="px-3 py-2">
+                  <label class="flex cursor-pointer items-start gap-3">
+                    <input type="checkbox" class="pm-check" [checked]="seleccionPermisos.has(p.id)"
+                      (change)="togglePermisoModulo(p)" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block break-all font-mono text-sm text-slate-800">{{ p.key }}</span>
+                      @if (p.description) {
+                        <span class="block text-xs text-slate-500">{{ p.description }}</span>
+                      }
+                      @if (otrosModulosDe(p); as otros) {
+                        <span class="mt-1 flex flex-wrap gap-1">
+                          @for (o of otros; track o) {
+                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">También en {{ o }}</span>
+                          }
+                        </span>
+                      }
+                    </span>
+                  </label>
+                </li>
+              }
+              @if (!permisosFiltrados.length) {
+                <li class="px-3 py-3 text-sm text-slate-500">Ningún permiso coincide con la búsqueda.</li>
+              }
+            </ul>
+            <div class="mt-3 flex justify-end">
+              <button type="button" class="pm-btn pm-btn--primary" [disabled]="guardandoClasificacion"
+                (click)="guardarClasificacion()">
+                {{ guardandoClasificacion ? 'Guardando…' : 'Guardar permisos del módulo' }}
+              </button>
+            </div>
+          }
+        </section>
+      } @else {
+        <section class="pm-card flex items-center justify-center p-8 text-sm text-slate-500">
+          Elegí un módulo de la lista o creá uno nuevo.
+        </section>
+      }
+    </div>
+  }
+</div>

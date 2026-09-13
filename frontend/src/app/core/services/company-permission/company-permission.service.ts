@@ -14,6 +14,8 @@ export interface CompanyPermissionItem {
   isEnabled: boolean;
   /** Cuántos roles de la empresa ya lo tienen asignado (para no apagar a ciegas algo en uso). */
   enUsoPorRoles: number;
+  /** Keys de los módulos de permisos que lo contienen (M:N). Vacío = sin clasificar. */
+  modulos?: string[];
 }
 
 /** Request para fijar los permisos habilitados de una empresa (reemplaza la configuración). */

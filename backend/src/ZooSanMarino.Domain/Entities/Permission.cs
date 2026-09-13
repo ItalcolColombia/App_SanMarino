@@ -16,6 +16,8 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<MenuPermission> MenuPermissions { get; set; } = new List<MenuPermission>();
         /// <summary>Empresas que tienen habilitado este permiso (ver <see cref="CompanyPermission"/>).</summary>
         public ICollection<CompanyPermission> CompanyPermissions { get; set; } = new List<CompanyPermission>();
+        /// <summary>Módulos a los que pertenece (M:N, ver <see cref="PermissionModule"/>). Vacío = sin clasificar.</summary>
+        public ICollection<PermissionModulePermission> PermissionModulePermissions { get; set; } = new List<PermissionModulePermission>();
     }
 
 }

@@ -8439,3 +8439,30 @@ Plan: [`fase_de_desarrollo/reporte_tecnico_porcentaje_produccion_plan.md`](fase_
       `backend:b5bffe5…` y front `frontend:b5bffe5…` ambos `rolloutState=COMPLETED`; `/version.json` pasó de
       `00:13:08Z` a `02:32:28Z` (build de este run) ⇒ sin rollback. Borde: CSP+HSTS, chunk inexistente 404,
       ruta SPA 200. Pendiente del usuario: smoke en prod (P-K345A → Consolidado → Semanal General ≤ 100, «%Producción»).
+
+---
+
+## MOD-PERM — Módulos de permisos por empresa (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/modulos_permisos_por_empresa_plan.md`](fase_de_desarrollo/modulos_permisos_por_empresa_plan.md)
+
+- [x] M0. Auditoría + clasificación (47 keys, M:N) + medición local: Santa Reyes/Demo con 16/14 permisos de engorde prendidos; wizard pide Permisos antes que Empresas; overflow `repeat(3,1fr)`.
+- [x] M0.1 Decisiones D1–D4 tomadas por el usuario (M:N · medir y aplicar · solo permisos · módulo + ajuste fino).
+- [x] M1. Medición contra la copia de producción del 12-sep (BD aparte `sanmarino_medicion_0912`): **idéntica a local** (124 filas). Pérdidas solo en keys de pantallas que la empresa no tiene; ganancias = 8 usuarios `seguimiento_*.validar` (huérfanos).
+- [x] M2. OK del usuario (12-sep): Vacunación se apaga en Demo/Santa Reyes · pérdidas se aplican, ganancias se bloquean (S1) · Integración Panamá SOLO a ItalcolPanama (no a Ecuador aunque tenga el menú).
+- [x] B1. Entidades + configuraciones EF + migración schema idempotente `AddModulosDePermisos` (snapshot editado a mano; `has-pending-model-changes` sólo marca `produccion_resultado_levante.lote_id`, ajeno — de `20260912130000`).
+- [x] B2. `PermisoModuloCalculos` + `PermisoModuloCalculosTests` (21 tests) · Application.Tests **4185/4185**.
+- [x] B3. `PermissionModuleService` (partial) + `PermissionModuleController` + gate fino en `CompanyPermissionService` (400 `PermisoFueraDeModuloException`) + DTO `Modulos` + siembra de módulos en empresa nueva · `dotnet build` sln **0 err / 0 warn**.
+- [x] B4. Migración data-only `SeedModulosDePermisos` (módulos, clasificación, módulos por empresa, materialización S1, menú `/config/permission-modules`).
+      Probada en transacción (2 pasadas + ROLLBACK) sobre la copia de prod: **atrapó un 42804** (`NULL` sin tipo en `SELECT DISTINCT` contra `parent_menu_id`) → `NULL::integer`.
+      Con el fix: idempotente (conteos idénticos 7/53/35/115/190), PIERDEN = lista aprobada, **GANAN = 0**, Santa Reyes 0 permisos de engorde, Integración Panamá sólo en ItalcolPanama.
+- [x] B5. `backend/sql/verificar_modulos_permisos_impacto.sql` + corrida antes/después sobre la copia de prod, con las migraciones aplicadas POR LA APP (`20260911*` + las 2 nuevas, mismo orden que el deploy):
+      PIERDEN = lista aprobada; GANAN sólo `lote.corregir_fecha_encaset` (26 usuarios) = herencia prevista por la migración ajena `20260911110000` (la siembra respeta su fila) ⇒ la siembra no da ganancias.
+- [x] F1. Service front + página «Módulos y permisos» (`/config/permission-modules`: matriz empresa × módulo + catálogo) + funciones/specs.
+- [x] F2. Modal 🔑 de Empresas agrupado por módulo con ajuste fino (permisos de módulos apagados deshabilitados).
+- [x] F3. Modal de Rol: General → Empresas → Permisos, agrupado por módulo, fix overflow (`minmax(0,1fr)`) · `yarn build` OK.
+- [x] V1. `dotnet build` 0/0 · Application.Tests 4185/4185 · `yarn build` OK · `ng test` **880/880** (13 specs nuevos) · gate `verificar-sql-llega-por-migracion` OK.
+- [x] V2. Smoke HTTP (:5501, content root aislado contra la copia de prod) **13/13**: lecturas + `modulos` en DTO, Santa Reyes 0 sólo-engorde, 400 ajuste fino fuera de módulo, 204 guardar misma lista, Demo prende/apaga Engorde (21/21, conserva `lote.corregir_aves`), reclasificar sin cambios = 0, 409 borrar en uso, no-admin 200/403/403, 400 key inválida.
+- [i] V2.1 Smoke visual de la pantalla NO hecho: no hay sesión de navegador autenticable desde esta sesión (misma limitación que el bloque de `company_permissions`). Pendiente del usuario: abrir Configuración → Módulos y permisos y el modal de Rol en Santa Reyes.
+- [x] V3. Backend de smoke apagado (puerto 5501 libre) + `DROP DATABASE sanmarino_medicion_0912`.
+- [x] V4. Commit (este). Sin push ni deploy: el deploy aplica la siembra en prod ⇒ requiere OK explícito (y re-login de los usuarios para ver permisos y menú nuevos).

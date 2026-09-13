@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -8,7 +10,7 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
 /// Configuración del eje permiso↔empresa. Solo resuelve datos: las reglas viven en
-/// <c>CompanyPermissionCalculos</c>.
+/// <c>CompanyPermissionCalculos</c> y, para los módulos, en <c>PermisoModuloCalculos</c>.
 /// </summary>
 public class CompanyPermissionService : ICompanyPermissionService
 {
@@ -45,12 +47,15 @@ public class CompanyPermissionService : ICompanyPermissionService
             .ToListAsync();
         var enUsoPorPermiso = enUso.ToDictionary(x => x.PermissionId, x => x.Roles);
 
+        var modulosPorPermiso = await ModulosPorPermisoIdAsync();
+
         return catalogo.Select(p => new CompanyPermissionItemDto(
             p.Id,
             p.Key,
             p.Description,
             habilitadosSet.Contains(p.Id),
-            enUsoPorPermiso.TryGetValue(p.Id, out var n) ? n : 0
+            enUsoPorPermiso.TryGetValue(p.Id, out var n) ? n : 0,
+            modulosPorPermiso.TryGetValue(p.Id, out var modulos) ? modulos : Array.Empty<string>()
         )).ToList();
     }
 
@@ -96,6 +101,9 @@ public class CompanyPermissionService : ICompanyPermissionService
             .ToListAsync();
         var existentesPorId = existentes.ToDictionary(cp => cp.PermissionId);
 
+        // Ajuste fino (R-M4): no se puede prender un permiso de un módulo que la empresa no tiene.
+        await ValidarDentroDeModulosAsync(companyId, deseados, existentes);
+
         foreach (var permissionId in deseados)
         {
             if (existentesPorId.TryGetValue(permissionId, out var fila)) fila.IsEnabled = true;
@@ -116,20 +124,90 @@ public class CompanyPermissionService : ICompanyPermissionService
 
     public async Task SembrarCatalogoCompletoSiVaciaAsync(int companyId)
     {
-        var yaTiene = await _ctx.CompanyPermissions.AnyAsync(cp => cp.CompanyId == companyId);
-        if (yaTiene) return;
-
-        var permissionIds = await _ctx.Permissions.AsNoTracking().Select(p => p.Id).ToListAsync();
-        if (permissionIds.Count == 0) return;
-
-        _ctx.CompanyPermissions.AddRange(permissionIds.Select(id => new CompanyPermission
+        // Módulos: la empresa nueva nace con todos prendidos, coherente con el catálogo completo de
+        // abajo. Sin esto, el primer ajuste fino de la empresa quedaría fuera de todo módulo.
+        var tieneModulos = await _ctx.CompanyPermissionModules.AnyAsync(x => x.CompanyId == companyId);
+        if (!tieneModulos)
         {
-            CompanyId = companyId,
-            PermissionId = id,
-            IsEnabled = true
-        }));
+            var moduleIds = await _ctx.PermissionModules.AsNoTracking().Select(m => m.Id).ToListAsync();
+            _ctx.CompanyPermissionModules.AddRange(moduleIds.Select(id => new CompanyPermissionModule
+            {
+                CompanyId = companyId,
+                ModuleId = id,
+                IsEnabled = true
+            }));
+        }
+
+        var yaTiene = await _ctx.CompanyPermissions.AnyAsync(cp => cp.CompanyId == companyId);
+        if (!yaTiene)
+        {
+            var permissionIds = await _ctx.Permissions.AsNoTracking().Select(p => p.Id).ToListAsync();
+            _ctx.CompanyPermissions.AddRange(permissionIds.Select(id => new CompanyPermission
+            {
+                CompanyId = companyId,
+                PermissionId = id,
+                IsEnabled = true
+            }));
+        }
 
         await _ctx.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Rechaza con <see cref="PermisoFueraDeModuloException"/> (400) los permisos que se intentan
+    /// prender y que ningún módulo prendido de la empresa cubre. Empresa sin configuración de módulos
+    /// ⇒ no se valida (su configuración sigue siendo manual).
+    /// </summary>
+    private async Task ValidarDentroDeModulosAsync(
+        int companyId,
+        IReadOnlySet<int> deseados,
+        IReadOnlyCollection<CompanyPermission> existentes)
+    {
+        var filasModulos = await _ctx.CompanyPermissionModules
+            .AsNoTracking()
+            .Where(x => x.CompanyId == companyId)
+            .Select(x => new { x.Module.Key, x.IsEnabled })
+            .ToListAsync();
+        if (filasModulos.Count == 0) return;
+
+        var keyPorId = await _ctx.Permissions
+            .AsNoTracking()
+            .ToDictionaryAsync(p => p.Id, p => p.Key);
+
+        var clasificacion = (await _ctx.PermissionModulePermissions
+                .AsNoTracking()
+                .Select(x => new { PermisoKey = x.Permission.Key, ModuloKey = x.Module.Key })
+                .ToListAsync())
+            .GroupBy(x => x.PermisoKey, PermisoModuloCalculos.Comparador)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyCollection<string>)g.Select(x => x.ModuloKey).ToList(),
+                PermisoModuloCalculos.Comparador);
+
+        var rechazados = PermisoModuloCalculos.ResolverNoPermitidos(
+            deseados.Where(keyPorId.ContainsKey).Select(id => keyPorId[id]),
+            existentes.Where(e => e.IsEnabled && keyPorId.ContainsKey(e.PermissionId)).Select(e => keyPorId[e.PermissionId]),
+            clasificacion,
+            filasModulos.Where(x => x.IsEnabled).Select(x => x.Key).ToList());
+
+        if (rechazados.Count > 0)
+            throw new PermisoFueraDeModuloException(
+                $"No se puede habilitar {string.Join(", ", rechazados)}: pertenece a módulos que la empresa " +
+                "no tiene. Prendé el módulo en Configuración → Módulos y permisos.");
+    }
+
+    /// <summary>Keys de módulo de cada permiso, en el orden de <c>permission_modules.orden</c>.</summary>
+    private async Task<Dictionary<int, IReadOnlyList<string>>> ModulosPorPermisoIdAsync()
+    {
+        var filas = await _ctx.PermissionModulePermissions
+            .AsNoTracking()
+            .OrderBy(x => x.Module.Orden).ThenBy(x => x.Module.Key)
+            .Select(x => new { x.PermissionId, x.Module.Key })
+            .ToListAsync();
+
+        return filas
+            .GroupBy(x => x.PermissionId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(x => x.Key).ToList());
     }
 
     /// <summary>

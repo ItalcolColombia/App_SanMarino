@@ -78,6 +78,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
         public DbSet<CompanyMenu> CompanyMenus => Set<CompanyMenu>();
         public DbSet<CompanyPermission> CompanyPermissions => Set<CompanyPermission>();
+        public DbSet<PermissionModule> PermissionModules => Set<PermissionModule>();
+        public DbSet<PermissionModulePermission> PermissionModulePermissions => Set<PermissionModulePermission>();
+        public DbSet<CompanyPermissionModule> CompanyPermissionModules => Set<CompanyPermissionModule>();
         public DbSet<ProduccionAvicolaRaw> ProduccionAvicolaRaw => Set<ProduccionAvicolaRaw>();
         public DbSet<GuiaGeneticaSantaReyes> GuiaGeneticaSantaReyes => Set<GuiaGeneticaSantaReyes>();
 

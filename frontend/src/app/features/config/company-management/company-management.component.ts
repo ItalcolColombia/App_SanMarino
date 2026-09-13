@@ -1,5 +1,5 @@
 // src/app/features/config/company-management/company-management.component.ts
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -33,6 +33,14 @@ import {
   CompanyPermissionItem
 } from '../../../core/services/company-permission/company-permission.service';
 import { MenuService, MenuItem } from '../../../core/services/menu/menu.service';
+import {
+  PermissionModuleService,
+  CompanyPermissionModuleItem
+} from '../../../core/services/permission-module/permission-module.service';
+import {
+  agruparPermisosPorModulo,
+  type GrupoPermisos
+} from '../../../core/services/permission-module/agrupar-permisos-por-modulo.funcion';
 
 import { GeoMaps, GeoSelects } from './models/company-management.model';
 import { readLogoFile } from './funciones/logo.funcion';
@@ -142,6 +150,16 @@ export class CompanyManagementComponent implements OnInit {
   permEditFilter = '';
   /** Cuántos permisos EN USO por roles quedarían apagados al guardar (aviso, no bloqueo). */
   permEditEnUsoQueSeApagan = 0;
+  /** Lista visible agrupada por módulo. Campo, no getter (referencia estable para el CD). */
+  permEditGrupos: GrupoPermisos<CompanyPermissionItem>[] = [];
+  /** Módulos del catálogo con su estado para la empresa abierta. */
+  permEditModulos: CompanyPermissionModuleItem[] = [];
+  /** Keys de los módulos prendidos en la empresa abierta. */
+  private permEditModulosPrendidos = new Set<string>();
+  /** La empresa tiene configuración de módulos (algún módulo prendido): el ajuste fino se limita a ellos. */
+  permEditEmpresaConModulos = false;
+
+  private readonly permissionModuleSvc = inject(PermissionModuleService);
 
   // Confirmación eliminar
   confirmDeleteOpen = false;
@@ -734,20 +752,48 @@ export class CompanyManagementComponent implements OnInit {
     if (this.permEditCompanyId == null) return;
 
     this.permEditLoading = true;
-    this.companyPermissionSvc.getPermissionsForCompany(this.permEditCompanyId)
+    forkJoin({
+      items: this.companyPermissionSvc.getPermissionsForCompany(this.permEditCompanyId),
+      // Si los módulos no cargan, la lista sale plana y sin restricción: el backend igual valida (400).
+      modulos: this.permissionModuleSvc.getForCompany(this.permEditCompanyId).pipe(
+        catchError(() => of([] as CompanyPermissionModuleItem[]))
+      )
+    })
       .pipe(finalize(() => (this.permEditLoading = false)))
       .subscribe({
-        next: items => {
+        next: ({ items, modulos }) => {
           // Copia local: el checkbox escribe sobre `isEnabled` y se guarda al confirmar.
           this.permEditItems = (items ?? []).map(p => ({ ...p }));
+          this.permEditModulos = modulos ?? [];
+          this.permEditModulosPrendidos = new Set(
+            this.permEditModulos.filter(m => m.isEnabled).map(m => m.key.toLowerCase())
+          );
+          this.permEditEmpresaConModulos = this.permEditModulosPrendidos.size > 0;
           this.aplicarFiltroPermisos();
         },
         error: () => {
           this.permEditItems = [];
           this.permEditItemsFiltrados = [];
+          this.permEditGrupos = [];
           this.showToast('error', 'No se pudieron cargar los permisos de la empresa.');
         }
       });
+  }
+
+  /**
+   * ¿Se puede prender este permiso en la empresa abierta? (espejo de la regla R-M4 del backend):
+   * ya prendido, sin clasificar, empresa sin módulos, o cubierto por algún módulo prendido.
+   */
+  puedePrenderPermiso(p: CompanyPermissionItem): boolean {
+    if (p.isEnabled || !this.permEditEmpresaConModulos) return true;
+    const modulos = p.modulos ?? [];
+    return modulos.length === 0 || modulos.some(m => this.permEditModulosPrendidos.has((m || '').toLowerCase()));
+  }
+
+  /** ¿El grupo corresponde a un módulo que la empresa no tiene prendido? */
+  moduloApagado(moduloKey: string | null): boolean {
+    return this.permEditEmpresaConModulos && moduloKey !== null
+      && !this.permEditModulosPrendidos.has(moduloKey.toLowerCase());
   }
 
   closePermEdit(): void {
@@ -756,12 +802,21 @@ export class CompanyManagementComponent implements OnInit {
     this.permEditCompanyId = null;
     this.permEditItems = [];
     this.permEditItemsFiltrados = [];
+    this.permEditGrupos = [];
+    this.permEditModulos = [];
+    this.permEditModulosPrendidos = new Set();
+    this.permEditEmpresaConModulos = false;
     this.permEditFilter = '';
   }
 
   /** Recalcula la lista visible. Se llama desde el input, nunca desde un getter del template. */
   aplicarFiltroPermisos(): void {
     this.permEditItemsFiltrados = filtrarPermisosEmpresa(this.permEditItems, this.permEditFilter);
+    this.permEditGrupos = agruparPermisosPorModulo(
+      this.permEditItemsFiltrados,
+      p => p.modulos,
+      this.permEditModulos.map(m => ({ key: m.key, nombre: m.nombre, orden: m.orden }))
+    );
     this.permEditEnUsoQueSeApagan = contarPermisosEnUsoQueSeApagan(this.permEditItems);
   }
 
@@ -770,8 +825,9 @@ export class CompanyManagementComponent implements OnInit {
     this.permEditEnUsoQueSeApagan = contarPermisosEnUsoQueSeApagan(this.permEditItems);
   }
 
+  /** «Marcar todos» respeta los módulos: no prende lo que el backend rechazaría. */
   marcarTodosLosPermisos(habilitar: boolean): void {
-    this.permEditItems.forEach(p => (p.isEnabled = habilitar));
+    this.permEditItems.forEach(p => (p.isEnabled = habilitar && this.puedePrenderPermiso(p)));
     this.aplicarFiltroPermisos();
   }
 
