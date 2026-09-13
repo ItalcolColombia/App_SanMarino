@@ -8258,11 +8258,13 @@ Demo y Sanmarino tienen 0 filas de cruce.
       merge `e6d76d6`, run `34726965006` **success** (tests 00:03→00:04Z, backend 00:04→00:11Z, front
       00:12→00:16Z). Imagen `backend:e6d76d63…` en la TaskDef renderizada; front `/version.json`
       `buildId 2026-09-13T00:13:08Z` (build nuevo sirviendo).
-- [ ] B13. ⚠️ **Verificacion post-deploy del backend INCOMPLETA:** el workflow dio por verificado con
-      `rolloutState=IN_PROGRESS` y el `aws` CLI local tiene el token vencido (`InvalidClientTokenId`), asi
-      que no se pudo comparar TaskDef en ejecucion ↔ imagen (CLAUDE.md §CI/CD). Pendiente: correr los 3
-      comandos de verificacion con credenciales validas y confirmar en pantalla que el lote 95 - 1
-      (DONA MARIA A-1) arranca el 28/08 — solo el backend nuevo aplica la migracion que lo mueve.
+- [x] B13. Verificacion post-deploy: el deploy de `e6d76d6` se verifico con `rolloutState=IN_PROGRESS`
+      y el `aws` CLI local tiene el token vencido. **Cerrado con el deploy siguiente** (PR #104, merge
+      `b8e4edd`, run `34730490875` success, 13-sep 01:25→01:36Z): backend `backend:b8e4edd…`
+      **`rolloutState=COMPLETED`** (contiene todo el codigo de `e6d76d6`: solo suma el tracker) y front
+      `frontend:b8e4edd…` **`COMPLETED`**. `/version.json` sigue en `buildId 00:13:08Z` porque el build del
+      front salio 100 % `CACHED` (sin cambios de front) — no es rollback. Confirmacion funcional en
+      pantalla (lote 95 - 1 arranca el 28/08) queda para operacion.
 - [i] Aviso a operacion, no defecto: el lote **257** (ciclo anterior de G0490) muestra −227 kg el
       07/09 porque la reproductora consumio ese dia y el ingreso de alimento esta cargado el 08/09.
 
