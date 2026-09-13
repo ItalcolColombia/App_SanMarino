@@ -8470,7 +8470,13 @@ Plan: [`fase_de_desarrollo/modulos_permisos_por_empresa_plan.md`](fase_de_desarr
 - [x] V5.1 Merge del PR #106 por pedido explícito del usuario (`gh pr merge 106 --merge`) ⇒ merge `aa97692` (13-sep 05:16Z) ⇒ run `34739904897` (Deploy to Production).
 - [x] V5.2 🚑 Run `34739904897` **cortado en el gate de la lista cacheable** (job «Tests — Backend & Frontend», paso `verificar-lista-cacheable.js`): `permissionmodule` sin decisión tomada. Backend/Frontend `skipped` ⇒ **prod intacta**. Fix: `permissionmodule` a EXCLUIDOS (identidad/administración, junto a `roles` y `permission`) + caso en el spec. Gates locales: lista cacheable 55/35/0 OK, change-detection 238 OK.
 - [x] V5.3 Fix `4335153` pusheado + PR **#107** main → main-produccion (https://github.com/ItalcolColombia/App_SanMarino/pull/107). Réplica local del job: `dotnet test -c Release` 4185+1, `ng test` 880/880, 7/7 gates OK. El código del #106 ya está en `main-produccion` (`aa97692`) sin desplegar: el merge de #107 dispara el deploy de todo. **Merge pendiente de OK del usuario.**
-- [ ] V6. Verificación post-deploy — TaskDef/imagen real en ECS, `rolloutState=COMPLETED`, `__EFMigrationsHistory` con `20260912160000_AddModulosDePermisos` + `20260912160100_SeedModulosDePermisos`, y smoke visual de *Módulos y permisos* + modal de Rol en Santa Reyes.
+- [x] V5.4 Merge del PR #107 por OK explícito del usuario (sólo `4335153` + `fc4a501`, verificado antes de mergear) ⇒ merge `ce2dc88` (13-sep 20:02Z) ⇒ run `34779490961`.
+- [x] V6. Verificación post-deploy (run `34779490961` success, 3 jobs). Sin `aws` CLI válido (`InvalidClientTokenId`), evidencia del log del workflow + borde en vivo:
+      backend `backend:ce2dc88…` `rolloutState=COMPLETED` (20:10Z) · frontend `frontend:ce2dc88…` `rolloutState=COMPLETED` (20:15Z) ·
+      `/version.json` `2026-09-13T20:10:55Z` (antes `02:32:28Z`) · CSP+HSTS en `/`, chunk inexistente 404, `/config/permission-modules` 200, `ngsw.json` 200 JSON ·
+      bundle de prod (194 chunks vía `ngsw.json`): `permission-modules` en 3, `permissionmodule` en 1.
+      Migraciones: `__EFMigrationsHistory` no consultable sin credenciales; con `RunMigrations=true` una migración rota tumba la tarea antes del health check ⇒ `COMPLETED` implica las 4 aplicadas (`20260911*` + `AddModulosDePermisos` + `SeedModulosDePermisos`).
+- [~] V7. Pendiente del usuario: re-login y smoke visual en prod — *Configuración → Módulos y permisos* (matriz: Santa Reyes sin Pollo Engorde, Panamá con Integración Panamá) y crear un rol en Santa Reyes (pasos General → Empresas → Permisos, sin permisos de engorde).
 
 ---
 
