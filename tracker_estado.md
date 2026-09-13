@@ -8254,6 +8254,15 @@ Demo y Sanmarino tienen 0 filas de cruce.
       cascada a quien tiene el permiso) — en prod rompia editar cualquier lote viejo anclado a medianoche.
       Fix: `EncasetamientoCalculos.CambiaEncasetamiento` (compara dia anclado de los dos lados) + 7 casos
       xUnit, usado en engorde y reproductora. Re-smoke 20/20.
+- [x] B12. **Deploy** (12-sep, pedido del usuario tras el smoke): PR #103 `main`→`main-produccion`,
+      merge `e6d76d6`, run `34726965006` **success** (tests 00:03→00:04Z, backend 00:04→00:11Z, front
+      00:12→00:16Z). Imagen `backend:e6d76d63…` en la TaskDef renderizada; front `/version.json`
+      `buildId 2026-09-13T00:13:08Z` (build nuevo sirviendo).
+- [ ] B13. ⚠️ **Verificacion post-deploy del backend INCOMPLETA:** el workflow dio por verificado con
+      `rolloutState=IN_PROGRESS` y el `aws` CLI local tiene el token vencido (`InvalidClientTokenId`), asi
+      que no se pudo comparar TaskDef en ejecucion ↔ imagen (CLAUDE.md §CI/CD). Pendiente: correr los 3
+      comandos de verificacion con credenciales validas y confirmar en pantalla que el lote 95 - 1
+      (DONA MARIA A-1) arranca el 28/08 — solo el backend nuevo aplica la migracion que lo mueve.
 - [i] Aviso a operacion, no defecto: el lote **257** (ciclo anterior de G0490) muestra −227 kg el
       07/09 porque la reproductora consumio ese dia y el ingreso de alimento esta cargado el 08/09.
 
