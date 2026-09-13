@@ -1,6 +1,14 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- fn_seguimiento_diario_levante — grilla diaria CANÓNICA de levante (tipo_seguimiento='levante')
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- v2 (2026-09-13) — seg_dias_agrupado (solo flag ON), mismo criterio que
+--   fn_seguimiento_diario_produccion v4 (plan
+--   fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.md, L1/L2):
+--   uniformidad/CV = último registro que la TRAE (un NULL posterior ya no tapa la medición),
+--   desempate del «último» por c_id (los forms graban todo el día a mediodía y el ts empataba) y
+--   peso/kcal/proteína = promedio de los registros que midieron (> 0). Flag OFF intacto.
+--   Detalle junto al CTE. Espejo C#: SeguimientoDiarioLevanteCalculos.AgruparPorDia.
+--   Corrige la cabecera de v1: los 3 semanales NO leen esta fn, leen la tabla cruda.
 -- v1 (2026-09-05) — creación (plan
 --   fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md, §5/S6-S7)
 --
@@ -29,8 +37,10 @@
 --     con el índice único vigente nunca hay más de 1 fila, así que es un no-op verificable.
 --
 --   Consumidores: sp_recalcular_seguimiento_levante (grilla+saldo diario de
---   produccion_resultado_levante), fn_indicadores_levante_postura, fn_reporte_semanal_levante_extras,
---   fn_resumen_semanal_ra_pesadas_levante (los 3 semanales, vía TEMP TABLE reconstruida sobre esta fn).
+--   produccion_resultado_levante — modal «Cálculos», GET …/por-lote/{id}/resultado). Los 3 semanales
+--   (fn_indicadores_levante_postura, fn_reporte_semanal_levante_extras,
+--   fn_resumen_semanal_ra_pesadas_levante) leen seguimiento_diario_levante CRUDA y agrupan el pesaje
+--   por día por su cuenta (PesajeSemanalLevanteCalculos).
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION fn_seguimiento_diario_levante(p_lote_id TEXT)
@@ -113,6 +123,15 @@ seg_dias_dedup AS (
       FROM crudos c
      ORDER BY c.reg_date, c.c_ts
 ),
+-- v2 (2026-09-13) — lo NO aditivo se agrupaba mal con 2+ registros el mismo día:
+--   • peso por sexo, kcal, proteína → promedio de los registros que MIDIERON (> 0). Si ninguno midió,
+--     el AVG de siempre (0 o NULL). Un 0 guardado como «no medido» partía el promedio a la mitad
+--     (el caso de peso_huevo en producción: 60 g + un registro sin pesaje ⇒ 30 g).
+--   • uniformidad / CV → el ÚLTIMO registro que la TRAE: un registro posterior sin la medición (NULL)
+--     tapaba la del día.
+--   • «último» = c_ts DESC, c_id DESC: los forms graban todos los registros del día al mediodía, así
+--     que el timestamp solo empataba y el ganador no era determinista.
+--   Con UN registro el día cada expresión devuelve el valor de esa fila (idéntico a v1).
 seg_dias_agrupado AS (
     SELECT
         c.reg_date,
@@ -132,16 +151,16 @@ seg_dias_agrupado AS (
         SUM(c.c_tras_ing_m)::int                                AS c_tras_ing_m,
         SUM(c.c_venta_h)::int                                   AS c_venta_h,
         SUM(c.c_venta_m)::int                                   AS c_venta_m,
-        AVG(c.c_peso_h)                                         AS c_peso_h,
-        AVG(c.c_peso_m)                                         AS c_peso_m,
-        -- Uniformidad/CV: mismo criterio que producción — gana el ÚLTIMO registro del día,
-        -- NO se promedia (es una medición puntual, no un consumo acumulable).
-        (array_agg(c.c_unif_h ORDER BY c.c_ts DESC))[1]         AS c_unif_h,
-        (array_agg(c.c_unif_m ORDER BY c.c_ts DESC))[1]         AS c_unif_m,
-        (array_agg(c.c_cv_h ORDER BY c.c_ts DESC))[1]           AS c_cv_h,
-        (array_agg(c.c_cv_m ORDER BY c.c_ts DESC))[1]           AS c_cv_m,
-        AVG(c.c_kcal_h)                                         AS c_kcal_h,
-        AVG(c.c_prot_h)                                         AS c_prot_h
+        COALESCE(AVG(c.c_peso_h) FILTER (WHERE c.c_peso_h > 0), AVG(c.c_peso_h)) AS c_peso_h,
+        COALESCE(AVG(c.c_peso_m) FILTER (WHERE c.c_peso_m > 0), AVG(c.c_peso_m)) AS c_peso_m,
+        -- Uniformidad/CV: mismo criterio que producción — gana el ÚLTIMO registro del día que la
+        -- trae, NO se promedia (es una medición puntual, no un consumo acumulable).
+        (array_agg(c.c_unif_h ORDER BY c.c_ts DESC, c.c_id DESC) FILTER (WHERE c.c_unif_h IS NOT NULL))[1] AS c_unif_h,
+        (array_agg(c.c_unif_m ORDER BY c.c_ts DESC, c.c_id DESC) FILTER (WHERE c.c_unif_m IS NOT NULL))[1] AS c_unif_m,
+        (array_agg(c.c_cv_h ORDER BY c.c_ts DESC, c.c_id DESC) FILTER (WHERE c.c_cv_h IS NOT NULL))[1]     AS c_cv_h,
+        (array_agg(c.c_cv_m ORDER BY c.c_ts DESC, c.c_id DESC) FILTER (WHERE c.c_cv_m IS NOT NULL))[1]     AS c_cv_m,
+        COALESCE(AVG(c.c_kcal_h) FILTER (WHERE c.c_kcal_h > 0), AVG(c.c_kcal_h)) AS c_kcal_h,
+        COALESCE(AVG(c.c_prot_h) FILTER (WHERE c.c_prot_h > 0), AVG(c.c_prot_h)) AS c_prot_h
       FROM crudos c
      GROUP BY c.reg_date
 ),

@@ -8505,3 +8505,27 @@ Plan: [`fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md`](
       Pantalla (`/daily-log/seguimiento` y `/daily-log/produccion`, sesión `admin@santareyes.com`): pestañas **Indicadores** y **Gráfica** de levante (LOTE 217A) y producción (P-LOTE 218A) cargan, requests 200, consola sin errores. El desglose Primera/Pnc se verificó por HTTP, no leyendo el DOM.
 - [x] V5. Backend de smoke apagado (5002/5501 libres) + dev server detenido + `DROP DATABASE sanmarino_ind_0913` + artifacts borrados.
 - [x] V6. Commit en `main` (sin deploy: requiere OK explícito). Pendiente anotado: `fn_seguimiento_diario_levante` (modal «Cálculos») y los 2 reportes semanales de levante tienen el mismo «último registro» con NULL/empate.
+
+---
+
+## LEV-VARIOS-DIA — Levante con varios registros por día: pesaje y uniformidad (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.md`](fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.md)
+
+- [x] A0. Diagnóstico (BD local): L1 uniformidad/CV «último» con NULL y empate de ts en `fn_seguimiento_diario_levante`; L2 `AVG` con ceros (0 ceros / 0 negativos en local: se blinda igual); L3/L4 pesaje semanal de UN registro en `fn_reporte_semanal_levante_extras` y `fn_resumen_semanal_ra_pesadas_levante`. Espejos `.sql` = desplegado (diff normalizado 0).
+- [x] B1. `fn_seguimiento_diario_levante` v2 (solo `seg_dias_agrupado`) + changelog (corrige también la cabecera v1: los semanales leen la tabla cruda).
+- [x] B2. `fn_reporte_semanal_levante_extras`: pesaje por día + changelog.
+- [x] B3. `fn_resumen_semanal_ra_pesadas_levante`: pesaje por día (`dia_pesaje` + `pesaje_del_dia`) + changelog.
+- [x] B4. Espejos C#: `SeguimientoDiarioLevanteCalculos.AgruparPorDia` v2 (+`CvH/CvM/KcalH/ProtH`) + `PesajeSemanalLevanteCalculos` (+CV) + tests.
+      Auditoría de escritores (front, services, carga masiva, stubs de traslado/movimiento): **ninguno guarda 0 por defecto**, todo NULL o passthrough; un 0 solo si el usuario lo teclea.
+- [x] B5. Migración `20260913150000_LevanteVariosRegistrosDiaPesajeUniformidad` (`.Fn.cs` generado desde los espejos + `git show HEAD:` para las previas; Designer clonado de `20260913120000`, cuerpo = ModelSnapshot, 0 líneas distintas).
+- [x] B6. Gate `backend/sql/verificar_paridad_levante_varios_registros_dia.sql` (diaria + SP en subbloque revertido + extras + RA Pesadas, congela/compara por empresa).
+- [x] V1. `dotnet build` API (+Infrastructure) **0 warn / 0 err** · `dotnet test` Application.Tests **4211/4211** (+8) · gate `verificar-sql-llega-por-migracion` OK.
+- [x] V2. Clon `sanmarino_lev_0913` (datos de prueba solo en el clon: lote 155, 3 registros el 04-sep a mediodía con un peso 0, uniformidad/CV parciales, kcal 0; 05-sep solo uniformidad).
+      ANTES (fns desplegadas): diaria 04-sep peso H **340** (500+520+0), kcal 1400, prot 8,5, unif M 74 por orden físico; extras sem 6 peso H/unif H/CV H **null**.
+      Fns nuevas por psql + gate: **Sanmarino (1118 diaria/SP, 168 extras/RA) y Demo (35 / 11) = 0 diferencias**; Santa Reyes solo lote 155: diaria/SP peso H 340→510, kcal 1400→2800, prot 8,5→17, unif M 74→76 y CV M 9,5→9 (id mayor que la trae); extras peso H null→510, peso M 630→620, unif H null→80, CV H null→8,5; RA unif H null→80, CV H null→8,5. Filas de un solo lado: 0.
+      Down (previas de `HEAD`) ⇒ **0 diferencias en todas**. `produccion_resultado_levante` del clon con md5 idéntico a la original (el SP del gate no deja escrituras).
+- [x] V3. Migración aplicada por EF contra el clon (`dotnet-ef` 10 `--connection`, sin backend): Up aplicó las 6 pendientes del clon (incluida `20260913150000`) ⇒ gate = **las mismas 14 columnas** de Santa Reyes, resto 0; `database update 20260913120000` (Down) ⇒ **0 en todas**.
+- [x] V4. Limpieza: `DROP DATABASE sanmarino_lev_0913`, `dotnet build-server shutdown`, puertos 5002/5501/4200 libres (no se levantó backend). `sanmarinoapplocal` intacta.
+- [i] Fuera de alcance, anotado como tarea aparte: `fn_reporte_diario_costos_postura` rama levante (`lev_dedup`, `DISTINCT ON`) descarta el 2.º registro del día con el flag ON.
+- [x] V5. Commit (rama del worktree, rebase sobre `main`). Sin deploy: requiere OK explícito.
