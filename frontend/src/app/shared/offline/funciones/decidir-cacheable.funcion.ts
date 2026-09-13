@@ -142,6 +142,9 @@ const EXCLUIDOS: readonly string[] = [
   'user',
   'roles',
   'permission',
+  // Módulos de permisos (catálogo y módulos de cada empresa): define qué permisos existen por
+  // empresa. Sólo lo leen Configuración → Módulos y permisos y los modales de Roles/Empresas.
+  'permissionmodule',
   'session',
 
   // Devuelve lo que se le pida: no se puede razonar sobre su contenido. (Explorador de BD; el
