@@ -8544,3 +8544,19 @@ Plan: [`fase_de_desarrollo/reporte_diario_costos_postura_varios_registros_dia_pl
 - [x] V1. Gate en clon (base v2, 1.764 filas): **Sanmarino 1.118 lev + 602 prod y Demo 35 + 2 = 0 filas distintas** (Demo con sus 3 días de 2 registros); Santa Reyes = solo los 3 días de arriba. Down ⇒ **0 en todas**. Idéntico aplicando el SQL de `dotnet ef migrations script` Up/Down.
 - [x] V2. `dotnet build` API **0 warn / 0 err** · `dotnet test` Application.Tests **4.225/4.225** (+22) · `verificar-sql-llega-por-migracion.js` OK · `ef migrations list` reconoce la migración.
 - [x] V3. `DROP DATABASE sanmarino_costos_0913`, puertos 5002/5499/5501 libres, sin builds propios vivos. Commit (sin deploy: requiere OK explícito).
+
+---
+
+## INTEGRACION-RAMAS-13SEP — Ramas pendientes a `main` + PR a producción (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md`](fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md)
+
+- [x] I1. Inventario: 0 PRs abiertos; 5 ramas con parches fuera de `main` (`git cherry`); 2 commits locales de `main` sin pushear.
+- [x] I2. Descartadas con evidencia: `eager-dijkstra` (TouchUserUpdatedAt eliminado en `f33c700`), `heuristic-perlman` (portado en `473ac16`), `devpilot/e37cb258` (solo `.devpilot/`).
+- [x] I3. Cherry-pick limpio de `956c7be` (form huérfano de catálogo de alimentos).
+- [x] I4. Port de `84bf74f` (Concepto duplicado): tabla renombrada `item_inventario(_id)`, migración re-timestampeada a `20260913170000`, hunk movido a `InventarioGestionService.Consulta.cs`.
+- [x] I5. Migración simulada en transacción + ROLLBACK: 12 / 1 / 1 filas, 0 duplicados después, ítems por empresa idénticos, 2.ª pasada `UPDATE 0` x3.
+- [x] V1. `dotnet test -c Release` backend 4.248 + 1 verdes · 7 gates `verificar-*.js` OK.
+- [ ] V2. `dotnet build` API Release · `yarn test` headless · `yarn build`.
+- [ ] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
+- [ ] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
