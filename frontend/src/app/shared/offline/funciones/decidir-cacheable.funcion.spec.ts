@@ -26,6 +26,8 @@ describe('decidirCacheable', () => {
     expect(decidirCacheable('GET', '/api/Auth/perfil')).toBeFalse();
     expect(decidirCacheable('GET', '/api/Users')).toBeFalse();
     expect(decidirCacheable('GET', '/api/Roles')).toBeFalse();
+    expect(decidirCacheable('GET', '/api/PermissionModule')).toBeFalse();
+    expect(decidirCacheable('GET', '/api/PermissionModule/company/6')).toBeFalse();
     expect(decidirCacheable('GET', '/api/session/heartbeat')).toBeFalse();
   });
 
