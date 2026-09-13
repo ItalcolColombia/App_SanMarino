@@ -338,4 +338,60 @@ public class EncasetamientoCalculosTests
         Assert.Equal(EncasetamientoCalculos.PrimerDiaConRegistro(encaset, hora), destinoDelCruce);
         Assert.Equal(new DateTime(2026, 9, 4, 12, 0, 0, DateTimeKind.Utc), destinoDelCruce);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CambiaEncasetamiento — el gate de lote.corregir_fecha_encaset mira el DÍA, no el instante.
+    // Smoke 12-sep-2026: reenviar la misma fecha respondía 403.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static readonly TimeOnly Tarde = new(21, 35);
+
+    [Theory]
+    [InlineData(0, 12)]   // guardada a medianoche UTC (cohorte previa a jul-2026), reenviada a mediodía
+    [InlineData(12, 12)]  // mismo instante
+    [InlineData(12, 23)]  // mismo día, otra hora del reloj
+    public void CambiaEncasetamiento_MismoDiaCalendario_NoEsCambio(int horaGuardadaUtc, int horaNuevaUtc)
+    {
+        var guardada = new DateTime(2026, 9, 3, horaGuardadaUtc, 0, 0, DateTimeKind.Utc);
+        var nueva = new DateTime(2026, 9, 3, horaNuevaUtc, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_FechaSinKindYFechaUtcDelMismoDia_NoEsCambio()
+    {
+        var guardada = new DateTime(2026, 9, 3, 0, 0, 0, DateTimeKind.Unspecified);
+        var nueva = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_OtroDia_EsCambio()
+    {
+        var guardada = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+        var nueva = new DateTime(2026, 9, 4, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_SoloCambiaLaHora_EsCambio()
+    {
+        var dia = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, Tarde, dia, new TimeOnly(22, 0)));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, null, dia, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_Nulos()
+    {
+        var dia = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(null, null, null, null));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(null, Tarde, dia, Tarde));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, Tarde, null, Tarde));
+    }
 }

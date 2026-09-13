@@ -352,8 +352,9 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.NombreLote = (dto.NombreLote ?? "").Trim();
         ent.CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim();
         var nuevaFechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
-        var cambiaEncasetamiento =
-            dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncasetamiento;
+        // Por DÍA y no por instante: la misma fecha reenviada no es un cambio (ver CambiaEncasetamiento).
+        var cambiaEncasetamiento = EncasetamientoCalculos.CambiaEncasetamiento(
+            ent.FechaEncasetamiento, ent.HoraEncasetamiento, nuevaFechaEncaset, dto.HoraEncasetamiento);
 
         // Mismo criterio que en el lote pollo engorde: informar una hora tardía en un lote que ya tiene
         // días de recogida cargados dejaría el registro del día del encasetamiento fuera de la ventana.

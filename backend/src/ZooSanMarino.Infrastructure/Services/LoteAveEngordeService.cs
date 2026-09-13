@@ -712,8 +712,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         // seguimientos (todos los de producción se crearon sin hora) informar una hora tardía dejaría
         // registros existentes fuera de la ventana válida. Se diagnostica ANTES de escribir: mejor un
         // 400 que explica qué registros estorban que un 200 que deja el lote inconsistente en silencio.
-        var cambiaEncasetamiento =
-            dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncaset;
+        // Por DÍA y no por instante: la misma fecha reenviada no es un cambio (ver CambiaEncasetamiento).
+        var cambiaEncasetamiento = EncasetamientoCalculos.CambiaEncasetamiento(
+            ent.FechaEncaset, ent.HoraEncasetamiento, nuevaFechaEncaset, dto.HoraEncasetamiento);
         if (cambiaEncasetamiento)
             await PrepararCambioDeEncasetamientoAsync(ent, nuevaFechaEncaset, dto.HoraEncasetamiento);
 

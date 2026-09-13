@@ -8239,10 +8239,21 @@ Demo y Sanmarino tienen 0 filas de cruce.
       `EnableRetryOnFailure` sigue apagado a proposito en `Program.cs`.)
 - [x] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
       recalcula. `yarn build` 0 errores (12-sep).
-- [~] B9. Validacion 12-sep: `dotnet build ZooSanMarino.sln` OK · Application.Tests 4142/4144 con
-      artifacts aislados (los 2 de `RazaGuiaAliasParidadSqlTests` buscan `backend/sql` subiendo desde el
-      bin: en su ubicacion normal 98/98 del filtro, verdes) · cuadre antes/despues OK.
-      **NO corrido:** smoke HTTP del 403/400/200 de la cascada (exige backend + JWT minteado).
+- [x] B9. Validacion 12-sep: `dotnet build ZooSanMarino.sln` OK · Application.Tests 4151/4151 (repo)
+      · `yarn build` 0 errores · cuadre antes/despues OK.
+- [x] B10. **Smoke HTTP** (12-sep): clon descartable `sanmarinoapp_smoke_fe` + backend aislado :5501
+      (content root propio, `RunMigrations=true` ⇒ las 2 migraciones del 11-sep aplicadas por EF: 239
+      arranca el 28/08, 0 huerfanas, saldo sin NULL, permiso heredado por 12 roles), JWT Admin Panama con
+      y sin `lote.corregir_fecha_encaset`. Lote 255 / repro 160: C1 mismo body sin permiso 200 · C2 hora
+      sin permiso 403 · C3 encaset 02-sep 400 con detalle y nada escrito · C4 04-sep 10:00 200 con
+      cascada (repro hereda fecha+hora, cruce edad 0 el 04-sep, saldo reescrito, 0 huerfanas, bajas y
+      maestro iguales, cuadres intactos) · C5 vuelta al dato real = estado inicial exacto · C6 repro hora
+      sin permiso 403 · C7 repro mismo body sin permiso 200. **20/20.** Clon borrado, :5501 libre.
+- [x] B11. 🔴 **Defecto que SOLO vio el smoke:** el gate comparaba INSTANTES (`AnclarMediodiaUtc(dto)
+      != ent.FechaEncaset`); el GET devuelve `07:00-05:00` y reenviar la misma fecha daba **403** (y
+      cascada a quien tiene el permiso) — en prod rompia editar cualquier lote viejo anclado a medianoche.
+      Fix: `EncasetamientoCalculos.CambiaEncasetamiento` (compara dia anclado de los dos lados) + 7 casos
+      xUnit, usado en engorde y reproductora. Re-smoke 20/20.
 - [i] Aviso a operacion, no defecto: el lote **257** (ciclo anterior de G0490) muestra −227 kg el
       07/09 porque la reproductora consumio ese dia y el ingreso de alimento esta cargado el 08/09.
 

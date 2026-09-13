@@ -145,6 +145,25 @@ public static class EncasetamientoCalculos
         Math.Max(0, DiasDesplazamiento(horaEncasetamiento) - Math.Max(0, primeraEdadConRegistro ?? 0));
 
     /// <summary>
+    /// ¿El <c>PUT</c> cambia de verdad el encasetamiento? Compara la HORA y el <b>día de calendario</b>
+    /// de la fecha, nunca el instante.
+    ///
+    /// <para>
+    /// <b>Por qué no alcanza con <c>nueva != guardada</c>.</b> La fecha de encasetamiento es una fecha
+    /// pura, pero viaja como instante: la BD tiene filas ancladas a medianoche UTC (antes del
+    /// 21-jul-2026) y a mediodía UTC (después), y con el comportamiento legacy de Npgsql el valor leído
+    /// llega en la zona del servidor. Comparar instantes daba «cambió» para el mismo día, y desde que
+    /// ese delta exige <c>lote.corregir_fecha_encaset</c> y dispara la cascada, guardar el técnico de un
+    /// lote con registros respondía <b>403</b> a quien no tiene el permiso (medido en el smoke del
+    /// 12-sep-2026: el GET devuelve <c>07:00-05:00</c> y el mismo valor reenviado se rechazaba).
+    /// </para>
+    /// </summary>
+    public static bool CambiaEncasetamiento(
+        DateTime? fechaGuardada, TimeOnly? horaGuardada, DateTime? fechaNueva, TimeOnly? horaNueva) =>
+        horaNueva != horaGuardada
+        || FechasPuras.AnclarMediodiaUtc(fechaNueva) != FechasPuras.AnclarMediodiaUtc(fechaGuardada);
+
+    /// <summary>
     /// Hora de llegada que rige a un lote REPRODUCTORA aves de engorde: la propia y, si no tiene
     /// (el caso real: la hora se captura en el formulario del lote POLLO ENGORDE y las reproductoras
     /// quedan con NULL), la de su lote de engorde — son la misma llegada física de pollitos.
