@@ -8529,3 +8529,18 @@ Plan: [`fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.
 - [x] V4. Limpieza: `DROP DATABASE sanmarino_lev_0913`, `dotnet build-server shutdown`, puertos 5002/5501/4200 libres (no se levantó backend). `sanmarinoapplocal` intacta.
 - [i] Fuera de alcance, anotado como tarea aparte: `fn_reporte_diario_costos_postura` rama levante (`lev_dedup`, `DISTINCT ON`) descarta el 2.º registro del día con el flag ON.
 - [x] V5. Commit (rama del worktree, rebase sobre `main`). Sin deploy: requiere OK explícito.
+
+---
+
+## COSTOS-POSTURA-VARIOS-DIA — Reporte Diario Costos Postura con varios registros por día (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/reporte_diario_costos_postura_varios_registros_dia_plan.md`](fase_de_desarrollo/reporte_diario_costos_postura_varios_registros_dia_plan.md)
+
+- [x] A0. Medición ANTES en clon `sanmarino_costos_0913` (+ `fn_seguimiento_diario_produccion` v4 de `main`). Confirmadas las 3 pérdidas con el flag: levante lote 155 04-sep (4 registros) ⇒ v2 daba mort 15/0 · sel 0/0 · error 0/0 · venta 0 · **3.000 / 0 kg** (reales 3.499 / 50); levante 152 21-ago ⇒ mort 0 y 999,991 kg (reales 3 y 1.019,991); producción 152 04-sep ⇒ venta **0/0** (real 7/2) y json con 1 ítem de 2 (100 de 499 kg).
+- [x] B1. `fn_reporte_diario_costos_postura` v3: flag leído una vez en `cfg`; levante `lev_dedup` (OFF, igual a v2) ∪ `lev_agrupado` (ON, SUMA); alimentos por registro (`alim_registros`, fallback por registro, desempate por registro); venta de aves de producción = suma de los registros del día con el flag (espejo `.sql` + changelog v3).
+- [x] B2. Espejo C# `ReporteDiarioCostosPosturaVariosRegistrosCalculos` + 22 tests (testigos = registros del clon, números = salida de la fn v3).
+- [x] B3. Migración `20260913160000_ReporteCostosPosturaVariosRegistrosDia` (Up v3 / Down v2 verbatim; `.Fn.cs` generado desde los espejos; Designer clonado de `20260913120000`: 2 líneas distintas, cuerpo del modelo = snapshot, snapshot sin tocar). Timestamp después de `20260913150000` (levante, otra sesión, ya en `main`).
+- [x] B4. Gate `backend/sql/verificar_paridad_reporte_costos_postura.sql` (todas las empresas; compara con y sin orden del json de alimentos).
+- [x] V1. Gate en clon (base v2, 1.764 filas): **Sanmarino 1.118 lev + 602 prod y Demo 35 + 2 = 0 filas distintas** (Demo con sus 3 días de 2 registros); Santa Reyes = solo los 3 días de arriba. Down ⇒ **0 en todas**. Idéntico aplicando el SQL de `dotnet ef migrations script` Up/Down.
+- [x] V2. `dotnet build` API **0 warn / 0 err** · `dotnet test` Application.Tests **4.225/4.225** (+22) · `verificar-sql-llega-por-migracion.js` OK · `ef migrations list` reconoce la migración.
+- [x] V3. `DROP DATABASE sanmarino_costos_0913`, puertos 5002/5499/5501 libres, sin builds propios vivos. Commit (sin deploy: requiere OK explícito).
