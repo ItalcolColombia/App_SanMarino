@@ -8434,3 +8434,8 @@ Plan: [`fase_de_desarrollo/reporte_tecnico_porcentaje_produccion_plan.md`](fase_
 - [x] R8. Hallazgo del smoke: % diario 150,27 % (P-K345B, día de liquidación) ⇒ denominador = hembras al INICIO del día.
 - [x] R9. Revalidado: build 0/0, Release 4164/4164, smoke 2 ⇒ 0 valores > 100 en las 4 vistas (liquidación 39,7 %), Excel con «%Producción» en las 4 hojas. Commit (este).
 - [x] R10. `git push origin main` + PR **#105** main → main-produccion (https://github.com/ItalcolColombia/App_SanMarino/pull/105). Sin merge: el merge dispara el deploy.
+- [x] R11. Merge del PR #105 (merge `b5bffe5`) ⇒ run `34732816308` **success** (tests 867 + gate, backend, frontend).
+      Verificación post-deploy sin `aws` CLI válido (los 4 perfiles locales sin credenciales): backend
+      `backend:b5bffe5…` y front `frontend:b5bffe5…` ambos `rolloutState=COMPLETED`; `/version.json` pasó de
+      `00:13:08Z` a `02:32:28Z` (build de este run) ⇒ sin rollback. Borde: CSP+HSTS, chunk inexistente 404,
+      ruta SPA 200. Pendiente del usuario: smoke en prod (P-K345A → Consolidado → Semanal General ≤ 100, «%Producción»).
