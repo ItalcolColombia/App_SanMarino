@@ -8557,6 +8557,6 @@ Plan: [`fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md`](fase_d
 - [x] I4. Port de `84bf74f` (Concepto duplicado): tabla renombrada `item_inventario(_id)`, migración re-timestampeada a `20260913170000`, hunk movido a `InventarioGestionService.Consulta.cs`.
 - [x] I5. Migración simulada en transacción + ROLLBACK: 12 / 1 / 1 filas, 0 duplicados después, ítems por empresa idénticos, 2.ª pasada `UPDATE 0` x3.
 - [x] V1. `dotnet test -c Release` backend 4.248 + 1 verdes · 7 gates `verificar-*.js` OK.
-- [ ] V2. `dotnet build` API Release · `yarn test` headless · `yarn build`.
-- [ ] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
-- [ ] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
+- [x] V2. `dotnet build` API Release 0 warn / 0 err · `yarn test` headless 894/894 · `yarn build` 0 errores / 0 warnings.
+- [x] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
+- [x] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
