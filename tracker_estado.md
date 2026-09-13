@@ -8433,4 +8433,4 @@ Plan: [`fase_de_desarrollo/reporte_tecnico_porcentaje_produccion_plan.md`](fase_
 - [x] R7. Validación previa al PR: `dotnet test -c Release` 4164 + 1 · `yarn test` 867/867 · 7 gates OK · smoke HTTP :5501 (BD local) 200.
 - [x] R8. Hallazgo del smoke: % diario 150,27 % (P-K345B, día de liquidación) ⇒ denominador = hembras al INICIO del día.
 - [x] R9. Revalidado: build 0/0, Release 4164/4164, smoke 2 ⇒ 0 valores > 100 en las 4 vistas (liquidación 39,7 %), Excel con «%Producción» en las 4 hojas. Commit (este).
-- [ ] R10. Push de `main` + PR `main` → `main-produccion` (sin merge: el merge despliega).
+- [x] R10. `git push origin main` + PR **#105** main → main-produccion (https://github.com/ItalcolColombia/App_SanMarino/pull/105). Sin merge: el merge dispara el deploy.
