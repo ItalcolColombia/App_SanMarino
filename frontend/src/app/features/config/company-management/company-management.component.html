@@ -346,6 +346,13 @@
               Marque los permisos que existen para esta empresa. Solo los marcados se ofrecen al crear
               un rol y solo ellos llegan a la sesión del usuario.
             </p>
+            @if (permEditEmpresaConModulos) {
+              <p class="text-xs text-warm-gray-600">
+                Los permisos se agrupan por módulo. Los de módulos que la empresa no tiene no se pueden
+                prender acá: el módulo se prende en
+                <a routerLink="/config/permission-modules" (click)="closePermEdit()" class="font-semibold text-brand-red underline">Configuración → Módulos y permisos</a>.
+              </p>
+            }
 
             <div class="flex flex-wrap items-center gap-2">
               <input
@@ -375,33 +382,46 @@
               </div>
             }
 
-            <ul class="list-none pl-0 divide-y divide-warm-gray-100">
-              @for (p of permEditItemsFiltrados; track p.id) {
-                <li class="py-2">
-                  <label class="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      [checked]="p.isEnabled"
-                      (change)="togglePermEnabled(p)"
-                      class="mt-1 h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
-                    <span class="flex-1">
-                      <span class="font-mono text-sm">{{ p.key }}</span>
-                      @if (p.description) {
-                        <span class="block text-xs text-warm-gray-600">{{ p.description }}</span>
-                      }
-                    </span>
-                    @if (p.enUsoPorRoles > 0) {
-                      <span class="text-xs text-warm-gray-500 whitespace-nowrap">
-                        {{ p.enUsoPorRoles }} rol(es)
-                      </span>
-                    }
-                  </label>
-                </li>
-              }
-              @if (!permEditItemsFiltrados.length) {
-                <li class="py-3 text-sm text-warm-gray-600">Ningún permiso coincide con la búsqueda.</li>
-              }
-            </ul>
+            @for (grupo of permEditGrupos; track grupo.moduloKey ?? '__sin_clasificar__') {
+              <section class="rounded-lg border border-warm-gray-200">
+                <header class="flex items-center justify-between gap-2 rounded-t-lg border-b border-warm-gray-200 bg-warm-gray-50 px-3 py-1.5">
+                  <span class="text-xs font-bold uppercase tracking-wide text-warm-gray-700">{{ grupo.nombre }}</span>
+                  @if (moduloApagado(grupo.moduloKey)) {
+                    <span class="rounded bg-warm-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-warm-gray-600">Módulo apagado</span>
+                  }
+                </header>
+                <ul class="list-none pl-0 divide-y divide-warm-gray-100 px-3">
+                  @for (p of grupo.items; track p.id) {
+                    <li class="py-2">
+                      <label class="flex items-start gap-3"
+                        [class.cursor-pointer]="puedePrenderPermiso(p)"
+                        [class.opacity-60]="!puedePrenderPermiso(p)">
+                        <input
+                          type="checkbox"
+                          [checked]="p.isEnabled"
+                          [disabled]="!puedePrenderPermiso(p)"
+                          (change)="togglePermEnabled(p)"
+                          class="mt-1 h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                        <span class="flex-1 min-w-0">
+                          <span class="font-mono text-sm break-all">{{ p.key }}</span>
+                          @if (p.description) {
+                            <span class="block text-xs text-warm-gray-600">{{ p.description }}</span>
+                          }
+                        </span>
+                        @if (p.enUsoPorRoles > 0) {
+                          <span class="text-xs text-warm-gray-500 whitespace-nowrap">
+                            {{ p.enUsoPorRoles }} rol(es)
+                          </span>
+                        }
+                      </label>
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
+            @if (!permEditItemsFiltrados.length) {
+              <p class="py-3 text-sm text-warm-gray-600">Ningún permiso coincide con la búsqueda.</p>
+            }
           </div>
         }
       </div>

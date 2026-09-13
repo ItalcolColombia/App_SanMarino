@@ -63,6 +63,15 @@ import {
   CompanyPermissionItem
 } from '../../../core/services/company-permission/company-permission.service';
 
+import {
+  PermissionModuleService,
+  PermissionModule
+} from '../../../core/services/permission-module/permission-module.service';
+import {
+  agruparPermisosPorModulo,
+  type GrupoPermisos
+} from '../../../core/services/permission-module/agrupar-permisos-por-modulo.funcion';
+
 import { resolverPermisosAsignables } from './funciones/filtrar-permisos-empresa.funcion';
 import {
   esAdminDeAplicacion, puedeVerTab, tabPorDefecto, type TabRoles
@@ -166,6 +175,12 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   private roleModalPermsCompanyKey = '';
   /** Keys habilitadas por empresa, cacheadas mientras dure la pantalla. */
   private permisosPorEmpresa = new Map<number, string[]>();
+  /** Permisos asignables agrupados por módulo (campo, no getter: referencia estable para el CD). */
+  roleModalPermGroups: GrupoPermisos<Permission>[] = [];
+  /** Catálogo de módulos de permisos. Vacío (o si falla) ⇒ la lista sale en «Sin clasificar». */
+  private modulosPermisos: PermissionModule[] = [];
+  /** key de permiso (minúscula) → keys de los módulos que lo contienen. */
+  private modulosPorPermiso = new Map<string, string[]>();
 
   // UI state
   loading = false;
@@ -189,11 +204,14 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   /** true si el usuario abrió explícitamente el tab de Tickets (para no llamar la API si nunca lo tocó). */
   ticketTabVisited = false;
 
-  /** Lista de tabs disponibles según si estamos creando o editando. */
+  /**
+   * Lista de tabs disponibles según si estamos creando o editando. Empresas va ANTES que Permisos:
+   * los permisos que se ofrecen salen de las empresas del rol, así que sin elegirlas no hay lista.
+   */
   get roleTabs(): Array<'general' | 'permisos' | 'empresas' | 'tickets'> {
     return this.form?.value?.id
-      ? ['general', 'permisos', 'empresas', 'tickets']
-      : ['general', 'permisos', 'empresas'];
+      ? ['general', 'empresas', 'permisos', 'tickets']
+      : ['general', 'empresas', 'permisos'];
   }
   get roleModalTabIndex(): number { return this.roleTabs.indexOf(this.roleModalTab); }
   get isFirstRoleTab(): boolean   { return this.roleModalTabIndex === 0; }
@@ -253,6 +271,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     private menuSvc: MenuService,
     private companyMenuSvc: CompanyMenuService,
     private companyPermissionSvc: CompanyPermissionService,
+    private permissionModuleSvc: PermissionModuleService,
     private sidebarMenuSvc: SidebarMenuService,
     private authService: AuthService,
     private ticketPerfilSvc: TicketPerfilService,
@@ -295,6 +314,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
     this.loadCompanies();
     this.loadPermissions();
+    this.loadModulosPermisos();
     this.loadMenus();
 
     // Al cambiar empresas en el modal de rol, cargar menús de la primera empresa seleccionada
@@ -763,6 +783,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
     if (!ids.length) {
       this.roleModalPerms = [];
+      this.roleModalPermGroups = [];
       this.roleModalPermsHuerfanas = [];
       this.roleModalPermsEmpresasSinConfigurar = [];
       return;
@@ -825,6 +846,47 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     this.roleModalPermsHuerfanas = resultado.huerfanas;
     this.roleModalPermsEmpresasSinConfigurar = resultado.empresasSinConfigurar
       .map(id => this.companiesMap[id] || `#${id}`);
+    this.agruparPermisosDelModal();
+  }
+
+  /** Catálogo de módulos para agrupar el tab Permisos. Si falla, la lista sale plana. */
+  private loadModulosPermisos(): void {
+    this.permissionModuleSvc.getAll()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: modulos => {
+          this.modulosPermisos = modulos ?? [];
+          const indice = new Map<string, string[]>();
+          for (const m of this.modulosPermisos) {
+            for (const k of m.permissionKeys ?? []) {
+              const key = (k || '').toLowerCase();
+              indice.set(key, [...(indice.get(key) ?? []), m.key]);
+            }
+          }
+          this.modulosPorPermiso = indice;
+          this.agruparPermisosDelModal();
+        },
+        error: () => {
+          this.modulosPermisos = [];
+          this.modulosPorPermiso = new Map();
+          this.agruparPermisosDelModal();
+        }
+      });
+  }
+
+  /** Recalcula los grupos del tab Permisos sobre lo ya asignable (no cambia QUÉ se ofrece). */
+  private agruparPermisosDelModal(): void {
+    this.roleModalPermGroups = agruparPermisosPorModulo(
+      this.roleModalPerms,
+      p => this.modulosPorPermiso.get((p.key || '').toLowerCase()),
+      this.modulosPermisos
+    );
+  }
+
+  /** Cuántos permisos del grupo están marcados en el formulario (sin alocar arrays). */
+  contarSeleccionados(items: readonly Permission[]): number {
+    const seleccionados: string[] = this.form?.controls['permissions']?.value ?? [];
+    return items.reduce((n, p) => n + (seleccionados.includes((p.key || '').toLowerCase()) ? 1 : 0), 0);
   }
 
   closeModal() {

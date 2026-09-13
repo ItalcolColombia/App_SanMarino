@@ -1084,11 +1084,67 @@ select:focus-visible {
   scrollbar-width: thin;
   scrollbar-color: var(--rm-line) transparent;
 
-  &--grid  { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
-  &--grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
-    @media (max-width: 640px) { grid-template-columns: repeat(2, 1fr); }
-    @media (max-width: 400px) { grid-template-columns: 1fr; }
+  // minmax(0, 1fr) y no 1fr: `1fr` no baja del min-content, y con la descripción en `nowrap` la
+  // columna se estiraba y la grilla se salía del modal (scroll horizontal del tab Permisos).
+  &--grid  { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  &--grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+    @media (max-width: 640px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 400px) { grid-template-columns: minmax(0, 1fr); }
   }
+}
+
+/* Tab Permisos agrupado por módulo: un solo scroll para todos los grupos. */
+.rm-perm-groups {
+  padding: 0.5rem 1rem 0.75rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--rm-line) transparent;
+}
+
+.rm-perm-group {
+  border: 1px solid var(--rm-line);
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.rm-perm-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--rm-orange-50);
+  border-bottom: 1px solid var(--rm-line);
+  border-radius: 8px 8px 0 0;
+}
+
+.rm-perm-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--rm-orange-dk);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.rm-perm-group__count {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--rm-muted);
+}
+
+.rm-perm-group__body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 0.375rem 0.5rem;
+
+  @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }
 }
 
 .rm-fieldset__hint {
@@ -1138,6 +1194,7 @@ select:focus-visible {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
+  min-width: 0;
   padding: 0.3125rem 0.5rem;
   border-radius: 7px;
   cursor: pointer;

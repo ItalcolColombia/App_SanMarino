@@ -308,6 +308,13 @@ export const appConfig: ApplicationConfig = {
               import('./features/config/role-management/role-management.component')
                 .then(m => m.RoleManagementComponent)
           },
+          // Módulos de permisos: catálogo (módulo → permisos) y módulos de cada empresa.
+          {
+            path: 'permission-modules',
+            loadComponent: () =>
+              import('./features/config/permission-modules/permission-modules.component')
+                .then(m => m.PermissionModulesComponent)
+          },
           {
             path: 'users',
             loadComponent: () =>

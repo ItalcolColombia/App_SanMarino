@@ -223,6 +223,7 @@ builder.Services.AddScoped<ILocationScopeResolver, LocationScopeResolver>(); // 
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<ICompanyPermissionService, CompanyPermissionService>();
+builder.Services.AddScoped<IPermissionModuleService, PermissionModuleService>(); // módulos de permisos → materializa company_permissions
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>(); // dashboard: alcance por empresa + ubicación
 builder.Services.AddScoped<INucleoService, NucleoService>();
@@ -827,6 +828,14 @@ app.UseExceptionHandler(errApp =>
             ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
             ctx.Response.ContentType = "application/json";
             await ctx.Response.WriteAsJsonAsync(new { message = pex.Message });
+            return;
+        }
+        // Ajuste fino fuera de módulo: mismo criterio, 400 con el mensaje tal cual.
+        if (ex is ZooSanMarino.Application.Exceptions.PermisoFueraDeModuloException mex)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.WriteAsJsonAsync(new { message = mex.Message });
             return;
         }
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;

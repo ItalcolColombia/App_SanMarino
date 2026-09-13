@@ -415,6 +415,7 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<CompanyPais> CompanyPaises { get; set; } = new List<CompanyPais>();
         public ICollection<CompanyMenu> CompanyMenus { get; set; } = new List<CompanyMenu>();
         public ICollection<CompanyPermission> CompanyPermissions { get; set; } = new List<CompanyPermission>();
+        public ICollection<CompanyPermissionModule> CompanyPermissionModules { get; set; } = new List<CompanyPermissionModule>();
         public CompanyLogo? Logo { get; set; }
     }
 }
