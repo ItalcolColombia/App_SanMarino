@@ -204,13 +204,13 @@ public class ExportacionExcelService : IExportacionExcelService
             ? new[] {
                 "Galpón", "Lote", "Fecha", "Sem.", "Edad",
                 "Saldo H", "Saldo M", "Mort H", "Mort M", "%Mort",
-                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Primera", "%Postura", "Peso Huevo",
+                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Primera", "%Producción", "Peso Huevo",
                 "Huevo Pnc"
               }
             : new[] {
                 "Galpón", "Lote", "Fecha", "Sem.", "Edad",
                 "Saldo H", "Saldo M", "Mort H", "Mort M", "%Mort",
-                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Inc", "%Postura", "Peso Huevo"
+                "ConsKg H", "ConsKg M", "Huevo Tot", "Huevo Inc", "%Producción", "Peso Huevo"
               };
         for (int i = 0; i < headers.Length; i++)
         {
@@ -300,7 +300,7 @@ public class ExportacionExcelService : IExportacionExcelService
             "Saldo Ini H", "Saldo Ini M", "Saldo Fin H", "Saldo Fin M",
             "Mort H", "Mort M", "%Mort",
             "ConsKg H", "ConsKg M",
-            "Huevo Tot", "%Postura", "Peso Huevo"
+            "Huevo Tot", "%Producción", "Peso Huevo"
         };
         for (int i = 0; i < headers.Length; i++)
         {
@@ -395,7 +395,7 @@ public class ExportacionExcelService : IExportacionExcelService
         string[] headers = {
             "Fecha", "Sem.", "Edad", "Saldo H", "Saldo M",
             "Mort H", "Mort M", "ConsKg H", "ConsKg M",
-            "Huevo Tot", "%Postura", "Peso Huevo", "Postura Guía"
+            "Huevo Tot", "%Producción", "Peso Huevo", "Producción Guía"
         };
         for (int i = 0; i < headers.Length; i++)
         {
@@ -465,7 +465,7 @@ public class ExportacionExcelService : IExportacionExcelService
         string[] headers = {
             "Sem.", "Edad Sem.", "Saldo Ini H", "Saldo Ini M", "Saldo Fin H", "Saldo Fin M",
             "Mort H", "Mort M", "ConsKg H", "ConsKg M",
-            "Huevo Tot", "%Postura", "Peso Huevo", "Postura Guía"
+            "Huevo Tot", "%Producción", "Peso Huevo", "Producción Guía"
         };
         for (int i = 0; i < headers.Length; i++)
         {

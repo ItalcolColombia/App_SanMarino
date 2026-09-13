@@ -59,5 +59,9 @@ public record ReporteDiarioGalponDto(
     // Etapa del ciclo de vida (`SemanasCicloPosturaCalculos`) para empresas con
     // `semanas_ciclo_postura_por_raza`. `null` = la empresa no usa cortes por raza, o la raza no se
     // reconoce: no se adivina.
-    string? EtapaCiclo = null
+    string? EtapaCiclo = null,
+    // Hembras vivas al INICIO del día (cierre del día anterior): denominador del %Producción.
+    // `SaldoHembras` es el cierre, ya descontadas las salidas del día; en un día de descarte masivo
+    // o liquidación dividir por él da más de 100 % (P-K345B, 14-may-2026: 2.481 / 1.651 = 150 %).
+    int HembrasInicioDia = 0
 );

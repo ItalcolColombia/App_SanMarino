@@ -442,6 +442,14 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
           { nombre: 'GrAveDiaM', formula: 'SI(SaldoMacho>0; (ConsKgM*1000)/SaldoMacho/7; 0)' },
           { nombre: 'DifConsM',  formula: 'ConsAcGrM - ConsAcGrMGUIA' }
         ]
+      },
+      {
+        titulo: '🥚 Cálculos — PRODUCCIÓN',
+        formulas: [
+          { nombre: '%Producción diario',  formula: '(HuevoTot / HembrasVivas)*100' },
+          { nombre: '%Producción semanal', formula: '(Σ HuevoTot de la semana / Σ HembrasVivas de cada día)*100 — ave-día, comparable con la guía' },
+          { nombre: 'Dif',                 formula: '%Producción - %ProducciónGUIA' }
+        ]
       }
     ];
   }
