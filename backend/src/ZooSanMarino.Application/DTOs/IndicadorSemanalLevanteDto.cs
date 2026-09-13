@@ -11,13 +11,18 @@ public sealed class IndicadorSemanalLevanteDto
     public double AvesInicioSemana { get; set; }
     public double AvesFinSemana { get; set; }
     public double ConsumoDiario { get; set; }
-    public double ConsumoTabla { get; set; }
+    // Guía mixta (ConsumoTabla, PesoTabla, UnifTabla, MortTabla): null cuando la empresa tiene
+    // guía PROPIA y la semana no tiene fila —la de Santa Reyes arranca en la semana 18, o sea
+    // todo su levante—. La fn no inventa un 0 como objetivo; con `double` EF no podía
+    // materializar ese NULL y el endpoint respondía 500 (las pestañas Indicadores y Gráfica
+    // quedaban vacías). Las demás empresas siguen recibiendo un número (la fn coalescea a 0).
+    public double? ConsumoTabla { get; set; }
     public double ConsumoTotalSemana { get; set; }
     public double ConversionAlimenticia { get; set; }
-    public double PesoTabla { get; set; }
+    public double? PesoTabla { get; set; }
     public double UnifReal { get; set; }
-    public double UnifTabla { get; set; }
-    public double MortTabla { get; set; }
+    public double? UnifTabla { get; set; }
+    public double? MortTabla { get; set; }
     public double DifPesoPct { get; set; }
     public double GananciaSemana { get; set; }
     public double GananciaDiariaAcumulada { get; set; }

@@ -1,6 +1,10 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- fn_seguimiento_diario_produccion — grilla diaria CANÓNICA de producción (postura)
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- v4 (2026-09-13) — seg_dias_agrupado (solo flag ON): peso ave/huevo promedia los registros que
+--   pesaron (> 0), uniformidad/CV = último registro que la trae, desempate del «último» por
+--   seg_id y metadata.huevoItems concatenados de todos los registros del día. Flag OFF intacto.
+--   Detalle junto al CTE. Espejo C#: SeguimientoDiarioProduccionCalculos.AgruparPorDia.
 -- v3 (2026-09-05) — múltiples registros por día para empresas con el flag
 --   companies.permite_multiples_seguimientos_diarios (plan
 --   fase_de_desarrollo/seguimiento_produccion_multiples_registros_dia_plan.md). El CTE
@@ -379,10 +383,21 @@ seg_dias_dedup AS (
 --     último registro (simplificación: no hay noción de "autor del día").
 -- Con UN solo registro (caso normal de cualquier empresa sin duplicados ese día) cada fórmula
 -- de arriba devuelve exactamente el valor de esa fila — el mismo resultado que el dedup.
+-- v4 (2026-09-13) — lo NO aditivo se agrupaba mal con 2+ registros el mismo día y lo heredaban
+-- los indicadores semanales (plan fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md):
+--   • peso_h / peso_m / peso_huevo → promedio de los registros que PESARON (> 0). peso_huevo se
+--     guarda en 0 cuando no se pesa: el AVG de v3 daba 30 g para un pesaje de 60 g + un registro
+--     sin pesaje. Si ninguno pesó, el AVG de siempre (0 o NULL, como en v3).
+--   • uniformidad / CV → el último registro que la TRAE: un NULL ya no tapa la medición del día.
+--   • «gana el último» se desempata por c_seg_id: los forms graban todos los registros del día al
+--     mediodía y el timestamp solo no decidía (orden no determinista).
+--   • metadata → la del último registro con `huevoItems` = los de TODOS los registros del día.
+--     En v3 Primera/Pnc de la semana perdían los ítems de los demás registros y huevo_tot no.
+--   Con UN registro el día cada expresión devuelve el valor de esa fila (idéntico a v3).
 seg_dias_agrupado AS (
     SELECT
         MIN(c.c_seg_id)                                              AS c_seg_id,
-        (array_agg(c.c_fuente ORDER BY c.c_ts DESC))[1]              AS c_fuente,
+        (array_agg(c.c_fuente ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]              AS c_fuente,
         MIN(c.c_ts)                                                  AS c_ts,
         SUM(c.c_mort_h)::int                                         AS c_mort_h,
         SUM(c.c_mort_m)::int                                         AS c_mort_m,
@@ -392,7 +407,7 @@ seg_dias_agrupado AS (
         SUM(c.c_err_m)::int                                          AS c_err_m,
         SUM(c.c_cons_h)::float8                                      AS c_cons_h,
         SUM(c.c_cons_m)::float8                                      AS c_cons_m,
-        (array_agg(c.c_tipo_alimento ORDER BY c.c_ts DESC))[1]       AS c_tipo_alimento,
+        (array_agg(c.c_tipo_alimento ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]       AS c_tipo_alimento,
         SUM(c.c_huevo_tot)::int                                      AS c_huevo_tot,
         SUM(c.c_huevo_inc)::int                                      AS c_huevo_inc,
         SUM(c.c_h_limpio)::int                                       AS c_h_limpio,
@@ -406,33 +421,47 @@ seg_dias_agrupado AS (
         SUM(c.c_h_roto)::int                                         AS c_h_roto,
         SUM(c.c_h_desecho)::int                                      AS c_h_desecho,
         SUM(c.c_h_otro)::int                                         AS c_h_otro,
-        AVG(c.c_peso_huevo)::float8                                  AS c_peso_huevo,
+        COALESCE(AVG(c.c_peso_huevo) FILTER (WHERE c.c_peso_huevo > 0), AVG(c.c_peso_huevo))::float8 AS c_peso_huevo,
         bool_or(c.c_es_traslado)                                     AS c_es_traslado,
-        (array_agg(c.c_tras_dir ORDER BY c.c_ts DESC))[1]            AS c_tras_dir,
+        (array_agg(c.c_tras_dir ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]            AS c_tras_dir,
         SUM(c.c_tras_in_h)::int                                      AS c_tras_in_h,
         SUM(c.c_tras_in_m)::int                                      AS c_tras_in_m,
         SUM(c.c_tras_out_h)::int                                     AS c_tras_out_h,
         SUM(c.c_tras_out_m)::int                                     AS c_tras_out_m,
-        (array_agg(c.c_lote_destino_id ORDER BY c.c_ts DESC))[1]     AS c_lote_destino_id,
-        (array_agg(c.c_granja_destino_id ORDER BY c.c_ts DESC))[1]   AS c_granja_destino_id,
-        AVG(c.c_peso_h)                                              AS c_peso_h,
-        AVG(c.c_peso_m)                                              AS c_peso_m,
-        (array_agg(c.c_unif ORDER BY c.c_ts DESC))[1]                AS c_unif,
-        (array_agg(c.c_cv ORDER BY c.c_ts DESC))[1]                  AS c_cv,
-        (array_agg(c.c_unif_h ORDER BY c.c_ts DESC))[1]              AS c_unif_h,
-        (array_agg(c.c_unif_m ORDER BY c.c_ts DESC))[1]              AS c_unif_m,
-        (array_agg(c.c_cv_h ORDER BY c.c_ts DESC))[1]                AS c_cv_h,
-        (array_agg(c.c_cv_m ORDER BY c.c_ts DESC))[1]                AS c_cv_m,
-        (array_agg(c.c_obs_pesaje ORDER BY c.c_ts DESC))[1]          AS c_obs_pesaje,
+        (array_agg(c.c_lote_destino_id ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]     AS c_lote_destino_id,
+        (array_agg(c.c_granja_destino_id ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]   AS c_granja_destino_id,
+        COALESCE(AVG(c.c_peso_h) FILTER (WHERE c.c_peso_h > 0), AVG(c.c_peso_h)) AS c_peso_h,
+        COALESCE(AVG(c.c_peso_m) FILTER (WHERE c.c_peso_m > 0), AVG(c.c_peso_m)) AS c_peso_m,
+        (array_agg(c.c_unif ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_unif IS NOT NULL))[1]                AS c_unif,
+        (array_agg(c.c_cv ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_cv IS NOT NULL))[1]                  AS c_cv,
+        (array_agg(c.c_unif_h ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_unif_h IS NOT NULL))[1]              AS c_unif_h,
+        (array_agg(c.c_unif_m ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_unif_m IS NOT NULL))[1]              AS c_unif_m,
+        (array_agg(c.c_cv_h ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_cv_h IS NOT NULL))[1]                AS c_cv_h,
+        (array_agg(c.c_cv_m ORDER BY c.c_ts DESC, c.c_seg_id DESC) FILTER (WHERE c.c_cv_m IS NOT NULL))[1]                AS c_cv_m,
+        (array_agg(c.c_obs_pesaje ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]          AS c_obs_pesaje,
         SUM(c.c_agua)                                                AS c_agua,
         AVG(c.c_agua_ph)                                             AS c_agua_ph,
         AVG(c.c_agua_orp)                                            AS c_agua_orp,
         AVG(c.c_agua_temp)                                           AS c_agua_temp,
-        (array_agg(c.c_etapa ORDER BY c.c_ts DESC))[1]               AS c_etapa,
-        (array_agg(c.c_ciclo ORDER BY c.c_ts DESC))[1]               AS c_ciclo,
-        (array_agg(c.c_observaciones ORDER BY c.c_ts DESC))[1]       AS c_observaciones,
-        (array_agg(c.c_metadata ORDER BY c.c_ts DESC))[1]            AS c_metadata,
-        (array_agg(c.c_created_by ORDER BY c.c_ts DESC))[1]          AS c_created_by,
+        (array_agg(c.c_etapa ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]               AS c_etapa,
+        (array_agg(c.c_ciclo ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]               AS c_ciclo,
+        (array_agg(c.c_observaciones ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]       AS c_observaciones,
+        -- v4: metadata del ÚLTIMO registro, pero `huevoItems` = los de TODOS los registros del día
+        -- concatenados en orden de carga (son cantidades, como huevo_tot, que sí se suma).
+        CASE
+            WHEN bool_or(jsonb_typeof(c.c_metadata -> 'huevoItems') = 'array')
+            THEN (CASE WHEN jsonb_typeof((array_agg(c.c_metadata ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]) = 'object'
+                       THEN (array_agg(c.c_metadata ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]
+                       ELSE '{}'::jsonb END)
+                 || jsonb_build_object('huevoItems',
+                        (SELECT COALESCE(jsonb_agg(it.item ORDER BY arr.ord, it.pos), '[]'::jsonb)
+                           FROM unnest(array_agg(c.c_metadata -> 'huevoItems' ORDER BY c.c_ts, c.c_seg_id)
+                                         FILTER (WHERE jsonb_typeof(c.c_metadata -> 'huevoItems') = 'array'))
+                                WITH ORDINALITY AS arr(items, ord)
+                          CROSS JOIN LATERAL jsonb_array_elements(arr.items) WITH ORDINALITY AS it(item, pos)))
+            ELSE (array_agg(c.c_metadata ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]
+        END                                                          AS c_metadata,
+        (array_agg(c.c_created_by ORDER BY c.c_ts DESC, c.c_seg_id DESC))[1]          AS c_created_by,
         MIN(c.c_created_at)                                          AS c_created_at,
         MAX(c.c_updated_at)                                          AS c_updated_at,
         MIN(c.c_company_id)                                          AS c_company_id,

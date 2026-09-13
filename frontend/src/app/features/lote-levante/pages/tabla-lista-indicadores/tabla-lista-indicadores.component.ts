@@ -21,13 +21,13 @@ interface IndicadorSemanal {
   avesFinSemana: number;
   // Consumo
   consumoDiario: number; // Consumo diario por ave (g/ave/día) - para comparar con tabla
-  consumoTabla: number; // Consumo esperado de tabla (g/ave/día)
+  consumoTabla: number | null; // Consumo esperado de tabla (g/ave/día); null = guía propia sin fila esa semana
   consumoTotalSemana: number; // Consumo total de la semana en gramos
-  // Guía genética / comparativos
-  pesoTabla: number; // peso esperado tabla (promedio H/M)
+  // Guía genética / comparativos (null = la guía propia de la empresa no cubre esa semana)
+  pesoTabla: number | null; // peso esperado tabla (promedio H/M)
   unifReal: number; // uniformidad real (promedio H/M del último registro)
-  unifTabla: number; // uniformidad esperada tabla
-  mortTabla: number; // mortalidad esperada tabla (promedio H/M)
+  unifTabla: number | null; // uniformidad esperada tabla
+  mortTabla: number | null; // mortalidad esperada tabla (promedio H/M)
   difPesoPct: number; // diferencia % vs tabla (peso)
   // Ganancia
   gananciaSemana: number;
@@ -381,9 +381,11 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
   /** Observaciones del último registro de la semana (contexto, no cálculo). */
   private observacionesDeSemana(semana: number): string | null {
+    // Mismo día con varios registros (flag de empresa): desempata el id ⇒ gana el último cargado.
     const regs = (this.seguimientos || [])
       .filter(r => this.calcularSemana(r.fechaRegistro) === semana)
-      .sort((a, b) => (this.toYMD(a.fechaRegistro) ?? '').localeCompare(this.toYMD(b.fechaRegistro) ?? ''));
+      .sort((a, b) => (this.toYMD(a.fechaRegistro) ?? '').localeCompare(this.toYMD(b.fechaRegistro) ?? '')
+        || ((Number(a.id) || 0) - (Number(b.id) || 0)));
     return regs.length ? (regs[regs.length - 1].observaciones || null) : null;
   }
 

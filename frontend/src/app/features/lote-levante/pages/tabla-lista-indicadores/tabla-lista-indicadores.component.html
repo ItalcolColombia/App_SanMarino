@@ -265,7 +265,7 @@
             @if (!ocultaMachosEnPostura) {
               <td>{{ formatOpcionalPct(ind.unifMachos, 1) }}</td>
             }
-            <td>{{ formatPercentage(ind.unifTabla, 1) }}</td>
+            <td>{{ formatOpcionalPct(ind.unifTabla, 1) }}</td>
             <!-- Mortalidad por sexo -->
             <td class="mortalidad-semana"
               [class]="'mortalidad-' + validarMortalidad(ind.mortPctHembras, ind.semana, ind.mortTablaHembras).tipo">

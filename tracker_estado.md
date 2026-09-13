@@ -8471,3 +8471,31 @@ Plan: [`fase_de_desarrollo/modulos_permisos_por_empresa_plan.md`](fase_de_desarr
 - [x] V5.2 🚑 Run `34739904897` **cortado en el gate de la lista cacheable** (job «Tests — Backend & Frontend», paso `verificar-lista-cacheable.js`): `permissionmodule` sin decisión tomada. Backend/Frontend `skipped` ⇒ **prod intacta**. Fix: `permissionmodule` a EXCLUIDOS (identidad/administración, junto a `roles` y `permission`) + caso en el spec. Gates locales: lista cacheable 55/35/0 OK, change-detection 238 OK.
 - [x] V5.3 Fix `4335153` pusheado + PR **#107** main → main-produccion (https://github.com/ItalcolColombia/App_SanMarino/pull/107). Réplica local del job: `dotnet test -c Release` 4185+1, `ng test` 880/880, 7/7 gates OK. El código del #106 ya está en `main-produccion` (`aa97692`) sin desplegar: el merge de #107 dispara el deploy de todo. **Merge pendiente de OK del usuario.**
 - [ ] V6. Verificación post-deploy — TaskDef/imagen real en ECS, `rolloutState=COMPLETED`, `__EFMigrationsHistory` con `20260912160000_AddModulosDePermisos` + `20260912160100_SeedModulosDePermisos`, y smoke visual de *Módulos y permisos* + modal de Rol en Santa Reyes.
+
+---
+
+## IND-VARIOS-DIA — Indicadores y Gráfica con varios registros por día (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md`](fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md)
+
+- [x] A0. Diagnóstico medido en BD local: C1 (500 levante por guía NULL vs DTO `double`), C1b (front `toFixed` sobre null), C2 (pesaje semanal por registro), C3 (agrupado diario producción: peso huevo con ceros, uniformidad NULL, empate de ts, `huevoItems` perdidos).
+- [x] B1. `IndicadorSemanalLevanteDto`: 4 columnas guía `double?` + `IndicadorSemanalLevanteDtoTests`.
+- [x] B2. `fn_indicadores_levante_postura`: pesaje por día (espejo `.sql` + changelog).
+- [x] B3. `fn_seguimiento_diario_produccion` v4 (solo `seg_dias_agrupado`) (espejo `.sql` + changelog).
+- [x] B4. Espejos C#: `AgruparPorDia` v4 (+`PesoHuevo`, `HuevoItems`) + `PesajeSemanalLevanteCalculos` + tests (7 nuevos en producción, 7 de pesaje, 4 de DTO).
+- [x] B5. Migración `20260913120000_IndicadoresSemanalesVariosRegistrosDia` (+ Fn.cs generado desde los espejos + Designer clonado de `20260912160100`). Down probado en el clon: con las versiones previas el gate B6 vuelve a **0 diferencias en todas las empresas**.
+- [x] B6. Gate `verificar_paridad_indicadores_semanales.sql` (levante + producción + clasificación, congela/compara por empresa).
+- [x] F1. TS DTO levante nullable.
+- [x] F2. Tabla de indicadores levante null-safe («Uniformidad Guía» con `formatOpcionalPct`).
+- [x] F3. Gráfica levante null-safe (`difConsumoPorc`, etiqueta de serie).
+- [x] F4. Observaciones de la semana con desempate por id.
+- [x] V1. `dotnet build` API+Infrastructure **0 warn / 0 err** · `dotnet test` Application.Tests **4203/4203** (+18) · Domain 1/1 · gate `verificar-sql-llega-por-migracion` OK.
+- [x] V2. `yarn build` OK (exit 0) · `ng test` **880/880**.
+- [x] V3. Clon `sanmarino_ind_0913` (datos de prueba: 2 pesajes el mismo día en lote 155; LPP 20 con referencia corrida a sem 25-26 y 2.º registro del 02-sep con `huevoItems` y peso huevo 0).
+      ANTES (binario del 12-sep): levante Santa Reyes lote 155 ⇒ **`500 Column 'consumo_tabla' is null`**; Sanmarino lote 115 ⇒ 200. Producción LPP 20 sem 26: `huevo_tot` 4.577 pero Primera+Pnc 3.577; peso huevo 30.
+      Fns nuevas por psql + gate B6: **Sanmarino (168 lev / 88 prod) y Demo (11) = 0 diferencias**; Santa Reyes: Primera 3.500→4.450, Pnc 537 40→90 (=4.577), peso huevo 30→60, levante peso 520→500 y unif 0→80 (+ derivados). Gate diario `verificar_paridad_seguimiento_produccion.sql`: 0.
+- [x] V4. DESPUÉS (binario nuevo, `RunMigrations=true` ⇒ EF aplicó `20260913120000` al arrancar; gate B6 igual que con psql):
+      HTTP: levante Santa Reyes 155 ⇒ **200** con guía `null`, peso 500, unif 80; Sanmarino 115 idéntico al ANTES; producción LPP 20 sem 26 ⇒ peso huevo 60, Primera 4.450 + Pnc 127 = **4.577 = huevos totales**.
+      Pantalla (`/daily-log/seguimiento` y `/daily-log/produccion`, sesión `admin@santareyes.com`): pestañas **Indicadores** y **Gráfica** de levante (LOTE 217A) y producción (P-LOTE 218A) cargan, requests 200, consola sin errores. El desglose Primera/Pnc se verificó por HTTP, no leyendo el DOM.
+- [x] V5. Backend de smoke apagado (5002/5501 libres) + dev server detenido + `DROP DATABASE sanmarino_ind_0913` + artifacts borrados.
+- [x] V6. Commit en `main` (sin deploy: requiere OK explícito). Pendiente anotado: `fn_seguimiento_diario_levante` (modal «Cálculos») y los 2 reportes semanales de levante tienen el mismo «último registro» con NULL/empate.
