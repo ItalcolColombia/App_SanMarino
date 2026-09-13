@@ -1,4 +1,4 @@
-using ZooSanMarino.Application.Calculos;
+﻿using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.Application.Tests;
 
@@ -268,5 +268,130 @@ public class EncasetamientoCalculosTests
         Assert.Equal(new TimeOnly(8, 30), efectiva);
         Assert.Equal(0, EncasetamientoCalculos.EdadMinimaConRegistro(efectiva));
         Assert.Equal(Encaset, EncasetamientoCalculos.PrimerDiaConRegistro(Encaset, efectiva));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DesplazamientoCruce — espejo puro de fn_cruce_reproductora_a_engorde.
+    // Ticket Panamá 11-sep-2026 (lote 255): el cruce corría la serie DOS veces cuando la
+    // reproductora ya arrancaba en la edad 1 por la misma llegada tardía.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DesplazamientoCruce_LlegadaTardiaConRegistroEnLaEdadCero_CorreLaSerieUnDia()
+    {
+        // El caso para el que se escribió la regla: el consumo del día del encaset es real y
+        // pertenece al día siguiente. Comportamiento IDÉNTICO al previo (lotes 215 y 216).
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 0));
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(13, 0), 0));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_LlegadaTardiaYLaReproductoraYaArrancoEnLaEdadUno_NoVuelveACorrer()
+    {
+        // EL CASO DEL TICKET (lote 255, encaset 03-sep 21:35, reproductora desde el 04-sep):
+        // el día ya está corrido en el origen; sumar otro lo mandaba al 05-sep.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 1));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_PrimeraEdadMayorQueElDesplazamiento_NuncaCorreHaciaAtras()
+    {
+        // El Math.Max es la regla, no una defensa: un hueco de 2 días son días que nadie capturó.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(21, 35), 2));
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, 3));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void DesplazamientoCruce_SinHora_SiempreCero_ComportamientoPrevio(int primeraEdad)
+    {
+        // Los 35 lotes sin hora de la copia de producción: el SQL queda byte a byte como antes.
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, primeraEdad));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_HoraTemprana_NoDesplaza()
+    {
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(12, 59), 0));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_SinNingunaEdadGenerada_DevuelveElDesplazamientoTeorico()
+    {
+        // El cruce no escribe nada todavía; el número que aplicaría es el de la edad 0.
+        Assert.Equal(1, EncasetamientoCalculos.DesplazamientoCruce(new TimeOnly(13, 0), null));
+        Assert.Equal(0, EncasetamientoCalculos.DesplazamientoCruce(null, null));
+    }
+
+    [Fact]
+    public void DesplazamientoCruce_ElPrimerDiaGeneradoCoincideConElGuardaDeCaptura()
+    {
+        // La contradicción que delató el defecto: el guarda de C# decía 04-sep y la fn escribía 05-sep.
+        var encaset = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+        var hora = new TimeOnly(21, 35);
+        const int primeraEdad = 1;
+
+        var destinoDelCruce = encaset.AddDays(EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad) + primeraEdad);
+
+        Assert.Equal(EncasetamientoCalculos.PrimerDiaConRegistro(encaset, hora), destinoDelCruce);
+        Assert.Equal(new DateTime(2026, 9, 4, 12, 0, 0, DateTimeKind.Utc), destinoDelCruce);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CambiaEncasetamiento — el gate de lote.corregir_fecha_encaset mira el DÍA, no el instante.
+    // Smoke 12-sep-2026: reenviar la misma fecha respondía 403.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static readonly TimeOnly Tarde = new(21, 35);
+
+    [Theory]
+    [InlineData(0, 12)]   // guardada a medianoche UTC (cohorte previa a jul-2026), reenviada a mediodía
+    [InlineData(12, 12)]  // mismo instante
+    [InlineData(12, 23)]  // mismo día, otra hora del reloj
+    public void CambiaEncasetamiento_MismoDiaCalendario_NoEsCambio(int horaGuardadaUtc, int horaNuevaUtc)
+    {
+        var guardada = new DateTime(2026, 9, 3, horaGuardadaUtc, 0, 0, DateTimeKind.Utc);
+        var nueva = new DateTime(2026, 9, 3, horaNuevaUtc, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_FechaSinKindYFechaUtcDelMismoDia_NoEsCambio()
+    {
+        var guardada = new DateTime(2026, 9, 3, 0, 0, 0, DateTimeKind.Unspecified);
+        var nueva = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_OtroDia_EsCambio()
+    {
+        var guardada = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+        var nueva = new DateTime(2026, 9, 4, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(guardada, Tarde, nueva, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_SoloCambiaLaHora_EsCambio()
+    {
+        var dia = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, Tarde, dia, new TimeOnly(22, 0)));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, null, dia, Tarde));
+    }
+
+    [Fact]
+    public void CambiaEncasetamiento_Nulos()
+    {
+        var dia = new DateTime(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(EncasetamientoCalculos.CambiaEncasetamiento(null, null, null, null));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(null, Tarde, dia, Tarde));
+        Assert.True(EncasetamientoCalculos.CambiaEncasetamiento(dia, Tarde, null, Tarde));
     }
 }

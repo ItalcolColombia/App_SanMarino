@@ -1,4 +1,4 @@
-// src/ZooSanMarino.API/Controllers/LoteReproductoraAveEngordeController.cs
+﻿// src/ZooSanMarino.API/Controllers/LoteReproductoraAveEngordeController.cs
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,6 +92,7 @@ public class LoteReproductoraAveEngordeController : ControllerBase
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(LoteReproductoraAveEngordeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoteReproductoraAveEngordeDto>> Update(
         [FromRoute] int id,
@@ -103,6 +104,13 @@ public class LoteReproductoraAveEngordeController : ControllerBase
         {
             var updated = await _svc.UpdateAsync(id, dto);
             return updated is null ? NotFound() : Ok(updated);
+        }
+        // 403 y no 400: corregir la fecha/hora de encasetamiento de un lote con registros exige
+        // `lote.corregir_fecha_encaset`. El resto del PUT sigue abierto — el gate lo dispara el DELTA
+        // de la fecha, no el verbo.
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message, error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

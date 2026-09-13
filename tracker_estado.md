@@ -8209,27 +8209,53 @@ en la edad 1 por la misma llegada tardia. El guarda C# dice que el primer dia de
 **04/09** y la fn escribe el **05/09**. Radio: **4 lotes de Panama** (239, 255, 256, 257); Ecuador,
 Demo y Sanmarino tienen 0 filas de cruce.
 
-- [ ] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
+- [x] B1. `EncasetamientoCalculos.DesplazamientoCruce(hora, primeraEdad)` — espejo puro de la regla
       `GREATEST(0, desp - primera_edad)` + tests xUnit (incluye el caso del ticket: 21:35 / edad 1 → 0).
-- [ ] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
+- [x] B2. `fn_cruce_reproductora_a_engorde` v-next con el desplazamiento efectivo; espejo
       `backend/sql/fn_cruce_reproductora_a_engorde.sql` + migracion (`.cs` + `.Fn.cs` + `.Designer.cs`)
-      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo).
-- [ ] B3. **GATE MULTIPAIS** obligatorio: `EXCEPT` en los dos sentidos, todas las columnas, todos los
-      lotes de TODAS las empresas, antes y despues. Ecuador/Demo/Sanmarino = 0. Unicos cambios
-      esperados: 239, 255, 256, 257.
-- [ ] B4. Remediacion de datos por migracion: recalcular el cruce de 255/256/257 y **corregir todo el
-      239** (cruce + sus 5 filas manuales un dia atras, ASC, serie contigua sin hueco).
-- [ ] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
+      en el MISMO commit (CLAUDE.md § el .sql es el espejo, la migracion el vehiculo). Verificado
+      12-sep: la constante de `.Fn.cs` es identica linea a linea al `.sql` (297 lineas).
+- [x] B3. **GATE MULTIPAIS** (12-sep, copia de prod del dia, `verificar_cruce_desplazamiento_doble.sql`):
+      solo ItalcolPanama, **5 lotes** — 239, 255, 256, 257 **y 259** (nacio el 11-sep, misma topologia) —,
+      cifras por lote y edad identicas (0/0 sin la fecha); `fn_seguimiento_diario_engorde` de TODOS los
+      lotes de TODAS las empresas: 57 filas distintas, todas de esos 5 lotes.
+- [x] B4. Remediacion por migracion, seleccion por DATO. Simulada 2 pasadas con ROLLBACK: 239 queda
+      cruce **28/08→03/09** + 6 manuales 04/09→09/09 (ticket 12-sep «95 - 1»: primer registro el 28/08);
+      255 04/09, 256/257 07/09, 259 10/09. 2.ª pasada: 0 cambios en seguimiento, historico y maestro.
+- [x] B4'. 🔴 **Hueco agregado 12-sep:** el cruce reinserta con ids nuevos y la migracion dejaba las
+      `BAJA_SEGUIMIENTO` vivas apuntando a seguimientos inexistentes (nada lo re-sincroniza en 239/255,
+      su reproductora ya cerro). Replicado `SincronizarCruceAsync` en SQL (patron `20260828200000`) +
+      la BAJA de cada fila manual corrida sigue a su registro (como `UpsertHistorico` al editar la
+      fecha). Medido: huerfanas 6 (255, preexistentes) → **0**; maestro de aves y
+      `fn_cuadre_aves_engorde` sin cambios; inventario intacto; cuadre de alimento 8 / 15 → 8 / 15
+      (G0472 solo mueve `ultimo_seguimiento` 10/09→09/09, descuadre 0).
+- [x] B5. Permiso nuevo `lote.corregir_fecha_encaset` (migracion data-only, heredado de
       `lote.corregir_aves` + rol 1, `company_permissions` en todas las empresas).
-- [ ] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
+- [x] B6. Gate por DELTA en `LoteAveEngordeService.UpdateAsync` (solo si cambia fecha/hora Y el lote
       ya tiene registros) + calculo puro de autorizacion con tests.
-- [ ] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
+- [x] B7. Cascada al editar fecha/hora: propagar a TODOS los lotes reproductora hijos (con
       pre-validacion que rechaza con detalle), re-correr el cruce, sincronizar bajas y recalcular el
-      saldo de alimento. Misma cascada al editar el lote reproductora.
-- [ ] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
-      recalcula. `yarn build`.
-- [ ] B9. Validacion: `dotnet build` 0 err / 0 warn · `dotnet test` verde · cuadre de alimento
-      antes/despues · smoke HTTP del 403/400/200.
+      saldo de alimento. Misma cascada al editar el lote reproductora. (`BeginTransaction` seguro:
+      `EnableRetryOnFailure` sigue apagado a proposito en `Program.cs`.)
+- [x] B8. Front: `readonly` + aviso 🔒 del permiso en fecha/hora al editar, y nota de que el cambio
+      recalcula. `yarn build` 0 errores (12-sep).
+- [x] B9. Validacion 12-sep: `dotnet build ZooSanMarino.sln` OK · Application.Tests 4151/4151 (repo)
+      · `yarn build` 0 errores · cuadre antes/despues OK.
+- [x] B10. **Smoke HTTP** (12-sep): clon descartable `sanmarinoapp_smoke_fe` + backend aislado :5501
+      (content root propio, `RunMigrations=true` ⇒ las 2 migraciones del 11-sep aplicadas por EF: 239
+      arranca el 28/08, 0 huerfanas, saldo sin NULL, permiso heredado por 12 roles), JWT Admin Panama con
+      y sin `lote.corregir_fecha_encaset`. Lote 255 / repro 160: C1 mismo body sin permiso 200 · C2 hora
+      sin permiso 403 · C3 encaset 02-sep 400 con detalle y nada escrito · C4 04-sep 10:00 200 con
+      cascada (repro hereda fecha+hora, cruce edad 0 el 04-sep, saldo reescrito, 0 huerfanas, bajas y
+      maestro iguales, cuadres intactos) · C5 vuelta al dato real = estado inicial exacto · C6 repro hora
+      sin permiso 403 · C7 repro mismo body sin permiso 200. **20/20.** Clon borrado, :5501 libre.
+- [x] B11. 🔴 **Defecto que SOLO vio el smoke:** el gate comparaba INSTANTES (`AnclarMediodiaUtc(dto)
+      != ent.FechaEncaset`); el GET devuelve `07:00-05:00` y reenviar la misma fecha daba **403** (y
+      cascada a quien tiene el permiso) — en prod rompia editar cualquier lote viejo anclado a medianoche.
+      Fix: `EncasetamientoCalculos.CambiaEncasetamiento` (compara dia anclado de los dos lados) + 7 casos
+      xUnit, usado en engorde y reproductora. Re-smoke 20/20.
+- [i] Aviso a operacion, no defecto: el lote **257** (ciclo anterior de G0490) muestra −227 kg el
+      07/09 porque la reproductora consumio ese dia y el ingreso de alimento esta cargado el 08/09.
 
 ---
 
@@ -8373,5 +8399,7 @@ Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep2
       Re-test de los 2 specs afectados con el fix: **13/13**. ⚠️ Incidente de la verificación: al borrar el
       worktree `prod-base` con `git worktree remove --force`, la junction vació `frontend/node_modules`
       compartido; reparado con `yarn install --frozen-lockfile` (36.502 archivos, sin cambio de versiones).
-- [ ] D5. OK del usuario ⇒ `git push origin main` + PR #102 main→main-produccion (no despliega).
+- [x] D5. OK del usuario ⇒ `git push origin main` (`f85994d..d2ec998`, 9 commits de la serie, 0 ajenos) +
+      PR **#102** main→main-produccion abierto (https://github.com/ItalcolColombia/App_SanMarino/pull/102).
+      `origin/main-produccion` sigue en `ba34c65`; ningún run de deploy disparado.
 - [ ] D6. OK del usuario ⇒ merge del PR (dispara deploy) + verificación post-deploy ECS + smoke en prod.

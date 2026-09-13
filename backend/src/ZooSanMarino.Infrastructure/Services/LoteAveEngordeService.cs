@@ -712,20 +712,11 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         // seguimientos (todos los de producción se crearon sin hora) informar una hora tardía dejaría
         // registros existentes fuera de la ventana válida. Se diagnostica ANTES de escribir: mejor un
         // 400 que explica qué registros estorban que un 200 que deja el lote inconsistente en silencio.
-        if (dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncaset)
-        {
-            var fechasSeguimiento = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-                .Where(s => s.LoteAveEngordeId == ent.LoteAveEngordeId)
-                .Select(s => s.Fecha)
-                .ToListAsync();
-
-            var horaRegla = dto.HoraEncasetamiento;
-            var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
-                nuevaFechaEncaset, horaRegla, fechasSeguimiento);
-            if (!diag.Compatible)
-                throw new InvalidOperationException(
-                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, horaRegla));
-        }
+        // Por DÍA y no por instante: la misma fecha reenviada no es un cambio (ver CambiaEncasetamiento).
+        var cambiaEncasetamiento = EncasetamientoCalculos.CambiaEncasetamiento(
+            ent.FechaEncaset, ent.HoraEncasetamiento, nuevaFechaEncaset, dto.HoraEncasetamiento);
+        if (cambiaEncasetamiento)
+            await PrepararCambioDeEncasetamientoAsync(ent, nuevaFechaEncaset, dto.HoraEncasetamiento);
 
         ent.FechaEncaset = nuevaFechaEncaset;
         ent.HoraEncasetamiento = dto.HoraEncasetamiento;
@@ -761,8 +752,95 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
 
-        await _ctx.SaveChangesAsync();
+        if (cambiaEncasetamiento)
+        {
+            // La cascada va DESPUÉS del SaveChanges —la fn de BD lee fecha_encaset en vivo y con el
+            // cambio todavía en el ChangeTracker recalcularía contra la fecha vieja— pero DENTRO de la
+            // misma transacción: una fecha guardada con el cruce a medio re-fechar es justamente el
+            // estado inconsistente que este trabajo vino a eliminar.
+            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            await _ctx.SaveChangesAsync();
+            await RecalculoEncasetamientoEngordeAplicador.AplicarAsync(
+                _ctx, companyId, ent.LoteAveEngordeId ?? 0);
+            await tx.CommitAsync();
+        }
+        else
+        {
+            await _ctx.SaveChangesAsync();
+        }
+
         return await GetByIdAsync(ent.LoteAveEngordeId ?? 0);
+    }
+
+    /// <summary>
+    /// Valida, autoriza y PROPAGA un cambio de fecha/hora de encasetamiento antes de escribirlo.
+    /// <para>
+    /// Los tres pasos van en este orden a propósito: primero se sabe si el lote tiene registros (de lo
+    /// que depende el permiso), después se rechaza lo que dejaría registros fuera de ventana, y recién
+    /// al final se tocan los lotes reproductora hijos — así un rechazo no deja nada a medias.
+    /// </para>
+    /// </summary>
+    private async Task PrepararCambioDeEncasetamientoAsync(
+        LoteAveEngorde ent, DateTime? nuevaFechaEncaset, TimeOnly? nuevaHora)
+    {
+        var loteId = ent.LoteAveEngordeId ?? 0;
+
+        // Solo los registros DIGITADOS: las filas origen_cruce se re-fechan solas en la cascada, y con
+        // la regla del desplazamiento efectivo el cruce nunca aterriza antes del primer día válido.
+        // Incluirlas acá haría rechazar cambios que la propia cascada iba a arreglar.
+        var fechasManuales = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId && !s.OrigenCruce)
+            .Select(s => s.Fecha)
+            .ToListAsync();
+
+        var hijos = await _ctx.LoteReproductoraAveEngorde
+            .Where(l => l.LoteAveEngordeId == loteId)
+            .ToListAsync();
+        var hijosIds = hijos.Select(h => h.Id).ToList();
+
+        var registrosHijos = hijosIds.Count == 0
+            ? new List<(int LoteId, DateTime Fecha)>()
+            : (await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+                .Where(s => hijosIds.Contains(s.LoteReproductoraAveEngordeId))
+                .Select(s => new { s.LoteReproductoraAveEngordeId, s.Fecha })
+                .ToListAsync())
+              .Select(x => (LoteId: x.LoteReproductoraAveEngordeId, Fecha: x.Fecha))
+              .ToList();
+
+        // Un lote recién creado al que se le corrige la fecha el mismo día no está corrigiendo ningún
+        // histórico: no hay serie que recalcular y exigir el permiso solo trabaría el alta.
+        var tieneRegistros = fechasManuales.Count > 0 || registrosHijos.Count > 0;
+        if (!CorreccionFechaEncasetAutorizacionCalculos.PuedeAplicar(true, tieneRegistros, _current.Permissions))
+            throw new UnauthorizedAccessException(CorreccionFechaEncasetAutorizacionCalculos.MensajeSinPermiso);
+
+        var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
+            nuevaFechaEncaset, nuevaHora, fechasManuales);
+        if (!diag.Compatible)
+            throw new InvalidOperationException(
+                EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, nuevaHora));
+
+        var hijosParaDiagnostico = hijos.Select(h =>
+            new PropagacionEncasetamientoReproductoraCalculos.LoteHijo(
+                h.Id,
+                string.IsNullOrWhiteSpace(h.NombreLote) ? h.Id.ToString() : h.NombreLote,
+                registrosHijos.Where(r => r.LoteId == h.Id).Select(r => r.Fecha).ToList()));
+
+        var diagPropagacion = PropagacionEncasetamientoReproductoraCalculos.Diagnosticar(
+            nuevaFechaEncaset, nuevaHora, hijosParaDiagnostico);
+        if (!diagPropagacion.Compatible)
+            throw new InvalidOperationException(
+                PropagacionEncasetamientoReproductoraCalculos.MensajeIncompatible(
+                    diagPropagacion, nuevaFechaEncaset!.Value));
+
+        // Es la misma llegada física de pollitos: el lote de engorde y sus reproductora comparten el
+        // día de entrada. Si el padre se corrige y el hijo queda con la fecha vieja, las edades de la
+        // reproductora se corren y el cruce consolida días equivocados.
+        foreach (var hijo in hijos)
+        {
+            hijo.FechaEncasetamiento = nuevaFechaEncaset ?? hijo.FechaEncasetamiento;
+            hijo.HoraEncasetamiento = nuevaHora;
+            hijo.UpdatedAt = DateTime.UtcNow;
+        }
     }
 
     public async Task<bool> DeleteAsync(int loteAveEngordeId)
