@@ -174,21 +174,29 @@ public partial class InventarioGestionService
 
         var itemsJoin = _db.ItemInventario.AsNoTracking();
 
-        var conceptos = await (
+        // Concepto, tipo de ítem y unidad son texto libre y el catálogo trae la misma etiqueta con
+        // distinta capitalización ("Otros insumos" / "Otros Insumos", "und" / "UND"). Los WHERE de
+        // abajo comparan normalizado, así que dos variantes devuelven las MISMAS filas: se agrupa en
+        // SQL con su frecuencia y EtiquetasFiltroInventarioCalculos deja una sola opción por grupo.
+        var conceptosRaw = await (
             from m in movBase
             join i in itemsJoin on m.ItemInventarioEcuadorId equals i.Id
             where i.Concepto != null && i.Concepto != ""
-            select i.Concepto!.Trim()
-        ).Distinct().ToListAsync(ct);
-        conceptos.Sort(StringComparer.OrdinalIgnoreCase);
+            group i by i.Concepto!.Trim() into g
+            select new { Valor = g.Key, Usos = g.Count() }
+        ).ToListAsync(ct);
+        var conceptos = EtiquetasFiltroInventarioCalculos.EtiquetasUnicas(
+            conceptosRaw.Select(x => ((string?)x.Valor, x.Usos)));
 
-        var tiposItem = await (
+        var tiposItemRaw = await (
             from m in movBase
             join i in itemsJoin on m.ItemInventarioEcuadorId equals i.Id
             where i.TipoItem != null && i.TipoItem != ""
-            select i.TipoItem.Trim()
-        ).Distinct().ToListAsync(ct);
-        tiposItem.Sort(StringComparer.OrdinalIgnoreCase);
+            group i by i.TipoItem.Trim() into g
+            select new { Valor = g.Key, Usos = g.Count() }
+        ).ToListAsync(ct);
+        var tiposItem = EtiquetasFiltroInventarioCalculos.EtiquetasUnicas(
+            tiposItemRaw.Select(x => ((string?)x.Valor, x.Usos)));
 
         var estados = await movBase
             .Where(m => m.Estado != null && m.Estado != "")
@@ -204,12 +212,13 @@ public partial class InventarioGestionService
             .ToListAsync(ct);
         movementTypes.Sort(StringComparer.OrdinalIgnoreCase);
 
-        var unidades = await movBase
+        var unidadesRaw = await movBase
             .Where(m => m.Unit != null && m.Unit != "")
-            .Select(m => m.Unit.Trim())
-            .Distinct()
+            .GroupBy(m => m.Unit.Trim())
+            .Select(g => new { Valor = g.Key, Usos = g.Count() })
             .ToListAsync(ct);
-        unidades.Sort(StringComparer.OrdinalIgnoreCase);
+        var unidades = EtiquetasFiltroInventarioCalculos.EtiquetasUnicas(
+            unidadesRaw.Select(x => ((string?)x.Valor, x.Usos)));
 
         return new InventarioGestionHistoricoFiltrosDto(
             lotes,
