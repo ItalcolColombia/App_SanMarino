@@ -8414,3 +8414,19 @@ Checklist: `fase_de_desarrollo/deploy_main_produccion_varios_seguimientos_12sep2
       PR **#102** main→main-produccion abierto (https://github.com/ItalcolColombia/App_SanMarino/pull/102).
       `origin/main-produccion` sigue en `ba34c65`; ningún run de deploy disparado.
 - [ ] D6. OK del usuario ⇒ merge del PR (dispara deploy) + verificación post-deploy ECS + smoke en prod.
+
+---
+
+## Reporte Técnico: «%Postura» > 100 % → «%Producción» ave-día (12-sep-2026)
+
+Plan: [`fase_de_desarrollo/reporte_tecnico_porcentaje_produccion_plan.md`](fase_de_desarrollo/reporte_tecnico_porcentaje_produccion_plan.md)
+
+- [x] R1. Diagnóstico: la Semanal General (`Tabs.cs`) dividía Σ huevos de la SEMANA / hembras de UN día
+      (19.213 / 7.586 = 253,3 %). Réplica SQL local P-K345A: actual 208–612 % ⇒ ave-día 29,7–87,3 %,
+      igual al promedio diario por galpón.
+- [x] R2. `Application/Calculos/PorcentajeProduccionCalculos` (`Diario` / `Periodo` ave-día) + tests xUnit.
+- [x] R3. `Tabs.cs`: diario galpón, semanal galpón, diario general y semanal general delegan en la fn pura.
+- [x] R4. Rótulo «%Postura» → «%Producción» en los 4 `<th>` del front + Excel (`ExportacionExcelService`),
+      fórmula agregada al modal «Fórmulas». DTO sin renombrar (contrato API).
+- [x] R5. `dotnet build` 0 err / 0 warn · Application.Tests 4159 + 2 espejo-SQL verdes dentro del repo (fallan solo con artifacts fuera) · 10 tests nuevos · `yarn build` OK.
+- [x] R6. Commit (este). Sin push ni deploy.

@@ -44,7 +44,7 @@ export class ReporteGeneralSemanalComponent implements OnChanges {
     this.colHuevos = columnasHuevoReporte(this.clasificacionHuevoPorItems, hayOtros);
   }
 
-  /** «%Postura»: Real + Guía + Dif, o sólo Real. */
+  /** «%Producción»: Real + Guía + Dif, o sólo Real. */
   get colspanPostura(): number { return this.guiaDisponible.prodPorcentaje ? 3 : 1; }
 
   /** «Peso Huevo»: Real + Guía + Dif, o sólo Real. */

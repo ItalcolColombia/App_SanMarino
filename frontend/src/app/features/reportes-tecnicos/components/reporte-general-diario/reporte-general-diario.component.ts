@@ -52,7 +52,7 @@ export class ReporteGeneralDiarioComponent implements OnChanges {
     this.colHuevos = columnasHuevoReporte(this.clasificacionHuevoPorItems, hayOtros);
   }
 
-  /** `colspan` del grupo «%Postura»: Real + Guía + Dif, o sólo Real si la guía no trae postura. */
+  /** `colspan` del grupo «%Producción»: Real + Guía + Dif, o sólo Real si la guía no trae producción. */
   get colspanPostura(): number {
     return this.guiaDisponible.prodPorcentaje ? 3 : 1;
   }
