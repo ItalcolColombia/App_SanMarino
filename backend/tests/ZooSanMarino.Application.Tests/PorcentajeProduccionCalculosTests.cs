@@ -23,6 +23,31 @@ public class PorcentajeProduccionCalculosTests
         Assert.Equal(0d, PorcentajeProduccionCalculos.Diario(120, hembras));
     }
 
+    // ── Hembras al inicio del día ────────────────────────────────────────────
+    [Fact]
+    public void HembrasInicioDia_es_el_cierre_del_dia_anterior()
+    {
+        // 10.445 iniciales, 4.190 bajas y 4 de selección acumuladas antes del día.
+        Assert.Equal(6251, PorcentajeProduccionCalculos.HembrasInicioDia(10445, 4190, 4));
+    }
+
+    [Fact]
+    public void HembrasInicioDia_no_baja_de_cero()
+    {
+        Assert.Equal(0, PorcentajeProduccionCalculos.HembrasInicioDia(100, 90, 30));
+    }
+
+    [Fact]
+    public void Dia_de_liquidacion_no_pasa_de_100_con_las_hembras_del_inicio()
+    {
+        // P-K345B, 14-may-2026: arrancó con 6.251 hembras, salieron ~4.600 y cerró con 1.651.
+        // Con el cierre daba 2.481 / 1.651 = 150,3 %; con las del inicio del día, 39,7 %.
+        const int huevos = 2481, inicio = 6251, cierre = 1651;
+
+        Assert.True(PorcentajeProduccionCalculos.Diario(huevos, cierre) > 100d);
+        Assert.Equal(39.69, PorcentajeProduccionCalculos.Diario(huevos, inicio), 2);
+    }
+
     // ── Periodo ──────────────────────────────────────────────────────────────
     [Fact]
     public void Periodo_semana_del_ticket_no_multiplica_por_siete()

@@ -10,7 +10,16 @@ namespace ZooSanMarino.Application.Calculos;
 /// </summary>
 public static class PorcentajeProduccionCalculos
 {
-    /// <summary>Un día: huevos / hembras vivas × 100. Sin hembras ⇒ 0.</summary>
+    /// <summary>
+    /// Hembras vivas al INICIO del día = cierre del día anterior (iniciales − mortalidad y selección
+    /// acumuladas ANTES de ese día), sin bajar de 0. Es el denominador correcto: los huevos del día
+    /// los pusieron las aves presentes, incluidas las que salieron ese día. Dividir por el cierre
+    /// pasa de 100 % en un día de descarte masivo o liquidación.
+    /// </summary>
+    public static int HembrasInicioDia(int hembrasIniciales, int mortalidadAcumuladaPrevia, int seleccionAcumuladaPrevia)
+        => Math.Max(0, hembrasIniciales - mortalidadAcumuladaPrevia - seleccionAcumuladaPrevia);
+
+    /// <summary>Un día: huevos / hembras vivas al inicio del día × 100. Sin hembras ⇒ 0.</summary>
     public static double Diario(int huevos, int hembras)
         => hembras > 0 ? (double)huevos / hembras * 100d : 0d;
 

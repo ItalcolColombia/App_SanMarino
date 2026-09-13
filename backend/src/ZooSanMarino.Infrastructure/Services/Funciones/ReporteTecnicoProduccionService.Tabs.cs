@@ -348,6 +348,9 @@ public partial class ReporteTecnicoProduccionService
 
             foreach (var s in segs)
             {
+                // Antes de descontar las salidas del día: los huevos los pusieron las aves presentes.
+                var hembrasInicioDia = PorcentajeProduccionCalculos.HembrasInicioDia(hembrasIni, cumMortH, cumSelH);
+
                 cumMortH  += s.MortH;
                 cumMortM  += s.MortM;
                 cumSelH   += s.SelH;
@@ -371,7 +374,7 @@ public partial class ReporteTecnicoProduccionService
                     ? SemanasCicloPosturaCalculos.ObtenerEtapa(lpp.Raza, semanaGuia)
                     : null;
 
-                var porcPost = PorcentajeProduccionCalculos.Diario(s.HuevoTot, saldoH);
+                var porcPost = PorcentajeProduccionCalculos.Diario(s.HuevoTot, hembrasInicioDia);
                 var porcInc  = s.HuevoTot > 0 ? (double)s.HuevoInc / s.HuevoTot * 100d : 0d;
                 var porcMort = hembrasIni > 0 ? (double)s.MortH / hembrasIni * 100d : 0d;
 
@@ -412,7 +415,8 @@ public partial class ReporteTecnicoProduccionService
                     HuevoPnc:     s.Huevo.Pnc,
                     HuevoOtros:   s.Huevo.Otros,
                     SemanaGuia:   semanaGuia,
-                    EtapaCiclo:   etapaCiclo
+                    EtapaCiclo:   etapaCiclo,
+                    HembrasInicioDia: hembrasInicioDia
                 ));
             }
 
@@ -428,7 +432,7 @@ public partial class ReporteTecnicoProduccionService
                 var huevoSem = HuevoItemsResumenCalculos.Sumar(
                     rows.Select(r => new ResumenHuevoPorTipo(r.HuevoPrimera, r.HuevoPnc, r.HuevoOtros)));
                 var porcPos = PorcentajeProduccionCalculos.Periodo(
-                    rows.Select(r => (r.HuevoTot, r.SaldoHembras)));
+                    rows.Select(r => (r.HuevoTot, r.HembrasInicioDia)));
                 var htotSum   = rows.Sum(r => r.HuevoTot);
                 var porcIncSem = htotSum > 0
                     ? (double)rows.Sum(r => r.HuevoInc) / htotSum * 100d
@@ -497,7 +501,7 @@ public partial class ReporteTecnicoProduccionService
                 var saldoH  = rows.Sum(r => r.SaldoHembras);
                 var htotSum = rows.Sum(r => r.HuevoTot);
                 var porcPos = PorcentajeProduccionCalculos.Periodo(
-                    rows.Select(r => (r.HuevoTot, r.SaldoHembras)));
+                    rows.Select(r => (r.HuevoTot, r.HembrasInicioDia)));
 
                 return new ReporteGeneralDiarioDto(
                     Fecha:                    g.Key,
@@ -549,7 +553,7 @@ public partial class ReporteTecnicoProduccionService
                 // de 7 días entre las aves de UN día inflaba el % ~7 veces (253 % en vez de 36 %).
                 var porcPos  = PorcentajeProduccionCalculos.Periodo(
                     diariosGalpon.Where(d => d.SemanaRelativa == g.Key)
-                                 .Select(d => (d.HuevoTot, d.SaldoHembras)));
+                                 .Select(d => (d.HuevoTot, d.HembrasInicioDia)));
                 var pesoHuevo = rows.Where(r => r.PesoHuevoPromedio > 0)
                                     .Select(r => r.PesoHuevoPromedio)
                                     .DefaultIfEmpty(0d).Average();

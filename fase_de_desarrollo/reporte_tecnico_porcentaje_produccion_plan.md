@@ -93,3 +93,23 @@ Ni migración ni SQL. Solo C# + Angular.
 - `dotnet build` (0 err, sin warnings nuevos) + `dotnet test` Application.Tests.
 - `yarn build` (0 err; solo el warning de budget preexistente).
 - Smoke: réplica SQL (§1) = valores esperados del endpoint.
+
+## 7. Hallazgo del smoke HTTP: el % DIARIO también pasaba de 100 (denominador = cierre del día)
+
+Smoke real contra la BD local (backend aislado :5501, `POST /api/ReporteTecnicoProduccion/obtener-tabs`):
+
+- Sublote P-K345A: huevos idénticos a la captura de prod (3.705 / 19.213 / 40.474 …) y la Semanal General
+  queda en 6,1 / **36,2** (guía 31,25) / 76,3 / 84,7 / **87,2** (guía 86,75) …, máximo 87,5 %.
+- Consolidado de la base (P-K345A + P-K345B): **1 día de 602 a 150,27 %** — P-K345B, 14-may-2026, día de
+  liquidación: arrancó con **6.251** hembras, salieron ~4.600, cerró con **1.651**, y puso **2.481** huevos.
+  El % diario dividía por el **cierre** (`SaldoHembras`, ya descontadas las salidas del día).
+
+**Corrección:** el denominador es **hembras vivas al INICIO del día** (cierre del día anterior) —
+`PorcentajeProduccionCalculos.HembrasInicioDia`— en las cuatro vistas (diario, `Periodo` semanal y consolidados).
+Viaja en el DTO diario como `HembrasInicioDia` (campo nuevo al final, opcional: aditivo al contrato). El
+**Saldo** que se muestra no cambia (sigue siendo el cierre). En un día normal la diferencia es de 3–7 bajas
+sobre ~7.000 aves (< 0,1 pt); en el de liquidación: 150,3 % → 39,7 %.
+
+**Fuera de alcance (preexistente, no se toca):** la semana 1 del lote agrupa 8 días (16/07–23/07) porque
+`edadDias` trunca `(fecha 00:00 − inicio 12:00)`; mueve qué huevos caen en cada semana, no la fórmula. El %
+ave-día ya divide por los días reales, así que no infla. Cambiarlo altera los totales semanales ⇒ decisión aparte.
