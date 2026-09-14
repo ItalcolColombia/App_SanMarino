@@ -8589,3 +8589,21 @@ Plan: [limpieza_lotes_santa_reyes_capacitacion_plan.md](fase_de_desarrollo/limpi
 - [x] LS3. Escribir `backend/sql/migracion_limpieza_lotes_santa_reyes_capacitacion.sql` (bloque A conteo + bloque B borrado para DB Studio).
 - [x] LS4. Ensayo en BD local con ROLLBACK: conteos antes/después, control multiempresa, idempotencia.
 - [x] LS5. Commit (plan + script + bloque del tracker). La ejecución en prod la hace el usuario.
+
+---
+
+## LOTE-ENGORDE-SIN-SUFIJO — Ecuador: el lote se llama como su lote base, sin " - 2" (14-sep-2026)
+
+Plan: [nombre_lote_engorde_ecuador_sin_sufijo_plan.md](fase_de_desarrollo/nombre_lote_engorde_ecuador_sin_sufijo_plan.md)
+
+Novedad: Kilometro 22 / Galpon-1 mostraba `2604 - 2` (parecían dos lotes en el consumo). Causa: la corrida contaba un lote de prueba borrado y con el flag OFF el sufijo salía desde la 2.ª corrida.
+
+- [x] D1. Diagnóstico sobre la copia de prod: 4 lotes vivos `2604 - 2` (240 Kilometro 22; 218, 237, 247 CAROLINA), todos con un lote borrado sin seguimientos antes en su galpón. Sin índice único por nombre; sin triggers sobre `lote_nombre`/`reference`/`referencia`.
+- [x] C1. `GestionLotesEngordeCalculos`: `ConstruirNombreLote` OFF ⇒ base siempre; `CorridaCuentaLotesBorrados`; `ValidarAperturaLoteBase` + mensaje.
+- [x] C2. `LoteAveEngordeService.CreateAsync`: flag primero; con OFF la corrida solo cuenta vivos y bloquea abrir el mismo base donde hay uno vivo no cerrado. Panamá (ON) igual que antes.
+- [x] C3. Front `recomputeNombrePorCorrida`: preview sin sufijo con OFF.
+- [x] C4. Migración data-only `20260914153000_NombreLoteEngordeSinSufijoCorrida` (Designer = snapshot, snapshot sin tocar) + `backend/sql/verificar_nombre_lote_engorde_sin_sufijo_corrida.sql` (solo lectura).
+- [x] T1. Tests `GestionLotesEngordeCalculosTests` (OFF sin sufijo, borrados, guarda, Panamá intacto).
+- [x] V1. BD local en `BEGIN…ROLLBACK`: 4 lotes → `2604` corrida 1, 5 + 5 referencias `· Lote 2604`, solo empresa 3; verificar después 0/0; 2.ª pasada `UPDATE 0`; tras ROLLBACK intacto. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.267/4.267** · `yarn build` OK. No se levantó backend (puerto :5002 libre).
+- [x] V3. Commit (sin push ni deploy: requieren OK explícito). La migración corre sola al arrancar la app en el deploy.

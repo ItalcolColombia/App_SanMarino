@@ -290,9 +290,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             paisNombre = pais?.PaisNombre;
         }
 
-        // Lote base (opcional) + numeración de corrida (solo Panamá, lo pide el front vía AutoNombrePorCorrida).
-        // Cuando aplica, el backend es la fuente de verdad del número (MAX+1 por company+base+galpón, contando
-        // también soft-deleted para no reusar números) y sobrescribe el nombre "{base} - {n}".
+        // Lote base (opcional) + numeración de corrida (empresas con programación, lo pide el front vía
+        // AutoNombrePorCorrida). Cuando aplica, el backend es la fuente de verdad del número (MAX+1 por
+        // company+base+galpón; con sufijo cuenta también soft-deleted para no reusar números) y del nombre.
         var loteBaseId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId);
         string loteNombre = (dto.LoteNombre ?? string.Empty).Trim();
         int? numeroCorrida = null;
@@ -302,17 +302,26 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 .Where(b => b.Id == loteBaseId.Value)
                 .Select(b => b.Nombre)
                 .FirstAsync();
-            var maxActual = await _ctx.LoteAveEngorde
-                .Where(l => l.CompanyId == companyId && l.LoteBaseEngordeId == loteBaseId.Value && l.GalponId == galponId)
-                .MaxAsync(l => (int?)l.NumeroCorrida);
-            numeroCorrida = GestionLotesEngordeCalculos.SiguienteNumeroCorrida(maxActual);
-            // Cómo se arma el nombre lo decide la empresa: con sufijo desde la primera corrida
-            // ("96 - 1", Panamá) o el nombre del lote base tal cual ("2603", Ecuador — la corrida ya
-            // viene en el nombre del base y hay un lote por galpón; el sufijo aparece desde la 2ª).
+            // Cómo se arma el nombre lo decide la empresa: con sufijo de corrida ("96 - 1", Panamá) o el
+            // nombre del lote base tal cual y siempre ("2603", Ecuador — la corrida ya viene en el nombre
+            // del base y hay un lote por galpón).
             var incluirCorridaSiempre = await _ctx.Companies.AsNoTracking()
                 .Where(c => c.Id == companyId)
                 .Select(c => c.NombreLoteIncluyeCorrida)
                 .FirstOrDefaultAsync();
+            var mismoBaseEnGalpon = _ctx.LoteAveEngorde
+                .Where(l => l.CompanyId == companyId && l.LoteBaseEngordeId == loteBaseId.Value && l.GalponId == galponId);
+            if (!GestionLotesEngordeCalculos.CorridaCuentaLotesBorrados(incluirCorridaSiempre))
+            {
+                mismoBaseEnGalpon = mismoBaseEnGalpon.Where(l => l.DeletedAt == null);
+                var hayAbierto = await mismoBaseEnGalpon
+                    .AnyAsync(l => l.EstadoOperativoLote == null || l.EstadoOperativoLote.ToLower() != "cerrado");
+                var error = GestionLotesEngordeCalculos.ValidarAperturaLoteBase(incluirCorridaSiempre, baseNombre, hayAbierto);
+                if (error != null)
+                    throw new InvalidOperationException(error);
+            }
+            var maxActual = await mismoBaseEnGalpon.MaxAsync(l => (int?)l.NumeroCorrida);
+            numeroCorrida = GestionLotesEngordeCalculos.SiguienteNumeroCorrida(maxActual);
             loteNombre = GestionLotesEngordeCalculos.ConstruirNombreLote(baseNombre, numeroCorrida.Value, incluirCorridaSiempre);
         }
 

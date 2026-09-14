@@ -433,8 +433,8 @@ export class LoteEngordeListComponent implements OnInit {
   /**
    * Empresa con programación + creación: preview del nombre del lote a partir del lote base y de la
    * corrida (MAX de los existentes en ese base+galpón + 1). Según el flag de la empresa, el nombre es
-   * "{base} - {corrida}" desde la primera (Panamá) o el nombre del base tal cual y con sufijo sólo
-   * desde la segunda (Ecuador). El backend es la fuente de verdad al guardar; esto es solo el preview.
+   * "{base} - {corrida}" (Panamá) o el nombre del base tal cual, siempre sin sufijo (Ecuador). El
+   * backend es la fuente de verdad al guardar; esto es solo el preview.
    * NO aplica en edición (la corrida ya quedó fijada al crear).
    */
   recomputeNombrePorCorrida(): void {
@@ -453,7 +453,7 @@ export class LoteEngordeListComponent implements OnInit {
       .reduce((max, l) => Math.max(max, l.numeroCorrida ?? 0), 0);
     const corrida = maxActual + 1;
     const baseNombre = (base.nombre ?? '').trim();
-    const nombre = this.nombreConCorrida || corrida > 1 ? `${baseNombre} - ${corrida}` : baseNombre;
+    const nombre = this.nombreConCorrida ? `${baseNombre} - ${corrida}` : baseNombre;
     this.nombreCorridaPreview = nombre;
     this.form.patchValue({ loteNombre: nombre }, { emitEvent: false });
   }
