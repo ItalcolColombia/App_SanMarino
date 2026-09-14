@@ -14,6 +14,18 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class MovimientoAvesService : IMovimientoAvesService
 {
+    /// <summary>
+    /// Respuesta de Eliminar y Cancelar para la auditoría de un traslado hecho desde Seguimiento
+    /// Diario (<c>TSD-*</c>, ver <c>MovimientoAvesCalculos.EsTrasladoDesdeSeguimiento</c>): la
+    /// reversión de Movimientos no deshace la fila INGRESO ni los acumulados del lote destino.
+    /// </summary>
+    private const string MensajeTrasladoDesdeSegNoReversible =
+        "Este movimiento es la auditoría de un traslado realizado desde Seguimiento Diario (TSD) y " +
+        "no se puede cancelar ni eliminar desde Movimientos: sus efectos viven en los registros de " +
+        "seguimiento de los dos lotes y revertirlo desde aquí dejaría aves duplicadas en el lote " +
+        "destino. Para deshacer el traslado, registre un traslado inverso desde Seguimiento Diario " +
+        "(mismas cantidades, del lote destino al lote origen).";
+
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
     private readonly IInventarioAvesService _inventarioService;

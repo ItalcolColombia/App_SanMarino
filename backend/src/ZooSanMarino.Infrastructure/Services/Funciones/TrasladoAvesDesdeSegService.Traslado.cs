@@ -88,9 +88,18 @@ public partial class TrasladoAvesDesdeSegService
                 await AplicarIngresoProduccionAsync(lppDestino!, origen, dto, fechaAncla, fechaUtc, usuarioId, companyId, ct);
 
             // ── 7. Auditoría — MovimientoAves ─────────────────────────────
+            //   Empresa = dueña de la granja del lote ORIGEN (mismo criterio que la cohorte y que la
+            //   migración BackfillCompanyIdMovimientosTsd); si no resuelve, la efectiva de la sesión.
+            //   Sin ella la fila nacía con company_id = 0: invisible para MovimientoAvesService (filtra
+            //   por la empresa del usuario) y para el saldo de fn_seguimiento_diario_produccion (filtra
+            //   por la empresa del LPP).
+            var companyIdAuditoria = await ResolverCompanyIdDeGranjaAsync(origen.GranjaId, ct) ?? companyId;
+
             var movimiento = new MovimientoAves
             {
-                NumeroMovimiento = $"TSD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..24],
+                NumeroMovimiento = $"{MovimientoAvesCalculos.PrefijoTrasladoDesdeSeguimiento}{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..24],
+                CompanyId = companyIdAuditoria,
+                CreatedByUserId = usuarioId,
                 FechaMovimiento = fechaAncla,
                 TipoMovimiento = "Traslado",
                 CantidadHembras = dto.TrasladoHembras,

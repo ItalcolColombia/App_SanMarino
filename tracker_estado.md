@@ -8560,3 +8560,22 @@ Plan: [`fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md`](fase_d
 - [x] V2. `dotnet build` API Release 0 warn / 0 err · `yarn test` headless 894/894 · `yarn build` 0 errores / 0 warnings.
 - [x] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
 - [x] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
+
+---
+
+## TSD-COMPANY-ID — CompanyId en la auditoría TSD-* de traslados desde Seguimiento + backfill + gate (14-sep-2026)
+
+Plan: [`fase_de_desarrollo/traslado_seg_movimiento_company_id_plan.md`](fase_de_desarrollo/traslado_seg_movimiento_company_id_plan.md)
+
+Port a mano del arreglo del 25-jul que quedó sin commitear en el worktree `intelligent-volhard-0b73ea` (no se toca).
+
+- [x] A0. Diff del worktree viejo revisado y re-auditado contra `main` 6e4083b: el TSD ya lleva `LoteDestinoId`, D3 bloquea Eliminar de un Completado, Cancelar anula cohortes. Cancelar sigue revirtiendo solo el lado ORIGEN del seguimiento (INGRESO y acumulados del destino quedan) ⇒ el gate sigue siendo necesario.
+- [x] A1. Lectores de `movimiento_aves` con filtro de empresa: `MovimientoAvesService` y `fn_seguimiento_diario_produccion` (saldo de producción). Los demás no filtran ⇒ sin efecto.
+- [x] B1. `MovimientoAvesCalculos.PrefijoTrasladoDesdeSeguimiento` + `EsTrasladoDesdeSeguimiento` (puro).
+- [x] B2. `TrasladoAvesDesdeSegService.Traslado.cs`: `CompanyId` = empresa de la granja ORIGEN (`ResolverCompanyIdDeGranjaAsync` ?? efectiva) + `CreatedByUserId`; número con la constante.
+- [x] B3. Gates en `CancelarMovimientoAsync` y `EliminarMovimientoAsync` (antes de D3) + `MensajeTrasladoDesdeSegNoReversible` en el ancla.
+- [x] B4. Migración data-only `20260914120000_BackfillCompanyIdMovimientosTsd` (Designer = snapshot, 4 líneas distintas; snapshot sin tocar) + `backend/sql/verificar_backfill_company_id_tsd.sql` (solo lectura).
+- [x] B5. Tests `MovimientoAvesCalculosTests` (predicado + contrato del prefijo).
+- [x] V1. BD local, `verificar_backfill_company_id_tsd.sql` en `BEGIN…ROLLBACK`: `UPDATE 12` (6 → empresa 1, 6 → empresa 4; 0 quedan en 0), 2.ª pasada `UPDATE 0`; saldo de producción 607 filas / 4 LPP con **0 diferencias** (los 12 TSD son de levante); tras el ROLLBACK los 12 siguen en `company_id = 0`.
+- [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.260/4.260** (+12) + Domain.Tests 1/1 · `verificar-sql-llega-por-migracion.js` OK. No se levantó backend (puertos libres).
+- [x] V3. Commit + fast-forward a `main` (sin push ni deploy: requieren OK explícito). Antes de desplegar: correr `verificar_backfill_company_id_tsd.sql` contra un dump fresco de prod (puede haber TSD de producción/cross-etapa posteriores al dump local, y ahí el saldo SÍ cambia: pasa a descontar el traslado).

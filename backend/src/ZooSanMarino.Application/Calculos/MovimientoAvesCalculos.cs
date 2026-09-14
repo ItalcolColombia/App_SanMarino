@@ -46,4 +46,23 @@ public static class MovimientoAvesCalculos
     /// </summary>
     public static int EtapaProduccion(int semana) =>
         semana <= 33 ? 1 : (semana <= 50 ? 2 : 3);
+
+    /// <summary>
+    /// Prefijo del número de los movimientos de auditoría que crea un traslado hecho desde
+    /// Seguimiento Diario (<c>TrasladoAvesDesdeSegService</c>). El generador lo toma de acá.
+    /// </summary>
+    public const string PrefijoTrasladoDesdeSeguimiento = "TSD-";
+
+    /// <summary>
+    /// Identifica la auditoría de un traslado desde Seguimiento Diario (número <c>TSD-*</c>).
+    /// Comparación ordinal: el prefijo se genera siempre en mayúsculas.
+    /// <para>
+    /// Esos movimientos no se pueden cancelar ni eliminar desde Movimientos: sus efectos viven en las
+    /// filas SALIDA/INGRESO del seguimiento, en los acumulados de traslado de los dos espejos y en la
+    /// cohorte del lote destino, y la reversión de Movimientos solo deshace el lado ORIGEN del
+    /// seguimiento (el INGRESO y los acumulados del destino quedarían contando aves que volvieron).
+    /// </para>
+    /// </summary>
+    public static bool EsTrasladoDesdeSeguimiento(string? numeroMovimiento) =>
+        numeroMovimiento?.StartsWith(PrefijoTrasladoDesdeSeguimiento, StringComparison.Ordinal) == true;
 }

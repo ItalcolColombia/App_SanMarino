@@ -1,6 +1,7 @@
 // MovimientoAves/Funciones/MovimientoAvesService.Procesamiento.cs
 // Procesar y cancelar un movimiento: aplica/revierte inventario, seguimiento diario y tablas postura.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -95,6 +96,13 @@ public partial class MovimientoAvesService
 
         if (movimiento == null)
             return new ResultadoMovimientoDto(false, "Movimiento no encontrado", null, null, new List<string> { "Movimiento no encontrado" }, null);
+
+        // Un TSD no se revierte desde acá: DevolverAvesAlInventarioAsync solo deshace el lado ORIGEN del
+        // seguimiento, así que el INGRESO y los acumulados del destino seguirían contando las aves.
+        if (MovimientoAvesCalculos.EsTrasladoDesdeSeguimiento(movimiento.NumeroMovimiento))
+            return new ResultadoMovimientoDto(false, MensajeTrasladoDesdeSegNoReversible,
+                movimiento.Id, movimiento.NumeroMovimiento,
+                new List<string> { "Movimiento TSD (traslado desde Seguimiento Diario): no se revierte desde Movimientos" }, null);
 
         // Si ya está cancelado, no hacer nada
         if (movimiento.Estado == "Cancelado")
