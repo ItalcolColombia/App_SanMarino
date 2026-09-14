@@ -8579,3 +8579,13 @@ Port a mano del arreglo del 25-jul que quedó sin commitear en el worktree `inte
 - [x] V1. BD local, `verificar_backfill_company_id_tsd.sql` en `BEGIN…ROLLBACK`: `UPDATE 12` (6 → empresa 1, 6 → empresa 4; 0 quedan en 0), 2.ª pasada `UPDATE 0`; saldo de producción 607 filas / 4 LPP con **0 diferencias** (los 12 TSD son de levante); tras el ROLLBACK los 12 siguen en `company_id = 0`.
 - [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.260/4.260** (+12) + Domain.Tests 1/1 · `verificar-sql-llega-por-migracion.js` OK. No se levantó backend (puertos libres).
 - [x] V3. Commit + fast-forward a `main` (sin push ni deploy: requieren OK explícito). Antes de desplegar: correr `verificar_backfill_company_id_tsd.sql` contra un dump fresco de prod (puede haber TSD de producción/cross-etapa posteriores al dump local, y ahí el saldo SÍ cambia: pasa a descontar el traslado).
+
+## LIMPIEZA-LOTES-SR — Borrar lotes de Santa Reyes tras la capacitación
+
+Plan: [limpieza_lotes_santa_reyes_capacitacion_plan.md](fase_de_desarrollo/limpieza_lotes_santa_reyes_capacitacion_plan.md)
+
+- [x] LS1. Mapear FKs, triggers y tablas operativas de Santa Reyes contra la copia local de prod.
+- [x] LS2. Definir alcance con el usuario (inventario a cero, conservar lotes base).
+- [x] LS3. Escribir `backend/sql/migracion_limpieza_lotes_santa_reyes_capacitacion.sql` (bloque A conteo + bloque B borrado para DB Studio).
+- [x] LS4. Ensayo en BD local con ROLLBACK: conteos antes/después, control multiempresa, idempotencia.
+- [x] LS5. Commit (plan + script + bloque del tracker). La ejecución en prod la hace el usuario.
