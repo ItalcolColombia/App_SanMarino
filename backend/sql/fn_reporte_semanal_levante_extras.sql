@@ -9,6 +9,14 @@
 --   dia o sumar el dia ya agrupado da el MISMO total semanal. Fix quirurgico: COUNT(DISTINCT
 --   reg_date) en vez de restructurar la fuente (funcion multi-lote/otros edge-cases finos,
 --   no vale la pena el riesgo de tocar mas que el conteo).
+-- Fix 2026-09-13 (plan levante_varios_registros_dia_pesaje_uniformidad_plan.md, L3):
+--   el PESAJE de la semana tomaba UN registro ("el ultimo con peso>0"). Con 2+ registros el mismo
+--   dia no promediaba, perdia el sexo que el ultimo registro no peso (y se arrastraba el de la
+--   semana anterior) y la uniformidad/CV salia de ese registro aunque no la trajera. Ahora se arma
+--   por DIA, igual que fn_indicadores_levante_postura (20260913120000): ultimo dia con pesaje; peso
+--   por sexo = promedio de los registros de ese dia que pesaron ese sexo; uniformidad/CV por sexo =
+--   la del ultimo registro (id) de ese dia que la trae. Con un registro con pesaje por dia da lo
+--   mismo que antes. Especificacion ejecutable: Application/Calculos/PesajeSemanalLevanteCalculos.cs.
 -- Espejo exacto de pg_get_functiondef (ground truth) + este fix, no reformateado.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 
@@ -184,12 +192,26 @@ BEGIN
                r_cons_kg_h, r_cons_kg_m, r_dias, r_kcal_h, r_prot_h
           FROM _seg_sem_rx x WHERE x.sem = s;
 
-        -- Pesaje de la semana: misma selección de fila que la fn base.
-        SELECT x.uh, x.um, x.cvh, x.cvm, x.ph, x.pm INTO r_uh, r_um, r_cvh, r_cvm, r_ph, r_pm
-          FROM _seg_sem_rx x
-         WHERE x.sem = s AND (x.ph > 0 OR x.pm > 0)
-         ORDER BY x.reg_date DESC, x.id DESC LIMIT 1;
-        IF NOT FOUND THEN
+        -- Pesaje de la semana = el ÚLTIMO DÍA con pesaje (ph>0 o pm>0), agregado POR DÍA — misma
+        -- regla que la fn base (13-sep-2026, varios registros por día):
+        --   • peso por sexo    = PROMEDIO de los registros de ese día que pesaron ESE sexo (>0);
+        --   • uniformidad / CV = la del último registro (id) de ese día que la trae (>0).
+        -- Con UN registro con pesaje por día cada agregado devuelve el valor de esa fila ⇒ idéntico
+        -- a la selección de UNA fila de antes.
+        IF EXISTS (SELECT 1 FROM _seg_sem_rx x WHERE x.sem = s AND (x.ph > 0 OR x.pm > 0)) THEN
+            SELECT COALESCE(AVG(x.ph) FILTER (WHERE x.ph > 0), 0),
+                   COALESCE(AVG(x.pm) FILTER (WHERE x.pm > 0), 0),
+                   (array_agg(x.uh  ORDER BY x.id DESC) FILTER (WHERE x.uh  > 0))[1],
+                   (array_agg(x.um  ORDER BY x.id DESC) FILTER (WHERE x.um  > 0))[1],
+                   (array_agg(x.cvh ORDER BY x.id DESC) FILTER (WHERE x.cvh > 0))[1],
+                   (array_agg(x.cvm ORDER BY x.id DESC) FILTER (WHERE x.cvm > 0))[1]
+              INTO r_ph, r_pm, r_uh, r_um, r_cvh, r_cvm
+              FROM _seg_sem_rx x
+             WHERE x.sem = s AND (x.ph > 0 OR x.pm > 0)
+               AND x.reg_date = (SELECT MAX(y.reg_date) FROM _seg_sem_rx y
+                                  WHERE y.sem = s AND (y.ph > 0 OR y.pm > 0));
+        ELSE
+            -- Semana sin pesaje: como siempre, el último registro (la uniformidad puede venir sola).
             SELECT x.uh, x.um, x.cvh, x.cvm, x.ph, x.pm INTO r_uh, r_um, r_cvh, r_cvm, r_ph, r_pm
               FROM _seg_sem_rx x WHERE x.sem = s ORDER BY x.reg_date DESC, x.id DESC LIMIT 1;
         END IF;

@@ -858,7 +858,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       errorSexajeSem: d.errorSexajeSem,
       retiroSem: d.mortalidadSem + d.seleccionSem + d.errorSexajeSem,
       uniformidad: d.unifReal,
-      difConsumoPorc: consumoTabla > 0 ? ((consumoReal - consumoTabla) / consumoTabla) * 100 : 0,
+      // consumoTabla llega null cuando la guía propia de la empresa no cubre la semana.
+      difConsumoPorc: consumoTabla != null && consumoTabla > 0 ? ((consumoReal - consumoTabla) / consumoTabla) * 100 : 0,
       eficiencia: d.eficiencia,
       ip: d.ip,
       pesoCierre: d.pesoCierre,
@@ -920,7 +921,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
           semana: x.semana,
           fecha: x.fechaInicio,
           valor: x.consumoTabla,
-          etiqueta: `Semana ${x.semana}: ${x.consumoTabla.toFixed(0)}g`
+          etiqueta: `Semana ${x.semana}: ${x.consumoTabla == null ? '—' : `${x.consumoTabla.toFixed(0)}g`}`
         })),
         color: '#1976d2',
         tipo: 'barra'

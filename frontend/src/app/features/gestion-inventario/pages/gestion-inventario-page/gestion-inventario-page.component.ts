@@ -27,6 +27,7 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
 import { CuadreAlimentoEngordeComponent } from '../../components/cuadre-alimento-engorde/cuadre-alimento-engorde.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
+import { conceptosUnicos } from '../../funciones/conceptos-catalogo.funcion';
 import {
   esFechaIngresoOfrecible,
   esFechaMovimientoPermitida,
@@ -1463,13 +1464,7 @@ export class GestionInventarioPageComponent implements OnInit {
     this.svc.getItemsByType(null, null, true).subscribe({
       next: (list) => {
         this.allCatalogItems = list ?? [];
-        this.conceptos = Array.from(
-          new Set(
-            this.allCatalogItems
-              .map(i => (i.concepto ?? i.tipoItem ?? '').trim())
-              .filter(x => !!x)
-          )
-        ).sort((a, b) => a.localeCompare(b));
+        this.conceptos = conceptosUnicos(this.allCatalogItems);
 
         if (!this.selectedConcept) {
           const prefer = this.conceptos.find(c => this.isAlimentoConcept(c));

@@ -5,6 +5,12 @@
 --   'dias' contaba FILAS (COUNT(*)), no DIAS calendario, en el agregado semanal por lote.
 --   Mismo razonamiento que fn_reporte_semanal_levante_extras: las SUMAS son asociativas y
 --   no cambian, solo el conteo de dias necesitaba COUNT(DISTINCT reg_date).
+-- Fix 2026-09-13 (plan levante_varios_registros_dia_pesaje_uniformidad_plan.md, L4):
+--   el PESAJE de la semana (CTE 6) tomaba UNA fila. Con 2+ registros el mismo dia no promediaba,
+--   perdia el sexo que el ultimo registro no peso y la uniformidad/CV salia de esa fila aunque no la
+--   trajera. Ahora se arma por DIA, igual que fn_indicadores_levante_postura y
+--   fn_reporte_semanal_levante_extras. Con un registro con pesaje por dia da lo mismo que antes.
+--   Especificacion ejecutable: Application/Calculos/PesajeSemanalLevanteCalculos.cs.
 -- Espejo exacto de pg_get_functiondef (ground truth) + este fix, no reformateado.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 
@@ -174,12 +180,49 @@ sem AS (
       FROM reg_ok
      GROUP BY lote_id, sem
 ),
--- ── 6) Fila de pesaje de la semana (misma regla de selección del Detalle) ────
+-- ── 6) Pesaje de la semana (misma regla que el Detalle y los Indicadores) ───
+--    = el ÚLTIMO DÍA de la semana con pesaje (ph>0 o pm>0), agregado POR DÍA
+--    (13-sep-2026, varios registros por día):
+--      • peso por sexo    = PROMEDIO de los registros de ese día que pesaron ESE sexo;
+--      • uniformidad / CV = la del último registro (id) de ese día que la trae (>0).
+--    Con UN registro con pesaje por día cada agregado da el valor de esa fila ⇒ idéntico a la
+--    selección de UNA fila de antes. Semana SIN pesaje: el último registro, como siempre (LATERAL).
+dia_pesaje AS (
+    SELECT r.lote_id, r.sem, MAX(r.reg_date) AS reg_date
+      FROM reg_ok r
+     WHERE r.ph > 0 OR r.pm > 0
+     GROUP BY r.lote_id, r.sem
+),
+pesaje_del_dia AS (
+    SELECT r.lote_id,
+           r.sem,
+           COALESCE(AVG(r.ph) FILTER (WHERE r.ph > 0), 0)                    AS ph,
+           COALESCE(AVG(r.pm) FILTER (WHERE r.pm > 0), 0)                    AS pm,
+           (array_agg(r.uh  ORDER BY r.id DESC) FILTER (WHERE r.uh  > 0))[1] AS uh,
+           (array_agg(r.um  ORDER BY r.id DESC) FILTER (WHERE r.um  > 0))[1] AS um,
+           (array_agg(r.cvh ORDER BY r.id DESC) FILTER (WHERE r.cvh > 0))[1] AS cvh,
+           (array_agg(r.cvm ORDER BY r.id DESC) FILTER (WHERE r.cvm > 0))[1] AS cvm
+      FROM reg_ok r
+      JOIN dia_pesaje dp
+        ON dp.lote_id = r.lote_id
+       AND dp.sem = r.sem
+       AND dp.reg_date = r.reg_date
+     WHERE r.ph > 0 OR r.pm > 0
+     GROUP BY r.lote_id, r.sem
+),
 pesaje AS (
     SELECT s.lote_id,
            s.sem,
-           p.ph, p.pm, p.uh, p.um, p.cvh, p.cvm
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.ph  ELSE p.ph  END AS ph,
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.pm  ELSE p.pm  END AS pm,
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.uh  ELSE p.uh  END AS uh,
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.um  ELSE p.um  END AS um,
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.cvh ELSE p.cvh END AS cvh,
+           CASE WHEN pd.lote_id IS NOT NULL THEN pd.cvm ELSE p.cvm END AS cvm
       FROM sem s
+      LEFT JOIN pesaje_del_dia pd
+        ON pd.lote_id = s.lote_id
+       AND pd.sem = s.sem
       LEFT JOIN LATERAL (
             SELECT r.ph, r.pm, r.uh, r.um, r.cvh, r.cvm
               FROM reg_ok r

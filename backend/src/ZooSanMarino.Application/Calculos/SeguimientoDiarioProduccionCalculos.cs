@@ -68,18 +68,25 @@ public static class SeguimientoDiarioProduccionCalculos
         decimal? PesoH, decimal? PesoM,
         decimal? Uniformidad, decimal? CoeficienteVariacion,
         string? TipoAlimento, string? Observaciones,
-        bool EsTraslado);
+        bool EsTraslado,
+        double? PesoHuevo = null,
+        IReadOnlyList<string>? HuevoItems = null);
 
     /// <summary>
     /// Agrupa por día calendario cuando la empresa tiene <c>permite_multiples_seguimientos_diarios</c>
-    /// ON — espejo de <c>seg_dias_agrupado</c> (fn v3). Con UN solo registro el día, cada regla de
+    /// ON — espejo de <c>seg_dias_agrupado</c> (fn v4). Con UN solo registro el día, cada regla de
     /// abajo devuelve exactamente el valor de esa fila (mismo resultado que <see cref="DedupPorDia"/>).
     ///
-    /// Reglas (plan seguimiento_produccion_multiples_registros_dia, §3):
+    /// Reglas (plan seguimiento_produccion_multiples_registros_dia §3, ajustadas en v4 por el plan
+    /// indicadores_semanales_varios_registros_dia):
     ///  • Aditivos (mortalidad, selección, error de sexaje, consumo, huevos) → SUMA.
-    ///  • Peso promedio (ave) → PROMEDIO simple (equivalente a ponderar por aves vivas, que es un
-    ///    valor de DÍA constante entre los registros del mismo día).
-    ///  • Uniformidad, CV%, observaciones, tipo de alimento → gana el ÚLTIMO registro del día.
+    ///  • Peso (ave y huevo) → PROMEDIO de los registros que PESARON (&gt; 0); si ninguno pesó, el
+    ///    promedio de siempre ignorando nulos. El peso de huevo se guarda en 0 cuando no se pesa.
+    ///  • Uniformidad y CV% → el ÚLTIMO registro que la trae (un nulo no tapa la medición del día).
+    ///  • Observaciones, tipo de alimento → gana el ÚLTIMO registro del día.
+    ///  • «Último» = mayor timestamp y, a igual timestamp, mayor seg_id (los forms graban a mediodía).
+    ///  • Ítems de huevo (<c>metadata.huevoItems</c>) → los de TODOS los registros, en orden de carga;
+    ///    null si ningún registro los trae.
     ///  • es_traslado → TRUE si CUALQUIER registro del día lo fue.
     ///  • seg_id → el primero no nulo (mínimo), para no tapar un registro real con un stub.
     /// </summary>
@@ -90,8 +97,11 @@ public static class SeguimientoDiarioProduccionCalculos
             .OrderBy(g => g.Key)
             .Select(g =>
             {
-                var ordenadas = g.OrderBy(f => f.Ts).ToList();
+                // ≙ ORDER BY c_ts, c_seg_id. En Postgres un seg_id NULL va PRIMERO en orden DESC, o sea
+                // que cuenta como «el último»: acá va al final del orden ascendente.
+                var ordenadas = g.OrderBy(f => f.Ts).ThenBy(f => f.Fila.SegId ?? long.MaxValue).ToList();
                 var ultima = ordenadas[^1].Fila;
+                var conItems = ordenadas.Where(f => f.Fila.HuevoItems != null).ToList();
                 var agregada = new RegistroCrudo(
                     SegId: ordenadas.Select(f => f.Fila.SegId).Where(id => id.HasValue).DefaultIfEmpty().Min(),
                     MortH: ordenadas.Sum(f => f.Fila.MortH),
@@ -104,13 +114,15 @@ public static class SeguimientoDiarioProduccionCalculos
                     ConsKgM: ordenadas.Sum(f => f.Fila.ConsKgM),
                     HuevoTot: ordenadas.Sum(f => f.Fila.HuevoTot),
                     HuevoInc: ordenadas.Sum(f => f.Fila.HuevoInc),
-                    PesoH: PromedioONulo(ordenadas.Select(f => f.Fila.PesoH)),
-                    PesoM: PromedioONulo(ordenadas.Select(f => f.Fila.PesoM)),
-                    Uniformidad: ultima.Uniformidad,
-                    CoeficienteVariacion: ultima.CoeficienteVariacion,
+                    PesoH: PromedioDeLosQuePesaron(ordenadas.Select(f => f.Fila.PesoH)),
+                    PesoM: PromedioDeLosQuePesaron(ordenadas.Select(f => f.Fila.PesoM)),
+                    Uniformidad: UltimoNoNulo(ordenadas.Select(f => f.Fila.Uniformidad)),
+                    CoeficienteVariacion: UltimoNoNulo(ordenadas.Select(f => f.Fila.CoeficienteVariacion)),
                     TipoAlimento: ultima.TipoAlimento,
                     Observaciones: ultima.Observaciones,
-                    EsTraslado: ordenadas.Any(f => f.Fila.EsTraslado));
+                    EsTraslado: ordenadas.Any(f => f.Fila.EsTraslado),
+                    PesoHuevo: PromedioDeLosQuePesaron(ordenadas.Select(f => f.Fila.PesoHuevo)),
+                    HuevoItems: conItems.Count == 0 ? null : conItems.SelectMany(f => f.Fila.HuevoItems!).ToList());
                 return (g.Key, agregada);
             })
             .ToList();
@@ -121,6 +133,33 @@ public static class SeguimientoDiarioProduccionCalculos
         var noNulos = valores.Where(v => v.HasValue).Select(v => v!.Value).ToList();
         return noNulos.Count == 0 ? null : noNulos.Average();
     }
+
+    /// <summary>
+    /// ≙ <c>COALESCE(AVG(x) FILTER (WHERE x &gt; 0), AVG(x))</c>: promedio de los registros que pesaron;
+    /// si ninguno pesó, el AVG de siempre ignorando nulos (0 si traían 0, null si no traían nada).
+    /// </summary>
+    private static decimal? PromedioDeLosQuePesaron(IEnumerable<decimal?> valores)
+    {
+        var lista = valores.ToList();
+        var positivos = lista.Where(v => v > 0).Select(v => v!.Value).ToList();
+        return positivos.Count > 0 ? positivos.Average() : PromedioONulo(lista);
+    }
+
+    /// <inheritdoc cref="PromedioDeLosQuePesaron(IEnumerable{decimal?})"/>
+    private static double? PromedioDeLosQuePesaron(IEnumerable<double?> valores)
+    {
+        var lista = valores.ToList();
+        var positivos = lista.Where(v => v > 0).Select(v => v!.Value).ToList();
+        if (positivos.Count > 0) return positivos.Average();
+        var noNulos = lista.Where(v => v.HasValue).Select(v => v!.Value).ToList();
+        return noNulos.Count == 0 ? null : noNulos.Average();
+    }
+
+    /// <summary>
+    /// ≙ <c>(array_agg(x ORDER BY c_ts DESC, c_seg_id DESC) FILTER (WHERE x IS NOT NULL))[1]</c> sobre la
+    /// serie ya ordenada: el último valor medido del día, o null si ningún registro lo trae.
+    /// </summary>
+    private static decimal? UltimoNoNulo(IEnumerable<decimal?> valores) => valores.LastOrDefault(v => v.HasValue);
 
     /// <summary>Edad en días desde la fecha de referencia, con piso 0 (≙ GREATEST(0, fecha − ref)).</summary>
     public static int EdadDias(DateOnly fecha, DateOnly refDate)

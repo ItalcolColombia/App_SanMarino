@@ -271,13 +271,14 @@ export interface IndicadorSemanalLevanteDto {
   avesInicioSemana: number;
   avesFinSemana: number;
   consumoDiario: number;
-  consumoTabla: number;
+  /** Guía mixta: null cuando la empresa tiene guía propia y la semana no tiene fila (Santa Reyes, semanas < 18). */
+  consumoTabla: number | null;
   consumoTotalSemana: number;
   conversionAlimenticia: number;
-  pesoTabla: number;
+  pesoTabla: number | null;
   unifReal: number;
-  unifTabla: number;
-  mortTabla: number;
+  unifTabla: number | null;
+  mortTabla: number | null;
   difPesoPct: number;
   gananciaSemana: number;
   gananciaDiariaAcumulada: number;

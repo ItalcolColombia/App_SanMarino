@@ -69,6 +69,14 @@
 --     por sexo. NO se agrega aritmetica nueva: son las mismas variables internas
 --     con las que ya se arman las columnas mixtas, publicadas sin promediar.
 --
+--   * 13-sep-2026 — Varios registros por día (Santa Reyes, flag
+--     permite_multiples_seguimientos_diarios): el PESAJE semanal se arma por DÍA —último día de la
+--     semana con pesaje; peso por sexo = promedio de los registros de ese día que pesaron ese sexo;
+--     uniformidad = la del último registro del día que la trae—. Con un registro por día da lo
+--     mismo que antes («el último registro con peso>0»). Sumas y días ya eran correctos.
+--     Plan: fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md.
+--     Especificación ejecutable: Application/Calculos/PesajeSemanalLevanteCalculos.cs.
+--
 -- IMPORTANTE (mapeo EF): los nombres de las columnas por sexo son el snake_case
 -- EXACTO de las props del DTO (…Hembras→…_hembras, …Machos→…_machos). EF Core
 -- (SqlQueryRaw<IndicadorSemanalLevanteDto> con convención snake_case) mapea
@@ -441,12 +449,27 @@ BEGIN
         r_aves_fin_h := v_aves_acum_h - r_mort_h - r_sel_h - r_err_h - r_tras_sal_h - r_venta_h + r_tras_ing_h;
         r_aves_fin_m := v_aves_acum_m - r_mort_m - r_sel_m - r_err_m - r_tras_sal_m - r_venta_m + r_tras_ing_m;
 
-        -- Pesaje: último registro (por fecha, luego id) de la semana con peso>0.
-        SELECT ph, pm, uh, um INTO r_pH, r_pM, r_uH, r_uM
-          FROM _seg_sem
-         WHERE sem = s AND (ph > 0 OR pm > 0)
-         ORDER BY reg_date DESC, id DESC LIMIT 1;
-        IF NOT FOUND THEN
+        -- Pesaje de la semana = el ÚLTIMO DÍA con pesaje (ph>0 o pm>0), agregado POR DÍA
+        -- (13-sep-2026, varios registros por día):
+        --   • peso por sexo = PROMEDIO de los registros de ese día que pesaron ESE sexo (>0);
+        --   • uniformidad   = la del último registro (id) de ese día que la trae (>0).
+        -- Antes se tomaba UN registro («el último con peso>0»): con 2 pesajes el mismo día no
+        -- promediaba —la grilla diaria sí—, y si el último solo pesó hembras, los machos del otro
+        -- registro se perdían y se arrastraba el peso de la semana anterior. Con UN registro con
+        -- pesaje por día (toda empresa sin el flag) cada agregado devuelve el valor de esa fila ⇒
+        -- idéntico a la versión anterior. Especificación ejecutable: PesajeSemanalLevanteCalculos.
+        IF EXISTS (SELECT 1 FROM _seg_sem WHERE sem = s AND (ph > 0 OR pm > 0)) THEN
+            SELECT COALESCE(AVG(ph) FILTER (WHERE ph > 0), 0),
+                   COALESCE(AVG(pm) FILTER (WHERE pm > 0), 0),
+                   COALESCE((array_agg(uh ORDER BY id DESC) FILTER (WHERE uh > 0))[1], 0),
+                   COALESCE((array_agg(um ORDER BY id DESC) FILTER (WHERE um > 0))[1], 0)
+              INTO r_pH, r_pM, r_uH, r_uM
+              FROM _seg_sem
+             WHERE sem = s AND (ph > 0 OR pm > 0)
+               AND reg_date = (SELECT MAX(reg_date) FROM _seg_sem
+                                WHERE sem = s AND (ph > 0 OR pm > 0));
+        ELSE
+            -- Semana sin pesaje: como siempre, el último registro (la uniformidad puede venir sola).
             SELECT ph, pm, uh, um INTO r_pH, r_pM, r_uH, r_uM
               FROM _seg_sem WHERE sem = s ORDER BY reg_date DESC, id DESC LIMIT 1;
         END IF;

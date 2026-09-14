@@ -267,6 +267,96 @@ public class SeguimientoDiarioProduccionCalculosTests
         Assert.Equal(5, agrupado[1].Fila.MortH);  // día 2: sin duplicar, solo su fila
     }
 
+    // ── v4: lo NO aditivo con 2+ registros el mismo día (indicadores semanales) ─────────────────
+    // Los forms graban todos los registros del día al mediodía: los casos usan el MISMO timestamp.
+
+    private static readonly DateTime Mediodia = new(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void AgruparPorDia_PesoHuevoEnCero_PromediaSoloLosRegistrosQuePesaron()
+    {
+        // peso_huevo se guarda en 0 cuando no se pesa: el AVG de v3 daba 30 g para este día.
+        var pesaje = Reg(1, 0, 0, 100, 0, 0, 0, null, null, null, "A") with { PesoHuevo = 60.0 };
+        var produccion = Reg(2, 0, 0, 200, 0, 0, 0, null, null, null, "A") with { PesoHuevo = 0.0 };
+
+        var agrupado = AgruparPorDia(new[] { (D(1), Mediodia, pesaje), (D(1), Mediodia, produccion) });
+
+        Assert.Equal(60.0, agrupado[0].Fila.PesoHuevo);
+    }
+
+    [Fact]
+    public void AgruparPorDia_NingunoPeso_ConservaElPromedioDeSiempre()
+    {
+        var a = Reg(1, 0, 0, 0, 0, 0, 0, null, null, null, "A") with { PesoHuevo = 0.0 };
+        var b = Reg(2, 0, 0, 0, 0, 0, 0, null, null, null, "A") with { PesoHuevo = 0.0 };
+
+        var agrupado = AgruparPorDia(new[] { (D(1), Mediodia, a), (D(1), Mediodia, b) });
+
+        Assert.Equal(0.0, agrupado[0].Fila.PesoHuevo);   // AVG(0, 0), como v3
+        Assert.Null(agrupado[0].Fila.PesoH);             // todos null ⇒ null, como v3
+    }
+
+    [Fact]
+    public void AgruparPorDia_PesoAveEnCero_NoBajaElPromedio()
+    {
+        var conPeso = Reg(1, 0, 0, 0, 0, 0, 0, pesoH: 1.80m, pesoM: null, unif: null, alimento: "A");
+        var enCero = Reg(2, 0, 0, 0, 0, 0, 0, pesoH: 0m, pesoM: null, unif: null, alimento: "A");
+
+        var agrupado = AgruparPorDia(new[] { (D(1), Mediodia, conPeso), (D(1), Mediodia, enCero) });
+
+        Assert.Equal(1.80m, agrupado[0].Fila.PesoH);
+    }
+
+    [Fact]
+    public void AgruparPorDia_UniformidadNulaEnElUltimo_NoTapaLaMedicionDelDia()
+    {
+        var pesaje = Reg(1, 0, 0, 0, 0, 0, 0, 1.80m, null, unif: 81.5m, alimento: "A");
+        var produccion = Reg(2, 0, 0, 300, 0, 0, 0, null, null, unif: null, alimento: "A");
+
+        var agrupado = AgruparPorDia(new[] { (D(1), Mediodia, pesaje), (D(1), Mediodia, produccion) });
+
+        Assert.Equal(81.5m, agrupado[0].Fila.Uniformidad);
+    }
+
+    [Fact]
+    public void AgruparPorDia_MismoTimestamp_GanaElDeMayorSegId()
+    {
+        var segundo = Reg(8, 0, 0, 0, 0, 0, 0, null, null, null, alimento: "Segundo");
+        var primero = Reg(7, 0, 0, 0, 0, 0, 0, null, null, null, alimento: "Primero");
+
+        // Llegan desordenados a propósito: sin desempate, «el último» dependía del orden de lectura.
+        var agrupado = AgruparPorDia(new[] { (D(1), Mediodia, segundo), (D(1), Mediodia, primero) });
+
+        Assert.Equal("Segundo", agrupado[0].Fila.TipoAlimento);
+    }
+
+    [Fact]
+    public void AgruparPorDia_HuevoItems_SeConcatenanEnOrdenDeCarga()
+    {
+        var primero = Reg(7, 0, 0, 3520, 0, 0, 0, null, null, null, "A") with { HuevoItems = new[] { "528:3500", "539:20" } };
+        var sinItems = Reg(8, 0, 0, 0, 0, 0, 0, null, null, null, "A");
+        var tercero = Reg(9, 0, 0, 1200, 0, 0, 0, null, null, null, "A") with { HuevoItems = new[] { "528:1200" } };
+
+        var agrupado = AgruparPorDia(new[]
+        {
+            (D(1), Mediodia, tercero), (D(1), Mediodia, sinItems), (D(1), Mediodia, primero),
+        });
+
+        // v3 se quedaba con la metadata del último registro: Primera/Pnc de la semana perdía 3.520
+        // huevos que huevo_tot sí sumaba.
+        Assert.Equal(new[] { "528:3500", "539:20", "528:1200" }, agrupado[0].Fila.HuevoItems);
+        Assert.Equal(4720, agrupado[0].Fila.HuevoTot);
+    }
+
+    [Fact]
+    public void AgruparPorDia_SinHuevoItemsEnNingunRegistro_QuedaNull()
+    {
+        var a = Reg(1, 0, 0, 10, 0, 0, 0, null, null, null, "A");
+        var b = Reg(2, 0, 0, 10, 0, 0, 0, null, null, null, "A");
+
+        Assert.Null(AgruparPorDia(new[] { (D(1), Mediodia, a), (D(1), Mediodia, b) })[0].Fila.HuevoItems);
+    }
+
     [Theory]
     [InlineData(0, 1)]   // el mismo día de la referencia = semana 1
     [InlineData(6, 1)]

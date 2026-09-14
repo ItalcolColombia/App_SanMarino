@@ -8470,4 +8470,93 @@ Plan: [`fase_de_desarrollo/modulos_permisos_por_empresa_plan.md`](fase_de_desarr
 - [x] V5.1 Merge del PR #106 por pedido explícito del usuario (`gh pr merge 106 --merge`) ⇒ merge `aa97692` (13-sep 05:16Z) ⇒ run `34739904897` (Deploy to Production).
 - [x] V5.2 🚑 Run `34739904897` **cortado en el gate de la lista cacheable** (job «Tests — Backend & Frontend», paso `verificar-lista-cacheable.js`): `permissionmodule` sin decisión tomada. Backend/Frontend `skipped` ⇒ **prod intacta**. Fix: `permissionmodule` a EXCLUIDOS (identidad/administración, junto a `roles` y `permission`) + caso en el spec. Gates locales: lista cacheable 55/35/0 OK, change-detection 238 OK.
 - [x] V5.3 Fix `4335153` pusheado + PR **#107** main → main-produccion (https://github.com/ItalcolColombia/App_SanMarino/pull/107). Réplica local del job: `dotnet test -c Release` 4185+1, `ng test` 880/880, 7/7 gates OK. El código del #106 ya está en `main-produccion` (`aa97692`) sin desplegar: el merge de #107 dispara el deploy de todo. **Merge pendiente de OK del usuario.**
-- [ ] V6. Verificación post-deploy — TaskDef/imagen real en ECS, `rolloutState=COMPLETED`, `__EFMigrationsHistory` con `20260912160000_AddModulosDePermisos` + `20260912160100_SeedModulosDePermisos`, y smoke visual de *Módulos y permisos* + modal de Rol en Santa Reyes.
+- [x] V5.4 Merge del PR #107 por OK explícito del usuario (sólo `4335153` + `fc4a501`, verificado antes de mergear) ⇒ merge `ce2dc88` (13-sep 20:02Z) ⇒ run `34779490961`.
+- [x] V6. Verificación post-deploy (run `34779490961` success, 3 jobs). Sin `aws` CLI válido (`InvalidClientTokenId`), evidencia del log del workflow + borde en vivo:
+      backend `backend:ce2dc88…` `rolloutState=COMPLETED` (20:10Z) · frontend `frontend:ce2dc88…` `rolloutState=COMPLETED` (20:15Z) ·
+      `/version.json` `2026-09-13T20:10:55Z` (antes `02:32:28Z`) · CSP+HSTS en `/`, chunk inexistente 404, `/config/permission-modules` 200, `ngsw.json` 200 JSON ·
+      bundle de prod (194 chunks vía `ngsw.json`): `permission-modules` en 3, `permissionmodule` en 1.
+      Migraciones: `__EFMigrationsHistory` no consultable sin credenciales; con `RunMigrations=true` una migración rota tumba la tarea antes del health check ⇒ `COMPLETED` implica las 4 aplicadas (`20260911*` + `AddModulosDePermisos` + `SeedModulosDePermisos`).
+- [~] V7. Pendiente del usuario: re-login y smoke visual en prod — *Configuración → Módulos y permisos* (matriz: Santa Reyes sin Pollo Engorde, Panamá con Integración Panamá) y crear un rol en Santa Reyes (pasos General → Empresas → Permisos, sin permisos de engorde).
+
+---
+
+## IND-VARIOS-DIA — Indicadores y Gráfica con varios registros por día (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md`](fase_de_desarrollo/indicadores_semanales_varios_registros_dia_plan.md)
+
+- [x] A0. Diagnóstico medido en BD local: C1 (500 levante por guía NULL vs DTO `double`), C1b (front `toFixed` sobre null), C2 (pesaje semanal por registro), C3 (agrupado diario producción: peso huevo con ceros, uniformidad NULL, empate de ts, `huevoItems` perdidos).
+- [x] B1. `IndicadorSemanalLevanteDto`: 4 columnas guía `double?` + `IndicadorSemanalLevanteDtoTests`.
+- [x] B2. `fn_indicadores_levante_postura`: pesaje por día (espejo `.sql` + changelog).
+- [x] B3. `fn_seguimiento_diario_produccion` v4 (solo `seg_dias_agrupado`) (espejo `.sql` + changelog).
+- [x] B4. Espejos C#: `AgruparPorDia` v4 (+`PesoHuevo`, `HuevoItems`) + `PesajeSemanalLevanteCalculos` + tests (7 nuevos en producción, 7 de pesaje, 4 de DTO).
+- [x] B5. Migración `20260913120000_IndicadoresSemanalesVariosRegistrosDia` (+ Fn.cs generado desde los espejos + Designer clonado de `20260912160100`). Down probado en el clon: con las versiones previas el gate B6 vuelve a **0 diferencias en todas las empresas**.
+- [x] B6. Gate `verificar_paridad_indicadores_semanales.sql` (levante + producción + clasificación, congela/compara por empresa).
+- [x] F1. TS DTO levante nullable.
+- [x] F2. Tabla de indicadores levante null-safe («Uniformidad Guía» con `formatOpcionalPct`).
+- [x] F3. Gráfica levante null-safe (`difConsumoPorc`, etiqueta de serie).
+- [x] F4. Observaciones de la semana con desempate por id.
+- [x] V1. `dotnet build` API+Infrastructure **0 warn / 0 err** · `dotnet test` Application.Tests **4203/4203** (+18) · Domain 1/1 · gate `verificar-sql-llega-por-migracion` OK.
+- [x] V2. `yarn build` OK (exit 0) · `ng test` **880/880**.
+- [x] V3. Clon `sanmarino_ind_0913` (datos de prueba: 2 pesajes el mismo día en lote 155; LPP 20 con referencia corrida a sem 25-26 y 2.º registro del 02-sep con `huevoItems` y peso huevo 0).
+      ANTES (binario del 12-sep): levante Santa Reyes lote 155 ⇒ **`500 Column 'consumo_tabla' is null`**; Sanmarino lote 115 ⇒ 200. Producción LPP 20 sem 26: `huevo_tot` 4.577 pero Primera+Pnc 3.577; peso huevo 30.
+      Fns nuevas por psql + gate B6: **Sanmarino (168 lev / 88 prod) y Demo (11) = 0 diferencias**; Santa Reyes: Primera 3.500→4.450, Pnc 537 40→90 (=4.577), peso huevo 30→60, levante peso 520→500 y unif 0→80 (+ derivados). Gate diario `verificar_paridad_seguimiento_produccion.sql`: 0.
+- [x] V4. DESPUÉS (binario nuevo, `RunMigrations=true` ⇒ EF aplicó `20260913120000` al arrancar; gate B6 igual que con psql):
+      HTTP: levante Santa Reyes 155 ⇒ **200** con guía `null`, peso 500, unif 80; Sanmarino 115 idéntico al ANTES; producción LPP 20 sem 26 ⇒ peso huevo 60, Primera 4.450 + Pnc 127 = **4.577 = huevos totales**.
+      Pantalla (`/daily-log/seguimiento` y `/daily-log/produccion`, sesión `admin@santareyes.com`): pestañas **Indicadores** y **Gráfica** de levante (LOTE 217A) y producción (P-LOTE 218A) cargan, requests 200, consola sin errores. El desglose Primera/Pnc se verificó por HTTP, no leyendo el DOM.
+- [x] V5. Backend de smoke apagado (5002/5501 libres) + dev server detenido + `DROP DATABASE sanmarino_ind_0913` + artifacts borrados.
+- [x] V6. Commit en `main` (sin deploy: requiere OK explícito). Pendiente anotado: `fn_seguimiento_diario_levante` (modal «Cálculos») y los 2 reportes semanales de levante tienen el mismo «último registro» con NULL/empate.
+
+---
+
+## LEV-VARIOS-DIA — Levante con varios registros por día: pesaje y uniformidad (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.md`](fase_de_desarrollo/levante_varios_registros_dia_pesaje_uniformidad_plan.md)
+
+- [x] A0. Diagnóstico (BD local): L1 uniformidad/CV «último» con NULL y empate de ts en `fn_seguimiento_diario_levante`; L2 `AVG` con ceros (0 ceros / 0 negativos en local: se blinda igual); L3/L4 pesaje semanal de UN registro en `fn_reporte_semanal_levante_extras` y `fn_resumen_semanal_ra_pesadas_levante`. Espejos `.sql` = desplegado (diff normalizado 0).
+- [x] B1. `fn_seguimiento_diario_levante` v2 (solo `seg_dias_agrupado`) + changelog (corrige también la cabecera v1: los semanales leen la tabla cruda).
+- [x] B2. `fn_reporte_semanal_levante_extras`: pesaje por día + changelog.
+- [x] B3. `fn_resumen_semanal_ra_pesadas_levante`: pesaje por día (`dia_pesaje` + `pesaje_del_dia`) + changelog.
+- [x] B4. Espejos C#: `SeguimientoDiarioLevanteCalculos.AgruparPorDia` v2 (+`CvH/CvM/KcalH/ProtH`) + `PesajeSemanalLevanteCalculos` (+CV) + tests.
+      Auditoría de escritores (front, services, carga masiva, stubs de traslado/movimiento): **ninguno guarda 0 por defecto**, todo NULL o passthrough; un 0 solo si el usuario lo teclea.
+- [x] B5. Migración `20260913150000_LevanteVariosRegistrosDiaPesajeUniformidad` (`.Fn.cs` generado desde los espejos + `git show HEAD:` para las previas; Designer clonado de `20260913120000`, cuerpo = ModelSnapshot, 0 líneas distintas).
+- [x] B6. Gate `backend/sql/verificar_paridad_levante_varios_registros_dia.sql` (diaria + SP en subbloque revertido + extras + RA Pesadas, congela/compara por empresa).
+- [x] V1. `dotnet build` API (+Infrastructure) **0 warn / 0 err** · `dotnet test` Application.Tests **4211/4211** (+8) · gate `verificar-sql-llega-por-migracion` OK.
+- [x] V2. Clon `sanmarino_lev_0913` (datos de prueba solo en el clon: lote 155, 3 registros el 04-sep a mediodía con un peso 0, uniformidad/CV parciales, kcal 0; 05-sep solo uniformidad).
+      ANTES (fns desplegadas): diaria 04-sep peso H **340** (500+520+0), kcal 1400, prot 8,5, unif M 74 por orden físico; extras sem 6 peso H/unif H/CV H **null**.
+      Fns nuevas por psql + gate: **Sanmarino (1118 diaria/SP, 168 extras/RA) y Demo (35 / 11) = 0 diferencias**; Santa Reyes solo lote 155: diaria/SP peso H 340→510, kcal 1400→2800, prot 8,5→17, unif M 74→76 y CV M 9,5→9 (id mayor que la trae); extras peso H null→510, peso M 630→620, unif H null→80, CV H null→8,5; RA unif H null→80, CV H null→8,5. Filas de un solo lado: 0.
+      Down (previas de `HEAD`) ⇒ **0 diferencias en todas**. `produccion_resultado_levante` del clon con md5 idéntico a la original (el SP del gate no deja escrituras).
+- [x] V3. Migración aplicada por EF contra el clon (`dotnet-ef` 10 `--connection`, sin backend): Up aplicó las 6 pendientes del clon (incluida `20260913150000`) ⇒ gate = **las mismas 14 columnas** de Santa Reyes, resto 0; `database update 20260913120000` (Down) ⇒ **0 en todas**.
+- [x] V4. Limpieza: `DROP DATABASE sanmarino_lev_0913`, `dotnet build-server shutdown`, puertos 5002/5501/4200 libres (no se levantó backend). `sanmarinoapplocal` intacta.
+- [i] Fuera de alcance, anotado como tarea aparte: `fn_reporte_diario_costos_postura` rama levante (`lev_dedup`, `DISTINCT ON`) descarta el 2.º registro del día con el flag ON.
+- [x] V5. Commit (rama del worktree, rebase sobre `main`). Sin deploy: requiere OK explícito.
+
+---
+
+## COSTOS-POSTURA-VARIOS-DIA — Reporte Diario Costos Postura con varios registros por día (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/reporte_diario_costos_postura_varios_registros_dia_plan.md`](fase_de_desarrollo/reporte_diario_costos_postura_varios_registros_dia_plan.md)
+
+- [x] A0. Medición ANTES en clon `sanmarino_costos_0913` (+ `fn_seguimiento_diario_produccion` v4 de `main`). Confirmadas las 3 pérdidas con el flag: levante lote 155 04-sep (4 registros) ⇒ v2 daba mort 15/0 · sel 0/0 · error 0/0 · venta 0 · **3.000 / 0 kg** (reales 3.499 / 50); levante 152 21-ago ⇒ mort 0 y 999,991 kg (reales 3 y 1.019,991); producción 152 04-sep ⇒ venta **0/0** (real 7/2) y json con 1 ítem de 2 (100 de 499 kg).
+- [x] B1. `fn_reporte_diario_costos_postura` v3: flag leído una vez en `cfg`; levante `lev_dedup` (OFF, igual a v2) ∪ `lev_agrupado` (ON, SUMA); alimentos por registro (`alim_registros`, fallback por registro, desempate por registro); venta de aves de producción = suma de los registros del día con el flag (espejo `.sql` + changelog v3).
+- [x] B2. Espejo C# `ReporteDiarioCostosPosturaVariosRegistrosCalculos` + 22 tests (testigos = registros del clon, números = salida de la fn v3).
+- [x] B3. Migración `20260913160000_ReporteCostosPosturaVariosRegistrosDia` (Up v3 / Down v2 verbatim; `.Fn.cs` generado desde los espejos; Designer clonado de `20260913120000`: 2 líneas distintas, cuerpo del modelo = snapshot, snapshot sin tocar). Timestamp después de `20260913150000` (levante, otra sesión, ya en `main`).
+- [x] B4. Gate `backend/sql/verificar_paridad_reporte_costos_postura.sql` (todas las empresas; compara con y sin orden del json de alimentos).
+- [x] V1. Gate en clon (base v2, 1.764 filas): **Sanmarino 1.118 lev + 602 prod y Demo 35 + 2 = 0 filas distintas** (Demo con sus 3 días de 2 registros); Santa Reyes = solo los 3 días de arriba. Down ⇒ **0 en todas**. Idéntico aplicando el SQL de `dotnet ef migrations script` Up/Down.
+- [x] V2. `dotnet build` API **0 warn / 0 err** · `dotnet test` Application.Tests **4.225/4.225** (+22) · `verificar-sql-llega-por-migracion.js` OK · `ef migrations list` reconoce la migración.
+- [x] V3. `DROP DATABASE sanmarino_costos_0913`, puertos 5002/5499/5501 libres, sin builds propios vivos. Commit (sin deploy: requiere OK explícito).
+
+---
+
+## INTEGRACION-RAMAS-13SEP — Ramas pendientes a `main` + PR a producción (13-sep-2026)
+
+Plan: [`fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md`](fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md)
+
+- [x] I1. Inventario: 0 PRs abiertos; 5 ramas con parches fuera de `main` (`git cherry`); 2 commits locales de `main` sin pushear.
+- [x] I2. Descartadas con evidencia: `eager-dijkstra` (TouchUserUpdatedAt eliminado en `f33c700`), `heuristic-perlman` (portado en `473ac16`), `devpilot/e37cb258` (solo `.devpilot/`).
+- [x] I3. Cherry-pick limpio de `956c7be` (form huérfano de catálogo de alimentos).
+- [x] I4. Port de `84bf74f` (Concepto duplicado): tabla renombrada `item_inventario(_id)`, migración re-timestampeada a `20260913170000`, hunk movido a `InventarioGestionService.Consulta.cs`.
+- [x] I5. Migración simulada en transacción + ROLLBACK: 12 / 1 / 1 filas, 0 duplicados después, ítems por empresa idénticos, 2.ª pasada `UPDATE 0` x3.
+- [x] V1. `dotnet test -c Release` backend 4.248 + 1 verdes · 7 gates `verificar-*.js` OK.
+- [x] V2. `dotnet build` API Release 0 warn / 0 err · `yarn test` headless 894/894 · `yarn build` 0 errores / 0 warnings.
+- [x] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
+- [x] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
