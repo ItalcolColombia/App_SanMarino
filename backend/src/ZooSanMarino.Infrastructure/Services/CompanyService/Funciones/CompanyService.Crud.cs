@@ -167,8 +167,14 @@ public partial class CompanyService
             dto.ReporteCostosAlimentoDesdeFuentesReales ?? c.ReporteCostosAlimentoDesdeFuentesReales;
         c.ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras ?? c.ConsumoAlimentoSoloHembras;
         c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
-        c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
-        c.HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana ?? c.HuevosLevanteDesdeSemana;
+        // null = no lo mandó (conservar); 0 = sentinel de borrado explícito (vuelve a null); otro
+        // entero = reemplaza. Ver ParametroEmpresaOpcionalCalculos: sin el sentinel, vaciar el campo
+        // en Configuración → Empresas no tenía forma de pedir «bórralo», porque `null` ya significaba
+        // «no lo toques».
+        c.HuevoPrimeraPosturaHastaSemana =
+            ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional(dto.HuevoPrimeraPosturaHastaSemana, c.HuevoPrimeraPosturaHastaSemana);
+        c.HuevosLevanteDesdeSemana =
+            ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional(dto.HuevosLevanteDesdeSemana, c.HuevosLevanteDesdeSemana);
         c.SemanaInicioIndicadoresProduccion =
             dto.SemanaInicioIndicadoresProduccion ?? c.SemanaInicioIndicadoresProduccion;
         c.PermiteMultiplesSeguimientosDiarios =

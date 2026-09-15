@@ -56,6 +56,7 @@ import {
   valoresDeFlags, flagsDelFormulario, contarFlagsActivos,
   type FlagEmpresa, type GrupoFlagEmpresa
 } from './funciones/flags-empresa.funcion';
+import { resolverSemanaOpcionalParaGuardar } from './funciones/parametro-semana-opcional.funcion';
 
 @Component({
   selector: 'app-company-management',
@@ -484,8 +485,11 @@ export class CompanyManagementComponent implements OnInit {
       country: v.country, state: v.state, city: v.city,
       visualPermissions: vp, mobileAccess: v.mobileAccess,
       diasAlimentoPrevioEncaset: v.diasAlimentoPrevioEncaset,
-      huevoPrimeraPosturaHastaSemana: v.huevoPrimeraPosturaHastaSemana,
-      huevosLevanteDesdeSemana: v.huevosLevanteDesdeSemana,
+      // Al editar, vaciar el campo tiene que BORRAR el límite, no dejarlo pegado: el backend lee
+      // `null` como «no lo mandé» (conservar), así que acá se manda el sentinel 0 cuando se edita
+      // y el campo quedó vacío. Al crear no aplica (ver resolverSemanaOpcionalParaGuardar).
+      huevoPrimeraPosturaHastaSemana: resolverSemanaOpcionalParaGuardar(v.huevoPrimeraPosturaHastaSemana, !!this.editing),
+      huevosLevanteDesdeSemana: resolverSemanaOpcionalParaGuardar(v.huevosLevanteDesdeSemana, !!this.editing),
       // Los flags viajan SIEMPRE con su valor booleano. Mandar solo los encendidos haría que
       // apagar uno no llegara al backend (que interpreta la ausencia como «no lo toques»).
       ...flagsDelFormulario(v as Record<string, unknown>),
