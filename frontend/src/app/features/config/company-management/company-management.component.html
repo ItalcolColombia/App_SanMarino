@@ -845,6 +845,23 @@
                               </span>
                             </label>
                           </section>
+                          <!-- Fila 6 · Huevos en el seguimiento diario de levante (postura) -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Huevos en levante</div>
+                            </div>
+                            <label class="block max-w-sm">
+                              <span class="form-label">Se registran desde la semana</span>
+                              <input type="number" formControlName="huevosLevanteDesdeSemana" min="1" max="140" class="form-input"
+                                [class.form-input--invalid]="form.get('huevosLevanteDesdeSemana')?.invalid && form.get('huevosLevanteDesdeSemana')?.touched"/>
+                              @if (form.get('huevosLevanteDesdeSemana')?.invalid && form.get('huevosLevanteDesdeSemana')?.touched) {
+                                <p class="form-error">Debe estar entre 1 y 140</p>
+                              }
+                              <span class="block text-xs text-warm-gray-500 mt-1">
+                                El tab «Huevos» del seguimiento diario de levante aparece desde esta semana de vida del lote. Vacío = desde el encasetamiento.
+                              </span>
+                            </label>
+                          </section>
                       </div>
                     }
                   </div>

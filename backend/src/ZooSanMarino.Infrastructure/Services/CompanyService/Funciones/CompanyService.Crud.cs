@@ -98,7 +98,8 @@ public partial class CompanyService
             // al default — persistirlo dejaría a la empresa mirando la tabla equivocada en silencio.
             GuiaGeneticaPerfil = GuiaGeneticaPerfilCalculos.Resolver(dto.GuiaGeneticaPerfil),
             PermiteMultiplesSeguimientosDiarios = dto.PermiteMultiplesSeguimientosDiarios,
-            VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico
+            VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico,
+            HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana
         };
 
         _ctx.Companies.Add(c);
@@ -167,6 +168,7 @@ public partial class CompanyService
         c.ConsumoAlimentoSoloHembras = dto.ConsumoAlimentoSoloHembras ?? c.ConsumoAlimentoSoloHembras;
         c.OcultaMachosEnPostura = dto.OcultaMachosEnPostura ?? c.OcultaMachosEnPostura;
         c.HuevoPrimeraPosturaHastaSemana = dto.HuevoPrimeraPosturaHastaSemana ?? c.HuevoPrimeraPosturaHastaSemana;
+        c.HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana ?? c.HuevosLevanteDesdeSemana;
         c.SemanaInicioIndicadoresProduccion =
             dto.SemanaInicioIndicadoresProduccion ?? c.SemanaInicioIndicadoresProduccion;
         c.PermiteMultiplesSeguimientosDiarios =

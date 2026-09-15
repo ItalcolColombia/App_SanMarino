@@ -4,6 +4,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -41,7 +42,7 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
     public async Task<HuevosClasificacion> CalcularAcumuladoLevanteAsync(
         int lotePosturaLevanteId, int? loteId, CancellationToken ct = default)
     {
-        var (acumulado, _) = await LeerLevanteAsync(lotePosturaLevanteId, loteId, ct);
+        var (acumulado, _, _) = await LeerLevanteAsync(lotePosturaLevanteId, loteId, ct);
         return acumulado;
     }
 
@@ -49,8 +50,10 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
     public async Task<(int Totales, int Incubables)> ObtenerTotalesParaCierreAsync(
         int lotePosturaLevanteId, int? loteId, CancellationToken ct = default)
     {
-        var acumulado = await CalcularAcumuladoLevanteAsync(lotePosturaLevanteId, loteId, ct);
-        return (acumulado.Totales, acumulado.Incubables);
+        // Los huevos por ítems suman al total y nunca a incubables (postura comercial: la misma
+        // convención de producción, huevo_inc = 0). Sin ítems, idéntico a antes.
+        var (acumulado, _, items) = await LeerLevanteAsync(lotePosturaLevanteId, loteId, ct);
+        return (acumulado.Totales + HuevoItemsCalculos.SumarTotal(items), acumulado.Incubables);
     }
 
     /// <inheritdoc />
@@ -68,8 +71,8 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
         if (lpp.LotePosturaProduccionId is not { } lppId)
             throw new InvalidOperationException("El lote de producción no tiene identificador.");
 
-        var (acumulado, pesoPonderado) = await LeerLevanteAsync(levId, lev.LoteId, ct);
-        if (acumulado.EsCero) return HuevosClasificacion.Cero;   // nada que arrastrar: no ensuciar con filas vacías
+        var (acumulado, pesoPonderado, items) = await LeerLevanteAsync(levId, lev.LoteId, ct);
+        if (acumulado.EsCero && items.Count == 0) return HuevosClasificacion.Cero;   // nada que arrastrar: no ensuciar con filas vacías
 
         // lote_id es NOT NULL en seguimiento_diario_produccion. El LPP hereda el Lote base del
         // levante en el cierre; si aun así no hay ninguno, es un dato inconsistente y hay que
@@ -93,11 +96,14 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
         // Idempotencia: solo se arrastra lo que falta contra lo ya marcado en la fila.
         var yaAplicado = HuevosLevanteCalculos.LeerArrastreAplicado(fila?.Metadata);
         var delta = HuevosLevanteCalculos.Delta(acumulado, yaAplicado);
-        if (delta.EsCero)
+        // Clasificación por ítems: la misma idempotencia, ítem por ítem. Vacío en toda empresa sin ítems.
+        var deltaItems = HuevoItemsCalculos.DeltaPorItem(items, HuevosLevanteCalculos.LeerArrastreAplicadoItems(fila?.Metadata));
+        var totalItems = HuevoItemsCalculos.SumarTotal(items);
+        if (delta.EsCero && deltaItems.Count == 0)
         {
             _logger?.LogInformation(
                 "Arrastre de huevos levante {LotePosturaLevanteId}: sin cambios (ya aplicado huevo_tot={Total}).",
-                levId, acumulado.Totales);
+                levId, acumulado.Totales + totalItems);
             return HuevosClasificacion.Cero;
         }
 
@@ -128,7 +134,11 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
             fila.UpdatedAt = DateTime.UtcNow;
         }
 
-        AcumularHuevos(fila, delta);
+        // Una fila de empresa por ítems lleva huevo_tot = suma de ítems con las 11 columnas en 0:
+        // recalcular huevo_tot desde ellas lo pondría en cero. Solo se tocan si hay delta en ellas
+        // (siempre en las empresas sin ítems, que llegan acá únicamente con delta).
+        if (!delta.EsCero) AcumularHuevos(fila, delta);
+        if (deltaItems.Count > 0) AcumularHuevoItems(fila, deltaItems);
 
         // El peso del huevo se toma del promedio ponderado del levante solo si la fila no traía uno
         // propio (el del usuario manda).
@@ -137,14 +147,14 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
 
         // La marca guarda el acumulado TOTAL aplicado (no el delta) y conserva el resto del metadata.
         fila.Metadata = HuevosLevanteCalculos.EscribirMarcaArrastre(
-            fila.Metadata, acumulado, levId, fecha);
+            fila.Metadata, acumulado, levId, fecha, items);
 
         await _ctx.SaveChangesAsync(ct);
         await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lppId, ct);
 
         _logger?.LogInformation(
             "Arrastre de huevos levante {LotePosturaLevanteId} → LPP {Lpp} fecha {Fecha:yyyy-MM-dd}: huevo_tot +{Delta} (acumulado {Total}).",
-            levId, lppId, fecha, delta.Totales, acumulado.Totales);
+            levId, lppId, fecha, delta.Totales + HuevoItemsCalculos.SumarTotal(deltaItems), acumulado.Totales + totalItems);
 
         return delta;
     }
@@ -162,7 +172,11 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
     /// <c>LoteId</c> base como texto), igual que hace el resto del módulo con los registros legacy.
     /// </para>
     /// </summary>
-    private async Task<(HuevosClasificacion Acumulado, double? PesoPonderado)> LeerLevanteAsync(
+    /// <para>
+    /// Empresas con clasificación por ítems: el desglose de cada día vive en <c>metadata.huevoItems</c>
+    /// y se acumula por <c>catalogItemId</c> en <c>Items</c> (vacío en toda otra empresa).
+    /// </para>
+    private async Task<(HuevosClasificacion Acumulado, double? PesoPonderado, List<HuevoItemSeguimientoDto> Items)> LeerLevanteAsync(
         int lotePosturaLevanteId, int? loteId, CancellationToken ct)
     {
         var loteIdTexto = loteId?.ToString();
@@ -184,15 +198,20 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
                 s.HuevoRoto,
                 s.HuevoDesecho,
                 s.HuevoOtro,
-                s.PesoHuevo
+                s.PesoHuevo,
+                s.Metadata
             })
             .ToListAsync(ct);
 
         var acumulado = HuevosClasificacion.Cero;
         var pesos = new List<(double? Peso, int Totales)>(filas.Count);
+        var items = new List<HuevoItemSeguimientoDto>();
 
         foreach (var f in filas)
         {
+            if (f.Metadata is not null)
+                items = HuevoItemsCalculos.SumarPorItem(items, HuevoItemsCalculos.LeerDeMetadata(f.Metadata.RootElement));
+
             var dia = new HuevosClasificacion(
                 Limpio: f.HuevoLimpio ?? 0,
                 Tratado: f.HuevoTratado ?? 0,
@@ -212,7 +231,22 @@ public class ArrastreHuevosLevanteService : IArrastreHuevosLevanteService
             pesos.Add((f.PesoHuevo, dia.Totales));
         }
 
-        return (acumulado, HuevosLevanteCalculos.PesoHuevoPonderado(pesos));
+        return (acumulado, HuevosLevanteCalculos.PesoHuevoPonderado(pesos), items);
+    }
+
+    /// <summary>
+    /// Suma el delta POR ÍTEMS sobre <c>metadata.huevoItems</c> de la fila de producción (conservando el
+    /// resto del metadata) y sobre <c>huevo_tot</c>. Un ítem que quede en 0 o menos sale del desglose.
+    /// </summary>
+    private static void AcumularHuevoItems(SeguimientoProduccion fila, List<HuevoItemSeguimientoDto> deltaItems)
+    {
+        var actuales = fila.Metadata is null
+            ? new List<HuevoItemSeguimientoDto>()
+            : HuevoItemsCalculos.LeerDeMetadata(fila.Metadata.RootElement);
+
+        var resultado = HuevoItemsCalculos.SumarPorItem(actuales, deltaItems).Where(i => i.Cantidad > 0).ToList();
+        fila.Metadata = HuevoItemsCalculos.EscribirEnMetadata(fila.Metadata, resultado);
+        fila.HuevoTot += HuevoItemsCalculos.SumarTotal(deltaItems);
     }
 
     /// <summary>

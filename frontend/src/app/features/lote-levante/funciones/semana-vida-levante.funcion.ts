@@ -56,16 +56,22 @@ export function semanaVidaLevante(
 /**
  * ¿Se puede capturar huevos en levante para este registro?
  *
- * El tab «Huevos» es FIJO (decisión jul-2026: sin gate de semana de vida). La única condición que
- * queda es que la fecha del registro no sea ANTERIOR al encaset; si falta alguna de las dos fechas
- * no hay condición evaluable y se permite (mismo criterio que el backend, que es el que valida).
+ * La fecha del registro no puede ser ANTERIOR al encaset. Además, con `desdeSemana`
+ * (`companies.huevos_levante_desde_semana`, Santa Reyes = 18) la semana de vida del registro tiene
+ * que llegar a esa semana. `desdeSemana = null` (toda empresa que no la configura) = el tab fijo de
+ * jul-2026, idéntico a antes. Si falta alguna de las dos fechas no hay condición evaluable y se
+ * permite (mismo criterio que el backend, `HuevosLevanteCalculos.PermiteHuevos`, que es el que valida).
  */
 export function permiteHuevosEnLevante(
   fechaEncaset: string | Date | null | undefined,
-  fechaRegistro: string | Date | null | undefined
+  fechaRegistro: string | Date | null | undefined,
+  desdeSemana: number | null = null
 ): boolean {
   const encaset = aFechaMediodiaLocal(fechaEncaset);
   const registro = aFechaMediodiaLocal(fechaRegistro);
   if (!encaset || !registro) return true;
-  return registro.getTime() >= encaset.getTime();
+  if (registro.getTime() < encaset.getTime()) return false;
+  if (desdeSemana == null) return true;
+  const semana = semanaVidaLevante(encaset, registro);
+  return semana == null || semana >= desdeSemana;
 }

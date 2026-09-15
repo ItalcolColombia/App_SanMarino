@@ -478,6 +478,48 @@
                   Al liquidar el levante, el total acumulado pasa automáticamente al primer registro de producción.
                 </p>
 
+                @if (modoHuevos === 'porItems') {
+                  <!-- Tipos de huevo declarados en el lote (clasificacion_huevo_por_items): sin
+                       declaración el tab ni aparece, así que acá siempre hay al menos una fila. -->
+                  @for (grupo of gruposFilasHuevo; track grupo.tipoHuevo) {
+                    <div class="clasificadora-section">
+                      <h4 class="clasificadora-title">🥚 {{ grupo.tipoHuevo }} · {{ subtotalGrupoHuevo(grupo) | number:'1.0-2' }}</h4>
+                      <div class="grid grid-3">
+                        @for (fila of grupo.filas; track fila.catalogItemId) {
+                          <div class="form-field">
+                            <label [for]="'f-lev-huevo-item-' + fila.catalogItemId">{{ fila.nombre }}</label>
+                            <input [id]="'f-lev-huevo-item-' + fila.catalogItemId" type="number" min="0"
+                                   [step]="pasoCantidadHuevo(fila)"
+                                   [ngModel]="cantidadHuevoItem(fila.catalogItemId)"
+                                   (ngModelChange)="onCantidadHuevoItem(fila.catalogItemId, $event)"
+                                   [ngModelOptions]="{ standalone: true }"
+                                   [disabled]="fila.fueraDeVigencia"
+                                   placeholder="0" />
+                            <small class="ux-hint">
+                              {{ fila.codigo }}@if (fila.um) { · {{ fila.um }} }
+                              @if (fila.fueraDeVigencia) { · primera postura fuera de vigencia }
+                              @if (fila.huerfano) { · ya no está entre los tipos del lote }
+                            </small>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  <div class="huevos-resumen">
+                    <span class="huevos-resumen__icon">🥚</span>
+                    <div class="huevos-resumen__body">
+                      <h4>Total de huevos</h4>
+                      <div class="huevos-resumen__stats">
+                        <div class="huevos-stat huevos-stat--destacado">
+                          <span class="huevos-stat__label">Total</span>
+                          <span class="huevos-stat__value">{{ totalHuevosItems | number:'1.0-2' }}</span>
+                        </div>
+                      </div>
+                      <small class="ux-hint">Suma de los tipos de huevo declarados en el lote</small>
+                    </div>
+                  </div>
+                } @else {
                 <div class="grid grid-3">
                   <div class="form-field">
                     <label for="f-lev-huevos-totales">🥚 Huevos Totales (HuevoTot)</label>
@@ -577,6 +619,7 @@
                     <small class="ux-hint">Porcentaje de huevos incubables sobre el total</small>
                   </div>
                 </div>
+                }
               </div>
             </section>
           }

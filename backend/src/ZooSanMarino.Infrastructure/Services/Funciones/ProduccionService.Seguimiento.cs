@@ -149,6 +149,21 @@ public partial class ProduccionService
             metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
         }
 
+        // Clasificación por ítems sobre la fila del arrastre: los ítems que vinieron del levante se
+        // SUMAN con los del request. Sin esto `EscribirEnMetadata` los reemplazaba y
+        // `AplicarTotalesHuevoPorItems` dejaba huevo_tot solo con lo del request: los huevos del
+        // levante desaparecían al registrar el día. Solo actúa si la fila trae `huevoItems`, o sea
+        // nunca en una empresa sin clasificación por ítems.
+        if (filaArrastre?.Metadata is not null)
+        {
+            var arrastrados = HuevoItemsCalculos.LeerDeMetadata(filaArrastre.Metadata.RootElement);
+            if (arrastrados.Count > 0)
+            {
+                huevoItems = HuevoItemsCalculos.SumarPorItem(arrastrados, huevoItems);
+                metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
+            }
+        }
+
         // -- MERGE sobre la fila del arrastre de huevos del levante ------------------------
         // El usuario registra produccion el mismo dia en que se liquido el levante: sus huevos se
         // SUMAN a los que ya venian de levante y el resto de los campos los define su registro.

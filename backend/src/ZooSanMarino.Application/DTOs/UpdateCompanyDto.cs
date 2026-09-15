@@ -82,5 +82,8 @@ public record UpdateCompanyDto(
     /// venta de engorde oculta «Peso tara» y la manda en 0. <c>null</c> = el cliente no lo mandó ⇒
     /// se conserva el valor actual (el form de Config→Empresas manda sólo datos de contacto y
     /// apagaba los flags en silencio cuando eran <c>bool</c> no anulable).</summary>
-    bool?    VentaEngordePesoNetoUnico          = null
+    bool?    VentaEngordePesoNetoUnico          = null,
+    /// <summary>Semana de vida desde la que el seguimiento diario de LEVANTE captura huevos. Null = sin
+    /// límite (omitir conserva el valor actual, mismo criterio que <c>HuevoPrimeraPosturaHastaSemana</c>).</summary>
+    int?     HuevosLevanteDesdeSemana           = null
 );

@@ -287,6 +287,17 @@ namespace ZooSanMarino.Domain.Entities
         public int? HuevoPrimeraPosturaHastaSemana { get; set; }
 
         /// <summary>
+        /// Semana de vida del lote desde la que el Seguimiento Diario de LEVANTE captura huevos
+        /// (requiere <see cref="CapturaHuevosEnLevante"/>). Antes de esa semana el tab «Huevos» no
+        /// aparece y el backend rechaza huevos positivos. <c>null</c> (default) = sin límite: el tab
+        /// aparece desde el encaset, que es el comportamiento de siempre.
+        /// <para>
+        /// Nace de Santa Reyes con valor 18 (capacitación 14-sep-2026).
+        /// </para>
+        /// </summary>
+        public int? HuevosLevanteDesdeSemana { get; set; }
+
+        /// <summary>
         /// Semana de VIDA desde la que los indicadores de producción muestran datos.
         /// <c>25</c> (default) = el valor que estuvo hardcodeado en
         /// <c>fn_indicadores_produccion_postura</c> hasta el 30-ago-2026, o sea el comportamiento

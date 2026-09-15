@@ -83,5 +83,10 @@ public record SeguimientoLoteLevanteDto(
     bool Validado = false,
     DateTime? ValidadoAt = null,
     string? ValidadoPor = null,
-    string? EstadoValidacion = null
+    string? EstadoValidacion = null,
+    // ── Clasificación de huevos en LEVANTE POR ÍTEMS (empresas con clasificacion_huevo_por_items) ──
+    // Los tipos que el lote declaró producir. `null` = el cliente no mandó el desglose ("no tocar");
+    // lista (aun vacía) = reemplazarlo. En ESCRITURA el gate lo deja en metadata.huevoItems y
+    // huevo_tot = suma; las 11 categorías van en 0. En LECTURA viene null: el desglose se lee del metadata.
+    List<ZooSanMarino.Application.DTOs.Produccion.HuevoItemSeguimientoDto>? HuevoItems = null
 );

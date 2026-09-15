@@ -68,5 +68,7 @@ public record CreateCompanyDto(
     bool     PermiteMultiplesSeguimientosDiarios = false,
     /// <summary>La empresa recibe UNA sola cifra de kilos por despacho (el neto) ⇒ el formulario de
     /// venta de engorde oculta «Peso tara» y la manda en 0.</summary>
-    bool     VentaEngordePesoNetoUnico          = false
+    bool     VentaEngordePesoNetoUnico          = false,
+    /// <summary>Semana de vida desde la que el seguimiento diario de LEVANTE captura huevos. Null = sin límite.</summary>
+    int?     HuevosLevanteDesdeSemana           = null
 );

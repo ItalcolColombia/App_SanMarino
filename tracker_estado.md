@@ -8607,3 +8607,24 @@ Novedad: Kilometro 22 / Galpon-1 mostraba `2604 - 2` (parecían dos lotes en el 
 - [x] V1. BD local en `BEGIN…ROLLBACK`: 4 lotes → `2604` corrida 1, 5 + 5 referencias `· Lote 2604`, solo empresa 3; verificar después 0/0; 2.ª pasada `UPDATE 0`; tras ROLLBACK intacto. Gate `verificar-sql-llega-por-migracion.js` OK.
 - [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.267/4.267** · `yarn build` OK. No se levantó backend (puerto :5002 libre).
 - [x] V3. Commit (sin push ni deploy: requieren OK explícito). La migración corre sola al arrancar la app en el deploy.
+
+---
+
+## HUEVOS-LEVANTE-ITEMS-SR — Levante: tab «Huevos» con los tipos del lote, desde semana configurable (14-sep-2026)
+
+Plan: [huevos_levante_por_items_santa_reyes_plan.md](fase_de_desarrollo/huevos_levante_por_items_santa_reyes_plan.md)
+
+Novedad (capacitación Santa Reyes): el seguimiento diario de levante mostraba las 11 categorías de Sanmarino en vez de los tipos declarados del lote, y lo escrito ahí el backend lo descartaba (`SeguimientoLoteLevanteService.cs:98`). Santa Reyes tiene `captura_huevos_en_levante = t` + `clasificacion_huevo_por_items = t`. Decisión del usuario: semana configurable por empresa (Santa Reyes = 18).
+
+- [x] D1. Diagnóstico medido: flags de Santa Reyes en BD local; el front gatea solo por `capturaHuevosEnLevante`; el backend neutraliza el modo ítems; Santa Reyes 3 lotes / 17 tipos declarados / 0 seguimientos de levante con huevos.
+- [x] B1. BD: `companies.huevos_levante_desde_semana` (entidad, config, snapshot, migración `20260914180000_AddHuevosLevanteDesdeSemana` idempotente + seed Santa Reyes = 18, Designer = snapshot) y propagación a `CompanyDto`/Create/Update + `CompanyService`/`Crud`/`CompanyResolver` ×2/`CompanyPaisService`. Probada 2 veces en transacción local: `UPDATE 1` → `UPDATE 0`, solo Santa Reyes, ROLLBACK sin rastro. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] B2. Puro: `HuevosLevanteCalculos` (`PermiteHuevos` con semana, `ResolverModo`, marca `aplicadoItems`, `TotalArrastrado`) + `HuevoItemsCalculos` (`SumarPorItem`, `DeltaPorItem`).
+- [x] B3. Validación de ítems movida a `HuevoItemsLoteValidacion` (código idéntico) y `ProduccionService.ValidarHuevoItemsAsync` delega.
+- [x] B4. Levante: request/DTO `huevoItems`, gate por modo (`ResolverHuevosLevanteAsync`), mapeo (`huevo_tot` = suma, 11 columnas en 0), conservar el desglose al editar con el tab oculto.
+- [x] B5. Arrastre: acumula ítems, delta por ítem, suma en la fila de producción; el merge de producción suma los ítems arrastrados; `HuevoTotArrastrado` cuenta ítems (si no, la fila de arrastre bloqueaba la reapertura del levante).
+- [x] T1. xUnit `HuevosLevantePorItemsCalculosTests`: semana OFF idéntico / ON; modos; suma/delta por ítem; marca; mensaje histórico intacto.
+- [x] F1. Front: `CompanyDto` + `ActiveCompanyConfigService` (interfaz, apagados, respuesta, `$`, mapeo, publish) + campo «Huevos en levante» en Empresas + spec de flags.
+- [x] F2. Front levante: `huevos-levante-items.funcion.ts` (+spec), `permiteHuevosEnLevante` con semana, carga de tipos del lote, tab condicionado, filas fijas Primera/Pnc, validación, payload y rehidratación.
+- [x] V1. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.298/4.298** (+31) + Domain.Tests 1/1 · `yarn build` OK · Karma (spec nuevo + flags-empresa) **28/28** · gate `verificar-sql-llega-por-migracion.js` OK · migración 2 veces en transacción local (`UPDATE 1` → `UPDATE 0`, ROLLBACK). No se levantó backend (:5002 libre).
+- [x] V2. Smoke doble en el Browser pane (dev server :4200, sesión inyectada, HTTP de flags y tipos del lote simulado con los datos reales de la BD local; el componente y el template son los reales): Santa Reyes `LOTE 217A` semana 7 ⇒ **sin tab**; lote sin tipos declarados ⇒ **sin tab**; `SR-2025-01` semana 82 ⇒ tab con sus 4 tipos (Primera 528 + 2756 «fuera de vigencia» deshabilitado · Pnc 538 + 537), payload `huevoItems` [528×1200, 538×35] con las 11 categorías en null, total 1.235, validación bloquea primera postura fuera de vigencia; **Sanmarino** `A374B` ⇒ tab con las 11 categorías, payload sin la clave `huevoItems`. Consola: solo `ERR_CONNECTION_REFUSED` a :5002 (sin backend). No se escribió nada en la BD; sesión simulada borrada y dev server apagado al terminar. Pendiente fuera de esta sesión: smoke HTTP con escritura (Santa Reyes tiene doble validación + silos ⇒ deja reservas reales) y aplicar la migración, que corre sola en el deploy.
+- [x] V3. Commit (sin push ni deploy: requieren OK explícito). La migración corre sola al arrancar la app en el deploy.
