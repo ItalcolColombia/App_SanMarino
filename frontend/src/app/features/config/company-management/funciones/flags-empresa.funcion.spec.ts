@@ -44,6 +44,7 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     limitaTiposInventarioAlimentoYAves: false,
     separaLotesPosturaPorEtapa: false,
     huevoPrimeraPosturaHastaSemana: null,
+    huevosLevanteDesdeSemana: null,
     permiteMultiplesSeguimientosDiarios: false,
     guiaGeneticaPerfil: 'sanmarino'
   } satisfies CompanyFlags;

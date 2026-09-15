@@ -71,44 +71,47 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     }
 
     /// <summary>
-    /// ¿La empresa del lote captura la clasificación de huevos en LEVANTE
-    /// (<c>companies.captura_huevos_en_levante</c>)?
+    /// ¿Cómo captura huevos en LEVANTE la empresa del lote, y desde qué semana?
+    /// (<c>companies.captura_huevos_en_levante</c> + <c>clasificacion_huevo_por_items</c> →
+    /// <see cref="ModoHuevosLevante"/>; <c>huevos_levante_desde_semana</c> → semana mínima).
     /// <para>
     /// Empresa efectiva <b>por datos</b>: <c>farms.company_id</c> de la granja del lote (no
     /// <c>_current.CompanyId</c>), el patrón obligatorio del repo para features por empresa.
-    /// <b>Fail-closed</b>: si la granja/empresa no se resuelve devuelve <c>false</c>.
+    /// <b>Fail-closed</b>: si la granja/empresa no se resuelve devuelve <see cref="ModoHuevosLevante.Ninguno"/>.
     /// </para>
     /// <para>
-    /// También devuelve <c>false</c> cuando la empresa clasifica los huevos POR ÍTEMS del catálogo
-    /// (<c>clasificacion_huevo_por_items</c>): ese modo no está soportado todavía en levante y es
-    /// preferible no capturar nada que persistir un desglose que los reportes no sabrían leer.
+    /// Hasta sep-2026 la clasificación por ítems apagaba la captura acá, pero el front mostraba igual
+    /// el tab con las 11 categorías: lo que el operario de Santa Reyes escribía se perdía en silencio.
     /// </para>
     /// </summary>
-    private async Task<bool> EmpresaCapturaHuevosEnLevanteAsync(int granjaId, CancellationToken ct = default)
+    private async Task<(ModoHuevosLevante Modo, int? DesdeSemana)> ResolverHuevosLevanteAsync(
+        int granjaId, CancellationToken ct = default)
     {
         var flags = await _ctx.Farms.AsNoTracking()
             .Where(f => f.Id == granjaId)
             .Join(_ctx.Companies.AsNoTracking(),
                   f => f.CompanyId,
                   c => c.Id,
-                  (f, c) => new { c.CapturaHuevosEnLevante, c.ClasificacionHuevoPorItems })
+                  (f, c) => new { c.CapturaHuevosEnLevante, c.ClasificacionHuevoPorItems, c.HuevosLevanteDesdeSemana })
             .FirstOrDefaultAsync(ct);
 
-        if (flags is null) return false;                    // granja o empresa no resoluble
-        if (flags.ClasificacionHuevoPorItems) return false;  // modo por ítems: fuera de alcance
-        return flags.CapturaHuevosEnLevante;
+        if (flags is null) return (ModoHuevosLevante.Ninguno, null);   // granja o empresa no resoluble
+        return (HuevosLevanteCalculos.ResolverModo(flags.CapturaHuevosEnLevante, flags.ClasificacionHuevoPorItems),
+                flags.HuevosLevanteDesdeSemana);
     }
 
     /// <summary>
     /// Aplica el gate de captura de huevos en levante sobre el DTO entrante y devuelve el DTO ya
     /// saneado:
     /// <list type="bullet">
-    ///   <item>empresa sin el flag (o modo por ítems) ⇒ los huevos se <b>neutralizan a null</b>
-    ///   (comportamiento previo byte a byte, sin error: un cliente viejo que mande el campo no
-    ///   empieza a fallar);</item>
-    ///   <item>empresa con el flag y alguna categoría <b>positiva</b> con fecha de registro
-    ///   anterior al encaset ⇒ <b>error explícito</b> (el dato no se puede ubicar en la vida del
-    ///   lote; el tab es fijo y ya no hay gate de semana);</item>
+    ///   <item>empresa sin el flag ⇒ los huevos se <b>neutralizan a null</b> (comportamiento previo
+    ///   byte a byte, sin error: un cliente viejo que mande el campo no empieza a fallar);</item>
+    ///   <item>clasificadora fija (Sanmarino): las 11 categorías; un desglose por ítems se descarta;</item>
+    ///   <item>por ítems (Santa Reyes): las 11 categorías se neutralizan y el desglose se valida
+    ///   contra el catálogo, la lista blanca del lote y la vigencia de primera postura
+    ///   (<see cref="HuevoItemsLoteValidacion"/>, la misma que producción);</item>
+    ///   <item>huevos <b>positivos</b> con fecha anterior al encaset, o antes de la semana mínima de
+    ///   la empresa ⇒ <b>error explícito</b>;</item>
     ///   <item>todo en cero ⇒ pasa siempre (un seguimiento normal de semana 3 manda ceros).</item>
     /// </list>
     /// </summary>
@@ -116,16 +119,48 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         SeguimientoLoteLevanteDto dto, Lote lote, CancellationToken ct = default)
     {
         var huevos = HuevosDeDto(dto);
-        if (huevos is null) return dto;                      // el cliente no mandó el tab de huevos
+        if (huevos is null && dto.HuevoItems is null) return dto;   // el cliente no mandó el tab de huevos
 
-        if (!await EmpresaCapturaHuevosEnLevanteAsync(lote.GranjaId, ct))
-            return SinHuevos(dto);
+        var (modo, desdeSemana) = await ResolverHuevosLevanteAsync(lote.GranjaId, ct);
 
-        if (huevos.Value.AlgunoPositivo && !HuevosLevanteCalculos.PermiteHuevos(lote.FechaEncaset, dto.FechaRegistro))
-            throw new InvalidOperationException(
-                "Los huevos no pueden registrarse con una fecha anterior al encasetamiento del lote.");
+        switch (modo)
+        {
+            case ModoHuevosLevante.Clasificadora:
+                dto = dto with { HuevoItems = null };
+                if (huevos is null) return dto;
+                ValidarFechaHuevosLevante(huevos.Value.AlgunoPositivo, lote.FechaEncaset, dto.FechaRegistro, desdeSemana);
+                return dto;
 
-        return dto;
+            case ModoHuevosLevante.PorItems:
+                if (dto.HuevoItems is null) return SinHuevos(dto);
+                // Las filas en 0 no se guardan (mismo criterio que el front de producción).
+                var items = dto.HuevoItems.Where(i => i.Cantidad != 0).ToList();
+                ValidarFechaHuevosLevante(items.Count > 0, lote.FechaEncaset, dto.FechaRegistro, desdeSemana);
+                if (items.Count > 0)
+                    items = await HuevoItemsLoteValidacion.ValidarAsync(_ctx, dto.LoteId, items, dto.FechaRegistro);
+                return ConHuevoItems(SinHuevos(dto), items);
+
+            default:
+                return SinHuevos(dto) with { HuevoItems = null };
+        }
+    }
+
+    /// <summary>
+    /// Rechaza huevos positivos con fecha anterior al encaset (mensaje histórico, sin cambios) o antes
+    /// de la semana mínima de la empresa. Con <paramref name="desdeSemana"/> null la segunda regla no
+    /// puede fallar donde no falle la primera ⇒ sin semana configurada, idéntico a antes.
+    /// </summary>
+    private static void ValidarFechaHuevosLevante(
+        bool algunoPositivo, DateTime? fechaEncaset, DateTime fechaRegistro, int? desdeSemana)
+    {
+        if (!algunoPositivo) return;
+
+        if (!HuevosLevanteCalculos.PermiteHuevos(fechaEncaset, fechaRegistro))
+            throw new InvalidOperationException(HuevosLevanteCalculos.MensajeFechaAnteriorAlEncaset);
+
+        if (!HuevosLevanteCalculos.PermiteHuevos(fechaEncaset, fechaRegistro, desdeSemana))
+            throw new InvalidOperationException(HuevosLevanteCalculos.MensajeAntesDeSemana(
+                desdeSemana!.Value, HuevosLevanteCalculos.SemanaVida(fechaRegistro, fechaEncaset!.Value)));
     }
 
     /// <summary>Devuelve el DTO con las 11 categorías y el peso del huevo en null (sin tocar el resto).</summary>

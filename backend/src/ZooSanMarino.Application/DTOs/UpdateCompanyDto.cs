@@ -59,7 +59,9 @@ public record UpdateCompanyDto(
     bool?    ConsumoAlimentoSoloHembras = null,
     /// <summary>Oculta la columna Machos en mortalidad/selección/peso/uniformidad/traslados/ventas y retira error de sexaje del registro diario.</summary>
     bool?    OcultaMachosEnPostura = null,
-    /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. Null = la empresa no usa el concepto (omitir conserva el valor actual; para borrarlo explícitamente no hay bandera separada, hoy no hace falta).</summary>
+    /// <summary>Última semana en la que el huevo de primera postura sigue habilitado. `null` = omitido,
+    /// conserva el valor actual; <c>0</c> = sentinel de borrado explícito (vuelve a `null`, "la empresa
+    /// no usa el concepto"); ver <c>ParametroEmpresaOpcionalCalculos</c>.</summary>
     int?     HuevoPrimeraPosturaHastaSemana = null,
     /// <summary>La etapa del ciclo de vida del ave (alistamiento/levante/levante en producción/postura) se calcula por semana y por raza.</summary>
     bool?    SemanasCicloPosturaPorRaza = null,
@@ -82,5 +84,10 @@ public record UpdateCompanyDto(
     /// venta de engorde oculta «Peso tara» y la manda en 0. <c>null</c> = el cliente no lo mandó ⇒
     /// se conserva el valor actual (el form de Config→Empresas manda sólo datos de contacto y
     /// apagaba los flags en silencio cuando eran <c>bool</c> no anulable).</summary>
-    bool?    VentaEngordePesoNetoUnico          = null
+    bool?    VentaEngordePesoNetoUnico          = null,
+    /// <summary>Semana de vida desde la que el seguimiento diario de LEVANTE captura huevos. `null` =
+    /// omitido, conserva el valor actual; <c>0</c> = sentinel de borrado explícito (vuelve a `null`,
+    /// sin límite); mismo criterio que <c>HuevoPrimeraPosturaHastaSemana</c> — ver
+    /// <c>ParametroEmpresaOpcionalCalculos</c>.</summary>
+    int?     HuevosLevanteDesdeSemana           = null
 );

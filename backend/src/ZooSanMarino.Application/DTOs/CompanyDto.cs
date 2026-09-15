@@ -106,5 +106,7 @@ public record CompanyDto(
     /// pesadas de báscula: el formulario de venta de engorde oculta «Peso tara», rotula el campo
     /// restante como los kilos del despacho y manda la tara en 0.
     /// </summary>
-    bool VentaEngordePesoNetoUnico = false
+    bool VentaEngordePesoNetoUnico = false,
+    /// <summary>Semana de vida desde la que el seguimiento diario de LEVANTE captura huevos. Null = sin límite (desde el encaset).</summary>
+    int? HuevosLevanteDesdeSemana = null
 );

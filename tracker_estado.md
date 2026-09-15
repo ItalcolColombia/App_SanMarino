@@ -8560,3 +8560,81 @@ Plan: [`fase_de_desarrollo/integracion_ramas_pendientes_13sep26_plan.md`](fase_d
 - [x] V2. `dotnet build` API Release 0 warn / 0 err · `yarn test` headless 894/894 · `yarn build` 0 errores / 0 warnings.
 - [x] E1. Rebase sobre `main`, fast-forward de `main` local + push a `origin/main`.
 - [x] E2. PR `main → main-produccion` (el merge dispara el deploy: decisión del usuario).
+
+---
+
+## TSD-COMPANY-ID — CompanyId en la auditoría TSD-* de traslados desde Seguimiento + backfill + gate (14-sep-2026)
+
+Plan: [`fase_de_desarrollo/traslado_seg_movimiento_company_id_plan.md`](fase_de_desarrollo/traslado_seg_movimiento_company_id_plan.md)
+
+Port a mano del arreglo del 25-jul que quedó sin commitear en el worktree `intelligent-volhard-0b73ea` (no se toca).
+
+- [x] A0. Diff del worktree viejo revisado y re-auditado contra `main` 6e4083b: el TSD ya lleva `LoteDestinoId`, D3 bloquea Eliminar de un Completado, Cancelar anula cohortes. Cancelar sigue revirtiendo solo el lado ORIGEN del seguimiento (INGRESO y acumulados del destino quedan) ⇒ el gate sigue siendo necesario.
+- [x] A1. Lectores de `movimiento_aves` con filtro de empresa: `MovimientoAvesService` y `fn_seguimiento_diario_produccion` (saldo de producción). Los demás no filtran ⇒ sin efecto.
+- [x] B1. `MovimientoAvesCalculos.PrefijoTrasladoDesdeSeguimiento` + `EsTrasladoDesdeSeguimiento` (puro).
+- [x] B2. `TrasladoAvesDesdeSegService.Traslado.cs`: `CompanyId` = empresa de la granja ORIGEN (`ResolverCompanyIdDeGranjaAsync` ?? efectiva) + `CreatedByUserId`; número con la constante.
+- [x] B3. Gates en `CancelarMovimientoAsync` y `EliminarMovimientoAsync` (antes de D3) + `MensajeTrasladoDesdeSegNoReversible` en el ancla.
+- [x] B4. Migración data-only `20260914120000_BackfillCompanyIdMovimientosTsd` (Designer = snapshot, 4 líneas distintas; snapshot sin tocar) + `backend/sql/verificar_backfill_company_id_tsd.sql` (solo lectura).
+- [x] B5. Tests `MovimientoAvesCalculosTests` (predicado + contrato del prefijo).
+- [x] V1. BD local, `verificar_backfill_company_id_tsd.sql` en `BEGIN…ROLLBACK`: `UPDATE 12` (6 → empresa 1, 6 → empresa 4; 0 quedan en 0), 2.ª pasada `UPDATE 0`; saldo de producción 607 filas / 4 LPP con **0 diferencias** (los 12 TSD son de levante); tras el ROLLBACK los 12 siguen en `company_id = 0`.
+- [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.260/4.260** (+12) + Domain.Tests 1/1 · `verificar-sql-llega-por-migracion.js` OK. No se levantó backend (puertos libres).
+- [x] V3. Commit + fast-forward a `main` (sin push ni deploy: requieren OK explícito). Antes de desplegar: correr `verificar_backfill_company_id_tsd.sql` contra un dump fresco de prod (puede haber TSD de producción/cross-etapa posteriores al dump local, y ahí el saldo SÍ cambia: pasa a descontar el traslado).
+
+## LIMPIEZA-LOTES-SR — Borrar lotes de Santa Reyes tras la capacitación
+
+Plan: [limpieza_lotes_santa_reyes_capacitacion_plan.md](fase_de_desarrollo/limpieza_lotes_santa_reyes_capacitacion_plan.md)
+
+- [x] LS1. Mapear FKs, triggers y tablas operativas de Santa Reyes contra la copia local de prod.
+- [x] LS2. Definir alcance con el usuario (inventario a cero, conservar lotes base).
+- [x] LS3. Escribir `backend/sql/migracion_limpieza_lotes_santa_reyes_capacitacion.sql` (bloque A conteo + bloque B borrado para DB Studio).
+- [x] LS4. Ensayo en BD local con ROLLBACK: conteos antes/después, control multiempresa, idempotencia.
+- [x] LS5. Commit (plan + script + bloque del tracker). La ejecución en prod la hace el usuario.
+
+---
+
+## LOTE-ENGORDE-SIN-SUFIJO — Ecuador: el lote se llama como su lote base, sin " - 2" (14-sep-2026)
+
+Plan: [nombre_lote_engorde_ecuador_sin_sufijo_plan.md](fase_de_desarrollo/nombre_lote_engorde_ecuador_sin_sufijo_plan.md)
+
+Novedad: Kilometro 22 / Galpon-1 mostraba `2604 - 2` (parecían dos lotes en el consumo). Causa: la corrida contaba un lote de prueba borrado y con el flag OFF el sufijo salía desde la 2.ª corrida.
+
+- [x] D1. Diagnóstico sobre la copia de prod: 4 lotes vivos `2604 - 2` (240 Kilometro 22; 218, 237, 247 CAROLINA), todos con un lote borrado sin seguimientos antes en su galpón. Sin índice único por nombre; sin triggers sobre `lote_nombre`/`reference`/`referencia`.
+- [x] C1. `GestionLotesEngordeCalculos`: `ConstruirNombreLote` OFF ⇒ base siempre; `CorridaCuentaLotesBorrados`; `ValidarAperturaLoteBase` + mensaje.
+- [x] C2. `LoteAveEngordeService.CreateAsync`: flag primero; con OFF la corrida solo cuenta vivos y bloquea abrir el mismo base donde hay uno vivo no cerrado. Panamá (ON) igual que antes.
+- [x] C3. Front `recomputeNombrePorCorrida`: preview sin sufijo con OFF.
+- [x] C4. Migración data-only `20260914153000_NombreLoteEngordeSinSufijoCorrida` (Designer = snapshot, snapshot sin tocar) + `backend/sql/verificar_nombre_lote_engorde_sin_sufijo_corrida.sql` (solo lectura).
+- [x] T1. Tests `GestionLotesEngordeCalculosTests` (OFF sin sufijo, borrados, guarda, Panamá intacto).
+- [x] V1. BD local en `BEGIN…ROLLBACK`: 4 lotes → `2604` corrida 1, 5 + 5 referencias `· Lote 2604`, solo empresa 3; verificar después 0/0; 2.ª pasada `UPDATE 0`; tras ROLLBACK intacto. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.267/4.267** · `yarn build` OK. No se levantó backend (puerto :5002 libre).
+- [x] V3. Commit (sin push ni deploy: requieren OK explícito). La migración corre sola al arrancar la app en el deploy.
+
+---
+
+## HUEVOS-LEVANTE-ITEMS-SR — Levante: tab «Huevos» con los tipos del lote, desde semana configurable (14-sep-2026)
+
+Plan: [huevos_levante_por_items_santa_reyes_plan.md](fase_de_desarrollo/huevos_levante_por_items_santa_reyes_plan.md)
+
+Novedad (capacitación Santa Reyes): el seguimiento diario de levante mostraba las 11 categorías de Sanmarino en vez de los tipos declarados del lote, y lo escrito ahí el backend lo descartaba (`SeguimientoLoteLevanteService.cs:98`). Santa Reyes tiene `captura_huevos_en_levante = t` + `clasificacion_huevo_por_items = t`. Decisión del usuario: semana configurable por empresa (Santa Reyes = 18).
+
+- [x] D1. Diagnóstico medido: flags de Santa Reyes en BD local; el front gatea solo por `capturaHuevosEnLevante`; el backend neutraliza el modo ítems; Santa Reyes 3 lotes / 17 tipos declarados / 0 seguimientos de levante con huevos.
+- [x] B1. BD: `companies.huevos_levante_desde_semana` (entidad, config, snapshot, migración `20260914180000_AddHuevosLevanteDesdeSemana` idempotente + seed Santa Reyes = 18, Designer = snapshot) y propagación a `CompanyDto`/Create/Update + `CompanyService`/`Crud`/`CompanyResolver` ×2/`CompanyPaisService`. Probada 2 veces en transacción local: `UPDATE 1` → `UPDATE 0`, solo Santa Reyes, ROLLBACK sin rastro. Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] B2. Puro: `HuevosLevanteCalculos` (`PermiteHuevos` con semana, `ResolverModo`, marca `aplicadoItems`, `TotalArrastrado`) + `HuevoItemsCalculos` (`SumarPorItem`, `DeltaPorItem`).
+- [x] B3. Validación de ítems movida a `HuevoItemsLoteValidacion` (código idéntico) y `ProduccionService.ValidarHuevoItemsAsync` delega.
+- [x] B4. Levante: request/DTO `huevoItems`, gate por modo (`ResolverHuevosLevanteAsync`), mapeo (`huevo_tot` = suma, 11 columnas en 0), conservar el desglose al editar con el tab oculto.
+- [x] B5. Arrastre: acumula ítems, delta por ítem, suma en la fila de producción; el merge de producción suma los ítems arrastrados; `HuevoTotArrastrado` cuenta ítems (si no, la fila de arrastre bloqueaba la reapertura del levante).
+- [x] T1. xUnit `HuevosLevantePorItemsCalculosTests`: semana OFF idéntico / ON; modos; suma/delta por ítem; marca; mensaje histórico intacto.
+- [x] F1. Front: `CompanyDto` + `ActiveCompanyConfigService` (interfaz, apagados, respuesta, `$`, mapeo, publish) + campo «Huevos en levante» en Empresas + spec de flags.
+- [x] F2. Front levante: `huevos-levante-items.funcion.ts` (+spec), `permiteHuevosEnLevante` con semana, carga de tipos del lote, tab condicionado, filas fijas Primera/Pnc, validación, payload y rehidratación.
+- [x] V1. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.298/4.298** (+31) + Domain.Tests 1/1 · `yarn build` OK · Karma (spec nuevo + flags-empresa) **28/28** · gate `verificar-sql-llega-por-migracion.js` OK · migración 2 veces en transacción local (`UPDATE 1` → `UPDATE 0`, ROLLBACK). No se levantó backend (:5002 libre).
+- [x] V2. Smoke doble en el Browser pane (dev server :4200, sesión inyectada, HTTP de flags y tipos del lote simulado con los datos reales de la BD local; el componente y el template son los reales): Santa Reyes `LOTE 217A` semana 7 ⇒ **sin tab**; lote sin tipos declarados ⇒ **sin tab**; `SR-2025-01` semana 82 ⇒ tab con sus 4 tipos (Primera 528 + 2756 «fuera de vigencia» deshabilitado · Pnc 538 + 537), payload `huevoItems` [528×1200, 538×35] con las 11 categorías en null, total 1.235, validación bloquea primera postura fuera de vigencia; **Sanmarino** `A374B` ⇒ tab con las 11 categorías, payload sin la clave `huevoItems`. Consola: solo `ERR_CONNECTION_REFUSED` a :5002 (sin backend). No se escribió nada en la BD; sesión simulada borrada y dev server apagado al terminar. Pendiente fuera de esta sesión: smoke HTTP con escritura (Santa Reyes tiene doble validación + silos ⇒ deja reservas reales) y aplicar la migración, que corre sola en el deploy.
+- [x] V3. Commit (sin push ni deploy: requieren OK explícito). La migración corre sola al arrancar la app en el deploy.
+
+### Cierre de pendientes — migración aplicada, sentinel de borrado y smoke HTTP real (15-sep-2026)
+
+- [x] M1. Migración `20260914180000_AddHuevosLevanteDesdeSemana` aplicada de verdad en `sanmarinoapplocal` junto con las otras 2 pendientes ya commiteadas en `main` (`BackfillCompanyIdMovimientosTsd`, `NombreLoteEngordeSinSufijoCorrida`) vía `dotnet ef database update` — 1 sola conexión externa (pgAdmin), sin worktrees con trabajo en curso sobre esas migraciones. Verificado: `dotnet ef migrations list` sin pendientes; `companies` con la columna y Santa Reyes en 18.
+- [x] S1. Sentinel de borrado para los parámetros opcionales «semana» (`huevoPrimeraPosturaHastaSemana`, `huevosLevanteDesdeSemana`): antes, vaciar el campo en Configuración → Empresas no podía BORRAR un límite ya puesto (el backend lee `null` como «no lo mandé, conservá»). `ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional` (backend, con tests) + `resolverSemanaOpcionalParaGuardar` (front, con spec): `0` es el sentinel explícito de borrado (fuera del rango válido, que arranca en 1); al craer no aplica. `CompanyService.Crud.cs` y el `save()` de `company-management.component.ts` actualizados; hint de las 2 filas del formulario aclara que vaciar el campo borra el límite.
+- [x] X1. **Smoke HTTP real contra un backend vivo**, sin tocar la BD compartida: clon lógico de `sanmarinoapplocal` (`pg_dump -Fc` + `pg_restore`, ~40 s, no exige exclusividad sobre la fuente) a `smoke_huevos_levante_20260915`; backend aislado en `:5501` (`--contentRoot` propio, `RunMigrations=false`, mismo binario ya validado) + JWT HS256 minteado a mano (con `iss`/`aud`, el olvido inicial daba 401 "audience 'empty'") + `X-Secret-Up` (AES-256-CBC/PBKDF2, camino legacy) + fila en `sesiones_activas` **del clon** (no hace falta pedir permiso: no es la BD compartida) + `X-Active-Company-Id` (el usuario es superadmin, `ActiveCompanyMiddleware` lo deja saltar a la empresa 6 sin pertenecer a `user_companies`). Gotcha de herramienta: `Invoke-WebRequest` sin `-UseBasicParsing` tira «Windows PowerShell is in NonInteractive mode» al parsear una respuesta (motor IE/MSHTML) — agregar el flag lo resuelve.
+  - Confirmado end-to-end, con datos reales de Santa Reyes (`SR-2025-01` id 156, `LOTE 217A` id 155): gate de semana (`LOTE 217A` semana 7 con huevos ⇒ 400 "se registran desde la semana 18… es de la semana 7"); fail-closed sin tipos (lote 156 con sus 4 `lote_huevo_items` desactivados un momento ⇒ 400 "no tiene tipos de huevo asignados", reactivados después, estado idéntico al de antes); alta con tipos (lote 156 semana 82) ⇒ 201, `metadata.huevoItems` + `huevo_tot=1235` + `huevo_inc=0` + 11 columnas en 0; edición con el tab oculto (`huevoItems: null`) ⇒ conserva el desglose y sí actualiza el resto de los campos; **cierre del levante** (`POST .../cerrar`) ⇒ arrastre real a `seguimiento_diario_produccion` con la marca `aplicadoItems`; **merge del mismo día** (`POST /api/Produccion/seguimiento` con `lotePosturaProduccionId` de la fila de arrastre) ⇒ **SUMA por ítem** (656: 1200+300=1500, ítem 667 nuevo agregado, total 1545 — no reemplaza); **trampa nº3 confirmada con un caso limpio** (lote 155, fila de arrastre por ítems sin ningún registro de usuario encima) ⇒ `resumen-reapertura` da `puedeReabrir:true, registrosProduccionUsuario:0` y `POST .../abrir` reabre 200 — sin el fix de `TotalArrastrado` el arrastre por ítems se contaba como captura del usuario y bloqueaba la reapertura; **regresión Sanmarino** (lote 115, sin `X-Active-Company-Id`, clasificadora fija) ⇒ 201, las 11 categorías intactas, `metadata: null` (sin la clave `huevoItems`).
+  - Limpieza: backend `:5501` detenido, `DROP DATABASE smoke_huevos_levante_20260915`, verificado que la BD compartida no tiene ninguna fila de las de prueba (`tipo_alimento` `Smoke*`) y que Santa Reyes sigue en `huevos_levante_desde_semana=18`. Puertos 4200/5002/5501 libres al terminar.
+- [x] V4. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` **4.304/4.304** (+6, el sentinel) + Domain.Tests 1/1 · `yarn build` OK · Karma **32/32** (+4, el sentinel). Gate `verificar-sql-llega-por-migracion.js` OK.
+- [x] V5. Commit (sin push ni deploy: requieren OK explícito).

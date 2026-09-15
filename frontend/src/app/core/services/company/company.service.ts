@@ -67,6 +67,8 @@ export interface Company {
   ocultaMachosEnPostura?: boolean;
   /** Última semana con huevo de primera postura habilitado. Sin valor = la empresa no usa el concepto. */
   huevoPrimeraPosturaHastaSemana?: number | null;
+  /** Semana de vida desde la que el seguimiento diario de levante captura huevos. Sin valor = desde el encaset. */
+  huevosLevanteDesdeSemana?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

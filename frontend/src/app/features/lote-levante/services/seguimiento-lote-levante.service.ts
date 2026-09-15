@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import type { HuevoItemSeguimiento } from '../../lote-produccion/services/produccion.service';
 
 export interface SeguimientoLoteLevanteDto {
   id: number;
@@ -207,6 +208,11 @@ export interface CreateSeguimientoLoteLevanteDto {
   huevoDesecho?: number | null;
   huevoOtro?: number | null;
   pesoHuevo?: number | null;
+  /**
+   * Huevos por los TIPOS declarados del lote (empresas con `clasificacion_huevo_por_items`). Con el
+   * desglose las 11 categorías viajan en null. `null` = no tocar el desglose guardado.
+   */
+  huevoItems?: HuevoItemSeguimiento[] | null;
 
   /** ID del usuario en sesión (desde storage). Se envía al backend para guardar en seguimiento_diario.created_by_user_id. */
   createdByUserId?: string | null;

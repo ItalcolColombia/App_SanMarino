@@ -610,7 +610,9 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
             MortalidadH: s.MortalidadH,
             SelM: s.SelM,
             HuevoTot: s.HuevoTot,
-            HuevoTotArrastrado: HuevosLevanteCalculos.LeerArrastreAplicado(s.Metadata).Totales)).ToList();
+            // Clasificadora + ítems: con solo las 11 categorías, una fila de arrastre por ítems contaba
+            // como captura del usuario y bloqueaba la reapertura del levante.
+            HuevoTotArrastrado: HuevosLevanteCalculos.TotalArrastrado(s.Metadata))).ToList();
 
         var deUsuario = CicloVidaPosturaCalculos.FiltrarRegistrosDeUsuario(filas);
         var idsUsuario = deUsuario.Select(f => f.Id).ToHashSet();

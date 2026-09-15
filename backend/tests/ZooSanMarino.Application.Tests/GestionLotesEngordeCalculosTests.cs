@@ -54,14 +54,47 @@ public class GestionLotesEngordeCalculosTests
         => Assert.Equal("2603", ConstruirNombreLote("2603", 1, incluirCorridaSiempre: false));
 
     /// <summary>
-    /// …pero desde la segunda apertura del mismo base en el mismo galpón el sufijo vuelve, que es lo
-    /// único que impide dos lotes con el mismo nombre dentro del galpón.
+    /// …y desde la segunda apertura también (14-sep-2026): Ecuador no usa sufijo. Antes salía
+    /// "2604 - 2" cuando un lote de prueba borrado ocupaba la corrida 1 del galpón.
     /// </summary>
     [Theory]
-    [InlineData(2, "2603 - 2")]
-    [InlineData(3, "2603 - 3")]
-    public void ConstruirNombreLote_SinCorridaSiempre_DesdeLaSegunda_LlevaSufijo(int n, string esperado)
-        => Assert.Equal(esperado, ConstruirNombreLote("2603", n, incluirCorridaSiempre: false));
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ConstruirNombreLote_SinCorridaSiempre_DesdeLaSegunda_SigueSinSufijo(int n)
+        => Assert.Equal("2603", ConstruirNombreLote("2603", n, incluirCorridaSiempre: false));
+
+    // ── Corrida: ¿cuenta lotes borrados? ─────────────────────────────────────
+
+    [Fact]
+    public void CorridaCuentaLotesBorrados_ConCorridaSiempre_Si()
+        => Assert.True(CorridaCuentaLotesBorrados(incluirCorridaSiempre: true));
+
+    [Fact]
+    public void CorridaCuentaLotesBorrados_SinCorridaSiempre_No()
+        => Assert.False(CorridaCuentaLotesBorrados(incluirCorridaSiempre: false));
+
+    // ── Guarda de apertura del mismo base en un galpón ───────────────────────
+
+    [Fact]
+    public void ValidarAperturaLoteBase_SinCorridaSiempre_ConLoteAbierto_Bloquea()
+        => Assert.Equal(
+            "Ya hay un lote 2604 abierto en este galpón. Ciérrelo o elimínelo antes de abrir otro con el mismo lote base.",
+            ValidarAperturaLoteBase(incluirCorridaSiempre: false, "  2604 ", hayLoteAbiertoMismoBaseEnGalpon: true));
+
+    [Fact]
+    public void ValidarAperturaLoteBase_SinCorridaSiempre_SinLoteAbierto_Permite()
+        => Assert.Null(ValidarAperturaLoteBase(incluirCorridaSiempre: false, "2604", hayLoteAbiertoMismoBaseEnGalpon: false));
+
+    /// <summary>Panamá: el número de corrida ya distingue los lotes, nunca se bloquea.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ValidarAperturaLoteBase_ConCorridaSiempre_NuncaBloquea(bool hayAbierto)
+        => Assert.Null(ValidarAperturaLoteBase(incluirCorridaSiempre: true, "96", hayAbierto));
+
+    [Fact]
+    public void ValidarAperturaLoteBase_BaseNuloNoRompe()
+        => Assert.NotNull(ValidarAperturaLoteBase(incluirCorridaSiempre: false, null!, hayLoteAbiertoMismoBaseEnGalpon: true));
 
     [Fact]
     public void ConstruirNombreLote_SinCorridaSiempre_RecortaEspacios()

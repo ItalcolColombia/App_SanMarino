@@ -158,9 +158,20 @@ public static class HuevoItemsCalculos
     /// </summary>
     public static List<HuevoItemSeguimientoDto> LeerDeMetadata(JsonElement root)
     {
+        if (root.ValueKind != JsonValueKind.Object) return new List<HuevoItemSeguimientoDto>();
+        if (!root.TryGetProperty(MetadataKey, out var arr)) return new List<HuevoItemSeguimientoDto>();
+        return LeerItems(arr);
+    }
+
+    /// <summary>
+    /// Lee un array jsonb con el shape de <see cref="AMetadataJson"/>. Lista vacía si no es un array;
+    /// las filas sin <c>catalogItemId</c> válido se descartan. Lo comparten el desglose del seguimiento
+    /// y la marca de arrastre de levante (<c>aplicadoItems</c>).
+    /// </summary>
+    internal static List<HuevoItemSeguimientoDto> LeerItems(JsonElement arr)
+    {
         var result = new List<HuevoItemSeguimientoDto>();
-        if (root.ValueKind != JsonValueKind.Object) return result;
-        if (!root.TryGetProperty(MetadataKey, out var arr) || arr.ValueKind != JsonValueKind.Array) return result;
+        if (arr.ValueKind != JsonValueKind.Array) return result;
 
         foreach (var e in arr.EnumerateArray())
         {
@@ -212,7 +223,7 @@ public static class HuevoItemsCalculos
     /// Proyecta el desglose al shape camelCase que se serializa dentro del jsonb <c>metadata</c>:
     /// <c>{ catalogItemId, codigo, nombre, tipoHuevo, cantidad, um }</c>.
     /// </summary>
-    private static List<Dictionary<string, object?>> AMetadataJson(IEnumerable<HuevoItemSeguimientoDto> items) =>
+    internal static List<Dictionary<string, object?>> AMetadataJson(IEnumerable<HuevoItemSeguimientoDto> items) =>
         items.Select(i => new Dictionary<string, object?>
         {
             ["catalogItemId"] = i.CatalogItemId,
@@ -222,6 +233,67 @@ public static class HuevoItemsCalculos
             ["cantidad"] = i.Cantidad,
             ["um"] = i.Um
         }).ToList();
+
+    /// <summary>
+    /// Suma dos desgloses ítem por ítem (<c>catalogItemId</c>). <c>null</c> equivale a vacío.
+    /// <para>
+    /// Orden de primera aparición (primero <paramref name="a"/>, después lo nuevo de
+    /// <paramref name="b"/>); código, nombre, tipo y UM salen de la primera fila que los traiga.
+    /// Lo usan el arrastre de huevos de LEVANTE y el merge del seguimiento de producción sobre la fila
+    /// del arrastre: ahí los ítems se SUMAN, nunca se reemplazan.
+    /// </para>
+    /// </summary>
+    public static List<HuevoItemSeguimientoDto> SumarPorItem(
+        IEnumerable<HuevoItemSeguimientoDto>? a,
+        IEnumerable<HuevoItemSeguimientoDto>? b) => Combinar(a, b, factorB: 1);
+
+    /// <summary>
+    /// Diferencia <paramref name="nuevo"/> − <paramref name="aplicado"/> ítem por ítem, sin los ítems
+    /// cuya diferencia es 0: es lo que falta arrastrar. Lista vacía ⇒ nada que hacer (idempotente).
+    /// <b>No se clampea a 0</b>, mismo criterio que <see cref="HuevosLevanteCalculos.Delta"/>: si en
+    /// levante se borraron huevos, el delta negativo es el que deja el espejo cuadrado.
+    /// </summary>
+    public static List<HuevoItemSeguimientoDto> DeltaPorItem(
+        IEnumerable<HuevoItemSeguimientoDto>? nuevo,
+        IEnumerable<HuevoItemSeguimientoDto>? aplicado) =>
+        Combinar(nuevo, aplicado, factorB: -1).Where(i => i.Cantidad != 0).ToList();
+
+    private static List<HuevoItemSeguimientoDto> Combinar(
+        IEnumerable<HuevoItemSeguimientoDto>? a,
+        IEnumerable<HuevoItemSeguimientoDto>? b,
+        int factorB)
+    {
+        var orden = new List<int>();
+        var porId = new Dictionary<int, HuevoItemSeguimientoDto>();
+
+        void Acumular(IEnumerable<HuevoItemSeguimientoDto>? items, int factor)
+        {
+            foreach (var i in items ?? Enumerable.Empty<HuevoItemSeguimientoDto>())
+            {
+                if (i is null || i.CatalogItemId <= 0) continue;
+
+                if (!porId.TryGetValue(i.CatalogItemId, out var actual))
+                {
+                    orden.Add(i.CatalogItemId);
+                    porId[i.CatalogItemId] = i with { Cantidad = factor * i.Cantidad };
+                    continue;
+                }
+
+                porId[i.CatalogItemId] = actual with
+                {
+                    Cantidad = actual.Cantidad + factor * i.Cantidad,
+                    Codigo = string.IsNullOrWhiteSpace(actual.Codigo) ? i.Codigo : actual.Codigo,
+                    Nombre = string.IsNullOrWhiteSpace(actual.Nombre) ? i.Nombre : actual.Nombre,
+                    TipoHuevo = string.IsNullOrWhiteSpace(actual.TipoHuevo) ? i.TipoHuevo : actual.TipoHuevo,
+                    Um = string.IsNullOrWhiteSpace(actual.Um) ? i.Um : actual.Um
+                };
+            }
+        }
+
+        Acumular(a, 1);
+        Acumular(b, factorB);
+        return orden.Select(id => porId[id]).ToList();
+    }
 
     private static int LeerInt(JsonElement e, string prop) =>
         e.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : 0;

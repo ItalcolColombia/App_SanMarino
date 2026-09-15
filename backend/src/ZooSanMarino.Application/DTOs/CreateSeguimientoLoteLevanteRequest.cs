@@ -150,6 +150,13 @@ public class CreateSeguimientoLoteLevanteRequest
     [JsonPropertyName("pesoHuevo")]      public double? PesoHuevo { get; set; }
 
     /// <summary>
+    /// Huevos por TIPO declarado del lote (empresas con <c>clasificacion_huevo_por_items</c>). Opcional:
+    /// <c>null</c> = el cliente no mandó el desglose. Engorde y reproductora nunca lo envían.
+    /// </summary>
+    [JsonPropertyName("huevoItems")]
+    public List<ZooSanMarino.Application.DTOs.Produccion.HuevoItemSeguimientoDto>? HuevoItems { get; set; }
+
+    /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto, haciendo la conversión de unidades si es necesario.
     /// Separa los alimentos (que van a campos tradicionales) de otros ítems (que van a ItemsAdicionales).
     /// </summary>
@@ -265,7 +272,8 @@ public class CreateSeguimientoLoteLevanteRequest
             HuevoRoto: HuevoRoto,
             HuevoDesecho: HuevoDesecho,
             HuevoOtro: HuevoOtro,
-            PesoHuevo: PesoHuevo
+            PesoHuevo: PesoHuevo,
+            HuevoItems: HuevoItems
         );
     }
     

@@ -121,4 +121,30 @@ public class MovimientoAvesCalculosTests
     {
         Assert.Equal(etapaEsperada, MovimientoAvesCalculos.EtapaProduccion(semana));
     }
+
+    [Theory]
+    // Formato real del generador: "TSD-{yyyyMMdd}-{guid}" recortado a 24 caracteres.
+    [InlineData("TSD-20260609-6d57478143c", true)]
+    [InlineData("TSD-", true)]                       // prefijo solo: también es TSD (defensivo)
+    [InlineData("MOV-20251007-000123", false)]       // Movimientos: sí se cancelan
+    [InlineData("MGA-20260207-a1b2c3d4e5f", false)]  // carga masiva: fuera de este gate
+    [InlineData("MPE-20260101-000001", false)]       // engorde
+    [InlineData("tsd-20260609-6d57478143c", false)]  // ordinal: el prefijo se genera en mayúsculas
+    [InlineData(" TSD-20260609", false)]
+    [InlineData("XTSD-20260609", false)]
+    [InlineData("TSD20260609", false)]               // sin guión no es el prefijo
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void EsTrasladoDesdeSeguimiento_SoloPrefijoTsdConGuion(string? numeroMovimiento, bool esperado)
+    {
+        Assert.Equal(esperado, MovimientoAvesCalculos.EsTrasladoDesdeSeguimiento(numeroMovimiento));
+    }
+
+    [Fact]
+    public void PrefijoTrasladoDesdeSeguimiento_EsElQueGuardaLaBdYLeeLaMigracion()
+    {
+        // La migración BackfillCompanyIdMovimientosTsd filtra con LIKE 'TSD-%' y las filas ya
+        // guardadas llevan este prefijo: cambiarlo dejaría fuera a los movimientos existentes.
+        Assert.Equal("TSD-", MovimientoAvesCalculos.PrefijoTrasladoDesdeSeguimiento);
+    }
 }

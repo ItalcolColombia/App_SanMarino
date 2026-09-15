@@ -3,6 +3,7 @@
 // efectos en inventario/postura cuando el movimiento eliminado estaba completado).
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Domain.Entities;
 
@@ -93,6 +94,12 @@ public partial class MovimientoAvesService
 
         if (movimiento == null)
             return new ResultadoMovimientoDto(false, "Movimiento no encontrado", null, null, new List<string> { "Movimiento no encontrado" }, null);
+
+        // Antes que D3: a un TSD no se lo manda a "cancelar", porque tampoco se puede cancelar.
+        if (MovimientoAvesCalculos.EsTrasladoDesdeSeguimiento(movimiento.NumeroMovimiento))
+            return new ResultadoMovimientoDto(false, MensajeTrasladoDesdeSegNoReversible,
+                movimiento.Id, movimiento.NumeroMovimiento,
+                new List<string> { "Movimiento TSD (traslado desde Seguimiento Diario): no se revierte desde Movimientos" }, null);
 
         // D3: un movimiento COMPLETADO no se elimina — se CANCELA. La eliminación revertía el
         // espejo LPP y el inventario pero NO el rastro del seguimiento diario (dejaba filas

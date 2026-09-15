@@ -3,8 +3,23 @@
 // Sin EF, sin estado, sin I/O: solo aritmética de la clasificadora, gate de semana, suma/delta
 // y (des)serialización de la marca que viaja en seguimiento_diario_produccion.metadata.
 using System.Text.Json;
+using ZooSanMarino.Application.DTOs.Produccion;
 
 namespace ZooSanMarino.Application.Calculos;
+
+/// <summary>
+/// Cómo captura huevos el Seguimiento Diario de LEVANTE de una empresa. Lo decide
+/// <see cref="HuevosLevanteCalculos.ResolverModo"/> a partir de los flags de <c>companies</c>.
+/// </summary>
+public enum ModoHuevosLevante
+{
+    /// <summary>La empresa no captura huevos en levante: lo que llegue se neutraliza.</summary>
+    Ninguno,
+    /// <summary>Las 11 categorías fijas de la clasificadora (Sanmarino).</summary>
+    Clasificadora,
+    /// <summary>Los tipos de huevo que el LOTE declaró producir (<c>lote_huevo_items</c>, Santa Reyes).</summary>
+    PorItems
+}
 
 /// <summary>
 /// Clasificación de huevos de un día con las 11 categorías de la clasificadora fija (la misma que
@@ -83,6 +98,9 @@ public static class HuevosLevanteCalculos
     /// </summary>
     private const string PropSeguimientoRegistrado = "seguimientoRegistrado";
 
+    /// <summary>Propiedad de la marca con el desglose POR ÍTEMS ya volcado (clasificación por ítems).</summary>
+    private const string PropAplicadoItems = "aplicadoItems";
+
     /// <summary>
     /// Semana de vida (1-based) del lote a la fecha indicada. Idéntica a la fórmula canónica
     /// <c>MovimientoAvesCalculos.SemanaDesdeEncaset</c> y al SQL de las fns de indicadores
@@ -107,6 +125,45 @@ public static class HuevosLevanteCalculos
         if (!fechaEncaset.HasValue) return true;
         return (fechaRegistro.Date - fechaEncaset.Value.Date).Days >= 0;
     }
+
+    /// <summary>
+    /// Gate de captura con la semana mínima de la empresa (<c>companies.huevos_levante_desde_semana</c>).
+    /// <para>
+    /// <paramref name="desdeSemana"/> <c>null</c> ⇒ idéntico a
+    /// <see cref="PermiteHuevos(DateTime?, DateTime)"/>: es el caso de toda empresa que no lo configura.
+    /// Con valor, además exige semana de vida &gt;= <paramref name="desdeSemana"/>. Sin fecha de encaset
+    /// no hay semana evaluable y se permite (el mismo fail-open de siempre).
+    /// </para>
+    /// </summary>
+    public static bool PermiteHuevos(DateTime? fechaEncaset, DateTime fechaRegistro, int? desdeSemana)
+    {
+        if (!PermiteHuevos(fechaEncaset, fechaRegistro)) return false;
+        if (desdeSemana is null || !fechaEncaset.HasValue) return true;
+        return SemanaVida(fechaRegistro, fechaEncaset.Value) >= desdeSemana.Value;
+    }
+
+    /// <summary>Mensaje histórico del gate de fecha (anterior al encaset). No cambiar el texto.</summary>
+    public const string MensajeFechaAnteriorAlEncaset =
+        "Los huevos no pueden registrarse con una fecha anterior al encasetamiento del lote.";
+
+    /// <summary>Mensaje cuando el registro no llega a la semana mínima de la empresa.</summary>
+    public static string MensajeAntesDeSemana(int desdeSemana, int semanaVida) =>
+        $"Los huevos en levante se registran desde la semana {desdeSemana} de vida del lote; " +
+        $"este registro es de la semana {semanaVida}.";
+
+    /// <summary>
+    /// Modo de captura de huevos en levante para una empresa.
+    /// <para>
+    /// Hasta sep-2026 la clasificación por ítems apagaba la captura en levante (el backend la
+    /// neutralizaba aunque el front mostrara el tab). Ahora las dos señales se combinan: sin
+    /// <paramref name="capturaHuevosEnLevante"/> no hay captura; con ella, el modo por ítems manda
+    /// sobre la clasificadora fija.
+    /// </para>
+    /// </summary>
+    public static ModoHuevosLevante ResolverModo(bool capturaHuevosEnLevante, bool clasificacionHuevoPorItems) =>
+        !capturaHuevosEnLevante ? ModoHuevosLevante.Ninguno
+        : clasificacionHuevoPorItems ? ModoHuevosLevante.PorItems
+        : ModoHuevosLevante.Clasificadora;
 
     /// <summary>Suma dos clasificaciones categoría por categoría.</summary>
     public static HuevosClasificacion Sumar(HuevosClasificacion a, HuevosClasificacion b) => new(
@@ -207,11 +264,18 @@ public static class HuevosLevanteCalculos
     /// <c>huevoItems</c>…). <paramref name="aplicado"/> es el acumulado TOTAL ya volcado (no el
     /// delta), para que la próxima ejecución calcule el delta correcto.
     /// </summary>
+    /// <param name="aplicadoItems">
+    /// Desglose POR ÍTEMS ya volcado (empresas con clasificación por ítems). <c>null</c> o vacío ⇒ la
+    /// marca queda exactamente como antes. Con ítems se agrega <c>aplicadoItems</c> y
+    /// <c>aplicado.huevoTot</c> los incluye, para que <c>CicloVidaPosturaCalculos</c> siga distinguiendo
+    /// los huevos del arrastre de los que capturó el usuario.
+    /// </param>
     public static JsonDocument EscribirMarcaArrastre(
         JsonDocument? metadata,
         HuevosClasificacion aplicado,
         int lotePosturaLevanteId,
-        DateTime fechaArrastre)
+        DateTime fechaArrastre,
+        IReadOnlyCollection<HuevoItemSeguimientoDto>? aplicadoItems = null)
     {
         var dict = new Dictionary<string, object?>();
 
@@ -225,8 +289,10 @@ public static class HuevosLevanteCalculos
             ["lotePosturaLevanteId"] = lotePosturaLevanteId,
             ["fecha"] = fechaArrastre.ToString("yyyy-MM-dd"),
             ["version"] = VersionMarcaArrastre,
-            ["aplicado"] = AplicadoAJson(aplicado)
+            ["aplicado"] = AplicadoAJson(aplicado, HuevoItemsCalculos.SumarTotal(aplicadoItems))
         };
+        if (aplicadoItems is { Count: > 0 })
+            marca[PropAplicadoItems] = HuevoItemsCalculos.AMetadataJson(aplicadoItems);
         // Si YA había una marca con la ventana cerrada, se mantiene cerrada: re-arrastrar no debe
         // habilitar un segundo registro del mismo día. Sin marca previa (primer arrastre) la ventana
         // nace ABIERTA, que es justo el caso que pidió el negocio.
@@ -306,7 +372,7 @@ public static class HuevosLevanteCalculos
     /// <c>huevoTot</c>/<c>huevoInc</c> (redundantes a propósito, para poder auditar el arrastre
     /// leyendo el jsonb sin recalcular nada).
     /// </summary>
-    private static Dictionary<string, object?> AplicadoAJson(HuevosClasificacion c) => new()
+    private static Dictionary<string, object?> AplicadoAJson(HuevosClasificacion c, int totalItems = 0) => new()
     {
         ["huevoLimpio"] = c.Limpio,
         ["huevoTratado"] = c.Tratado,
@@ -320,8 +386,31 @@ public static class HuevosLevanteCalculos
         ["huevoDesecho"] = c.Desecho,
         ["huevoOtro"] = c.Otro,
         ["huevoInc"] = c.Incubables,
-        ["huevoTot"] = c.Totales
+        ["huevoTot"] = c.Totales + totalItems
     };
+
+    /// <summary>
+    /// Huevos totales que la marca declara haber volcado en la fila: las 11 categorías más el
+    /// desglose por ítems. 0 sin marca. Es el <c>HuevoTotArrastrado</c> con el que
+    /// <c>CicloVidaPosturaCalculos</c> separa la fila de sistema de la captura del usuario; contar solo
+    /// las 11 categorías haría pasar por captura manual una fila de arrastre por ítems y bloquearía la
+    /// reapertura del levante.
+    /// </summary>
+    public static int TotalArrastrado(JsonDocument? metadata) =>
+        LeerArrastreAplicado(metadata).Totales + HuevoItemsCalculos.SumarTotal(LeerArrastreAplicadoItems(metadata));
+
+    /// <summary>
+    /// Lee el desglose POR ÍTEMS ya arrastrado (<c>arrastreHuevosLevante.aplicadoItems</c>). Lista vacía
+    /// si no hay marca o no trae ítems, así el delta contra el acumulado real arrastra todo.
+    /// </summary>
+    public static List<HuevoItemSeguimientoDto> LeerArrastreAplicadoItems(JsonDocument? metadata)
+    {
+        if (!TieneMarcaArrastre(metadata)) return new List<HuevoItemSeguimientoDto>();
+        var marca = metadata!.RootElement.GetProperty(MetadataKeyArrastre);
+        return marca.TryGetProperty(PropAplicadoItems, out var arr)
+            ? HuevoItemsCalculos.LeerItems(arr)
+            : new List<HuevoItemSeguimientoDto>();
+    }
 
     private static int LeerInt(JsonElement e, string prop) =>
         e.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : 0;

@@ -39,7 +39,23 @@ import {
 } from '../../../../shared/utils/inventario/stock-por-silo.funcion';
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
-import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
+import { semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
+import {
+  ModoHuevosLevante,
+  resolverModoHuevosLevante,
+  mostrarTabHuevosLevante,
+  tiposDelLoteAFilas,
+  filasPlanasHuevo,
+  subtotalCantidades,
+  cantidadesDesdeGuardados,
+  construirHuevoItemsPayloadLevante,
+  validarHuevoItemsLevante,
+  pasoCantidadHuevoLevante
+} from '../../funciones/huevos-levante-items.funcion';
+import { LoteHuevoItemsService, LoteHuevoItemDto } from '../../../lote/services/lote-huevo-items.service';
+import { HuevoItemSeguimiento, leerHuevoItemsDeMetadata } from '../../../lote-produccion/services/produccion.service';
+import { construirFilasFijasHuevo } from '../../../lote-produccion/funciones/items-huevo-catalogo.funcion';
+import { HuevoFilaFija, HuevoGrupoFilasFijas } from '../../../lote-produccion/models/huevo-clasificacion.model';
 import { obtenerEtapaCicloPostura, etiquetaEtapaCicloPostura } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
 import {
   extremosVentanaRegistro,
@@ -112,6 +128,29 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   totalHuevos = 0;
   incubablesHuevos = 0;
   eficienciaHuevos = 0;
+
+  // ── Huevos por los TIPOS del lote (flag companies.clasificacion_huevo_por_items, Santa Reyes) ──
+  /** Flag de empresa. Fail-closed: arranca apagado y sólo se prende si el backend lo confirma. */
+  clasificacionHuevoPorItems = false;
+  /** `companies.huevos_levante_desde_semana`: el tab aparece desde esta semana de vida. `null` = sin límite. */
+  huevosLevanteDesdeSemana: number | null = null;
+  /** Última semana con «huevo de primera postura» vigente (`null` = sin límite). */
+  huevoPrimeraPosturaHastaSemana: number | null = null;
+  /** Qué captura el tab: nada, las 11 categorías fijas o los tipos declarados del lote. */
+  modoHuevos: ModoHuevosLevante = 'ninguno';
+  /** Tipos de huevo que el lote declaró producir (`lote_huevo_items`). */
+  private huevoItemsDelLote: LoteHuevoItemDto[] = [];
+  private cargandoHuevoItemsDelLote = false;
+  private errorHuevoItemsDelLote = false;
+  private huevoItemsLoteLoadId = 0;
+  /** Desglose ya guardado del registro que se edita (`metadata.huevoItems`). */
+  private huevoItemsGuardados: HuevoItemSeguimiento[] = [];
+  /** Filas del tab agrupadas por tipo (Primera / Pnc). Se rearma solo cuando cambia el contexto. */
+  gruposFilasHuevo: HuevoGrupoFilasFijas[] = [];
+  /** Cantidad escrita por `catalogItemId`. */
+  cantidadesHuevoItem: Record<number, number | null> = {};
+  /** Total memoizado de las filas por tipo. */
+  totalHuevosItems = 0;
 
   /** Listado detalle stock Inventario de productos (Ecuador/Panamá) — misma consulta que ítems Hembras/Machos. */
   stockListadoEcuador: InventarioGestionStockDto[] = [];
@@ -214,7 +253,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     private storage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
     private silosSvc: SilosService,
-    private userPermService: UserPermissionService
+    private userPermService: UserPermissionService,
+    private loteHuevoItemsSvc: LoteHuevoItemsService
   ) { }
 
   /** Deja min/max/hint listos para el template (referencias estables). */
@@ -349,9 +389,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         }
       }
       this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
-      if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
+      if (
+        this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante &&
+        this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems &&
+        this.huevosLevanteDesdeSemana === flags.huevosLevanteDesdeSemana &&
+        this.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana
+      ) return;
       this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;
-      this.recalcularVisibilidadHuevos();
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      this.huevosLevanteDesdeSemana = flags.huevosLevanteDesdeSemana;
+      this.huevoPrimeraPosturaHastaSemana = flags.huevoPrimeraPosturaHastaSemana;
+      this.modoHuevos = resolverModoHuevosLevante(this.capturaHuevosEnLevante, this.clasificacionHuevoPorItems);
+      // Recalcula la visibilidad del tab (y, en modo por ítems, trae los tipos del lote).
+      this.cargarHuevoItemsDelLote(this.loteIdSeleccionado());
     });
 
     // La visibilidad del tab depende de la FECHA DEL REGISTRO (no de "hoy"): si el usuario mueve la
@@ -375,8 +425,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   private recalcularVisibilidadHuevos(): void {
     const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
     this.semanaVidaRegistro = semanaVidaLevante(this.fechaEncaset, fechaRegistro);
-    this.mostrarTabHuevos =
-      this.capturaHuevosEnLevante && permiteHuevosEnLevante(this.fechaEncaset, fechaRegistro);
+    this.mostrarTabHuevos = mostrarTabHuevosLevante({
+      modo: this.modoHuevos,
+      fechaEncaset: this.fechaEncaset,
+      fechaRegistro,
+      desdeSemana: this.huevosLevanteDesdeSemana,
+      tiposDelLote: {
+        cargando: this.cargandoHuevoItemsDelLote,
+        error: this.errorHuevoItemsDelLote,
+        cantidad: this.huevoItemsDelLote.length
+      }
+    });
+    // La vigencia de primera postura depende de la semana del registro: las filas se rearman con la fecha.
+    this.reconstruirFilasHuevo();
 
     if (!this.mostrarTabHuevos && this.levanteTab === 'huevos') this.levanteTab = 'general';
 
@@ -392,6 +453,77 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.totalHuevos = totales.totales;
     this.incubablesHuevos = totales.incubables;
     this.eficienciaHuevos = eficienciaHuevosLevante(totales);
+  }
+
+  // ================== HUEVOS POR LOS TIPOS DEL LOTE (clasificacion_huevo_por_items) ==================
+
+  /**
+   * Tipos de huevo que el LOTE declaró producir (`lote_huevo_items`): de ahí salen las filas del tab.
+   * Solo en modo por ítems. Mientras la consulta viaja, o si falla, el tab queda oculto (fail-closed),
+   * y un error de red no se confunde con «el lote no declaró tipos».
+   */
+  private cargarHuevoItemsDelLote(loteId: number | null): void {
+    const loadId = ++this.huevoItemsLoteLoadId; // descarta cualquier respuesta todavía en vuelo
+    if (this.modoHuevos !== 'porItems' || !loteId) {
+      this.huevoItemsDelLote = [];
+      this.cargandoHuevoItemsDelLote = false;
+      this.errorHuevoItemsDelLote = false;
+      this.recalcularVisibilidadHuevos();
+      return;
+    }
+
+    this.cargandoHuevoItemsDelLote = true;
+    this.errorHuevoItemsDelLote = false;
+    this.recalcularVisibilidadHuevos();
+
+    this.loteHuevoItemsSvc.getByLote(loteId).pipe(
+      catchError(err => {
+        console.error('Error al cargar los tipos de huevo del lote:', err);
+        return of(null);
+      })
+    ).subscribe(items => {
+      if (loadId !== this.huevoItemsLoteLoadId) return;
+      this.cargandoHuevoItemsDelLote = false;
+      this.errorHuevoItemsDelLote = items === null;
+      this.huevoItemsDelLote = items ?? [];
+      this.recalcularVisibilidadHuevos();
+    });
+  }
+
+  /** Rearma las filas fijas (tipos del lote + huérfanos del registro editado) y el total. */
+  private reconstruirFilasHuevo(): void {
+    this.gruposFilasHuevo = this.modoHuevos === 'porItems'
+      ? construirFilasFijasHuevo(
+          tiposDelLoteAFilas(this.huevoItemsDelLote),
+          this.huevoItemsGuardados,
+          this.semanaVidaRegistro,
+          this.huevoPrimeraPosturaHastaSemana
+        )
+      : [];
+    this.totalHuevosItems = subtotalCantidades(filasPlanasHuevo(this.gruposFilasHuevo), this.cantidadesHuevoItem);
+  }
+
+  cantidadHuevoItem(catalogItemId: number): number | null {
+    return this.cantidadesHuevoItem[catalogItemId] ?? null;
+  }
+
+  onCantidadHuevoItem(catalogItemId: number, valor: unknown): void {
+    const n = valor === null || valor === undefined || valor === '' ? null : Number(valor);
+    this.cantidadesHuevoItem = {
+      ...this.cantidadesHuevoItem,
+      [catalogItemId]: n !== null && Number.isFinite(n) ? n : null
+    };
+    this.totalHuevosItems = subtotalCantidades(filasPlanasHuevo(this.gruposFilasHuevo), this.cantidadesHuevoItem);
+  }
+
+  /** Subtotal en vivo de un grupo (Primera / Pnc). */
+  subtotalGrupoHuevo(grupo: HuevoGrupoFilasFijas): number {
+    return subtotalCantidades(grupo.filas, this.cantidadesHuevoItem);
+  }
+
+  /** Los ítems que se PESAN admiten decimales en pantalla; los que se cuentan, no. */
+  pasoCantidadHuevo(fila: HuevoFilaFija): string {
+    return pasoCantidadHuevoLevante(fila);
   }
 
   private updateEcuadorOrPanamaStatus(): void {
@@ -502,6 +634,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         // Los silos son del LOTE, no de la granja: cambiar de lote dentro de la misma granja también
         // cambia de qué silos se puede consumir.
         this.cargarSilosDelLote(Number(loteId));
+        // Mismo motivo para los tipos de huevo (modo por ítems): los declara el lote.
+        this.cargarHuevoItemsDelLote(Number(loteId));
 
         // Limpiar inventario cuando cambia el lote
         this.inventarioDisponibleHembras = null;
@@ -589,6 +723,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       consumoAguaOrp: null,
       consumoAguaTemperatura: null,
     });
+    // Alta: sin desglose previo de huevos por tipo.
+    this.huevoItemsGuardados = [];
+    this.cantidadesHuevoItem = {};
+    this.reconstruirFilasHuevo();
     this.inventarioDisponibleHembras = null;
     this.inventarioDisponibleMachos = null;
     this.inventarioUnidadHembras = 'kg';
@@ -1298,6 +1436,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       pesoHuevo: this.editing.pesoHuevo ?? null,
     });
 
+    // Huevos por tipo del lote: el desglose guardado vive en metadata.huevoItems. Los tipos del lote
+    // los trae `cargarHuevoItemsDelLote`, disparado por el cambio de `loteId` de arriba.
+    this.huevoItemsGuardados = leerHuevoItemsDeMetadata(this.editing.metadata);
+    this.cantidadesHuevoItem = cantidadesDesdeGuardados(this.huevoItemsGuardados);
+    this.reconstruirFilasHuevo();
+
     // Si hay alimento seleccionado, necesitamos cargar el catálogo primero para obtener el tipo de ítem
     // Esto se hará después de que se cargue el inventario de la granja
     const loteId = this.editing.loteId;
@@ -1333,15 +1477,27 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * - Tab visible  → las 11 categorías + el peso (los totales los recalcula el backend).
    * - Tab oculto (empresa sin el flag, o fecha anterior al encaset) → todo null: el backend lo
    *   interpreta como "no tocar los huevos" y el registro se comporta exactamente como antes.
+   * - Por ítems (Santa Reyes) → las 11 categorías en null y el desglose en `huevoItems`; con el tab
+   *   oculto `huevoItems: null` («no tocar»: el backend conserva el desglose guardado).
    */
-  private construirPayloadHuevos(raw: any): Record<string, number | null> {
-    if (!this.mostrarTabHuevos) {
+  private construirPayloadHuevos(raw: any): Record<string, number | null | HuevoItemSeguimiento[]> {
+    const sinClasificadora = {
+      huevoLimpio: null, huevoTratado: null, huevoSucio: null, huevoDeforme: null,
+      huevoBlanco: null, huevoDobleYema: null, huevoPiso: null, huevoPequeno: null,
+      huevoRoto: null, huevoDesecho: null, huevoOtro: null, pesoHuevo: null
+    };
+
+    if (this.modoHuevos === 'porItems') {
       return {
-        huevoLimpio: null, huevoTratado: null, huevoSucio: null, huevoDeforme: null,
-        huevoBlanco: null, huevoDobleYema: null, huevoPiso: null, huevoPequeno: null,
-        huevoRoto: null, huevoDesecho: null, huevoOtro: null, pesoHuevo: null
+        ...sinClasificadora,
+        huevoItems: this.mostrarTabHuevos
+          ? construirHuevoItemsPayloadLevante(
+              filasPlanasHuevo(this.gruposFilasHuevo), this.cantidadesHuevoItem, this.huevoItemsGuardados)
+          : null
       };
     }
+
+    if (!this.mostrarTabHuevos) return sinClasificadora;
 
     const num = (v: unknown): number => {
       const n = Number(v);
@@ -2291,6 +2447,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return true;
   }
 
+  /**
+   * Huevos por tipo del lote: cantidades enteras, no negativas y sin primera postura fuera de
+   * vigencia (el backend rechaza lo mismo, pero con el tab ya cerrado el aviso llega tarde).
+   * Devuelve false (y avisa) ante el primer problema. Sin el modo por ítems o con el tab oculto no hay
+   * nada que validar.
+   */
+  private validarHuevoItemsDelTab(): boolean {
+    if (this.modoHuevos !== 'porItems' || !this.mostrarTabHuevos) return true;
+    const error = validarHuevoItemsLevante(filasPlanasHuevo(this.gruposFilasHuevo), this.cantidadesHuevoItem);
+    if (!error) return true;
+    this.toast.error(error, 'Clasificación de huevos');
+    this.levanteTab = 'huevos';
+    return false;
+  }
+
   private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId?: number; nombre?: string } {
     return buildItemPersistFields(itemId, {
       isEcuadorOrPanama: this.isEcuadorOrPanama,
@@ -2320,6 +2491,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // Con silos, ninguna fila con cantidad puede quedar sin ubicación: el backend la rechazaría
     // igual, pero recién después de intentar guardar y con un mensaje que no señala la fila.
     if (!this.validarSilosDeLasFilas()) return;
+
+    // Huevos por tipo del lote: el operario ve el problema en el tab, no un 400 del backend.
+    if (!this.validarHuevoItemsDelTab()) return;
 
     // Construir arrays de ítems desde FormArrays
     const itemsHembras: ItemSeguimientoDto[] = [];

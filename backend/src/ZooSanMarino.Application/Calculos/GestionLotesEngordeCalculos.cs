@@ -30,17 +30,40 @@ public static class GestionLotesEngordeCalculos
     /// corrida — "96 - 1", "96 - 2". Es el comportamiento histórico y no cambia.
     /// </para>
     /// <para>
-    /// <c>false</c> (Ecuador): el nombre del lote ES el del lote base — "2603" —, porque la corrida ya
-    /// viene codificada en el nombre del base (año + número: 2601, 2602…) y hay un solo lote por
-    /// galpón en cada corrida. El sufijo aparece <b>sólo desde la segunda</b> apertura del mismo base
-    /// en el mismo galpón ("2603 - 2"), que es lo único que impide dos lotes con el mismo nombre en el
-    /// mismo galpón si alguna vez se repite.
+    /// <c>false</c> (Ecuador): el nombre del lote ES el del lote base — "2603" — <b>siempre</b>, sin
+    /// sufijo: la corrida ya viene codificada en el nombre del base (año + número: 2601, 2602…) y hay
+    /// un solo lote por galpón en cada corrida. Hasta el 14-sep-2026 el sufijo aparecía desde la 2.ª
+    /// apertura y un lote de prueba borrado bastaba para que el real naciera "2604 - 2"; lo que evita
+    /// dos lotes abiertos homónimos en un galpón es ahora <see cref="ValidarAperturaLoteBase"/>.
     /// </para>
     /// </summary>
     public static string ConstruirNombreLote(string baseNombre, int numero, bool incluirCorridaSiempre) =>
-        incluirCorridaSiempre || numero > 1
+        incluirCorridaSiempre
             ? ConstruirNombreCorrida(baseNombre, numero)
             : (baseNombre ?? string.Empty).Trim();
+
+    /// <summary>
+    /// Si el MAX de corridas del base+galpón cuenta también los lotes borrados.
+    /// <c>true</c> (Panamá): sí, para no reusar un número que ya formó parte de un nombre ("96 - 2").
+    /// <c>false</c> (Ecuador): no — la corrida no va en el nombre y un lote borrado por error no es una
+    /// corrida del galpón.
+    /// </summary>
+    public static bool CorridaCuentaLotesBorrados(bool incluirCorridaSiempre) => incluirCorridaSiempre;
+
+    /// <summary>
+    /// Guarda de apertura para empresas SIN sufijo de corrida: como el nombre es el del base, abrir el
+    /// mismo base en un galpón donde ya hay un lote vivo y no cerrado dejaría dos lotes abiertos con el
+    /// mismo nombre en el galpón. Devuelve el mensaje de error, o <c>null</c> si se puede abrir.
+    /// Con sufijo (Panamá) nunca bloquea: el número de corrida ya distingue los lotes.
+    /// </summary>
+    public static string? ValidarAperturaLoteBase(bool incluirCorridaSiempre, string baseNombre, bool hayLoteAbiertoMismoBaseEnGalpon) =>
+        !incluirCorridaSiempre && hayLoteAbiertoMismoBaseEnGalpon
+            ? MensajeLoteBaseYaAbiertoEnGalpon((baseNombre ?? string.Empty).Trim())
+            : null;
+
+    /// <summary>Mensaje de <see cref="ValidarAperturaLoteBase"/>.</summary>
+    public static string MensajeLoteBaseYaAbiertoEnGalpon(string baseNombre) =>
+        $"Ya hay un lote {baseNombre} abierto en este galpón. Ciérrelo o elimínelo antes de abrir otro con el mismo lote base.";
 
     // ────────────────────────────────────────────────────────────────────────
     // Código ERP de la GRANJA (solo Panamá): "{prefijo}{lote base}" (ej. "4001017"

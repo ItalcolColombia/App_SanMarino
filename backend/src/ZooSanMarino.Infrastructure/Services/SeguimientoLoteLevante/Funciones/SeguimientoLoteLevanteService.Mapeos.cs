@@ -122,6 +122,16 @@ public partial class SeguimientoLoteLevanteService
         SeguimientoLoteLevanteDto dto, SeguimientoDiarioDto? previo)
     {
         if (previo is null) return dto;
+
+        // Clasificación por ítems: sin desglose en el request se conserva el guardado. Va ANTES que las
+        // 11 categorías porque un registro por ítems las tiene en 0 (no null): copiarlas y derivar
+        // huevo_tot de ellas pondría el total en cero.
+        if (dto.HuevoItems is null && HuevosDeDto(dto) is null && previo.Metadata is not null)
+        {
+            var guardados = HuevoItemsCalculos.LeerDeMetadata(previo.Metadata.RootElement);
+            if (guardados.Count > 0) return ConHuevoItems(dto, guardados);
+        }
+
         if (HuevosDeDto(dto) is not null) return dto;
 
         var teniaHuevos =
@@ -147,6 +157,30 @@ public partial class SeguimientoLoteLevanteService
             PesoHuevo = dto.PesoHuevo ?? previo.PesoHuevo
         };
     }
+
+    /// <summary>
+    /// Modo por ítems: deja el desglose en <c>HuevoItems</c> y en <c>metadata.huevoItems</c>
+    /// (conservando el resto del metadata) y las 11 categorías en 0 — la convención de producción
+    /// (<c>ProduccionService.AplicarTotalesHuevoPorItems</c>): <c>huevo_tot</c> = suma de los ítems y
+    /// <c>huevo_inc</c> = 0. Lista vacía = quitar el desglose (huevo_tot 0).
+    /// </summary>
+    private static SeguimientoLoteLevanteDto ConHuevoItems(
+        SeguimientoLoteLevanteDto dto, List<ZooSanMarino.Application.DTOs.Produccion.HuevoItemSeguimientoDto> items) => dto with
+    {
+        HuevoItems = items,
+        Metadata = HuevoItemsCalculos.EscribirEnMetadata(dto.Metadata, items),
+        HuevoLimpio = 0,
+        HuevoTratado = 0,
+        HuevoSucio = 0,
+        HuevoDeforme = 0,
+        HuevoBlanco = 0,
+        HuevoDobleYema = 0,
+        HuevoPiso = 0,
+        HuevoPequeno = 0,
+        HuevoRoto = 0,
+        HuevoDesecho = 0,
+        HuevoOtro = 0
+    };
 
     private static CreateSeguimientoDiarioDto MapToCreateUnificado(SeguimientoLoteLevanteDto dto,
         double consumoKgHembras, double? kcalAlH, double? protAlH, double? kcalAveH, double? protAveH)
@@ -194,7 +228,8 @@ public partial class SeguimientoLoteLevanteService
             // empresa no tiene el flag o el registro no llega a la semana 14, así que acá se mapean
             // tal cual. HuevoTot/HuevoInc SIEMPRE se derivan de las 11 categorías (nunca se confía
             // en lo que mandó el cliente) ⇒ imposible que queden descuadrados.
-            HuevoTot: huevos?.Totales,
+            // Por ítems (HuevoItems != null) el total es la suma del desglose.
+            HuevoTot: dto.HuevoItems is not null ? HuevoItemsCalculos.SumarTotal(dto.HuevoItems) : huevos?.Totales,
             HuevoInc: huevos?.Incubables,
             HuevoLimpio: dto.HuevoLimpio,
             HuevoTratado: dto.HuevoTratado,
@@ -271,7 +306,8 @@ public partial class SeguimientoLoteLevanteService
             // empresa no tiene el flag o el registro no llega a la semana 14, así que acá se mapean
             // tal cual. HuevoTot/HuevoInc SIEMPRE se derivan de las 11 categorías (nunca se confía
             // en lo que mandó el cliente) ⇒ imposible que queden descuadrados.
-            HuevoTot: huevos?.Totales,
+            // Por ítems (HuevoItems != null) el total es la suma del desglose.
+            HuevoTot: dto.HuevoItems is not null ? HuevoItemsCalculos.SumarTotal(dto.HuevoItems) : huevos?.Totales,
             HuevoInc: huevos?.Incubables,
             HuevoLimpio: dto.HuevoLimpio,
             HuevoTratado: dto.HuevoTratado,

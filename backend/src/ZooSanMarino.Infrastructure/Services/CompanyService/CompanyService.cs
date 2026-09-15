@@ -66,6 +66,7 @@ public partial class CompanyService : ICompanyService
         c.GuiaGeneticaPerfil,
         c.SemanaInicioIndicadoresProduccion,
         c.PermiteMultiplesSeguimientosDiarios,
-        c.VentaEngordePesoNetoUnico
+        c.VentaEngordePesoNetoUnico,
+        c.HuevosLevanteDesdeSemana
     );
 }
