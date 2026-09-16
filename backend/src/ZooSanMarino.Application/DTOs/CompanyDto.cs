@@ -108,5 +108,8 @@ public record CompanyDto(
     /// </summary>
     bool VentaEngordePesoNetoUnico = false,
     /// <summary>Semana de vida desde la que el seguimiento diario de LEVANTE captura huevos. Null = sin límite (desde el encaset).</summary>
-    int? HuevosLevanteDesdeSemana = null
+    int? HuevosLevanteDesdeSemana = null,
+    /// <summary>En Levante y Producción, ningún campo del seguimiento diario es obligatorio (alimento,
+    /// aves, huevos pueden quedar en 0/vacío, incluso un registro completamente vacío).</summary>
+    bool PermiteSeguimientoDiarioParcial = false
 );

@@ -31,7 +31,10 @@ public record CrearSeguimientoRequest(
     [Range(0, int.MaxValue)] int HuevoRoto,
     [Range(0, int.MaxValue)] int HuevoDesecho,
     [Range(0, int.MaxValue)] int HuevoOtro,
-    [Required] string TipoAlimento,
+    // Ya no [Required]: con companies.permite_seguimiento_diario_parcial activo el registro puede
+    // guardarse sin alimento. El chequeo equivalente para las empresas SIN el flag corre en runtime
+    // (ProduccionService.Seguimiento.cs, inicio de CrearSeguimientoAsync/ActualizarSeguimientoAsync).
+    string TipoAlimento,
     [Required] [Range(0, double.MaxValue)] decimal PesoHuevo,
     [Required] [Range(1, 3)] int Etapa,
     string? Observaciones,

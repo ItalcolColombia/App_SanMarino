@@ -89,5 +89,8 @@ public record UpdateCompanyDto(
     /// omitido, conserva el valor actual; <c>0</c> = sentinel de borrado explícito (vuelve a `null`,
     /// sin límite); mismo criterio que <c>HuevoPrimeraPosturaHastaSemana</c> — ver
     /// <c>ParametroEmpresaOpcionalCalculos</c>.</summary>
-    int?     HuevosLevanteDesdeSemana           = null
+    int?     HuevosLevanteDesdeSemana           = null,
+    /// <summary>En Levante y Producción, ningún campo del seguimiento diario es obligatorio. `null` =
+    /// omitido, conserva el valor actual. Enviar <c>false</c> explícito sigue apagando el flag.</summary>
+    bool?    PermiteSeguimientoDiarioParcial    = null
 );

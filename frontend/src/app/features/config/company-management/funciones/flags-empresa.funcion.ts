@@ -110,6 +110,12 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
     grupo: 'Postura'
   },
   {
+    key: 'permiteSeguimientoDiarioParcial',
+    titulo: 'Seguimiento diario con campos opcionales',
+    descripcion: 'En levante y producción, el registro diario se puede guardar con solo mortalidad, solo consumo o solo producción — ningún campo es obligatorio, ni siquiera dejarlo todo vacío. Pensado para usar junto con "Varios seguimientos diarios el mismo día". Apagado, alimento, aves y huevos se siguen exigiendo como siempre.',
+    grupo: 'Postura'
+  },
+  {
     key: 'semanasCicloPosturaPorRaza',
     titulo: 'Etapas del ciclo por raza',
     descripcion: 'La etapa del seguimiento diario (alistamiento/levante/levante en producción/postura) se calcula por semana de vida y por raza, en vez de los cortes fijos. Apagado, sigue mostrando Etapa 1/2/3 como siempre.',

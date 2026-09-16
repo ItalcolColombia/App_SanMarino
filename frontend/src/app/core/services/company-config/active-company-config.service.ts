@@ -136,6 +136,14 @@ export interface CompanyFlags {
    */
   permiteMultiplesSeguimientosDiarios: boolean;
   /**
+   * En el seguimiento diario de LEVANTE y de PRODUCCIÓN, ningún campo es obligatorio: alimento, aves
+   * (mortalidad/selección/error de sexaje) y huevos pueden quedar en 0/vacío, incluyendo un registro
+   * completamente vacío. Pensado para empresas con varias capturas por día (ver
+   * `permiteMultiplesSeguimientosDiarios`), donde cada carga cubre un solo aspecto del lote.
+   * Apagado (default), los campos se siguen exigiendo como siempre.
+   */
+  permiteSeguimientoDiarioParcial: boolean;
+  /**
    * Cuál de las dos tablas de guía genética de POSTURA administra la empresa. Ver
    * {@link GuiaGeneticaPerfil}. Fail-closed = `'sanmarino'` (el default neutro: es el perfil con el
    * que nace toda empresa, así que tratarlo así ante un error no habilita nada que no estuviera).
@@ -164,6 +172,7 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   huevoPrimeraPosturaHastaSemana: null,
   huevosLevanteDesdeSemana: null,
   permiteMultiplesSeguimientosDiarios: false,
+  permiteSeguimientoDiarioParcial: false,
   guiaGeneticaPerfil: GUIA_GENETICA_PERFIL_DEFECTO
 });
 
@@ -196,6 +205,7 @@ interface CompanyFlagsResponse {
   huevoPrimeraPosturaHastaSemana?: number | null;
   huevosLevanteDesdeSemana?: number | null;
   permiteMultiplesSeguimientosDiarios?: boolean | null;
+  permiteSeguimientoDiarioParcial?: boolean | null;
   /** `companies.guia_genetica_perfil` — llega como texto libre; se valida contra los conocidos. */
   guiaGeneticaPerfil?: string | null;
 }
@@ -314,6 +324,12 @@ export class ActiveCompanyConfigService {
     distinctUntilChanged()
   );
 
+  /** Atajo: ¿en Levante/Producción los campos del seguimiento diario son opcionales? */
+  readonly permiteSeguimientoDiarioParcial$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.permiteSeguimientoDiarioParcial),
+    distinctUntilChanged()
+  );
+
   /** Atajo: perfil de guía genética de la empresa activa (`sanmarino` | `reducida`). */
   readonly guiaGeneticaPerfil$: Observable<GuiaGeneticaPerfil> = this.flags$.pipe(
     map(f => f.guiaGeneticaPerfil),
@@ -422,6 +438,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.programacionLotesEngorde));
   }
 
+  /** Azúcar: sólo el flag de campos opcionales del seguimiento diario (Levante/Producción). */
+  permiteSeguimientoDiarioParcial(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.permiteSeguimientoDiarioParcial));
+  }
+
   /** Azúcar: sólo el perfil de guía genética de la empresa activa. */
   guiaGeneticaPerfil(): Observable<GuiaGeneticaPerfil> {
     return this.getFlags().pipe(map(f => f.guiaGeneticaPerfil));
@@ -464,6 +485,7 @@ export class ActiveCompanyConfigService {
         ? dto.huevosLevanteDesdeSemana
         : null,
       permiteMultiplesSeguimientosDiarios: dto?.permiteMultiplesSeguimientosDiarios === true,
+      permiteSeguimientoDiarioParcial: dto?.permiteSeguimientoDiarioParcial === true,
       // Sólo se acepta un perfil CONOCIDO. Un valor nuevo que el front todavía no entiende cae al
       // default neutro en vez de habilitar una pantalla equivocada — igual criterio que el backend,
       // que ante un valor desconocido lanza en vez de adivinar.
@@ -497,6 +519,7 @@ export class ActiveCompanyConfigService {
       actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana &&
       actual.huevosLevanteDesdeSemana === flags.huevosLevanteDesdeSemana &&
       actual.permiteMultiplesSeguimientosDiarios === flags.permiteMultiplesSeguimientosDiarios &&
+      actual.permiteSeguimientoDiarioParcial === flags.permiteSeguimientoDiarioParcial &&
       actual.guiaGeneticaPerfil === flags.guiaGeneticaPerfil
     ) return;
     this.flagsSubject.next(flags);

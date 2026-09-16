@@ -144,4 +144,46 @@ public class AlimentoObligatorioCalculosTests
 
         Assert.StartsWith("El registro no tiene alimento:", motivo);
     }
+
+    // ─── permiteAlimentoOpcional (flag companies.permite_seguimiento_diario_parcial) ───────────
+    //
+    // Solo Levante y Producción lo resuelven y lo pasan (ver SeguimientoLoteLevanteService.Crud.cs y
+    // ProduccionService.Seguimiento.cs). Engorde y Reproductora nunca lo pasan: el parámetro default
+    // en false los deja exactamente como estaban.
+
+    [Theory]
+    [InlineData(ModuloSeguimiento.Levante)]
+    [InlineData(ModuloSeguimiento.Produccion)]
+    public void ConPermiteAlimentoOpcional_SinNadaCargado_Cumple(string modulo)
+    {
+        Assert.True(AlimentoObligatorioCalculos.Cumple(modulo, loteEsMixto: false, Cap(), permiteAlimentoOpcional: true));
+        Assert.Null(AlimentoObligatorioCalculos.Motivo(modulo, false, Cap(), fecha: null, permiteAlimentoOpcional: true));
+    }
+
+    [Theory]
+    [InlineData(ModuloSeguimiento.Levante)]
+    [InlineData(ModuloSeguimiento.Produccion)]
+    public void SinPermiteAlimentoOpcional_SinNadaCargado_SigueSinCumplir(string modulo)
+    {
+        // Regresión: el default false (empresa sin el flag) preserva el comportamiento de siempre.
+        Assert.False(AlimentoObligatorioCalculos.Cumple(modulo, loteEsMixto: false, Cap(), permiteAlimentoOpcional: false));
+    }
+
+    [Fact]
+    public void ConPermiteAlimentoOpcional_ConAlimento_SigueCumpliendo()
+    {
+        Assert.True(AlimentoObligatorioCalculos.Cumple(
+            ModuloSeguimiento.Produccion, loteEsMixto: false, Cap(h: 50m), permiteAlimentoOpcional: true));
+    }
+
+    [Theory]
+    [InlineData(ModuloSeguimiento.Engorde)]
+    [InlineData(ModuloSeguimiento.Reproductora)]
+    public void ModulosFueraDeAlcance_SiguenExigiendoAlimentoAunqueLaEmpresaTengaElFlag(string modulo)
+    {
+        // Blindaje de alcance: Engorde y Reproductora no leen permite_seguimiento_diario_parcial, así
+        // que sus call sites de ValidarAlimentoObligatorio nunca pasan el parámetro — el default
+        // false los deja intactos aunque la empresa tenga el flag ON para Levante/Producción.
+        Assert.False(AlimentoObligatorioCalculos.Cumple(modulo, loteEsMixto: false, Cap()));
+    }
 }

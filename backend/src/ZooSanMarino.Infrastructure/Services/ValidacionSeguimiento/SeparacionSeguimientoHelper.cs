@@ -32,16 +32,22 @@ public static class SeparacionSeguimientoHelper
     /// formulario. Sin mirarlo, el guard rechazaba un registro que SÍ traía alimento.
     /// </param>
     /// <param name="kgMachosDirecto">Ídem para machos (<c>ConsumoKgMachos</c>).</param>
+    /// <param name="permiteAlimentoOpcional">
+    /// <c>true</c> = la empresa tiene <c>companies.permite_seguimiento_diario_parcial</c> activo — solo
+    /// Levante y Producción lo resuelven y lo pasan; Engorde y Reproductora nunca lo pasan, así que
+    /// para ellos el default <c>false</c> deja el comportamiento intacto.
+    /// </param>
     public static void ValidarAlimentoObligatorio(
         string modulo, bool loteEsMixto, JsonDocument? metadata, DateTime fechaRegistro,
-        decimal kgHembrasDirecto = 0m, decimal kgMachosDirecto = 0m)
+        decimal kgHembrasDirecto = 0m, decimal kgMachosDirecto = 0m, bool permiteAlimentoOpcional = false)
     {
         // La combinación metadata-vs-campo-suelto (MÁXIMO, no suma) vive en el cálculo puro: es la
         // regla que los cinco módulos comparten y la que hay que poder cubrir con tests.
         var motivo = AlimentoObligatorioCalculos.Motivo(
             modulo, loteEsMixto,
             AlimentoObligatorioCalculos.Capturado(metadata?.RootElement, kgHembrasDirecto, kgMachosDirecto),
-            DateOnly.FromDateTime(fechaRegistro));
+            DateOnly.FromDateTime(fechaRegistro),
+            permiteAlimentoOpcional);
 
         if (motivo is not null)
             throw new InvalidOperationException(motivo);
