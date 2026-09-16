@@ -8776,5 +8776,5 @@ que el flag quede ortogonal a `permite_multiples_seguimientos_diarios` (no acopl
       matriz + por construcción: el código de front solo toca `setValidators` cuando el flag resuelve
       `true`, nunca cambia el default). Limpieza: 3 filas de `sesiones_activas` del smoke borradas,
       backend/frontend locales detenidos, puertos 5002/4200 confirmados libres.
-- [ ] V3. Commit (sin push ni deploy: requieren OK explícito).
+- [x] V3. Commit `c2777af` (sin push ni deploy: requieren OK explícito).
 
