@@ -47,6 +47,8 @@ export interface Company {
   reporteCostosAlimentoDesdeFuentesReales?: boolean;
   /** Levante captura huevos desde la semana 14 y los arrastra al liquidar. */
   capturaHuevosEnLevante?: boolean;
+  /** En levante y producción, ningún campo del seguimiento diario es obligatorio (alimento, aves, huevos). */
+  permiteSeguimientoDiarioParcial?: boolean;
   /** Pollo engorde con una sola columna Mixto en vez de hembras/machos. */
   seguimientoEngordeMixto?: boolean;
   /** La venta de engorde se registra sin peso y se completa con la báscula. */

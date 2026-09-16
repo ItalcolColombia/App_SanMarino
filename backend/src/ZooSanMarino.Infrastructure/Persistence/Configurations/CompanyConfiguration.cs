@@ -214,6 +214,14 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: en Levante y Producción, ningún campo del seguimiento
+        // diario es obligatorio (alimento/aves/huevos pueden quedar en 0, incluso un registro
+        // vacío). Nace de Santa Reyes (varias capturas por día, cada una parcial).
+        builder.Property(x => x.PermiteSeguimientoDiarioParcial)
+            .HasColumnName("permite_seguimiento_diario_parcial")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

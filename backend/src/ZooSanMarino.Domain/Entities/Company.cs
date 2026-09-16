@@ -417,6 +417,22 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool PermiteMultiplesSeguimientosDiarios { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = en el seguimiento diario de LEVANTE y de PRODUCCIÓN de esta empresa, ningún
+        /// campo es obligatorio: alimento, aves (mortalidad/selección/error de sexaje) y huevos pueden
+        /// quedar en 0/vacío, incluyendo un registro completamente vacío. Pensado para empresas que
+        /// registran varias veces por día (ver <see cref="PermiteMultiplesSeguimientosDiarios"/>) y
+        /// cada carga cubre un solo aspecto del lote (solo mortalidad, solo consumo, solo producción).
+        /// <para>
+        /// Solo relaja Levante y Producción — Engorde y Reproductora no lo leen. Es independiente de
+        /// <see cref="PermiteMultiplesSeguimientosDiarios"/> a propósito (no se acopla en código):
+        /// activarlo sin ese otro flag sigue rechazando un segundo registro el mismo día por lote.
+        /// </para>
+        /// <c>false</c> (default) = comportamiento actual: el alimento sigue siendo obligatorio bajo
+        /// doble validación, y <c>TipoAlimento</c> de Producción sigue exigido siempre.
+        /// </summary>
+        public bool PermiteSeguimientoDiarioParcial { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

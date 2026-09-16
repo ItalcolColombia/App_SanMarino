@@ -99,7 +99,8 @@ public partial class CompanyService
             GuiaGeneticaPerfil = GuiaGeneticaPerfilCalculos.Resolver(dto.GuiaGeneticaPerfil),
             PermiteMultiplesSeguimientosDiarios = dto.PermiteMultiplesSeguimientosDiarios,
             VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico,
-            HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana
+            HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana,
+            PermiteSeguimientoDiarioParcial = dto.PermiteSeguimientoDiarioParcial
         };
 
         _ctx.Companies.Add(c);
@@ -180,6 +181,7 @@ public partial class CompanyService
         c.PermiteMultiplesSeguimientosDiarios =
             dto.PermiteMultiplesSeguimientosDiarios ?? c.PermiteMultiplesSeguimientosDiarios;
         c.VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico ?? c.VentaEngordePesoNetoUnico;
+        c.PermiteSeguimientoDiarioParcial = dto.PermiteSeguimientoDiarioParcial ?? c.PermiteSeguimientoDiarioParcial;
         c.SemanasCicloPosturaPorRaza = dto.SemanasCicloPosturaPorRaza ?? c.SemanasCicloPosturaPorRaza;
         c.LimitaTiposInventarioAlimentoYAves = dto.LimitaTiposInventarioAlimentoYAves ?? c.LimitaTiposInventarioAlimentoYAves;
         c.SeparaLotesPosturaPorEtapa = dto.SeparaLotesPosturaPorEtapa ?? c.SeparaLotesPosturaPorEtapa;

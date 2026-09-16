@@ -91,8 +91,8 @@ public static class AlimentoObligatorioCalculos
     }
 
     /// <summary>True si el registro cumple la regla de alimento obligatorio.</summary>
-    public static bool Cumple(string modulo, bool loteEsMixto, AlimentoCapturado alimento) =>
-        Motivo(modulo, loteEsMixto, alimento, fecha: null) is null;
+    public static bool Cumple(string modulo, bool loteEsMixto, AlimentoCapturado alimento, bool permiteAlimentoOpcional = false) =>
+        Motivo(modulo, loteEsMixto, alimento, fecha: null, permiteAlimentoOpcional) is null;
 
     /// <summary>
     /// Motivo del rechazo, o <c>null</c> si cumple. Devolver el texto acá (y no un booleano más un
@@ -104,8 +104,15 @@ public static class AlimentoObligatorioCalculos
     /// Hembras/Machos (pollo engorde de Panamá y lotes mixtos).</param>
     /// <param name="alimento">Kilos por bloque.</param>
     /// <param name="fecha">Fecha del registro; si viene, se nombra en el mensaje.</param>
-    public static string? Motivo(string modulo, bool loteEsMixto, AlimentoCapturado alimento, DateOnly? fecha)
+    /// <param name="permiteAlimentoOpcional">
+    /// <c>true</c> = la empresa (Levante/Producción únicamente) tiene
+    /// <c>companies.permite_seguimiento_diario_parcial</c> activo: el registro cumple aunque no
+    /// traiga alimento en ningún bloque. Default <c>false</c> preserva el comportamiento de siempre
+    /// para los módulos que no lo pasan (Engorde, Reproductora).
+    /// </param>
+    public static string? Motivo(string modulo, bool loteEsMixto, AlimentoCapturado alimento, DateOnly? fecha, bool permiteAlimentoOpcional = false)
     {
+        if (permiteAlimentoOpcional) return null;
         if (alimento.KgQueCuentan > 0) return null;
 
         var prefijo = fecha.HasValue

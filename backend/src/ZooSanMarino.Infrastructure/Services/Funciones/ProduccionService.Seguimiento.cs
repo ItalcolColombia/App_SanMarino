@@ -23,6 +23,16 @@ public partial class ProduccionService
         if (request.LotePosturaProduccionId.HasValue && request.ProduccionLoteId.HasValue)
             throw new ArgumentException("Especifique solo ProduccionLoteId o LotePosturaProduccionId, no ambos.");
 
+        // TipoAlimento ya no es [Required] en el contrato (permite seguimientos parciales bajo el
+        // flag de empresa): este chequeo reemplaza al bloqueo automático de ModelState y corre
+        // siempre, salvo que la empresa tenga permite_seguimiento_diario_parcial activo.
+        var permiteSeguimientoParcial = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => c.PermiteSeguimientoDiarioParcial)
+            .FirstOrDefaultAsync();
+        if (!permiteSeguimientoParcial && string.IsNullOrWhiteSpace(request.TipoAlimento))
+            throw new ArgumentException("El campo TipoAlimento es obligatorio.");
+
         int loteId;
         int? lotePosturaProduccionId = request.LotePosturaProduccionId;
 
@@ -264,7 +274,7 @@ public partial class ProduccionService
             // (móvil, carga masiva, PWA) contaba cero y se comía un 400 «no tiene alimento».
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
-                consumoKgH, consumoKgM);
+                consumoKgH, consumoKgM, permiteSeguimientoParcial);
         }
 
         if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
@@ -462,6 +472,15 @@ public partial class ProduccionService
             throw new ArgumentException("Debe especificar ProduccionLoteId o LotePosturaProduccionId.");
         if (request.LotePosturaProduccionId.HasValue && request.ProduccionLoteId.HasValue)
             throw new ArgumentException("Especifique solo ProduccionLoteId o LotePosturaProduccionId, no ambos.");
+
+        // Mismo chequeo que en el alta (ver CrearSeguimientoAsync): reemplaza al [Required] que
+        // tenía TipoAlimento en el contrato.
+        var permiteSeguimientoParcialEd = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => c.PermiteSeguimientoDiarioParcial)
+            .FirstOrDefaultAsync();
+        if (!permiteSeguimientoParcialEd && string.IsNullOrWhiteSpace(request.TipoAlimento))
+            throw new ArgumentException("El campo TipoAlimento es obligatorio.");
 
         int loteId;
         int? lotePosturaProduccionId = request.LotePosturaProduccionId;
@@ -687,7 +706,7 @@ public partial class ProduccionService
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro,
-                consumoKgH, consumoKgM);
+                consumoKgH, consumoKgM, permiteSeguimientoParcialEd);
         }
 
         if (!separaEd && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)

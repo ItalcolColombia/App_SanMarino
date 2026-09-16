@@ -67,6 +67,7 @@ public partial class CompanyService : ICompanyService
         c.SemanaInicioIndicadoresProduccion,
         c.PermiteMultiplesSeguimientosDiarios,
         c.VentaEngordePesoNetoUnico,
-        c.HuevosLevanteDesdeSemana
+        c.HuevosLevanteDesdeSemana,
+        c.PermiteSeguimientoDiarioParcial
     );
 }

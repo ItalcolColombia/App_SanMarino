@@ -355,6 +355,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  /** Flag de empresa: en Levante/Producción, ningún campo del seguimiento diario es obligatorio. */
+  permiteSeguimientoDiarioParcial = false;
+
   ngOnInit(): void {
     this.initializeForm();
     this.aplicarVentanaFecha();
@@ -387,6 +390,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         if (this.consumoAlimentoSoloHembras) {
           while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
         }
+      }
+      if (this.permiteSeguimientoDiarioParcial !== flags.permiteSeguimientoDiarioParcial) {
+        this.permiteSeguimientoDiarioParcial = flags.permiteSeguimientoDiarioParcial;
+        // Cubre la carrera con populateForm(): si el flag resuelve después de poblar el form en
+        // modo edición, retroaplica sobre las filas que ya existen en ese momento.
+        this.aplicarValidadoresSeguimientoParcial();
       }
       this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
       if (
@@ -1174,6 +1183,44 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return resolveItemCatalogId(item);
   }
 
+  /**
+   * Con el flag `permiteSeguimientoDiarioParcial` ON, ningún campo es obligatorio: mortalidad,
+   * selección, error de sexaje y los ítems de alimento (de cada fila que ya exista en los
+   * FormArrays) pueden quedar en 0/vacío. Fail-closed: mientras el flag no resuelva (o si resuelve
+   * en `false`), `setValidators` deja el comportamiento de siempre.
+   *
+   * No hace falta llamarlo tras `agregarItemHembras()`/`agregarItemMachos()`/`agregarItemGeneral()`:
+   * esas filas ya nacen sin `Validators.required` en tipoItem/catalogItemId/unidad (Feature 13). El
+   * caso real que sí hay que relajar retroactivamente es `populateForm()`, que reconstruye las filas
+   * de una edición con `Validators.required` hardcodeado.
+   */
+  private aplicarValidadoresSeguimientoParcial(): void {
+    const camposSimples = ['mortalidadHembras', 'mortalidadMachos', 'selH', 'selM', 'errorSexajeHembras', 'errorSexajeMachos'];
+    for (const nombre of camposSimples) {
+      const control = this.form.get(nombre);
+      control?.setValidators(this.permiteSeguimientoDiarioParcial ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+      control?.updateValueAndValidity({ emitEvent: false });
+    }
+
+    for (const array of [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]) {
+      array.controls.forEach(control => {
+        const grupo = control as FormGroup;
+        const tipoItem = grupo.get('tipoItem');
+        const catalogItemId = grupo.get('catalogItemId');
+        const cantidad = grupo.get('cantidad');
+        const unidad = grupo.get('unidad');
+        tipoItem?.setValidators(this.permiteSeguimientoDiarioParcial ? [] : [Validators.required]);
+        catalogItemId?.setValidators(this.permiteSeguimientoDiarioParcial ? [] : [Validators.required]);
+        unidad?.setValidators(this.permiteSeguimientoDiarioParcial ? [] : [Validators.required]);
+        cantidad?.setValidators(this.permiteSeguimientoDiarioParcial ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+        tipoItem?.updateValueAndValidity({ emitEvent: false });
+        catalogItemId?.updateValueAndValidity({ emitEvent: false });
+        unidad?.updateValueAndValidity({ emitEvent: false });
+        cantidad?.updateValueAndValidity({ emitEvent: false });
+      });
+    }
+  }
+
   private populateForm(): void {
     if (!this.editing) return;
     this.originalConsumoKgByItem.clear();
@@ -1435,6 +1482,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       huevoOtro: this.editing.huevoOtro ?? 0,
       pesoHuevo: this.editing.pesoHuevo ?? null,
     });
+
+    // Retroaplica el flag sobre las filas recién pobladas (nacen con Validators.required hardcodeado).
+    this.aplicarValidadoresSeguimientoParcial();
 
     // Huevos por tipo del lote: el desglose guardado vive en metadata.huevoItems. Los tipos del lote
     // los trae `cargarHuevoItemsDelLote`, disparado por el cambio de `loteId` de arriba.

@@ -137,7 +137,8 @@ public class CompanyPaisService : ICompanyPaisService
             GuiaGeneticaPerfil: cp.Company.GuiaGeneticaPerfil,
             SemanaInicioIndicadoresProduccion: cp.Company.SemanaInicioIndicadoresProduccion,
             VentaEngordePesoNetoUnico: cp.Company.VentaEngordePesoNetoUnico,
-            HuevosLevanteDesdeSemana: cp.Company.HuevosLevanteDesdeSemana
+            HuevosLevanteDesdeSemana: cp.Company.HuevosLevanteDesdeSemana,
+            PermiteSeguimientoDiarioParcial: cp.Company.PermiteSeguimientoDiarioParcial
         )).ToList();
     }
 

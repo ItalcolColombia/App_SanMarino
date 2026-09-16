@@ -130,6 +130,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   consumoAlimentoSoloHembras = false;
   /** Santa Reyes: oculta Machos en mortalidad/selección/peso/uniformidad y retira error de sexaje. Solo UI. */
   ocultaMachosEnPostura = false;
+  /** En levante/producción, ningún campo del seguimiento diario es obligatorio (alimento, aves, huevos). */
+  permiteSeguimientoDiarioParcial = false;
   /** Silos que el lote tiene asignados: de esos —y solo de esos— puede consumir. */
   silosDelLote: LoteSiloDto[] = [];
   private silosLoteLoadId = 0;
@@ -268,6 +270,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         if (this.consumoAlimentoSoloHembras) {
           while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
         }
+      }
+      if (this.permiteSeguimientoDiarioParcial !== flags.permiteSeguimientoDiarioParcial) {
+        this.permiteSeguimientoDiarioParcial = flags.permiteSeguimientoDiarioParcial;
+        // Cubre la carrera con populateForm(): si el flag resuelve después de poblar el form en
+        // modo edición, retroaplica sobre los campos/filas que ya existen en ese momento.
+        this.aplicarValidadoresSeguimientoParcial();
       }
       this.ocultaMachosEnPostura = flags.ocultaMachosEnPostura;
       this.huevoPrimeraPosturaHastaSemana = flags.huevoPrimeraPosturaHastaSemana;
@@ -455,11 +463,13 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
    * el save ya filtra ítems sin producto seleccionado). El control `esFijo` no se guarda.
    */
   private crearItemGroup(tipoInicial: string | null = null, esFijo = false): FormGroup {
+    // Con el flag de empresa activo, toda fila nueva es tan opcional como la fila fija.
+    const opcional = esFijo || this.permiteSeguimientoDiarioParcial;
     const grp = this.fb.group({
-      tipoItem: [tipoInicial, esFijo ? [] : [Validators.required]],
-      catalogItemId: [null, esFijo ? [] : [Validators.required]],
-      cantidad: [0, esFijo ? [Validators.min(0)] : [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required],
+      tipoItem: [tipoInicial, opcional ? [] : [Validators.required]],
+      catalogItemId: [null, opcional ? [] : [Validators.required]],
+      cantidad: [0, opcional ? [Validators.min(0)] : [Validators.required, Validators.min(0)]],
+      unidad: ['kg', opcional ? [] : [Validators.required]],
       siloId: [this.siloPorDefecto()],
       esFijo: [esFijo]
     });
@@ -1107,6 +1117,49 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     this.recalcularTotalesHuevos();
   }
 
+  /**
+   * Con el flag `permiteSeguimientoDiarioParcial` ON, ningún campo es obligatorio: mortalidad,
+   * selección, tipo/peso de huevo y los ítems de alimento (de cada fila que ya exista en los
+   * FormArrays) pueden quedar en 0/vacío. Fail-closed: mientras el flag no resuelva (o si resuelve
+   * en `false`), `setValidators` deja el comportamiento de siempre.
+   *
+   * `crearItemGroup()` ya nace opcional con el flag ON para filas nuevas (botón «+»); el caso real
+   * que hay que relajar retroactivamente es `populateForm()`, que reconstruye las filas de una
+   * edición con `Validators.required` hardcodeado.
+   */
+  private aplicarValidadoresSeguimientoParcial(): void {
+    const opcional = this.permiteSeguimientoDiarioParcial;
+
+    for (const nombre of ['mortalidadH', 'mortalidadM', 'selH', 'selM']) {
+      const control = this.form.get(nombre);
+      control?.setValidators(opcional ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+      control?.updateValueAndValidity({ emitEvent: false });
+    }
+
+    const tipoAlimento = this.form.get('tipoAlimento');
+    tipoAlimento?.setValidators(opcional ? [] : [Validators.required]);
+    tipoAlimento?.updateValueAndValidity({ emitEvent: false });
+
+    const pesoHuevo = this.form.get('pesoHuevo');
+    pesoHuevo?.setValidators(opcional ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+    pesoHuevo?.updateValueAndValidity({ emitEvent: false });
+
+    for (const array of [this.itemsHembrasArray, this.itemsMachosArray]) {
+      array.controls.forEach(control => {
+        const grupo = control as FormGroup;
+        const esFijoRow = grupo.get('esFijo')?.value === true;
+        const rowOpcional = esFijoRow || opcional;
+        grupo.get('tipoItem')?.setValidators(rowOpcional ? [] : [Validators.required]);
+        grupo.get('catalogItemId')?.setValidators(rowOpcional ? [] : [Validators.required]);
+        grupo.get('cantidad')?.setValidators(rowOpcional ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+        grupo.get('unidad')?.setValidators(rowOpcional ? [] : [Validators.required]);
+        for (const c of ['tipoItem', 'catalogItemId', 'cantidad', 'unidad']) {
+          grupo.get(c)?.updateValueAndValidity({ emitEvent: false });
+        }
+      });
+    }
+  }
+
   private populateForm(): void {
     const seg = this.editingSeguimiento;
     if (!seg) return;
@@ -1169,6 +1222,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     // Garantiza el alimento fijo (no removible) también al editar.
     this.asegurarAlimentoFijo(this.itemsHembrasArray);
     this.asegurarAlimentoFijo(this.itemsMachosArray);
+
+    // Retroaplica el flag sobre las filas recién pobladas (nacen con Validators.required hardcodeado).
+    this.aplicarValidadoresSeguimientoParcial();
 
     const fechaRegistro = this.toYMD(seg.fechaRegistro);
     const consumoOriginalHembras = metadata.consumoOriginalHembras ?? (seg as any).consKgH ?? 0;

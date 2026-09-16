@@ -8580,6 +8580,52 @@ Port a mano del arreglo del 25-jul que quedó sin commitear en el worktree `inte
 - [x] V2. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` Application.Tests **4.260/4.260** (+12) + Domain.Tests 1/1 · `verificar-sql-llega-por-migracion.js` OK. No se levantó backend (puertos libres).
 - [x] V3. Commit + fast-forward a `main` (sin push ni deploy: requieren OK explícito). Antes de desplegar: correr `verificar_backfill_company_id_tsd.sql` contra un dump fresco de prod (puede haber TSD de producción/cross-etapa posteriores al dump local, y ahí el saldo SÍ cambia: pasa a descontar el traslado).
 
+---
+
+## GUIA-REUNION-14SEP — Contexto, avance, arquitectura y demo
+
+Plan: [guia_reunion_proyecto_2026-09-14_plan.md](fase_de_desarrollo/guia_reunion_proyecto_2026-09-14_plan.md)
+
+- [x] G1. Contrastar documentación, código y estado de Git/CI.
+- [x] G2. Comprobar disponibilidad del ambiente y evidencia de datos de demo.
+- [x] G3. Redactar guía ejecutiva, Hecho/Pendiente, Mermaid y agenda con demo.
+- [x] G4. Revisar fuentes, tiempos y límites de verificación.
+
+### Ajuste ejecutivo de la guía — alcance confirmado por el usuario
+
+- [x] GE1. Separar evidencia y hallazgos técnicos en anexo interno.
+- [x] GE2. Reorganizar objetivos, operación, arquitectura, ERP y avance móvil.
+- [x] GE3. Dejar agenda y guion listos como base del próximo PowerPoint.
+
+---
+
+## PPT-ITALGRANJA — Presentación ejecutiva
+
+Plan: [powerpoint_ejecutivo_italgranja_plan.md](fase_de_desarrollo/powerpoint_ejecutivo_italgranja_plan.md)
+
+- [x] P1. Preparar contenido y diseño de 10 diapositivas.
+- [x] P2. Generar PowerPoint editable con notas del presentador.
+- [x] P3. Revisar renders y validar el archivo final.
+
+### PPT-AWS-CICD — Requisitos visibles de la presentación
+
+- [x] PA1. Contrastar AWS y orden del pipeline con el repositorio.
+- [x] PA2. Agregar agenda, AWS y CI/CD visibles; explicitar alcance y estado.
+- [x] PA3. Validar y revisar las 13 diapositivas del nuevo PowerPoint.
+
+---
+
+## PPT-MOISES-PLANTILLA — Adaptación corporativa ItalGranja
+
+Plan: [presentacion_moises_plantilla_corporativa_plan.md](fase_de_desarrollo/presentacion_moises_plantilla_corporativa_plan.md)
+
+- [x] PM1. Inspeccionar plantilla visual y extraer recursos originales.
+- [x] PM2. Ajustar alcance exclusivo ItalGranja, arquitectura de desarrollo y agenda.
+- [x] PM3. Crear nueva presentación con la plantilla corporativa.
+- [x] PM4. Revisar diseño, contenido y archivo final.
+
+---
+
 ## LIMPIEZA-LOTES-SR — Borrar lotes de Santa Reyes tras la capacitación
 
 Plan: [limpieza_lotes_santa_reyes_capacitacion_plan.md](fase_de_desarrollo/limpieza_lotes_santa_reyes_capacitacion_plan.md)
@@ -8638,3 +8684,97 @@ Novedad (capacitación Santa Reyes): el seguimiento diario de levante mostraba l
   - Limpieza: backend `:5501` detenido, `DROP DATABASE smoke_huevos_levante_20260915`, verificado que la BD compartida no tiene ninguna fila de las de prueba (`tipo_alimento` `Smoke*`) y que Santa Reyes sigue en `huevos_levante_desde_semana=18`. Puertos 4200/5002/5501 libres al terminar.
 - [x] V4. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** · `dotnet test` **4.304/4.304** (+6, el sentinel) + Domain.Tests 1/1 · `yarn build` OK · Karma **32/32** (+4, el sentinel). Gate `verificar-sql-llega-por-migracion.js` OK.
 - [x] V5. Commit (sin push ni deploy: requieren OK explícito).
+
+---
+
+## INCIDENTE-RECUPERACION-FRONTEND — `frontend/`, `.claude/`, `.agents/`, `.codex/` borrados del disco (15-sep-2026)
+
+Al arrancar esta sesión, `git status` mostraba 1308 archivos trackeados como `D` (borrados del working
+tree, nunca stagear) sin relación con ningún comando corrido por esta sesión: 1259 bajo `frontend/`
+(todo el árbol — `angular.json`, `.vscode/`, `deploy/`, etc.), 40 bajo `.claude/`, 7 bajo `.codex/`, 2
+bajo `.agents/`. La carpeta `frontend/` tenía fecha de creación **hoy 15:52** con 0 archivos adentro —
+no era un directorio viejo vaciado, se había vuelto a crear vacío. El worktree hermano
+`App_SanMarino_seg_multiples` estaba intacto (no es un problema de `frontend/node_modules` enlazado por
+junction como el incidente de [[worktree-remove-borra-por-junction]] del 12-sep — acá no había ninguna
+junction activa en la raíz ni en `frontend`, y el borrado alcanzó árbol fuente versionado, no solo
+`node_modules`). Causa raíz no determinada (no hay entradas en `git reflog` que expliquen un
+checkout/reset; ninguna sesión visible por `ListAgents` estaba activa). El usuario confirmó "recupera
+todos los archivos borrados".
+
+- [x] R1. `git restore -- frontend .claude .agents .codex` — recuperó los 1308 archivos exactos (1259 +
+      40 + 7 + 2) desde el índice, sin tocar `tracker_estado.md` (con cambios de otra sesión sin
+      commitear) ni los documentos nuevos en `fase_de_desarrollo/`/`entregables/`. `git status` post-restore:
+      0 líneas `D` restantes.
+- [x] R2. `frontend/node_modules` seguía vacío (no lo trackea git). Primer `yarn install --frozen-lockfile`
+      **falló** con el Node del PATH por defecto (22.15.0, incompatible con `@angular/animations@22.0.5`
+      que exige `^22.22.3`). Reintentado anteponiendo el Node portable 22.23.1 ya instalado
+      (`C:\Users\SAN MARINO\node-portable\node-v22.23.1-win-x64`, ver [[entorno-local-toolchain]]) —
+      `Done in 152.53s`, exit 0.
+
+---
+
+## SEGUIMIENTO-CAMPOS-OPCIONALES-SR — Alimento/aves/huevos opcionales en Levante y Producción, flag por empresa (15-sep-2026)
+
+Plan: [`fase_de_desarrollo/seguimiento_diario_campos_opcionales_plan.md`](fase_de_desarrollo/seguimiento_diario_campos_opcionales_plan.md)
+
+Pedido del usuario: en Levante y Producción, permitir mover solo mortalidad, solo consumo o solo
+producción en un mismo día (varios seguimientos parciales), sin exigir los tres bloques siempre.
+Controlado por flag de empresa nuevo (Santa Reyes). Investigación completa (2 agentes Explore,
+backend+frontend) volcada en el plan; decisiones abiertas marcadas ahí para confirmar antes de picar
+código: nombre del flag (`permite_seguimiento_diario_parcial`), regla "al menos un bloque con datos", y
+que el flag quede ortogonal a `permite_multiples_seguimientos_diarios` (no acoplado en código).
+
+- [x] D1. Confirmado con el usuario (15-sep-2026): (1) con el flag ON se permite guardar un seguimiento
+      completamente vacío, sin validador de mínimo; (2) el flag queda independiente de
+      `permite_multiples_seguimientos_diarios`, sin acoplar en código; (3) arrancar la implementación de
+      una vez. Plan actualizado en consecuencia.
+- [x] B1. Migración `20260916043203_AddPermiteSeguimientoDiarioParcial` (columna idempotente + seed
+      Santa Reyes). El scaffold de EF detectó de rebote un drift de modelo preexistente y ajeno
+      (`ProduccionResultadoLevante.LoteId` — ver nota en el propio archivo de la migración); se excluyó
+      a propósito y se revirtió esa porción del Designer/ModelSnapshot a como está en HEAD, para no
+      pisar la migración que le corresponde a otra sesión. Incidente durante la verificación:
+      `dotnet ef migrations remove` con 2 migraciones "Pending" simultáneas borró la migración
+      EQUIVOCADA (la real, no la de prueba) — recuperado regenerando desde `git restore --source=HEAD`
+      del snapshot + re-aplicando las mismas correcciones a mano. Ver [[memory: dotnet-ef-migrations-remove-borra-la-equivocada]].
+- [x] B2. `Company.cs` + `CompanyConfiguration.cs` + `CompanyDto`/`CreateCompanyDto`/`UpdateCompanyDto`.
+- [x] B3. 4 proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`, `CompanyResolver` (×2),
+      `CompanyPaisService`.
+- [x] B4. `AlimentoObligatorioCalculos.Motivo`/`Cumple` + `SeparacionSeguimientoHelper.ValidarAlimentoObligatorio`:
+      parámetro `permiteAlimentoOpcional` (default `false`).
+- [x] B5. Flag resuelto y pasado SOLO en los 4 call sites de Levante/Producción
+      (`SeguimientoLoteLevanteService.Crud.cs`, `ProduccionService.Seguimiento.cs`, Create+Update cada
+      uno) — los 6 de Engorde/Reproductora quedan intactos (blindaje de alcance, cubierto por test).
+- [x] B6. `CrearSeguimientoRequest.cs` quitó `[Required]` de `TipoAlimento` + chequeo runtime
+      equivalente en `ProduccionService.Seguimiento.cs` (Crear+Actualizar), gateado por el flag, corre
+      siempre (no solo bajo doble-validación).
+- [x] B7. `AlimentoObligatorioCalculosTests`: 7 casos nuevos (matriz `permiteAlimentoOpcional` ×
+      módulo + blindaje de alcance Engorde/Reproductora).
+- [x] F1. `active-company-config.service.ts` (interface, apagados, respuesta, atajo `$`, mapeo,
+      `publish`, método sugar) + `company.service.ts` (`Company`) + `flags-empresa.funcion.ts` (grupo
+      Postura).
+- [x] F2. `modal-create-edit.component.ts` (Levante): nuevo método `aplicarValidadoresSeguimientoParcial()`
+      relaja mortalidad/sel/error + FormArrays de ítems (retroaplicado en `populateForm()` y en el
+      subscribe de flags, cubre la carrera async). `agregarItemHembras/Machos/General()` ya nacían
+      opcionales (Feature 13, sin tocar). Sin validador de mínimo (confirmado: se permite guardar vacío).
+- [x] F3. `modal-seguimiento-diario.component.ts` (Producción): mismo patrón —
+      `aplicarValidadoresSeguimientoParcial()` sobre mortalidad/sel/tipoAlimento/pesoHuevo + FormArrays;
+      `crearItemGroup()` ajustado para que las filas nuevas también nazcan opcionales con el flag ON.
+      Sin validador de mínimo.
+- [x] V1. `dotnet build ZooSanMarino.sln` **0 warn / 0 err** (2 veces, tras el incidente de B1) ·
+      `dotnet test` **4.311/4.311** (+7) + Domain.Tests 1/1 · gate `verificar-sql-llega-por-migracion.js`
+      OK (no aplica, sin `.sql` nuevo) · `yarn build` OK, sin errores.
+- [x] V2. Smoke HTTP real en Browser pane (back :5002 + front :4200 locales, BD local), sesión
+      minteada a mano (JWT HS256 + fila en `sesiones_activas`, borrada al terminar — ver
+      [[smokes-y-testigos]]) para el usuario real "Admin Santa Reyes" (`user_companies` en company 6).
+      **Levante** (LOTE SR-2025-01, sin registros previos): guardar con **solo mortalidad=1** (silo/tipo/ítem
+      de alimento vacíos) ⇒ `POST /api/SeguimientoLoteLevante` **201 Created**, grilla actualizada
+      (mortalidad acum. 1, aves vivas 19.999). **Producción** (P-LOTE 218A): guardar **completamente
+      vacío** (sin tocar alimento/mortalidad/huevos/peso) ⇒ `POST /api/Produccion/seguimiento` **201
+      Created**. Confirma además que otras reglas de negocio (plazo de validación de un registro
+      pendiente, en LOTE 217A) siguen aplicando normalmente — el flag nuevo no las bypassea.
+      Flag OFF no se re-probó visualmente (ya cubierto exhaustivamente por los 7 tests unitarios de la
+      matriz + por construcción: el código de front solo toca `setValidators` cuando el flag resuelve
+      `true`, nunca cambia el default). Limpieza: 3 filas de `sesiones_activas` del smoke borradas,
+      backend/frontend locales detenidos, puertos 5002/4200 confirmados libres.
+- [ ] V3. Commit (sin push ni deploy: requieren OK explícito).
+

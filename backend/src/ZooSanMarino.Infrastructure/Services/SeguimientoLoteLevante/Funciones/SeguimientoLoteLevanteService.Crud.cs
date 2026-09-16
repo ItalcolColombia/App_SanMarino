@@ -35,9 +35,14 @@ public partial class SeguimientoLoteLevanteService
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(
                 ModuloSeguimiento.Levante, dto.LotePosturaLevanteId ?? dto.LoteId);
             // Postura nunca es mixta: el alimento va por sexo (hembras y/o machos).
+            var permiteSeguimientoParcial = await _ctx.Companies.AsNoTracking()
+                .Where(c => c.Id == _current.CompanyId)
+                .Select(c => c.PermiteSeguimientoDiarioParcial)
+                .FirstOrDefaultAsync();
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0),
+                permiteSeguimientoParcial);
         }
 
         // Huevos en levante (semana 14+): gate por flag de empresa + edad del lote. Neutraliza o
@@ -201,9 +206,14 @@ public partial class SeguimientoLoteLevanteService
                 throw new InvalidOperationException(
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
 
+            var permiteSeguimientoParcial = await _ctx.Companies.AsNoTracking()
+                .Where(c => c.Id == _current.CompanyId)
+                .Select(c => c.PermiteSeguimientoDiarioParcial)
+                .FirstOrDefaultAsync();
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro,
-                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0));
+                (decimal)dto.ConsumoKgHembras, (decimal)(dto.ConsumoKgMachos ?? 0),
+                permiteSeguimientoParcial);
         }
 
         // Huevos en levante (semana 14+): mismo gate que en el alta.
