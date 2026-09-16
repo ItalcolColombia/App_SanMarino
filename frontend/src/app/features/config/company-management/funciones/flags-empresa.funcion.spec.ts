@@ -46,6 +46,7 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     huevoPrimeraPosturaHastaSemana: null,
     huevosLevanteDesdeSemana: null,
     permiteMultiplesSeguimientosDiarios: false,
+    permiteSeguimientoDiarioParcial: false,
     guiaGeneticaPerfil: 'sanmarino'
   } satisfies CompanyFlags;
 
