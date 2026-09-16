@@ -8778,3 +8778,22 @@ que el flag quede ortogonal a `permite_multiples_seguimientos_diarios` (no acopl
       backend/frontend locales detenidos, puertos 5002/4200 confirmados libres.
 - [x] V3. Commit `c2777af` (sin push ni deploy: requieren OK explícito).
 
+---
+
+## Fix CI: fixture de test desincronizado tras `permiteSeguimientoDiarioParcial`
+
+Plan: [seguimiento_diario_campos_opcionales_plan.md](fase_de_desarrollo/seguimiento_diario_campos_opcionales_plan.md) (feature ya cerrada arriba, F1).
+
+El pipeline de deploy fallaba en el paso de test del front (`ng test --watch=false --browsers=ChromeHeadless`)
+con `TS1360`: el objeto `FLAGS_QUE_LEE_EL_RUNTIME` de
+`frontend/src/app/features/config/company-management/funciones/flags-empresa.funcion.spec.ts` usa
+`satisfies CompanyFlags` para atar el fixture al tipo real (ver comentario del archivo), y el commit
+`c2777af` agregó `permiteSeguimientoDiarioParcial` a `CompanyFlags`
+(`active-company-config.service.ts:145`) sin agregar la misma clave al fixture del spec. `FLAGS_APAGADOS`
+y `mapFlags()` en el propio service ya la tenían bien; solo el spec quedó atrás.
+
+- [x] Agregada `permiteSeguimientoDiarioParcial: false` al fixture, en el mismo orden que la interfaz.
+- [x] Verificado con `ng test --watch=false --browsers=ChromeHeadless --include=<ese spec>`: build sin
+      TS1360, **11/11 SUCCESS**.
+- [x] Commit (sin push: requiere OK explícito).
+
