@@ -8838,4 +8838,4 @@ Solo frontend; sin migración, sin flag, sin backend.
 - [x] V4. Sin procesos huérfanos: backend :5002 y front :4200 detenidos (`preview_stop`), 5002/4200/9876 libres,
       sin dotnet/node propios vivos; borradas la fila de `sesiones_activas` y el `user_farms` que sembré para
       el smoke; token borrado del scratchpad.
-- [ ] C1. Commit (sin push ni deploy: requieren OK explícito).
+- [x] C1. Commit `d46700f` (código + tests + tracker; plan en `bcdda0b`). Sin push ni deploy: requieren OK explícito.
