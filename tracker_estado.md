@@ -8797,3 +8797,28 @@ y `mapFlags()` en el propio service ya la tenían bien; solo el spec quedó atr�
       TS1360, **11/11 SUCCESS**.
 - [x] Commit (sin push: requiere OK explícito).
 
+---
+
+## Cantidad de alimento sin ítem: exigir el ítem en Seguimiento Diario (Levante y Producción)
+
+Plan: [seguimiento_cantidad_sin_item_obligatorio_plan.md](fase_de_desarrollo/seguimiento_cantidad_sin_item_obligatorio_plan.md)
+
+Ticket de operación (18-sep-2026): don Diego tecleó la cantidad de alimento sin elegir el ítem y el sistema
+dejó guardar. El registro (Producción #676, empresa Santa Reyes) quedó con `cons_kg_h = 0`, sin ítems en el
+metadata y sin movimiento de inventario: no se perdió solo la «salida», se perdió el consumo entero.
+Causa: `onSave()` descarta en silencio toda fila sin ítem y el formulario la deja válida (ítem opcional).
+Regla nueva, en todas las empresas y con el flag `parcial` ON u OFF: **cantidad > 0 ⇒ ítem obligatorio**.
+Solo frontend; sin migración, sin flag, sin backend.
+
+- [x] E1. Causa raíz medida (código + registro #676 en la BD local + búsqueda de movimientos de inventario).
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_cantidad_sin_item_obligatorio_plan.md`.
+- [ ] F1. Función pura `shared/utils/inventario/consumo-sin-item.funcion.ts` + spec Jasmine.
+- [ ] F2. Producción (`modal-seguimiento-diario`): aviso en línea + borde inválido, botón deshabilitado, aviso en
+      el pie y guarda con toast en `onSave()`.
+- [ ] F3. Levante (`modal-create-edit`): lo mismo en Hembras, Machos e Ítems generales.
+- [ ] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<spec>` verde.
+- [ ] V2. `yarn build` (front): 0 errores.
+- [ ] V3. Smoke en navegador: Producción y Levante, alta y edición; excepción del registro con consumo escalar
+      heredado; abrir/cerrar el modal dos veces.
+- [ ] V4. Sin procesos huérfanos (backend :5002 y front :4200 detenidos, puertos libres, sesión de smoke limpia).
+- [ ] C1. Commit (sin push ni deploy: requieren OK explícito).
