@@ -8882,4 +8882,6 @@ Solo frontend; sin migración, sin flag, sin backend (medido: con el request cor
 - [x] V3. Sin procesos huérfanos: `preview_stop` del front y `TaskStop` del back; 5002/4200/9876 libres, sin dotnet ni node
       propios; BD clon `smoke_huevos` DROPeada (la BD `sanmarinoapplocal` no se tocó: el back solo tuvo conexión al clon,
       verificado con `pg_stat_activity`); tokens, dump y content root borrados del scratchpad.
-- [ ] C1. Commit (acotado a mis archivos; sin push ni deploy).
+- [x] C1. Commit `4f71cbe` (código + specs + plan con resultados; plan y tracker iniciales en `136524f`), acotado a mis
+      archivos (el bloque y los archivos de la otra sesión quedaron intactos en el árbol). Sin push ni deploy: requieren
+      OK explícito.
