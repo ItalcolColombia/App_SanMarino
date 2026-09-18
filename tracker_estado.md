@@ -8839,3 +8839,32 @@ Solo frontend; sin migración, sin flag, sin backend.
       sin dotnet/node propios vivos; borradas la fila de `sesiones_activas` y el `user_farms` que sembré para
       el smoke; token borrado del scratchpad.
 - [x] C1. Commit `d46700f` (código + tests + tracker; plan en `bcdda0b`). Sin push ni deploy: requieren OK explícito.
+
+---
+
+## HUEVOS-PRIMER-GUARDADO — Los huevos «quedan en 0» y hay que registrar 2-3 veces (Seguimiento Diario Producción y Levante, 18-sep-2026)
+
+Plan: [seguimiento_huevos_primer_guardado_plan.md](fase_de_desarrollo/seguimiento_huevos_primer_guardado_plan.md)
+
+Reporte de Santa Reyes: al registrar la producción y guardar, queda el registro con huevos en 0 y hay que repetirlo
+2-3 veces (captura: P-LOTE 217A, un registro con mortalidad/consumo y huevos 0 + dos registros solo-huevos idénticos).
+Solo frontend; sin migración, sin flag, sin backend (medido: con el request correcto el backend guarda bien).
+
+- [x] E1. Causas medidas y reproducidas en navegador (clon de la BD local, Santa Reyes, back aislado :5002):
+      D1 `ngOnChanges` de Producción vacía el formulario ante cualquier `@Input` tardío (huevos tecleados se pierden
+      al llegar `informacion-lote`); D2 tras un guardado con error el modal queda vacío; D3 aviso «Seguimiento
+      Creado» viejo sobre el formulario nuevo, y Aceptar cierra el modal recién abierto; D4 Guardar no espera los
+      tipos de huevo (Producción y Levante); D5 el modal se abre con el id del LPP como `loteId` hasta que responde
+      el lote base (silos y huevos → 400).
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_primer_guardado_plan.md`.
+- [ ] F1. `funciones/cambios-modal-seguimiento.funcion.ts` (pura) + spec.
+- [ ] F2. `resolverGuardadoConHuevos` (pura, `items-huevo-catalogo.funcion.ts`) + spec.
+- [ ] F3. Modal de Producción: `ngOnChanges(changes)` sin reset por datos tardíos, aviso viejo limpio al abrir,
+      Guardar espera/confirma según los tipos de huevo, «Reintentar», `timeout`, guarda anti-doble-guardado.
+- [ ] F4. `lote-produccion-list`: toast de éxito (no diálogo), `[loteId]` = lote base, «Nuevo registro» espera al lote base.
+- [ ] F5. Levante (`modal-create-edit`): Guardar espera/confirma según los tipos de huevo.
+- [ ] F6. Spec del componente de Producción (un dato tardío no borra lo tecleado; abrir sí reinicia).
+- [ ] V1. `ng test --include` de los specs nuevos/tocados + `yarn build` (0 errores).
+- [ ] V2. Smoke en navegador: repetir D1-D5 y comprobar el arreglo (Producción y Levante) + regresión Sanmarino/Demo.
+- [ ] V3. Sin procesos huérfanos (back :5002, front :4200, BD clon `smoke_huevos`, sesión y token de smoke).
+- [ ] C1. Commit (acotado a mis archivos; sin push ni deploy).
