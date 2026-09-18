@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, AbstractControl, Validators } from '@angular/forms';
 import { CrearSeguimientoRequest, SeguimientoItemDto, HuevoItemSeguimiento, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
@@ -6,7 +6,7 @@ import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../..
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, timeout } from 'rxjs/operators';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
@@ -28,17 +28,23 @@ import {
   mensajeCantidadSinItem
 } from '../../../../shared/utils/inventario/consumo-sin-item.funcion';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { HuevoFilaFija, HuevoGrupoFilasFijas, HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
 import {
   agruparItemsHuevoPorTipo,
+  CONFIRMACION_GUARDAR_SIN_HUEVOS,
   esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
   construirFilasFijasHuevo,
   esItemEnKilos,
   mapearItemsHuevoACatalogo,
-  sumarCantidadesHuevo
+  MENSAJE_ESPERAR_TIPOS_HUEVO,
+  resolverGuardadoConHuevos,
+  sumarCantidadesHuevo,
+  TIMEOUT_TIPOS_HUEVO_MS
 } from '../../funciones/items-huevo-catalogo.funcion';
+import { resolverCambiosDelModal } from '../../funciones/cambios-modal-seguimiento.funcion';
 import {
   calcularEtapaCicloPostura,
   etiquetaEtapaCicloPostura,
@@ -112,7 +118,6 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearSeguimientoRequest>();
-  @Output() saveSuccess = new EventEmitter<void>();
   @Output() saveError = new EventEmitter<string>();
 
   // Formulario
@@ -232,6 +237,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     private storage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
     private toast: ToastService,
+    private confirmDialog: ConfirmDialogService,
     private silosSvc: SilosService,
     private huevoItemsSvc: LoteHuevoItemsService,
     private userPermService: UserPermissionService
@@ -304,8 +310,25 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     this.isColombia = this.countryFilter.isColombia();
   }
 
-  ngOnChanges(): void {
-    if (this.isOpen && this.form) {
+  /**
+   * Con el modal ABIERTO, un dato que llega tarde no puede vaciar lo que el operario ya tecleó.
+   *
+   * Antes esto hacía `resetForm()` ante cualquier cambio de input: cuando la consulta pesada
+   * `informacion-lote` traía `fechaEncaset` (o `GET /LotePosturaProduccion/{id}` traía el lote base) con
+   * el formulario a medio llenar, los huevos ya tecleados desaparecían, y lo mismo pasaba cada vez que
+   * el padre cambiaba `loading` (al guardar y tras un guardado rechazado). Ver
+   * `cambios-modal-seguimiento.funcion.ts`: se reinicia solo al abrir o al cambiar el registro en
+   * edición; cada dato tardío recarga únicamente lo suyo.
+   */
+  ngOnChanges(changes: SimpleChanges): void {
+    const acciones = resolverCambiosDelModal({
+      cambiados: Object.keys(changes),
+      abierto: this.isOpen,
+      abre: changes['isOpen']?.currentValue === true,
+      editando: !!this.editingSeguimiento
+    });
+
+    if (this.form && acciones.sincronizarIds) {
       if (this.lotePosturaProduccionId != null) {
         this.form.patchValue({ lotePosturaProduccionId: this.lotePosturaProduccionId, produccionLoteId: null });
         this.form.get('produccionLoteId')?.clearValidators();
@@ -314,7 +337,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       }
     }
 
-    if (this.isOpen) {
+    if (acciones.recargarDatosDelLote) {
       // Los silos son del LOTE: abrir el modal en otro lote cambia de qué silos se puede consumir.
       this.cargarSilosDelLote();
       // F7.3 — los tipos de huevo también son del LOTE, por la misma razón. Va ACÁ y no solo en
@@ -322,19 +345,33 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       // se iba por el early-return y las filas quedaban vacías para siempre. Detectado en el smoke
       // por la UI (22-ago-2026): el bloque se pintaba con su encabezado y sin una sola fila.
       this.cargarHuevoItemsDelLote();
+    }
+
+    if (acciones.recargarInventario) {
       if (this.usaInventarioGestion && this.granjaId) {
         this.cargarCatalogEcuadorPanama();
       } else if (this.granjaId) {
         this.cargarInventarioGranja(this.granjaId);
       }
+    }
 
+    if (acciones.reiniciarFormulario) {
+      // El aviso de un guardado anterior no puede sobrevivir a la apertura: reaparecía encima del
+      // formulario nuevo y su «Aceptar» cerraba el modal recién abierto.
+      this.showMessageModal = false;
       if (this.editingSeguimiento) {
         // Ejecutar en el siguiente tick para que el form esté en el DOM (*ngIf="isOpen") y los valores se apliquen correctamente
         setTimeout(() => this.populateForm(), 0);
       } else {
         this.resetForm();
       }
+      return;
     }
+
+    // Datos de fecha que llegan con el formulario ya en uso: se recalcula lo que depende de ellos SIN
+    // reiniciar (las cantidades de huevo se conservan por catalogItemId en `reconstruirFilasHuevo`).
+    if (acciones.recalcularEtapa) this.calcularYActualizarEtapa();
+    if (acciones.reconstruirFilasHuevo) this.reconstruirFilasHuevo();
   }
 
   // ================== FORMULARIO ==================
@@ -797,19 +834,29 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
    * lote para nada.
    */
   private cargarHuevoItemsDelLote(): void {
+    // Cada llamada invalida lo que viaja: una respuesta vieja nunca pisa a una más nueva ni queda
+    // aplicándose sobre un lote que ya no es el del modal.
+    const loadId = ++this.huevoItemsLoteLoadId;
+
     if (!this.clasificacionHuevoPorItems || !this.loteId) {
       this.huevoItemsDelLote = [];
       this.loteSinHuevoItems = false;
-      this.errorHuevoItemsDelLote = false;
+      this.cargandoHuevoItemsDelLote = false;
+      // Con el desglose por ítems, el modal abierto y sin lote base resuelto no hay dónde teclear
+      // huevos: se dice (mensaje + confirmar al guardar) en vez de dejar el bloque mudo. Cerrado o con
+      // el flag apagado no es un error, es que todavía no hay nada que pedir.
+      this.errorHuevoItemsDelLote = this.clasificacionHuevoPorItems && this.isOpen;
       this.reconstruirFilasHuevo();
       return;
     }
 
-    const loadId = ++this.huevoItemsLoteLoadId;
     this.cargandoHuevoItemsDelLote = true;
     this.errorHuevoItemsDelLote = false;
 
     this.huevoItemsSvc.getByLote(this.loteId).pipe(
+      // Guardar espera a esta consulta: si se cuelga, pasado el límite cuenta como error y Guardar
+      // deja de esperar (pide confirmar) en lugar de quedar deshabilitado para siempre.
+      timeout({ first: TIMEOUT_TIPOS_HUEVO_MS }),
       catchError(err => {
         console.error('Error al cargar los tipos de huevo del lote:', err);
         if (loadId === this.huevoItemsLoteLoadId) this.errorHuevoItemsDelLote = true;
@@ -909,6 +956,33 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   /** ¿Hay alguna fila para pintar? Distinto de «el lote no declaró nada». */
   get hayFilasHuevo(): boolean {
     return this.gruposFilasHuevo.length > 0;
+  }
+
+  /**
+   * Qué hacer con Guardar según el estado de los tipos de huevo del lote (`permitir | esperar | confirmar`).
+   * Solo aplica si el registro puede recibir desglose por ítems: con el flag apagado, o al editar un
+   * registro que YA trae huevos por ítems (sus filas viajan desde el desglose guardado, no se pierden),
+   * el guardado sigue exactamente como siempre.
+   */
+  private decisionGuardadoConHuevos(): ReturnType<typeof resolverGuardadoConHuevos> {
+    return resolverGuardadoConHuevos({
+      aplica: this.clasificacionHuevoPorItems && this.huevoItemsGuardados.size === 0,
+      cargando: this.cargandoHuevoItemsDelLote,
+      error: this.errorHuevoItemsDelLote
+    });
+  }
+
+  /** Guardar ahora dejaría el día sin huevos porque sus tipos todavía viajan. Devuelve un boolean: CD-safe. */
+  get guardadoEsperaTiposHuevo(): boolean {
+    return this.decisionGuardadoConHuevos() === 'esperar';
+  }
+
+  /** Aviso del pie del modal mientras Guardar espera los tipos de huevo. */
+  readonly mensajeEsperarTiposHuevo = MENSAJE_ESPERAR_TIPOS_HUEVO;
+
+  /** Vuelve a pedir los tipos de huevo SIN cerrar el modal (cerrarlo vaciaba lo tecleado). */
+  reintentarTiposHuevo(): void {
+    this.cargarHuevoItemsDelLote();
   }
 
   /**
@@ -1399,20 +1473,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
   }
 
-  // Métodos públicos para mostrar mensajes (llamados desde el componente padre)
-  showSuccessMessage(isUpdate: boolean = false): void {
-    const action = isUpdate ? 'actualizado' : 'creado';
-    this.messageModalData = {
-      title: `✅ Seguimiento ${action.charAt(0).toUpperCase() + action.slice(1)}`,
-      message: `El seguimiento diario se ha ${action} exitosamente.`,
-      type: 'success',
-      confirmText: 'Aceptar',
-      showCancel: false
-    };
-    this.showMessageModal = true;
-    this.saveSuccess.emit();
-  }
-
+  // Método público para mostrar el error de un guardado (lo llama el componente padre). El aviso de
+  // ÉXITO ya no vive acá: el padre cierra el modal en el mismo instante en que guarda, así que el diálogo
+  // nunca llegaba a verse, `showMessageModal` quedaba en `true` y reaparecía al abrir el registro
+  // siguiente —encima del formulario en blanco— con un «Aceptar» que cerraba el modal recién abierto.
+  // El éxito se avisa con un toast desde el padre.
   showErrorMessage(message: string): void {
     const errorMsg = message || 'Ocurrió un error al intentar guardar el seguimiento diario. Por favor, intente nuevamente.';
     this.messageModalData = {
@@ -1428,13 +1493,21 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   onMessageModalClose(): void {
     this.showMessageModal = false;
-    // Si el mensaje era de éxito, cerrar el modal de seguimiento diario
-    if (this.messageModalData.type === 'success') {
-      this.close.emit();
-    }
   }
 
-  onSave(): void {
+  async onSave(): Promise<void> {
+    // Un guardado en curso no se repite (Enter, doble clic): con varios registros por día un duplicado
+    // ya no lo rechaza nadie, es un registro más.
+    if (this.loading) return;
+
+    // Los tipos de huevo del lote todavía viajan: no hay filas donde teclear y guardar ahora dejaría el
+    // día sin huevos. El botón ya lo impide; esto cubre cualquier otro camino hasta aquí.
+    const guardadoConHuevos = this.decisionGuardadoConHuevos();
+    if (guardadoConHuevos === 'esperar') {
+      this.toast.warning(MENSAJE_ESPERAR_TIPOS_HUEVO);
+      return;
+    }
+
     // Cantidad sin ítem: más abajo esa fila se descarta y el registro se guardaría SIN el consumo ni la
     // salida de inventario. El botón ya lo impide; esto cubre cualquier otro camino hasta aquí.
     const sinItem = filasConCantidadSinItem(this.bloquesConsumo());
@@ -1464,6 +1537,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
     if (!ymd) {
       this.showErrorMessage('La fecha de registro es inválida. Por favor, seleccione una fecha válida.');
+      return;
+    }
+
+    // La consulta de tipos de huevo falló: el operario no tuvo dónde teclear huevos. Guardar sin ellos
+    // se puede (captura parcial), pero solo si lo decide sabiéndolo; antes se guardaba sin ninguna señal.
+    if (guardadoConHuevos === 'confirmar' && !(await this.confirmDialog.ask({ ...CONFIRMACION_GUARDAR_SIN_HUEVOS }))) {
       return;
     }
 

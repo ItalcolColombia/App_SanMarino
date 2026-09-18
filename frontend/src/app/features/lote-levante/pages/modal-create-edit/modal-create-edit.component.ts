@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -10,7 +11,7 @@ import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType 
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
-import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError, timeout } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { toNumOrNull, todayYMD, toYMD, ymdToIsoAtNoon } from '../../funciones/lote-levante-fechas.funcion';
@@ -48,7 +49,7 @@ import {
 } from '../../../../shared/utils/inventario/consumo-sin-item.funcion';
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
-import { semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
+import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
 import {
   ModoHuevosLevante,
   resolverModoHuevosLevante,
@@ -63,7 +64,13 @@ import {
 } from '../../funciones/huevos-levante-items.funcion';
 import { LoteHuevoItemsService, LoteHuevoItemDto } from '../../../lote/services/lote-huevo-items.service';
 import { HuevoItemSeguimiento, leerHuevoItemsDeMetadata } from '../../../lote-produccion/services/produccion.service';
-import { construirFilasFijasHuevo } from '../../../lote-produccion/funciones/items-huevo-catalogo.funcion';
+import {
+  CONFIRMACION_GUARDAR_SIN_HUEVOS,
+  MENSAJE_ESPERAR_TIPOS_HUEVO,
+  TIMEOUT_TIPOS_HUEVO_MS,
+  construirFilasFijasHuevo,
+  resolverGuardadoConHuevos
+} from '../../../lote-produccion/funciones/items-huevo-catalogo.funcion';
 import { HuevoFilaFija, HuevoGrupoFilasFijas } from '../../../lote-produccion/models/huevo-clasificacion.model';
 import { obtenerEtapaCicloPostura, etiquetaEtapaCicloPostura } from '../../../../shared/utils/fecha/semanas-ciclo-postura.funcion';
 import {
@@ -254,6 +261,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   fechaRegistroHint = '';
 
   constructor(private toast: ToastService,
+    private confirmDialog: ConfirmDialogService,
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
     private inventarioSvc: InventarioService,
@@ -495,6 +503,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.recalcularVisibilidadHuevos();
 
     this.loteHuevoItemsSvc.getByLote(loteId).pipe(
+      // Guardar espera a esta consulta: si se cuelga, pasado el límite cuenta como error.
+      timeout({ first: TIMEOUT_TIPOS_HUEVO_MS }),
       catchError(err => {
         console.error('Error al cargar los tipos de huevo del lote:', err);
         return of(null);
@@ -2565,6 +2575,34 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return false;
   }
 
+  /**
+   * Qué hacer con Guardar según el estado de los tipos de huevo del lote (`permitir | esperar | confirmar`).
+   *
+   * Mientras la consulta viaja —o si falló— el tab «Huevos» NO existe (fail-closed) y el registro se guardaba
+   * sin huevos y sin ninguna señal: el operario lo descubría después y lo repetía. Solo aplica cuando el tab
+   * correspondería (modo por ítems, fecha/semana que lo admiten) y el registro no trae ya su desglose
+   * guardado: fuera de eso el guardado es el de siempre.
+   */
+  private decisionGuardadoConHuevos(): ReturnType<typeof resolverGuardadoConHuevos> {
+    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
+    const correspondeElTab =
+      this.modoHuevos === 'porItems' &&
+      permiteHuevosEnLevante(this.fechaEncaset, fechaRegistro, this.huevosLevanteDesdeSemana);
+    return resolverGuardadoConHuevos({
+      aplica: correspondeElTab && this.huevoItemsGuardados.length === 0,
+      cargando: this.cargandoHuevoItemsDelLote,
+      error: this.errorHuevoItemsDelLote
+    });
+  }
+
+  /** Guardar ahora dejaría el día sin huevos porque sus tipos todavía viajan. Devuelve un boolean: CD-safe. */
+  get guardadoEsperaTiposHuevo(): boolean {
+    return this.decisionGuardadoConHuevos() === 'esperar';
+  }
+
+  /** Aviso del pie del modal mientras Guardar espera los tipos de huevo. */
+  readonly mensajeEsperarTiposHuevo = MENSAJE_ESPERAR_TIPOS_HUEVO;
+
   private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId?: number; nombre?: string } {
     return buildItemPersistFields(itemId, {
       isEcuadorOrPanama: this.isEcuadorOrPanama,
@@ -2575,9 +2613,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  onSave(): void {
+  async onSave(): Promise<void> {
+    // Un guardado en curso no se repite (Enter, doble clic): con varios registros por día un duplicado
+    // ya no lo rechaza nadie, es un registro más.
+    if (this.loading || this.loadingRecord) return;
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      return;
+    }
+
+    // Los tipos de huevo del lote todavía viajan: el tab «Huevos» aún no existe y guardar ahora dejaría el
+    // día sin huevos. El botón ya lo impide; esto cubre cualquier otro camino hasta aquí.
+    const guardadoConHuevos = this.decisionGuardadoConHuevos();
+    if (guardadoConHuevos === 'esperar') {
+      this.toast.warning(MENSAJE_ESPERAR_TIPOS_HUEVO);
       return;
     }
 
@@ -2606,6 +2656,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     // Huevos por tipo del lote: el operario ve el problema en el tab, no un 400 del backend.
     if (!this.validarHuevoItemsDelTab()) return;
+
+    // La consulta de tipos de huevo falló: no hubo tab donde teclear huevos. Guardar sin ellos se puede
+    // (captura parcial), pero solo si lo decide sabiéndolo; antes se guardaba sin ninguna señal.
+    if (guardadoConHuevos === 'confirmar' && !(await this.confirmDialog.ask({ ...CONFIRMACION_GUARDAR_SIN_HUEVOS }))) {
+      return;
+    }
 
     // Construir arrays de ítems desde FormArrays
     const itemsHembras: ItemSeguimientoDto[] = [];

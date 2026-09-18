@@ -231,3 +231,56 @@ export function construirFilasFijasHuevo(
 export function esItemEnKilos(um: string | null | undefined): boolean {
   return (um ?? '').trim().toUpperCase() === 'KIL';
 }
+
+// ===================== GUARDAR SIN HABER PODIDO TECLEAR LOS HUEVOS =====================
+
+/**
+ * Qué hace el botón Guardar según el estado de los tipos de huevo del lote:
+ * - `permitir`: seguir con el guardado.
+ * - `esperar`: los tipos siguen viajando; guardar ahora dejaría el día SIN huevos y sin aviso.
+ * - `confirmar`: la consulta falló; el operario no tuvo dónde teclear huevos, así que guardar sí se puede
+ *   (Santa Reyes acepta capturas parciales) pero solo si lo decide sabiendo que no van huevos.
+ */
+export type GuardadoConHuevos = 'permitir' | 'esperar' | 'confirmar';
+
+export interface EstadoTiposHuevoParaGuardar {
+  /** El registro admite desglose de huevos por los tipos del lote (flag de empresa y, en Levante, la semana). */
+  aplica: boolean;
+  /** `GET /api/LoteHuevoItem/{lote}` en camino: las filas todavía no se pueden ver ni teclear. */
+  cargando: boolean;
+  /** La consulta falló (o no hay lote resuelto): no hay filas donde escribir. */
+  error: boolean;
+}
+
+/**
+ * Antes el botón seguía habilitado con las filas ocultas ("Cargando…") o con la consulta caída, y el
+ * registro se guardaba con huevos en 0 sin ninguna señal: el operario lo veía después y lo repetía.
+ * Un lote SIN tipos declarados no es error ni espera: no hay nada que teclear y el guardado sigue.
+ */
+export function resolverGuardadoConHuevos(estado: EstadoTiposHuevoParaGuardar): GuardadoConHuevos {
+  if (!estado.aplica) return 'permitir';
+  if (estado.cargando) return 'esperar';
+  if (estado.error) return 'confirmar';
+  return 'permitir';
+}
+
+/**
+ * Espera máxima por los tipos de huevo del lote (`GET /api/LoteHuevoItem/{lote}`). Guardar espera a esa
+ * consulta: pasado este tiempo cuenta como error (pide confirmar) en vez de dejar el botón deshabilitado
+ * para siempre si la petición se cuelga.
+ */
+export const TIMEOUT_TIPOS_HUEVO_MS = 20_000;
+
+/** Aviso mientras los tipos de huevo cargan (pie del modal y toast si igual se intenta guardar). */
+export const MENSAJE_ESPERAR_TIPOS_HUEVO =
+  'Esperá a que carguen los tipos de huevo del lote: guardar ahora dejaría el día sin huevos.';
+
+/** Confirmación cuando los tipos de huevo no se pudieron cargar. */
+export const CONFIRMACION_GUARDAR_SIN_HUEVOS = {
+  title: 'Guardar sin huevos',
+  message:
+    'No se pudieron cargar los tipos de huevo de este lote, así que este registro se guardaría SIN huevos. ' +
+    '¿Guardar de todos modos?',
+  confirmText: 'Guardar sin huevos',
+  type: 'warning'
+} as const;

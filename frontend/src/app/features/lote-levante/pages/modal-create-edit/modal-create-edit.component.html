@@ -764,8 +764,11 @@
               @if (hayCantidadSinItem) {
                 <small class="ux-hint text-danger" role="alert" style="margin-right: auto; align-self: center;">{{ textoItemRequeridoPie }}</small>
               }
+              @if (guardadoEsperaTiposHuevo) {
+                <small class="ux-hint" role="status" style="margin-right: auto; align-self: center;">{{ mensajeEsperarTiposHuevo }}</small>
+              }
               <button type="button" class="btn btn--ghost" (click)="onClose()" [disabled]="loading || loadingRecord">Cancelar</button>
-              <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida || hayCantidadSinItem">
+              <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida || hayCantidadSinItem || guardadoEsperaTiposHuevo">
                 @if (loadingRecord) {
                   Cargando registro…
                 }

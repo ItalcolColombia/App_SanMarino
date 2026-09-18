@@ -414,8 +414,12 @@
                          al operario a editar el lote para nada. -->
                     @if (!cargandoHuevoItemsDelLote && errorHuevoItemsDelLote) {
                       <p class="ux-hint text-danger">
-                        No se pudieron cargar los tipos de huevo de este lote. Reintentá cerrando y
-                        volviendo a abrir el registro.
+                        No se pudieron cargar los tipos de huevo de este lote.
+                        @if (loteId) {
+                          <button type="button" class="btn btn--ghost" (click)="reintentarTiposHuevo()">Reintentar</button>
+                        } @else {
+                          Todavía no se identificó el lote: esperá unos segundos o volvé a seleccionarlo.
+                        }
                       </p>
                     }
 
@@ -591,8 +595,11 @@
           @if (hayCantidadSinItem) {
             <small class="ux-hint text-danger" role="alert" style="margin-right: auto; align-self: center;">{{ textoItemRequeridoPie }}</small>
           }
+          @if (guardadoEsperaTiposHuevo) {
+            <small class="ux-hint" role="status" style="margin-right: auto; align-self: center;">{{ mensajeEsperarTiposHuevo }}</small>
+          }
           <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
-          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid || hasCantidadExcedida || hayCantidadSinItem">
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid || hasCantidadExcedida || hayCantidadSinItem || guardadoEsperaTiposHuevo">
             {{ loading ? 'Guardando…' : (editingSeguimiento ? 'Actualizar' : 'Guardar Seguimiento') }}
           </button>
         </footer>

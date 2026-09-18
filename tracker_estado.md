@@ -8857,14 +8857,29 @@ Solo frontend; sin migración, sin flag, sin backend (medido: con el request cor
       tipos de huevo (Producción y Levante); D5 el modal se abre con el id del LPP como `loteId` hasta que responde
       el lote base (silos y huevos → 400).
 - [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_primer_guardado_plan.md`.
-- [ ] F1. `funciones/cambios-modal-seguimiento.funcion.ts` (pura) + spec.
-- [ ] F2. `resolverGuardadoConHuevos` (pura, `items-huevo-catalogo.funcion.ts`) + spec.
-- [ ] F3. Modal de Producción: `ngOnChanges(changes)` sin reset por datos tardíos, aviso viejo limpio al abrir,
-      Guardar espera/confirma según los tipos de huevo, «Reintentar», `timeout`, guarda anti-doble-guardado.
-- [ ] F4. `lote-produccion-list`: toast de éxito (no diálogo), `[loteId]` = lote base, «Nuevo registro» espera al lote base.
-- [ ] F5. Levante (`modal-create-edit`): Guardar espera/confirma según los tipos de huevo.
-- [ ] F6. Spec del componente de Producción (un dato tardío no borra lo tecleado; abrir sí reinicia).
-- [ ] V1. `ng test --include` de los specs nuevos/tocados + `yarn build` (0 errores).
-- [ ] V2. Smoke en navegador: repetir D1-D5 y comprobar el arreglo (Producción y Levante) + regresión Sanmarino/Demo.
-- [ ] V3. Sin procesos huérfanos (back :5002, front :4200, BD clon `smoke_huevos`, sesión y token de smoke).
+- [x] F1. `funciones/cambios-modal-seguimiento.funcion.ts` (pura) + spec (12 casos).
+- [x] F2. `resolverGuardadoConHuevos` (pura, `items-huevo-catalogo.funcion.ts`) + spec (6 casos).
+- [x] F3. Modal de Producción: `ngOnChanges(changes)` sin reset por datos tardíos, aviso viejo limpio al abrir (y
+      `showSuccessMessage` retirado), Guardar espera/confirma según los tipos de huevo, «Reintentar», `timeout`
+      (20 s) y guarda anti-doble-guardado.
+- [x] F4. `lote-produccion-list`: toast de éxito (no diálogo), `[loteId]` = lote base, «Nuevo registro» espera al lote base.
+- [x] F5. Levante (`modal-create-edit`): Guardar espera/confirma según los tipos de huevo (+ `timeout`).
+- [x] F6. Spec del componente de Producción (14 casos: un dato tardío —`fechaEncaset`, `loteId`, `loading`, galpón— no
+      borra lo tecleado; abrir sí reinicia y limpia el aviso; Guardar espera/confirma; empresa sin flag intacta).
+- [x] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<7 specs>`: **90/90 SUCCESS** (0 FAILED, sin
+      warnings; los 3 tests de fallo simulado silencian su `console.error`). `yarn build`: **0 errores, 0 warnings**.
+- [x] V2. Smoke en navegador (back :5002 aislado con `--contentRoot` propio + clon de la BD local + front :4200; latencia
+      y fallos inyectados parcheando `XMLHttpRequest`). ANTES y DESPUÉS de cada defecto, mismo guion:
+      D1 huevos 656:5000+667:300 tecleados, `informacion-lote` a los 5 s → antes `[]`, ahora conserva huevos y mortalidad;
+      D2 guardado 400 (fecha futura) → antes formulario en 0, ahora conserva y, corregida la fecha, 201 con `huevoItems`;
+      D3 reabrir tras guardar → antes aviso viejo cuyo «Aceptar» cerraba el modal, ahora nada + toast «Seguimiento
+      creado.»; D4 tipos lentos → Guardar deshabilitado con aviso en el pie, `onSave()` forzado no envía; consulta caída →
+      «Guardar sin huevos» (cancelar no envía, conserva lo tecleado) y «Reintentar» restaura las 7 filas; Levante igual;
+      D5 lote base lento → «Nuevo registro» deshabilitado («Cargando el lote…») y abre con `loteId` 152 (antes 20 →
+      `LoteSilo/20` y `LoteHuevoItem/20` en 400). Además: edición con huevos por ítems (#680) rehidrata y sobrevive a un
+      `loading` del padre (PUT 204); Levante alta con huevos 201; **Sanmarino** (flag apagado, 11 categorías): un dato
+      tardío no borra, alta 201 con `huevoLimpio/huevoSucio/huevosTotales` y sin `huevoItems`, edición 204.
+- [x] V3. Sin procesos huérfanos: `preview_stop` del front y `TaskStop` del back; 5002/4200/9876 libres, sin dotnet ni node
+      propios; BD clon `smoke_huevos` DROPeada (la BD `sanmarinoapplocal` no se tocó: el back solo tuvo conexión al clon,
+      verificado con `pg_stat_activity`); tokens, dump y content root borrados del scratchpad.
 - [ ] C1. Commit (acotado a mis archivos; sin push ni deploy).

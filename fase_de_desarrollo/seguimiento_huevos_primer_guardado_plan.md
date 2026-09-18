@@ -94,3 +94,28 @@ Regresión: Sanmarino/Demo (flag apagado, 11 categorías) alta y edición sin ca
 
 Solo front; revertir el commit basta. El riesgo está en que el modal ya no se «autolimpia» ante datos tardíos: por eso
 cada `@Input` con efecto conserva su recarga puntual y hay spec de cada uno.
+
+## Resultado (18-sep-2026)
+
+Cada defecto se **midió antes** (tabla de arriba) y se **volvió a medir después** con la misma técnica: back aislado
+(:5002, `--contentRoot` propio) contra un clon de la BD local, front en :4200, y latencia/fallos inyectados
+parcheando `XMLHttpRequest` desde el navegador (sirve para reproducir carreras que en localhost no aparecen solas).
+
+| Defecto | Antes | Después |
+|---|---|---|
+| D1 dato tardío | huevos 656:5000 + 667:300 → `[]` al llegar `informacion-lote` (5 s) | siguen 5000 + 300 (total 5300) y la mortalidad tecleada también |
+| D2 guardado rechazado (400) | formulario en 0 | conserva mortalidad 15 y huevos 5300; corregida la fecha, guarda `huevoItems 656:5000, 667:300` → 201 |
+| D3 aviso viejo | `showMsg: true` al reabrir; Aceptar cierra el modal nuevo | `showMsg: false`, sin diálogo; toast «Seguimiento creado.» |
+| D4 Guardar sin tipos | botón habilitado con «Cargando…» (Producción) y tab oculto (Levante) | deshabilitado + aviso en el pie; `onSave()` forzado no envía; con la consulta caída pide «Guardar sin huevos» y «Reintentar» recupera las 7 filas sin perder lo tecleado |
+| D5 lote base | «Nuevo registro» habilitado, `loteId: 20`, `LoteSilo/20` y `LoteHuevoItem/20` → 400 | deshabilitado («Cargando el lote…») hasta que llega el lote base; abre con `loteId: 152` y las dos consultas en 200 |
+
+Además: edición con huevos por ítems (registro #680): rehidrata, un `loading` del padre ya no repuebla lo original,
+PUT 204 con los ítems editados; Sanmarino (flag apagado, 11 categorías): un dato tardío tampoco borra, alta 201 con
+`huevoLimpio 4000 / huevoSucio 120 / huevosTotales 4120` y sin `huevoItems`, edición 204; Levante: alta con huevos
+201 (`656:700, 666:25`).
+
+Pruebas: `ng test --include=…` de los 7 specs que toca el cambio → **90/90 SUCCESS** (0 FAILED, sin warnings).
+
+Fuera de alcance (queda anotado, no se tocó): en producción el primer renglón de un día con varios registros sigue
+mostrando solo SU registro (huevos 0 si ahí no se cargaron) y el nuevo queda al pie del grupo; una etiqueta de «total
+del día» en ese renglón evitaría que se lea como «no guardó». Es una decisión de presentación, no un defecto de datos.
