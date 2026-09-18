@@ -18,6 +18,15 @@ import {
   itemsConStockEnSilo,
   SaldoItem
 } from '../../../../shared/utils/inventario/stock-por-silo.funcion';
+import {
+  BloqueConsumo,
+  FilaConsumo,
+  MENSAJE_ITEM_REQUERIDO_EN_FILA,
+  MENSAJE_ITEM_REQUERIDO_EN_PIE,
+  filasConCantidadSinItem,
+  filaTieneCantidadSinItem,
+  mensajeCantidadSinItem
+} from '../../../../shared/utils/inventario/consumo-sin-item.funcion';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { HuevoFilaFija, HuevoGrupoFilasFijas, HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
@@ -731,6 +740,46 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return h || m;
   }
 
+  // ================== CANTIDAD SIN ÍTEM ==================
+  // Una fila con cantidad y sin ítem se descartaba en silencio al armar el request (sin producto no hay
+  // id que descontar): el registro se guardaba sin ese consumo. La regla vive en `consumo-sin-item.funcion`.
+
+  /** Textos del aviso (una sola fuente para las dos plantillas y el toast). */
+  readonly textoItemRequerido = MENSAJE_ITEM_REQUERIDO_EN_FILA;
+  readonly textoItemRequeridoPie = MENSAJE_ITEM_REQUERIDO_EN_PIE;
+
+  /** Valores de una fila del formulario para la regla «cantidad ⇒ ítem». */
+  private filaConsumo(control: AbstractControl | null | undefined): FilaConsumo | null {
+    if (!control) return null;
+    return {
+      catalogItemId: control.get('catalogItemId')?.value,
+      cantidad: control.get('cantidad')?.value,
+      // `dirty` solo lo enciende el operario al tocar la fila; poblar el formulario no lo enciende.
+      editadaPorElOperario: control.dirty
+    };
+  }
+
+  /** True si esta fila tiene cantidad y le falta el ítem: aviso en línea y borde inválido. */
+  filaSinItemConCantidad(itemGroup: AbstractControl | null | undefined): boolean {
+    return filaTieneCantidadSinItem(this.filaConsumo(itemGroup));
+  }
+
+  /** Bloques que el operario ve. Machos no cuenta cuando su bloque está oculto: no podría corregirlo. */
+  private bloquesConsumo(): BloqueConsumo[] {
+    const bloques: BloqueConsumo[] = [
+      { nombre: 'Hembras', filas: this.itemsHembrasArray.controls.map(c => this.filaConsumo(c)) }
+    ];
+    if (!this.consumoAlimentoSoloHembras) {
+      bloques.push({ nombre: 'Machos', filas: this.itemsMachosArray.controls.map(c => this.filaConsumo(c)) });
+    }
+    return bloques;
+  }
+
+  /** Bloquea guardar mientras alguna fila tenga cantidad y no ítem. Devuelve un boolean: CD-safe. */
+  get hayCantidadSinItem(): boolean {
+    return filasConCantidadSinItem(this.bloquesConsumo()).length > 0;
+  }
+
   getItemDisplayText(item: CatalogItemExtended, excludeControl: AbstractControl | null = null): string {
     const cantidad = this.getCantidadDisponibleAjustada(item.id ?? undefined, excludeControl);
     if (cantidad) return `${item.codigo} — ${item.nombre} (Disp.: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
@@ -1386,6 +1435,13 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   onSave(): void {
+    // Cantidad sin ítem: más abajo esa fila se descarta y el registro se guardaría SIN el consumo ni la
+    // salida de inventario. El botón ya lo impide; esto cubre cualquier otro camino hasta aquí.
+    const sinItem = filasConCantidadSinItem(this.bloquesConsumo());
+    if (sinItem.length > 0) {
+      this.toast.error(mensajeCantidadSinItem(sinItem), 'Consumo sin ítem');
+      return;
+    }
     // Clasificación de huevos por ítems (solo con el flag activo): mensajes específicos por Toast.
     if (!this.validarHuevoItems()) return;
     // Con silos, ninguna fila con cantidad puede quedar sin ubicación: el backend la rechazaría

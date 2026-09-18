@@ -37,6 +37,15 @@ import {
   itemsConStockEnSilo,
   SaldoItem
 } from '../../../../shared/utils/inventario/stock-por-silo.funcion';
+import {
+  BloqueConsumo,
+  FilaConsumo,
+  MENSAJE_ITEM_REQUERIDO_EN_FILA,
+  MENSAJE_ITEM_REQUERIDO_EN_PIE,
+  filasConCantidadSinItem,
+  filaTieneCantidadSinItem,
+  mensajeCantidadSinItem
+} from '../../../../shared/utils/inventario/consumo-sin-item.funcion';
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
 import { semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
@@ -1137,6 +1146,50 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const m = this.itemsMachosArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
     const g = this.itemsGeneralesArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
     return h || m || g;
+  }
+
+  // ================== CANTIDAD SIN ÍTEM ==================
+  // Una fila con cantidad y sin ítem se descartaba en silencio al armar el request (sin producto no hay
+  // id que descontar): el registro se guardaba sin ese consumo. La regla vive en `consumo-sin-item.funcion`.
+
+  /** Textos del aviso (una sola fuente para la plantilla y el toast). */
+  readonly textoItemRequerido = MENSAJE_ITEM_REQUERIDO_EN_FILA;
+  readonly textoItemRequeridoPie = MENSAJE_ITEM_REQUERIDO_EN_PIE;
+
+  /** Valores de una fila del formulario para la regla «cantidad ⇒ ítem». */
+  private filaConsumo(control: AbstractControl | null | undefined): FilaConsumo | null {
+    if (!control) return null;
+    return {
+      catalogItemId: control.get('catalogItemId')?.value,
+      cantidad: control.get('cantidad')?.value,
+      // `dirty` solo lo enciende el operario al tocar la fila; poblar el formulario no lo enciende.
+      editadaPorElOperario: control.dirty
+    };
+  }
+
+  /** True si esta fila tiene cantidad y le falta el ítem: aviso en línea y borde inválido. */
+  filaSinItemConCantidad(itemGroup: AbstractControl | null | undefined): boolean {
+    return filaTieneCantidadSinItem(this.filaConsumo(itemGroup));
+  }
+
+  /**
+   * Bloques que el operario ve. Machos no cuenta cuando su bloque está oculto (no podría corregirlo);
+   * los generales solo existen al editar un registro que ya los traía.
+   */
+  private bloquesConsumo(): BloqueConsumo[] {
+    const bloques: BloqueConsumo[] = [
+      { nombre: 'Hembras', filas: this.itemsHembrasArray.controls.map(c => this.filaConsumo(c)) }
+    ];
+    if (!this.consumoAlimentoSoloHembras) {
+      bloques.push({ nombre: 'Machos', filas: this.itemsMachosArray.controls.map(c => this.filaConsumo(c)) });
+    }
+    bloques.push({ nombre: 'Ítems generales', filas: this.itemsGeneralesArray.controls.map(c => this.filaConsumo(c)) });
+    return bloques;
+  }
+
+  /** Bloquea guardar mientras alguna fila tenga cantidad y no ítem. Devuelve un boolean: CD-safe. */
+  get hayCantidadSinItem(): boolean {
+    return filasConCantidadSinItem(this.bloquesConsumo()).length > 0;
   }
 
   get camposCalculoBloqueadosEnEdicion(): boolean {
@@ -2535,6 +2588,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     if (!lote || !lote.granjaId) {
       this.toast.error('No se pudo obtener la granja del lote seleccionado');
+      return;
+    }
+
+    // Cantidad sin ítem: más abajo esa fila se descarta y el registro se guardaría SIN el consumo ni la
+    // salida de inventario. El botón ya lo impide; esto cubre cualquier otro camino hasta aquí.
+    const sinItem = filasConCantidadSinItem(this.bloquesConsumo());
+    if (sinItem.length > 0) {
+      this.levanteTab = 'general';
+      this.toast.error(mensajeCantidadSinItem(sinItem), 'Consumo sin ítem');
       return;
     }
 

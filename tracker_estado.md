@@ -8812,13 +8812,30 @@ Solo frontend; sin migración, sin flag, sin backend.
 
 - [x] E1. Causa raíz medida (código + registro #676 en la BD local + búsqueda de movimientos de inventario).
 - [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_cantidad_sin_item_obligatorio_plan.md`.
-- [ ] F1. Función pura `shared/utils/inventario/consumo-sin-item.funcion.ts` + spec Jasmine.
-- [ ] F2. Producción (`modal-seguimiento-diario`): aviso en línea + borde inválido, botón deshabilitado, aviso en
-      el pie y guarda con toast en `onSave()`.
-- [ ] F3. Levante (`modal-create-edit`): lo mismo en Hembras, Machos e Ítems generales.
-- [ ] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<spec>` verde.
-- [ ] V2. `yarn build` (front): 0 errores.
-- [ ] V3. Smoke en navegador: Producción y Levante, alta y edición; excepción del registro con consumo escalar
-      heredado; abrir/cerrar el modal dos veces.
-- [ ] V4. Sin procesos huérfanos (backend :5002 y front :4200 detenidos, puertos libres, sesión de smoke limpia).
+- [x] F1. Función pura `shared/utils/inventario/consumo-sin-item.funcion.ts` + spec Jasmine (20 casos).
+- [x] F2. Producción (`modal-seguimiento-diario`): aviso en línea + borde inválido, botón deshabilitado, aviso en
+      el pie y guarda con toast en `onSave()`. Además `:host .ux-hint.text-danger` en su SCSS: `.ux-hint` gris le
+      ganaba a `text-danger` y los avisos de error de ese modal (silo, stock superado, este) se veían grises.
+- [x] F3. Levante (`modal-create-edit`): lo mismo en Hembras, Machos e Ítems generales (+ vuelve a la pestaña
+      General si el aviso salta desde otra).
+- [x] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<spec>`: **20/20 SUCCESS**.
+- [x] V2. `yarn build` (front): **0 errores, 0 warnings** (2 veces: antes y después del ajuste de SCSS).
+- [x] V3. Smoke en navegador (back :5002 + front :4200 locales, BD local, empresa 6 = Santa Reyes, flag `parcial`
+      ON, silos ON, sesión minteada). Producción: registro #676 (el del ticket) tecleando 1200 sin ítem ⇒ borde
+      inválido + aviso rojo en línea + aviso en el pie (visible también desde la pestaña Huevos) + botón
+      «Actualizar» deshabilitado; con ítem ⇒ limpio (el tope de stock pre-existente sigue mandando: 1200 > 372 kg);
+      cantidad 0 ⇒ guarda como antes (flag `parcial`); quitar el ítem con cantidad ⇒ vuelve a bloquear; alta
+      (Nuevo registro) idem; cerrar/reabrir ⇒ estado limpio; registro heredado (consumo escalar sin ítem) sin
+      tocar ⇒ NO bloquea y `onSave` conserva el escalar (`consumoH: 1200`, sin ítems), tocado ⇒ bloquea. Levante
+      (lote 217A): alta con 500 sin ítem ⇒ igual; edición de un registro con ítem: al abrir no bloquea, vaciar el
+      ítem ⇒ bloquea; Machos (config sin flags) e Ítems generales ⇒ bloquean; Machos oculto (`soloHembras`) ⇒ no
+      bloquea; toast plural correcto. Consola: 0 errores, sin NG0100/NG0103.
+      ⚠️ Incidente mío en el smoke: un `cmp.onSave()` programático emitió `save` y el padre hizo un PUT REAL del
+      #676 en la BD local (mortalidad 3, consumo 1200). Revertido por la propia app (mortalidad 0, consumo 0, aves
+      del LPP 20 de nuevo en 2860), auditoría del #676 (`updated_at`/`updated_by`) restaurada por SQL y verificada
+      contra lo capturado al inicio; sin movimientos ni reservas de inventario. Único residuo: `updated_at` del
+      LPP 20. Desde ahí `save.emit` quedó anulado en cada instancia antes de abrir nada.
+- [x] V4. Sin procesos huérfanos: backend :5002 y front :4200 detenidos (`preview_stop`), 5002/4200/9876 libres,
+      sin dotnet/node propios vivos; borradas la fila de `sesiones_activas` y el `user_farms` que sembré para
+      el smoke; token borrado del scratchpad.
 - [ ] C1. Commit (sin push ni deploy: requieren OK explícito).

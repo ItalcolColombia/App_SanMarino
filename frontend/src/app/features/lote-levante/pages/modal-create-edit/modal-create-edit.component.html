@@ -161,7 +161,9 @@
                         <div class="form-field">
                           <label [for]="'f-item-h-' + i">Ítem</label>
                           <div class="ux-select">
-                            <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                            <select [id]="'f-item-h-' + i" formControlName="catalogItemId"
+                              [class.is-invalid]="filaSinItemConCantidad($any(itemH))"
+                              [attr.aria-invalid]="filaSinItemConCantidad($any(itemH)) ? 'true' : null">
                               <option [ngValue]="null">— Seleccione —</option>
                               @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)), $any(itemH)); track a) {
                                 <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemH)) }}</option>
@@ -172,6 +174,9 @@
                             <small class="ux-hint text-success">
                               Stock disponible: {{ getCantidadDisponibleAjustada(itemH.get('catalogItemId')?.value, $any(itemH))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemH.get('catalogItemId')?.value, $any(itemH))?.unit }}
                             </small>
+                          }
+                          @if (filaSinItemConCantidad($any(itemH))) {
+                            <small class="ux-hint text-danger" role="alert">{{ textoItemRequerido }}</small>
                           }
                         </div>
                       </div>
@@ -248,7 +253,9 @@
                         <div class="form-field">
                           <label [for]="'f-item-m-' + j">Ítem</label>
                           <div class="ux-select">
-                            <select [id]="'f-item-m-' + j" formControlName="catalogItemId">
+                            <select [id]="'f-item-m-' + j" formControlName="catalogItemId"
+                              [class.is-invalid]="filaSinItemConCantidad($any(itemM))"
+                              [attr.aria-invalid]="filaSinItemConCantidad($any(itemM)) ? 'true' : null">
                               <option [ngValue]="null">— Seleccione —</option>
                               @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroMacho($any(itemM)), $any(itemM)); track a) {
                                 <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemM)) }}</option>
@@ -259,6 +266,9 @@
                             <small class="ux-hint text-success">
                               Stock disponible: {{ getCantidadDisponibleAjustada(itemM.get('catalogItemId')?.value, $any(itemM))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemM.get('catalogItemId')?.value, $any(itemM))?.unit }}
                             </small>
+                          }
+                          @if (filaSinItemConCantidad($any(itemM))) {
+                            <small class="ux-hint text-danger" role="alert">{{ textoItemRequerido }}</small>
                           }
                         </div>
                       </div>
@@ -344,7 +354,9 @@
                           <div class="form-field">
                             <label [for]="'f-item-g-' + k">Ítem</label>
                             <div class="ux-select">
-                              <select [id]="'f-item-g-' + k" formControlName="catalogItemId">
+                              <select [id]="'f-item-g-' + k" formControlName="catalogItemId"
+                                [class.is-invalid]="filaSinItemConCantidad($any(itemG))"
+                                [attr.aria-invalid]="filaSinItemConCantidad($any(itemG)) ? 'true' : null">
                                 <option [ngValue]="null">— Seleccione —</option>
                                 @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroGeneral($any(itemG)), $any(itemG)); track a) {
                                   <option [ngValue]="a.id">
@@ -360,6 +372,9 @@
                                   • Máx. editar: {{ getMaxPermitidoKg(itemG.get('catalogItemId')?.value, $any(itemG)) | number:'1.0-2' }} kg
                                 }
                               </small>
+                            }
+                            @if (filaSinItemConCantidad($any(itemG))) {
+                              <small class="ux-hint text-danger" role="alert">{{ textoItemRequerido }}</small>
                             }
                           </div>
                           <div class="form-field">
@@ -746,8 +761,11 @@
               }
             </div>
             <footer class="ux-modal__footer">
+              @if (hayCantidadSinItem) {
+                <small class="ux-hint text-danger" role="alert" style="margin-right: auto; align-self: center;">{{ textoItemRequeridoPie }}</small>
+              }
               <button type="button" class="btn btn--ghost" (click)="onClose()" [disabled]="loading || loadingRecord">Cancelar</button>
-              <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida">
+              <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida || hayCantidadSinItem">
                 @if (loadingRecord) {
                   Cargando registro…
                 }

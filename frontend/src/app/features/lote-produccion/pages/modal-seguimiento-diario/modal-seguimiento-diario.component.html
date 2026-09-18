@@ -119,7 +119,9 @@
                     @if (itemGroup.get('tipoItem')?.value) {
                       <div class="form-field">
                         <label [for]="'f-item-h-' + i">Ítem *</label>
-                        <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                        <select [id]="'f-item-h-' + i" formControlName="catalogItemId"
+                          [class.is-invalid]="filaSinItemConCantidad($any(itemGroup))"
+                          [attr.aria-invalid]="filaSinItemConCantidad($any(itemGroup)) ? 'true' : null">
                           <option [ngValue]="null">— Seleccione —</option>
                           @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value, $any(itemGroup)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
@@ -129,6 +131,9 @@
                           <small class="ux-hint text-success">
                             Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
+                        }
+                        @if (filaSinItemConCantidad($any(itemGroup))) {
+                          <small class="ux-hint text-danger" role="alert">{{ textoItemRequerido }}</small>
                         }
                       </div>
                     }
@@ -204,7 +209,9 @@
                     @if (itemGroup.get('tipoItem')?.value) {
                       <div class="form-field">
                         <label [for]="'f-item-m-' + i">Ítem *</label>
-                        <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
+                        <select [id]="'f-item-m-' + i" formControlName="catalogItemId"
+                          [class.is-invalid]="filaSinItemConCantidad($any(itemGroup))"
+                          [attr.aria-invalid]="filaSinItemConCantidad($any(itemGroup)) ? 'true' : null">
                           <option [ngValue]="null">— Seleccione —</option>
                           @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value, $any(itemGroup)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
@@ -214,6 +221,9 @@
                           <small class="ux-hint text-success">
                             Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
+                        }
+                        @if (filaSinItemConCantidad($any(itemGroup))) {
+                          <small class="ux-hint text-danger" role="alert">{{ textoItemRequerido }}</small>
                         }
                       </div>
                     }
@@ -578,8 +588,11 @@
           </section>
         </div>
         <footer class="ux-modal__footer">
+          @if (hayCantidadSinItem) {
+            <small class="ux-hint text-danger" role="alert" style="margin-right: auto; align-self: center;">{{ textoItemRequeridoPie }}</small>
+          }
           <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
-          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid || hasCantidadExcedida">
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid || hasCantidadExcedida || hayCantidadSinItem">
             {{ loading ? 'Guardando…' : (editingSeguimiento ? 'Actualizar' : 'Guardar Seguimiento') }}
           </button>
         </footer>
