@@ -8967,23 +8967,27 @@ edición). Migración data-only, sin DDL ni cambios al snapshot. Sin flag nuevo:
 
 - [x] P1. Plan escrito en `fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md` (medición, decisiones D1–D8, casos de prueba).
 - [x] P2. Bloque agregado al final de este tracker (la otra sesión con trabajo abierto queda intacta).
-- [ ] B1. `MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta` (pura: trim, vacío ⇒ null, > 200 ⇒ error).
-- [ ] B2. DTO lectura `MovimientoPolloEngordeDto` (+`PlantaDestino`, `NucleoOrigenId`, `GalponOrigenId`) y `PlantaDestino` en `CreateVentaGranjaDespachoDto` / `CreateVentaPanamaDespachoDto`.
-- [ ] B3. Servicios: `CreateAsync`/`UpdateAsync`/`ToDto`, `CreateVentaGranjaDespachoAsync` y `CreateVentaPanamaDespachoAsync` guardan y devuelven la empresa.
-- [ ] B4. Migración data-only `20260919120000_SeedListaMaestraEmpresaVentaEngorde` (+ Designer clonado del snapshot; snapshot intacto).
-- [ ] B5. `backend/sql/verificar_empresa_venta_engorde.sql` (solo lectura: listas sembradas y ventas por empresa).
-- [ ] T1. Tests xUnit de `NormalizarEmpresaVenta`.
-- [ ] F1. `empresa-venta-engorde.service.ts` + `funciones/empresa-venta.funcion.ts` (+ spec).
-- [ ] F2. Modelos/DTO/mapeadores del front (`plantaDestino`, `nucleoOrigenId`, `galponOrigenId`).
-- [ ] F3. Modal Ecuador (`modal-movimiento-pollo-engorde`): select «Empresa de venta», núcleo en los títulos de galpón, detalle de solo lectura.
-- [ ] F4. Modal Panamá (`modal-venta-panama`): select «Empresa de venta» y núcleo en el galpón.
-- [ ] F5. Lista: paso «Núcleo» en la cascada + corrección de `onNucleoChange` (no recargaba los movimientos).
-- [ ] F6. Lista: filtro «Empresa de venta», empresa en la columna Destino, núcleo/galpón en Origen y sub-detalle.
-- [ ] F7. Excel de ventas con «Núcleo origen», «Galpón origen» y «Empresa de venta».
-- [ ] V1. `dotnet build` de la solución (0 errores, sin advertencias nuevas) y `dotnet test`.
-- [ ] V2. Migración: dos pasadas dentro de `BEGIN…ROLLBACK` sobre la copia local (2.ª pasada = 0 filas).
-- [ ] V3. `yarn build` (0 errores) y `ng test` de los specs tocados.
-- [ ] V4. Smoke API con backend aislado sobre un clon (Panamá y Ecuador: crea con empresa, sin empresa, > 200, PUT).
-- [ ] V5. Smoke UI (cascada con Núcleo, modal con Planta preseleccionada, filtro, Excel; empresa sin lista = UI idéntica).
-- [ ] V6. Sin procesos huérfanos (puertos 5002/5501/4200/9876 libres, clon eliminado, sin dotnet/ng vivos propios).
-- [ ] C1. Commit acotado a mis archivos (sin push ni deploy: requieren OK explícito).
+- [x] B1. `MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta` (pura: trim, vacío ⇒ null, > 200 ⇒ error).
+- [x] B2. DTO lectura `MovimientoPolloEngordeDto` (+`PlantaDestino`, `NucleoOrigenId`, `GalponOrigenId`) y `PlantaDestino` en `CreateVentaGranjaDespachoDto` / `CreateVentaPanamaDespachoDto`.
+- [x] B3. Servicios: `CreateAsync`/`UpdateAsync`/`ToDto`, `CreateVentaGranjaDespachoAsync` y `CreateVentaPanamaDespachoAsync` guardan y devuelven la empresa.
+- [x] B4. Migración data-only `20260919120000_SeedListaMaestraEmpresaVentaEngorde` (+ Designer clonado del snapshot; snapshot intacto). Comparte el prefijo `20260919120000` con la de otra sesión (`…_ValidarPendientesSinDobleValidacionProduccionColombia`): ids completos distintos, orden determinista, sin gate que lo impida.
+- [x] B5. `backend/sql/verificar_empresa_venta_engorde.sql` (solo lectura: listas sembradas, duplicados, ventas por empresa y valores fuera de la lista).
+- [x] T1. Tests xUnit `EmpresaVentaEngordeCalculosTests` (15: normalización, largo 200/201, contrato de los DTO).
+- [x] F1. `empresa-venta-engorde.service.ts` + `funciones/empresa-venta.funcion.ts` (+ spec de 15 casos).
+- [x] F2. Modelos/DTO/mapeadores del front (`plantaDestino`, `nucleoOrigenId`, `galponOrigenId`).
+- [x] F3. Modal Ecuador (`modal-movimiento-pollo-engorde`): select «Empresa de venta» (Planta preseleccionada, obligatoria al crear), núcleo en los títulos de galpón, detalle de solo lectura.
+- [x] F4. Modal Panamá (`modal-venta-panama`): select «Empresa de venta» y «Núcleo X · Galpón» en el desplegable de galpones.
+- [x] F5. Lista: paso «Núcleo» en la cascada + corrección de `onNucleoChange` (no recargaba los movimientos: probado por red, la búsqueda sale con `nucleoOrigenId`).
+- [x] F6. Lista: filtro «Empresa de venta» (lista ∪ valores presentes + «Sin empresa»), empresa en la columna Destino («Varias» si el despacho mezcla), núcleo/galpón en Origen y sub-detalle.
+- [x] F7. Excel de ventas con «Núcleo origen», «Galpón origen» y «Empresa de venta» (y los filtros en el subtítulo).
+- [x] V1. `dotnet build ZooSanMarino.sln`: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.331/4.331 (+15) y Domain.Tests 1/1.
+- [x] V2. Migración: SQL literal del `Up()` en `BEGIN…ROLLBACK` sobre la copia local, dos pasadas (1.ª: +5 listas +5 opciones; 2.ª: sin cambios), lista con opciones propias intacta, `Down` solo borra esa key, base como estaba. Además EF la descubrió y la aplicó sola al arrancar el backend sobre un clon.
+- [x] V3. `yarn build` (producción) sin errores ni advertencias y `ng test` del spec nuevo 15/15.
+- [x] V4. Smoke API con backend aislado sobre un clon (17/17): Ecuador y Panamá crean con empresa (recortada), sin empresa y con blancos ⇒ null, 201 caracteres ⇒ 400, `PUT` cambia / no toca / limpia con `""`, `search` la devuelve, `byKey` resuelve la lista.
+- [x] V5. Smoke UI en el navegador contra ese backend: cascada de 4 pasos y recarga por núcleo, filtro (Planta / Sin empresa / valor histórico), «Varias», Excel, modal Ecuador y modal Panamá con Planta preseleccionada y ventas guardadas desde el formulario (`planta_destino='Planta'` en BD), edición con valor histórico, empresa sin lista (modal sin campo y guarda sin empresa) y empresa 1 sin lista ni datos (filtro no se dibuja). Detalle cosmético corregido («N1 · Seleccionado»).
+- [x] V6. Sin procesos huérfanos: backend :5002 y `ng serve` :4200 detenidos, clon `smoke_venta` eliminado, tokens/content root/sesiones borrados del scratchpad, base compartida intacta (398 migraciones, 0 listas, 0 filas de smoke).
+- [x] C1. Commits acotados a mis archivos (`3a95295` backend, `f534f2f` front, `26cbc7c` plan), desarrollados y compilados en un worktree aislado y bajados a `main` por fast-forward; el trabajo sin commitear de la otra sesión quedó idéntico. Sin push ni deploy: requieren OK explícito (la migración corre sola en el deploy).
+
+Pendiente del usuario (no es código): OK para desplegar; después del deploy correr `backend/sql/verificar_empresa_venta_engorde.sql`
+y cargar en Config → Listas maestras («Empresa de venta (pollo engorde)») las empresas reales de cada país además de «Planta».
+Una empresa NUEVA no trae la lista hasta que se cree con la key `venta_pollo_engorde_empresa` (o con otra migración seed).
