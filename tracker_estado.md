@@ -8952,3 +8952,38 @@ con reserva (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados) y 1 r
 - [x] C1. Commit acotado a mis archivos (`git log --grep="validado nace"`; sin push ni deploy: requieren OK explícito; la migración corre sola en el deploy).
 
 Pendiente del usuario (no es código): decidir qué hacer con el limbo de Santa Reyes que dejó apagar el flag con pendientes —6 registros (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados), 1 reserva huérfana (#682: 982 kg) y un Ingreso de 982 kg sin Consumo previo sobre el ítem 373— (el plan lo detalla, con el script para medirlo); y si se implementa la propuesta de un guardia al APAGAR el flag con reservas ACTIVAS. OK para desplegar (la migración corre sola al arrancar).
+
+---
+
+## VENTA-ENGORDE-EMPRESA — Núcleo + «Empresa de venta» parametrizable en la venta de pollo engorde, Panamá y Ecuador (19-sep-2026)
+
+Plan: [venta_engorde_empresa_nucleo_plan.md](fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md)
+
+Pedido: (1) agregar el campo **Núcleo** en el módulo de venta de pollo engorde; (2) en el modal de venta, un campo nuevo
+**Empresa** (a quién se vendió/envió) **parametrizable desde Listas Maestras**, sembrado por migración con **Planta**;
+(3) que quede guardado; (4) poder **filtrar la tabla por la empresa de venta**. Se reutiliza `planta_destino` (ya existe y
+ya lo llena la carga masiva) guardando el TEXTO de la opción (las opciones de una lista maestra cambian de id en cada
+edición). Migración data-only, sin DDL ni cambios al snapshot. Sin flag nuevo: la señal es que la lista tenga opciones.
+
+- [x] P1. Plan escrito en `fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md` (medición, decisiones D1–D8, casos de prueba).
+- [x] P2. Bloque agregado al final de este tracker (la otra sesión con trabajo abierto queda intacta).
+- [ ] B1. `MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta` (pura: trim, vacío ⇒ null, > 200 ⇒ error).
+- [ ] B2. DTO lectura `MovimientoPolloEngordeDto` (+`PlantaDestino`, `NucleoOrigenId`, `GalponOrigenId`) y `PlantaDestino` en `CreateVentaGranjaDespachoDto` / `CreateVentaPanamaDespachoDto`.
+- [ ] B3. Servicios: `CreateAsync`/`UpdateAsync`/`ToDto`, `CreateVentaGranjaDespachoAsync` y `CreateVentaPanamaDespachoAsync` guardan y devuelven la empresa.
+- [ ] B4. Migración data-only `20260919120000_SeedListaMaestraEmpresaVentaEngorde` (+ Designer clonado del snapshot; snapshot intacto).
+- [ ] B5. `backend/sql/verificar_empresa_venta_engorde.sql` (solo lectura: listas sembradas y ventas por empresa).
+- [ ] T1. Tests xUnit de `NormalizarEmpresaVenta`.
+- [ ] F1. `empresa-venta-engorde.service.ts` + `funciones/empresa-venta.funcion.ts` (+ spec).
+- [ ] F2. Modelos/DTO/mapeadores del front (`plantaDestino`, `nucleoOrigenId`, `galponOrigenId`).
+- [ ] F3. Modal Ecuador (`modal-movimiento-pollo-engorde`): select «Empresa de venta», núcleo en los títulos de galpón, detalle de solo lectura.
+- [ ] F4. Modal Panamá (`modal-venta-panama`): select «Empresa de venta» y núcleo en el galpón.
+- [ ] F5. Lista: paso «Núcleo» en la cascada + corrección de `onNucleoChange` (no recargaba los movimientos).
+- [ ] F6. Lista: filtro «Empresa de venta», empresa en la columna Destino, núcleo/galpón en Origen y sub-detalle.
+- [ ] F7. Excel de ventas con «Núcleo origen», «Galpón origen» y «Empresa de venta».
+- [ ] V1. `dotnet build` de la solución (0 errores, sin advertencias nuevas) y `dotnet test`.
+- [ ] V2. Migración: dos pasadas dentro de `BEGIN…ROLLBACK` sobre la copia local (2.ª pasada = 0 filas).
+- [ ] V3. `yarn build` (0 errores) y `ng test` de los specs tocados.
+- [ ] V4. Smoke API con backend aislado sobre un clon (Panamá y Ecuador: crea con empresa, sin empresa, > 200, PUT).
+- [ ] V5. Smoke UI (cascada con Núcleo, modal con Planta preseleccionada, filtro, Excel; empresa sin lista = UI idéntica).
+- [ ] V6. Sin procesos huérfanos (puertos 5002/5501/4200/9876 libres, clon eliminado, sin dotnet/ng vivos propios).
+- [ ] C1. Commit acotado a mis archivos (sin push ni deploy: requieren OK explícito).
