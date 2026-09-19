@@ -109,3 +109,33 @@ Smoke (backend aislado sobre un clon de la copia local, nunca sobre la BD compar
   presentes en las filas).
 - **Build de Infrastructure** tarda decenas de minutos (754 Designers): se lanza una sola vez, en segundo plano.
 - Migración data-only: no hay DDL, no toca el snapshot ni el historial fuera de su propia fila.
+
+## Validación realizada (19-sep-2026)
+
+- **Backend:** `dotnet build ZooSanMarino.sln` → 0 errores, 0 advertencias. `dotnet test` → Application.Tests 4.331/4.331
+  (4.316 previos + 15 nuevos de `EmpresaVentaEngordeCalculosTests`), Domain.Tests 1/1.
+- **Migración:** SQL literal del `Up()` corrido dos veces en `BEGIN…ROLLBACK` sobre la copia local (1.ª pasada +5 listas
+  +5 opciones, 2.ª pasada sin cambios; lista con opciones propias intacta; `Down` borra solo esa key; base intacta tras el
+  `ROLLBACK`). Además EF la **descubrió y aplicó sola al arrancar** el backend sobre un clon (`__EFMigrationsHistory` +
+  5 listas), igual que en el deploy; la base compartida no se tocó.
+- **API (backend aislado sobre el clon, 17/17):** `GET MasterList/byKey` resuelve la lista por empresa/país; venta
+  Ecuador y Panamá guardan `plantaDestino` recortada y devuelven `nucleoOrigenId`/`galponOrigenId`; sin empresa y con
+  blancos → null; 201 caracteres → 400 con mensaje; `PUT` cambia / no toca / limpia con `""`; `search` devuelve la empresa.
+- **UI (Ecuador y Panamá, navegador contra el backend aislado):** cascada Granja → Núcleo → Galpón → Lote; el paso Núcleo
+  ahora **sí recarga** (`search` con `nucleoOrigenId`); Origen con «Núcleo · Galpón · Lote» y sub-detalle del despacho;
+  filtro «Empresa de venta» (Planta / Sin empresa / valor histórico fuera de la lista) y «Varias» en despachos mixtos;
+  modal Ecuador y modal Panamá con «Empresa de venta \*» y **Planta preseleccionada**, núcleo en galpones; ventas
+  registradas desde el formulario guardaron `planta_destino='Planta'` (verificado en BD); edición con valor histórico;
+  Excel con «Núcleo origen», «Galpón origen», «Empresa de venta» y los filtros en el subtítulo.
+- **Empresa sin lista:** modal Panamá sin campo, sin validador y guarda sin empresa (idéntico al comportamiento previo);
+  empresa 1 (Colombia, sin lista y sin datos) → el filtro de empresa no se dibuja (solo Buscar/Tipo/Estado).
+
+### Notas de la implementación
+
+- La migración lleva el prefijo `20260919120000`, el mismo que otra sesión usó para `…_ValidarPendientesSinDobleValidacionProduccionColombia`
+  (sin commitear al momento de escribir esto). No hay conflicto: los ids completos son distintos, ninguna gate exige
+  timestamps únicos y el orden (comparación ordinal del id completo) es determinista; las dos son independientes.
+- Solo se agregó el `id` de núcleo/galpón al DTO de lectura; la carga masiva de ventas ya escribía `planta_destino`
+  («Planta Destino»), así que sus valores aparecen en el filtro sin tocar el Excel.
+- El paso «Núcleo» se dibuja para todas las empresas que usan esta pantalla (es la misma pantalla); el campo/filtro de
+  empresa solo aparece si la empresa tiene la lista (o filas con empresa).
