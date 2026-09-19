@@ -30,6 +30,9 @@ public partial class MovimientoPolloEngordeService
         if (idsLote.Count != idsLote.Distinct().Count())
             throw new InvalidOperationException("No puede repetirse el mismo lote en más de una línea.");
 
+        // «Empresa de venta» del despacho: se valida antes de abrir la transacción y todas las líneas comparten el valor.
+        var empresaVenta = MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta(dto.PlantaDestino);
+
         // Gate B8 — ningún lote liquidado puede entrar en el despacho.
         await ValidarLotesNoLiquidadosAsync(idsLote.Select(i => (int?)i));
 
@@ -105,6 +108,7 @@ public partial class MovimientoPolloEngordeService
                     GalponOrigenId = linea.GalponOrigenId,
                     LoteAveEngordeDestinoId = null,
                     LoteReproductoraAveEngordeDestinoId = null,
+                    PlantaDestino = empresaVenta,
                     CantidadHembras = linea.CantidadHembras,
                     CantidadMachos = linea.CantidadMachos,
                     CantidadMixtas = linea.CantidadMixtas,

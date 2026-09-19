@@ -143,4 +143,37 @@ public static class MovimientoPolloEngordeCalculos
             string.IsNullOrWhiteSpace(explicita.NucleoId) ? lote.NucleoId : explicita.NucleoId,
             string.IsNullOrWhiteSpace(explicita.GalponId) ? lote.GalponId : explicita.GalponId);
     }
+
+    /// <summary>
+    /// Largo máximo de la «empresa de venta»: es el de la columna <c>movimiento_pollo_engorde.planta_destino</c>
+    /// (<c>varchar(200)</c>).
+    /// </summary>
+    public const int EmpresaVentaMaxLen = 200;
+
+    /// <summary>
+    /// Normaliza la «empresa de venta» (a quién se vendió o se envió el despacho), que se guarda como TEXTO en
+    /// <c>movimiento_pollo_engorde.planta_destino</c>: recorta los espacios y deja <c>null</c> cuando llega vacía o
+    /// solo con blancos (venta sin empresa, el comportamiento de siempre).
+    /// <para>
+    /// <b>Por qué texto y no el id de la opción:</b> las opciones vienen de una lista maestra
+    /// (<c>venta_pollo_engorde_empresa</c>) y <c>MasterListService.UpdateAsync</c> las borra y recrea al guardar la
+    /// lista, así que sus ids cambian en cada edición; el texto es la identidad estable (mismo criterio de
+    /// <c>traslado_de_huevos_planta_destino</c>).
+    /// </para>
+    /// <para>
+    /// <b>No valida pertenencia a la lista</b> a propósito: la lista es editable y la carga masiva de ventas escribe
+    /// texto libre en la misma columna, así que exigirla rompería ventas históricas y su edición. Solo protege el
+    /// largo, para responder un 400 legible en vez de un error de base de datos.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">El texto (ya recortado) supera <see cref="EmpresaVentaMaxLen"/>.</exception>
+    public static string? NormalizarEmpresaVenta(string? empresa)
+    {
+        var texto = empresa?.Trim();
+        if (string.IsNullOrEmpty(texto)) return null;
+        if (texto.Length > EmpresaVentaMaxLen)
+            throw new InvalidOperationException(
+                $"La empresa de venta no puede superar {EmpresaVentaMaxLen} caracteres.");
+        return texto;
+    }
 }

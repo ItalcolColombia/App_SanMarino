@@ -41,6 +41,9 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
         if (idsLote.Count != idsLote.Distinct().Count())
             throw new InvalidOperationException("No puede repetirse el mismo lote en más de una línea.");
 
+        // «Empresa de venta» del despacho: se valida antes de abrir la transacción y todas las líneas comparten el valor.
+        var empresaVenta = MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta(dto.PlantaDestino);
+
         // Gate B8 — ningún lote liquidado puede entrar en el despacho (la copia congelada
         // dejaría de reflejar las ventas). Mismo criterio que la venta por granja.
         var loteCerrado = await _ctx.LoteAveEngorde.AsNoTracking()
@@ -114,6 +117,7 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
                     GranjaOrigenId = l.GranjaOrigenId ?? dto.GranjaOrigenId,
                     NucleoOrigenId = l.NucleoOrigenId,
                     GalponOrigenId = l.GalponOrigenId,
+                    PlantaDestino = empresaVenta,
                     // Split asignado sobre mixtas: se guarda en H/M (reporte) y el stock sale de mixtas.
                     CantidadHembras = l.CantidadHembras,
                     CantidadMachos = l.CantidadMachos,

@@ -45,7 +45,8 @@ public partial class MovimientoPolloEngordeService
             GranjaDestinoId = dto.GranjaDestinoId,
             NucleoDestinoId = dto.NucleoDestinoId,
             GalponDestinoId = dto.GalponDestinoId,
-            PlantaDestino = dto.PlantaDestino,
+            // «Empresa de venta»: texto de la lista maestra `venta_pollo_engorde_empresa` (trim; vacío ⇒ null).
+            PlantaDestino = MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta(dto.PlantaDestino),
             CantidadHembras = dto.CantidadHembras,
             CantidadMachos = dto.CantidadMachos,
             CantidadMixtas = dto.CantidadMixtas,
@@ -285,6 +286,12 @@ public partial class MovimientoPolloEngordeService
         var promedioPesoAve = m.PromedioPesoAve
             ?? (pesoNeto.HasValue && m.TotalAves > 0 ? pesoNeto.Value / m.TotalAves : null);
 
+        // Núcleo/galpón de origen: los que guardó el movimiento; en registros viejos, que no los guardaron, los del
+        // lote de origen (los dos tipos de lote de origen cuelgan de un LoteAveEngorde).
+        var loteAveOrigen = m.LoteAveEngordeOrigen ?? m.LoteReproductoraAveEngordeOrigen?.LoteAveEngorde;
+        var nucleoOrigenId = string.IsNullOrWhiteSpace(m.NucleoOrigenId) ? loteAveOrigen?.NucleoId : m.NucleoOrigenId;
+        var galponOrigenId = string.IsNullOrWhiteSpace(m.GalponOrigenId) ? loteAveOrigen?.GalponId : m.GalponOrigenId;
+
         return new MovimientoPolloEngordeDto(
             m.Id,
             m.NumeroMovimiento,
@@ -333,7 +340,10 @@ public partial class MovimientoPolloEngordeService
             m.PesoTaraReal,
             m.FacturaId,
             m.AvesSobrante,
-            m.EsVentaMixta
+            m.EsVentaMixta,
+            m.PlantaDestino,
+            nucleoOrigenId,
+            galponOrigenId
         );
     }
 
@@ -470,7 +480,8 @@ public partial class MovimientoPolloEngordeService
         if (dto.GranjaDestinoId.HasValue) m.GranjaDestinoId = dto.GranjaDestinoId;
         if (dto.NucleoDestinoId != null) m.NucleoDestinoId = dto.NucleoDestinoId;
         if (dto.GalponDestinoId != null) m.GalponDestinoId = dto.GalponDestinoId;
-        if (dto.PlantaDestino != null) m.PlantaDestino = dto.PlantaDestino;
+        // «Empresa de venta»: enviar vacío la limpia (normaliza a null); no enviar el campo no la toca.
+        if (dto.PlantaDestino != null) m.PlantaDestino = MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta(dto.PlantaDestino);
         if (dto.CantidadHembras.HasValue) m.CantidadHembras = dto.CantidadHembras.Value;
         if (dto.CantidadMachos.HasValue) m.CantidadMachos = dto.CantidadMachos.Value;
         if (dto.CantidadMixtas.HasValue) m.CantidadMixtas = dto.CantidadMixtas.Value;

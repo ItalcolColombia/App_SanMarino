@@ -55,7 +55,14 @@ public record MovimientoPolloEngordeDto(
     Guid? FacturaId = null,
     int AvesSobrante = 0,
     // Venta Panamá: split H/M asignado sobre mixtas (inventario sale de mixtas; reporte muestra el split).
-    bool EsVentaMixta = false
+    bool EsVentaMixta = false,
+    // Empresa de venta / destino del despacho (lista maestra `venta_pollo_engorde_empresa`), guardada como TEXTO en
+    // `planta_destino`. Null en traslados y en ventas anteriores a este campo.
+    string? PlantaDestino = null,
+    // Núcleo y galpón de ORIGEN. Cuando el movimiento no los trae (registros viejos) se completan con los del lote de
+    // origen, así que la tabla puede mostrarlos siempre.
+    string? NucleoOrigenId = null,
+    string? GalponOrigenId = null
 );
 
 /// <summary>
@@ -240,6 +247,11 @@ public sealed class CreateVentaGranjaDespachoDto
     public string? Sellos { get; set; }
     public string? Ayuno { get; set; }
     public string? Conductor { get; set; }
+    /// <summary>
+    /// Empresa de venta / destino del despacho (lista maestra <c>venta_pollo_engorde_empresa</c>). Se guarda como texto
+    /// en <c>planta_destino</c> de cada línea. Opcional: sin valor la venta queda sin empresa, como siempre.
+    /// </summary>
+    public string? PlantaDestino { get; set; }
     public double? PesoBruto { get; set; }
     public double? PesoTara { get; set; }
     /// <summary>Si true, permite que las líneas superen el disponible (sobrante de aves). Parte B / R2.</summary>
