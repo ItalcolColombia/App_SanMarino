@@ -9018,3 +9018,25 @@ Pendiente del usuario (no es código): OK para desplegar `fa301b5` + este commit
 
 ---
 
+## TICKETS-ABRIR-VS-ATENDER — Separar abrir de atender, empresa correcta y alcance EMPRESA/GLOBAL (19-sep-2026)
+
+Plan: [tickets_crear_vs_atender_empresa_global_plan.md](fase_de_desarrollo/tickets_crear_vs_atender_empresa_global_plan.md)
+
+Pedido: al parametrizar tickets en un usuario/rol «pasa a ser resolutor»; Lenin (Santa Reyes) habilitado y sin
+resolutor; Alexander Mejía (Sanmarino) sale «Global»; los globales solo los elige el admin de todas las empresas.
+Diagnóstico medido sobre la copia de prod: 5 causas (pestaña «Tickets» con dos significados opuestos; perfil y
+plantilla guardados en la empresa DEL QUE EDITA —5 de 10 perfiles fuera de su empresa, Lenin incluido—; abrir
+depende de la persona y 3 de 4 usuarios de Santa Reyes + 2 de Panamá no pueden abrir ningún tipo; «Global» =
+país NULL; `api/ticket-perfiles` y `api/tickets/global` sin gate).
+
+- [x] P1. Diagnóstico medido y plan escrito (F1 empresa correcta + gates + datos · F2 abrir por rol · F3 alcance EMPRESA/GLOBAL · F4 `tickets.admin` ≠ global).
+- [ ] D1. Decisiones del usuario: cómo se define «puede abrir» por rol; quién atiende Soporte/Dudas en Santa Reyes y Panamá; rol Costos; F4.
+- [ ] F1. `TicketPerfilEmpresaCalculos` + `TicketPerfilAutorizacionCalculos` (+ tests), service resuelve la empresa del usuario/rol, gates en `ticket-perfiles` y `tickets/global`, migración data-only de corrección, `verificar_perfiles_tickets_empresa.sql`.
+- [ ] F2. `roles.ticket_nivel_creacion` + `TicketNivelEfectivoCalculos` (+ tests de equivalencia), editor con bloques ① Abrir / ② Atender, estado vacío en «Nuevo caso».
+- [ ] F3. `alcance` EMPRESA/GLOBAL + migración (Admin/DESARROLLO → una fila GLOBAL), una sola fórmula de asignable (desplegable, crear, transferir, ver), sin copia de plantilla al asignar roles, siembra de empresa nueva, selector «Esta empresa / Todas las empresas».
+- [ ] F4. (según decisión) alcance de todas las empresas solo con `AdminEmpresas`.
+- [ ] V1. `dotnet build` + `dotnet test`, `yarn build`, gate de SQL por migración.
+- [ ] V2. Migraciones en BEGIN…ROLLBACK sobre la copia (2 pasadas) + verificador antes/después.
+- [ ] V3. Smoke API + UI con backend aislado sobre un clon (Lenin, Diego, Alexander, Costos, 403 de gates, empresa nueva).
+- [ ] V4. Sin procesos huérfanos.
+- [ ] C1. Commits acotados a mis archivos (sin push ni deploy).
