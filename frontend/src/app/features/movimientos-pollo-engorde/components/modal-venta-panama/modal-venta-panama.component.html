@@ -81,6 +81,20 @@
                     <input id="vp-fecha" type="date" formControlName="fechaMovimiento"
                       [attr.min]="fechaMovimientoMin" [max]="fechaMovimientoMax" [title]="fechaMovimientoHint" />
                   </div>
+                  <!-- «Empresa de venta»: a quién se vende o se envía el despacho. Las opciones salen de la lista
+                       maestra venta_pollo_engorde_empresa de la empresa activa (por defecto «Planta»); si la
+                       empresa no la tiene, el campo no se dibuja. -->
+                  @if (mostrarEmpresaVenta) {
+                    <div class="vp-field">
+                      <label for="vp-empresa">Empresa de venta *</label>
+                      <select id="vp-empresa" formControlName="empresaVenta">
+                        <option [ngValue]="null">— Seleccione la empresa —</option>
+                        @for (e of empresasVenta; track e) {
+                          <option [ngValue]="e">{{ e }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
                   <div class="vp-field">
                     <label for="vp-despacho">N.º despacho</label>
                     <input id="vp-despacho" type="text" formControlName="numeroDespacho" />

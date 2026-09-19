@@ -13,6 +13,12 @@ import { exportarTablaExcel } from '../../../shared/utils/excel/exportar-tabla-e
 export interface ExportarVentasExcelMeta {
   granjaNombre: string;
   filtros: string[];
+  /**
+   * Resuelven el nombre de un núcleo / galpón a partir de su id (el DTO solo trae los ids). Sin ellos la celda
+   * lleva el id tal cual, así que la exportación nunca queda vacía por no conocer el catálogo.
+   */
+  nombreNucleo?: (id: string | null | undefined) => string;
+  nombreGalpon?: (id: string | null | undefined) => string;
 }
 
 const HEADERS = [
@@ -25,9 +31,13 @@ const HEADERS = [
   'Tipo',
   'Estado',
   'Granja origen',
+  'Núcleo origen',
+  'Galpón origen',
   'Lote origen',
   'Granja destino',
   'Lote destino',
+  // A quién se vendió o se envió el despacho (lista maestra `venta_pollo_engorde_empresa`; por defecto «Planta»).
+  'Empresa de venta',
   'Total aves',
   'Hembras',
   'Machos',
@@ -45,6 +55,8 @@ const HEADERS = [
 
 /** Construye y descarga el Excel de ventas con las filas y el contexto dados. */
 export function exportarVentasExcel(rows: MovimientoPolloEngordeDto[], meta: ExportarVentasExcelMeta): void {
+  const nombreNucleo = meta.nombreNucleo ?? ((id: string | null | undefined) => (id ?? '').trim());
+  const nombreGalpon = meta.nombreGalpon ?? ((id: string | null | undefined) => (id ?? '').trim());
   const data = rows.map((m) => {
     const pesoBruto = m.pesoBruto ?? null;
     const pesoTara = m.pesoTara ?? null;
@@ -58,9 +70,12 @@ export function exportarVentasExcel(rows: MovimientoPolloEngordeDto[], meta: Exp
       m.tipoMovimiento ?? '',
       m.estado ?? '',
       m.granjaOrigenNombre ?? '',
+      nombreNucleo(m.nucleoOrigenId),
+      nombreGalpon(m.galponOrigenId),
       m.loteOrigenNombre ?? '',
       m.granjaDestinoNombre ?? '',
       m.loteDestinoNombre ?? '',
+      (m.plantaDestino ?? '').trim(),
       m.totalAves ?? 0,
       m.cantidadHembras ?? 0,
       m.cantidadMachos ?? 0,

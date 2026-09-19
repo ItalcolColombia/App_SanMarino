@@ -160,12 +160,41 @@
 
           <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
 
-          <!-- Paso 2: Galpón -->
+          <!-- Paso 2: Núcleo (núcleos de la granja con lotes de engorde) -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedNucleoId"
+            [class.filter-step--done]="!!selectedGalponId"
+            [class.filter-step--disabled]="!selectedGranjaId || nucleosOpciones.length === 0">
+            <div class="filter-step__num">2</div>
+            <div class="filter-step__body">
+              <label for="selNucleo" class="filter-step__label">Núcleo</label>
+              <select
+                id="selNucleo"
+                class="filter-step__select"
+                [ngModel]="selectedNucleoId"
+                (ngModelChange)="onNucleoChange($event)"
+                [disabled]="!selectedGranjaId || nucleosOpciones.length === 0">
+                <option [ngValue]="null">— Todos —</option>
+                @for (n of nucleosOpciones; track n.nucleoId) {
+                  <option [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+                }
+              </select>
+              @if (selectedGranjaId && nucleosOpciones.length === 0) {
+                <small class="text-muted">
+                  La granja no tiene núcleos con lotes de engorde.
+                </small>
+              }
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+          <!-- Paso 3: Galpón -->
           <div class="filter-step"
             [class.filter-step--active]="!!selectedGalponId"
             [class.filter-step--done]="!!selectedLoteValue"
             [class.filter-step--disabled]="!selectedGranjaId || galpones.length === 0">
-            <div class="filter-step__num">2</div>
+            <div class="filter-step__num">3</div>
             <div class="filter-step__body">
               <label for="selGalpon" class="filter-step__label">Galpón</label>
               <select
@@ -189,11 +218,11 @@
 
           <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
 
-          <!-- Paso 3: Lote -->
+          <!-- Paso 4: Lote -->
           <div class="filter-step filter-step--last"
             [class.filter-step--active]="!!selectedLoteValue"
             [class.filter-step--disabled]="!selectedGranjaId || lotesOpciones.length === 0">
-            <div class="filter-step__num filter-step__num--accent">3</div>
+            <div class="filter-step__num filter-step__num--accent">4</div>
             <div class="filter-step__body">
               <label for="selLote" class="filter-step__label">Lote</label>
               <select
@@ -274,12 +303,34 @@
               <option value="Cancelado">Cancelado</option>
             </select>
           </div>
+          <!-- «Empresa de venta»: a quién se vendió o se envió cada despacho. Las opciones salen de la lista maestra
+               venta_pollo_engorde_empresa de la empresa activa (por defecto «Planta») más las que ya traen los
+               registros; si la empresa no usa el campo, el filtro no se dibuja. Acota lo que se ve de la
+               granja / núcleo / galpón / lote elegidos arriba. -->
+          @if (empresasVentaFiltro.length) {
+            <div class="filter-field">
+              <label for="filtroEmpresaVenta" class="filter-step__label">Empresa de venta</label>
+              <select
+                id="filtroEmpresaVenta"
+                [(ngModel)]="filtroEmpresaVenta"
+                (ngModelChange)="onFiltroChange()"
+                class="filter-step__select">
+                <option value="">Todas</option>
+                @for (e of empresasVentaFiltro; track e) {
+                  <option [ngValue]="e">{{ e }}</option>
+                }
+                @if (hayVentasSinEmpresa) {
+                  <option [ngValue]="SIN_EMPRESA_VENTA">— Sin empresa —</option>
+                }
+              </select>
+            </div>
+          }
           <div class="filter-card__actions">
             <button
               type="button"
               class="btn-italfoods-secondary"
               (click)="limpiarFiltros()"
-              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado && !filtroEmpresaVenta">
               Limpiar
             </button>
           </div>
@@ -383,7 +434,14 @@
                               <div>{{ fila.movimientos[0]?.granjaOrigenNombre || '—' }}</div>
                               <small class="text-muted">Varios lotes / galpones</small>
                             </td>
-                            <td>—</td>
+                            <td>
+                              @if (empresaDelGrupo(fila.movimientos); as empresa) {
+                                <div>{{ empresa }}</div>
+                                <small class="text-muted">Empresa de venta</small>
+                              } @else {
+                                —
+                              }
+                            </td>
                             <td class="number-cell"><strong>{{ formatearNumero(totalAvesGrupo(fila.movimientos)) }}</strong></td>
                             <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadHembras')) }}</td>
                             <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadMachos')) }}</td>
@@ -449,6 +507,8 @@
                                     <thead>
                                       <tr>
                                         <th>Movimiento</th>
+                                        <th>Núcleo</th>
+                                        <th>Galpón</th>
                                         <th>Lote origen</th>
                                         <th class="num">Total</th>
                                         <th class="num">H</th>
@@ -462,6 +522,8 @@
                                       @for (m of fila.movimientos; track trackById($index, m)) {
                                         <tr>
                                           <td><small>{{ m.numeroMovimiento }}</small></td>
+                                          <td>{{ nombreNucleo(m.nucleoOrigenId) || '—' }}</td>
+                                          <td>{{ nombreGalpon(m.galponOrigenId) || '—' }}</td>
                                           <td>{{ m.loteOrigenNombre || '—' }}</td>
                                           <td class="num">{{ formatearNumero(m.totalAves) }}@if ((m.avesSobrante ?? 0) > 0) {
                                             <span class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ m.avesSobrante }} sobrante</span>
@@ -533,6 +595,9 @@
                               @if (fila.movimiento.granjaOrigenNombre || fila.movimiento.loteOrigenNombre) {
                                 <div>
                                   <div>{{ fila.movimiento.granjaOrigenNombre || '—' }}</div>
+                                  @if (ubicacionOrigen(fila.movimiento); as ubicacion) {
+                                    <div><small class="text-muted">{{ ubicacion }}</small></div>
+                                  }
                                   @if (fila.movimiento.loteOrigenNombre) {
                                     <small class="text-muted">Lote: {{ fila.movimiento.loteOrigenNombre }}</small>
                                   }
@@ -552,7 +617,13 @@
                                 </div>
                               }
                               @if (!fila.movimiento.granjaDestinoNombre && !fila.movimiento.loteDestinoNombre) {
-                                <div>—</div>
+                                <!-- Una venta no tiene granja/lote destino: su destino es la «Empresa de venta». -->
+                                @if (fila.movimiento.plantaDestino) {
+                                  <div>{{ fila.movimiento.plantaDestino }}</div>
+                                  <small class="text-muted">Empresa de venta</small>
+                                } @else {
+                                  <div>—</div>
+                                }
                               }
                             </td>
                             <td class="number-cell"><strong>{{ formatearNumero(fila.movimiento.totalAves) }}</strong>@if ((fila.movimiento.avesSobrante ?? 0) > 0) {

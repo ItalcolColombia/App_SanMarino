@@ -65,6 +65,14 @@ export interface MovimientoPolloEngordeDto {
   facturaId?: string | null;
   /** Aves de este movimiento que fueron sobrante (R2). */
   avesSobrante?: number;
+  /**
+   * Empresa de venta / destino del despacho (lista maestra `venta_pollo_engorde_empresa`), guardada como texto
+   * en `planta_destino`. Null en traslados y en ventas anteriores a este campo.
+   */
+  plantaDestino?: string | null;
+  /** Núcleo y galpón de ORIGEN (los del lote de origen cuando el movimiento no los guardó). */
+  nucleoOrigenId?: string | null;
+  galponOrigenId?: string | null;
 }
 
 export interface ResumenAvesLoteDto {
@@ -242,6 +250,8 @@ export interface CreateVentaGranjaDespachoDto {
   edadAves?: number | null;
   totalPollosGalpon?: number | null;
   raza?: string | null;
+  /** Empresa de venta / destino del despacho (texto de la lista maestra `venta_pollo_engorde_empresa`). */
+  plantaDestino?: string | null;
   placa?: string | null;
   horaSalida?: string | null;
   guiaAgrocalidad?: string | null;

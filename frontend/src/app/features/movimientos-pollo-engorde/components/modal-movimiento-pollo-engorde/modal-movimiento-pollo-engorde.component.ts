@@ -54,6 +54,8 @@ import {
   filtrarLotesDestinoEngorde,
   construirOpcionesLoteDestino
 } from '../../funciones/filtrar-lotes-destino.funcion';
+import { unirOpcionesEmpresaVenta } from '../../funciones/empresa-venta.funcion';
+import { EmpresaVentaEngordeService } from '../../services/empresa-venta-engorde.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -109,7 +111,15 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   loadingVentaLineas = false;
   ventaLineasGranja: VentaLineaGranja[] = [];
   /** Cache de grupos por galpón (no recalcular en cada CD con un getter). */
-  gruposVentaPorGalpon: { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }[] = [];
+  gruposVentaPorGalpon: { galponId: string; galponLabel: string; nucleoLabel: string; lineas: VentaLineaGranja[] }[] = [];
+  /**
+   * «Empresa de venta» (a quién se vende o se envía el despacho): opciones de la lista maestra
+   * `venta_pollo_engorde_empresa` de la empresa activa (+ la que ya tenga guardada la venta que se edita).
+   * Vacía = la empresa no tiene la lista ⇒ el campo NO se dibuja (fail-closed, igual que antes).
+   */
+  empresasVenta: string[] = [];
+  /** Descarta la respuesta de una apertura anterior si el modal se cerró y se volvió a abrir en el medio. */
+  private aperturaEmpresaVenta = 0;
   error: string | null = null;
   /** R2: permite vender por encima del disponible (sobrante de aves por galpón). */
   permitirSobrante = false;
@@ -325,6 +335,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private galponSvc: GalponService,
     private loteEngordeSvc: LoteEngordeService,
     private countryFilter: CountryFilterService,
+    private empresaVentaSvc: EmpresaVentaEngordeService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
@@ -428,6 +439,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         }
       }
       this.syncPesoValidators();
+      // Después de armar el formulario: el default y la obligatoriedad dependen de si se crea o se edita.
+      this.cargarEmpresasVenta();
     }
   }
 
@@ -523,6 +536,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       sellos: [null as string | null],
       ayuno: [null as string | null],
       conductor: [null as string | null],
+      // «Empresa de venta»: texto de la lista maestra; se manda como `plantaDestino`.
+      empresaVenta: [null as string | null],
       pesoBruto: [null as number | null],
       pesoTara: [null as number | null]
     });
@@ -531,9 +546,53 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     // grueso del uso, no paga la petición).
     this.form.get('tipoMovimiento')?.valueChanges.subscribe(() => {
       this.syncPesoValidators();
+      this.syncEmpresaVentaValidator();
       if (!this.isTipoVenta) this.cargarCatalogoDestinoSiHaceFalta();
     });
     this.syncPesoValidators();
+  }
+
+  // ── Empresa de venta (lista maestra) ────────────────────────────────────────────────
+
+  /** ¿Se dibuja el campo? Solo si la empresa activa tiene la lista (o la venta que se ve ya trae una empresa). */
+  get mostrarEmpresaVenta(): boolean {
+    return this.empresasVenta.length > 0;
+  }
+
+  /** La empresa es obligatoria únicamente al CREAR una venta (editar ventas viejas sin empresa sigue permitido). */
+  get exigeEmpresaVenta(): boolean {
+    return this.mostrarEmpresaVenta && this.isDespacho && !this.editingMovimiento;
+  }
+
+  /**
+   * Pide las opciones de la lista maestra en cada apertura (así una opción recién agregada aparece sin
+   * recargar). Al crear una venta, la primera opción de la lista —«Planta» por defecto— viene preseleccionada.
+   * Fail-closed: si la lista no existe o falla, `empresasVenta` queda vacío y el campo no se dibuja.
+   */
+  private cargarEmpresasVenta(): void {
+    this.empresasVenta = [];
+    this.syncEmpresaVentaValidator();
+    const apertura = ++this.aperturaEmpresaVenta;
+    // Un traslado nuevo no tiene comprador: no hace falta pedir la lista.
+    if (this.trasladoMode && !this.editingMovimiento) return;
+    this.empresaVentaSvc.opciones().subscribe((opciones) => {
+      if (apertura !== this.aperturaEmpresaVenta) return;
+      const guardada = this.editingMovimiento?.plantaDestino ?? null;
+      this.empresasVenta = unirOpcionesEmpresaVenta(opciones, [guardada]);
+      const ctrl = this.form.get('empresaVenta');
+      if (!this.editingMovimiento && !ctrl?.value && opciones.length > 0) {
+        ctrl?.setValue(opciones[0], { emitEvent: false });
+      }
+      this.syncEmpresaVentaValidator();
+      this.cdr.detectChanges();
+    });
+  }
+
+  private syncEmpresaVentaValidator(): void {
+    const ctrl = this.form?.get('empresaVenta');
+    if (!ctrl) return;
+    ctrl.setValidators(this.exigeEmpresaVenta ? [Validators.required] : []);
+    ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
   // ── Cascada de destino ────────────────────────────────────────────────────────────
@@ -734,6 +793,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       sellos: null,
       ayuno: null,
       conductor: null,
+      empresaVenta: null,
       pesoBruto: null,
       pesoTara: null
     });
@@ -799,6 +859,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       sellos: m.sellos ?? null,
       ayuno: m.ayuno ?? null,
       conductor: m.conductor ?? null,
+      empresaVenta: m.plantaDestino ?? null,
       pesoBruto: m.pesoBruto ?? null,
       pesoTara: m.pesoTara ?? null
     });
@@ -1017,6 +1078,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
             loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
             galponId,
             galponLabel: this.labelGalpon(l),
+            nucleoLabel: this.labelNucleo(l),
             maxH: Math.max(0, maxH),
             maxM: Math.max(0, maxM),
             maxX: Math.max(0, maxX),
@@ -1044,11 +1106,11 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   private rebuildGruposVentaPorGalpon(): void {
-    const map = new Map<string, { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }>();
+    const map = new Map<string, { galponId: string; galponLabel: string; nucleoLabel: string; lineas: VentaLineaGranja[] }>();
     for (const line of this.ventaLineasGranja) {
       const key = line.galponId;
       if (!map.has(key)) {
-        map.set(key, { galponId: key, galponLabel: line.galponLabel, lineas: [] });
+        map.set(key, { galponId: key, galponLabel: line.galponLabel, nucleoLabel: line.nucleoLabel ?? '', lineas: [] });
       }
       map.get(key)!.lineas.push(line);
     }
@@ -1062,6 +1124,13 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     if (n && String(n).trim()) return String(n).trim();
     const id = (l.galponId ?? '').trim();
     return id || '— Sin galpón —';
+  }
+
+  /** Núcleo del lote para mostrar (nombre, o el id si no hay nombre); vacío si el lote no tiene núcleo. */
+  private labelNucleo(l: LoteAveEngordeDto): string {
+    const n = l.nucleo?.nucleoNombre;
+    if (n && String(n).trim()) return String(n).trim();
+    return (l.nucleoId ?? '').trim();
   }
 
   /**

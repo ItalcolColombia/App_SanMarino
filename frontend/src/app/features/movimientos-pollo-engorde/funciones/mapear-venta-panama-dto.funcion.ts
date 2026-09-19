@@ -24,6 +24,8 @@ export interface VentaPanamaFormValue {
   sellos: string | null;
   ayuno: string | null;
   conductor: string | null;
+  /** Empresa de venta elegida en el modal (texto de la lista maestra); vacío/null = sin empresa. */
+  empresaVenta: string | null;
   pesoBruto: number | string | null;
   pesoTara: number | string | null;
 }
@@ -45,6 +47,12 @@ export interface BuildVentaPanamaCtx {
 
 function numOrNull(value: number | string | null | undefined): number | null {
   return value != null && value !== '' ? Number(value) : null;
+}
+
+/** Texto no vacío o `null` (los `<select>` sin elegir devuelven '' o null). */
+function txtOrNull(value: string | null | undefined): string | null {
+  const t = (value ?? '').trim();
+  return t === '' ? null : t;
 }
 
 /** DTO de despacho Panamá; `null` si no hay líneas con cantidad o si una línea referencia un lote inexistente. */
@@ -88,6 +96,7 @@ export function buildVentaPanamaDespachoDto(
     sellos: v.sellos || null,
     ayuno: v.ayuno || null,
     conductor: v.conductor || null,
+    plantaDestino: txtOrNull(v.empresaVenta),
     pesoBruto: numOrNull(v.pesoBruto),
     pesoTara: numOrNull(v.pesoTara),
     lineas

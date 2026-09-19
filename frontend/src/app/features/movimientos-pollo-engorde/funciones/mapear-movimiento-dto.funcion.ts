@@ -39,6 +39,8 @@ export interface MovimientoModalFormValue {
   sellos: string | null;
   ayuno: string | null;
   conductor: string | null;
+  /** Empresa de venta elegida en el modal (texto de la lista maestra); vacío/null = sin empresa. */
+  empresaVenta: string | null;
   pesoBruto: number | string | null;
   pesoTara: number | string | null;
 }
@@ -107,6 +109,8 @@ export function buildCreateDto(
     granjaDestinoId,
     nucleoDestinoId,
     galponDestinoId,
+    // Empresa de venta: solo viaja en ventas (un traslado no tiene comprador).
+    plantaDestino: ctx.isTipoVenta ? txtOrNull(v.empresaVenta) : null,
     cantidadHembras: Number(v.cantidadHembras) || 0,
     cantidadMachos: Number(v.cantidadMachos) || 0,
     cantidadMixtas: Number(v.cantidadMixtas) || 0,
@@ -150,6 +154,8 @@ export function buildUpdateDto(v: MovimientoModalFormValue): UpdateMovimientoPol
     sellos: v.sellos || undefined,
     ayuno: v.ayuno || undefined,
     conductor: v.conductor || undefined,
+    // Sin empresa elegida no se manda nada: el backend deja la que ya tenía la venta.
+    plantaDestino: txtOrNull(v.empresaVenta) ?? undefined,
     pesoBruto: numOrNull(v.pesoBruto) ?? undefined,
     pesoTara: numOrNull(v.pesoTara) ?? undefined
   };
@@ -201,6 +207,7 @@ export function buildVentaGranjaDespachoDto(
     sellos: v.sellos || null,
     ayuno: v.ayuno || null,
     conductor: v.conductor || null,
+    plantaDestino: txtOrNull(v.empresaVenta),
     pesoBruto: numOrNull(v.pesoBruto),
     pesoTara: numOrNull(v.pesoTara),
     permitirSobrante: ctx.permitirSobrante,

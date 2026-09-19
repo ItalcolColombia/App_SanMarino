@@ -66,6 +66,9 @@
                   <div class="detail-item"><dt>Sellos</dt><dd>{{ editingMovimiento.sellos || '—' }}</dd></div>
                 }
                 <div class="detail-item"><dt>Ayuno</dt><dd>{{ editingMovimiento.ayuno || '—' }}</dd></div>
+                @if (mostrarEmpresaVenta) {
+                  <div class="detail-item"><dt>Empresa de venta</dt><dd>{{ editingMovimiento.plantaDestino || '—' }}</dd></div>
+                }
                 <div class="detail-item"><dt>Cliente</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd></div>
                 <div class="detail-item"><dt>{{ pesoNetoUnico ? 'Kilos del despacho (kg)' : 'Peso bruto (kg)' }}</dt><dd>{{ editingMovimiento.pesoBruto != null ? formatearNumero(editingMovimiento.pesoBruto) : '—' }}</dd></div>
                 @if (!pesoNetoUnico) {
@@ -324,7 +327,7 @@
                           <div class="venta-granja-galpon">
                             <h4 class="venta-granja-galpon__title">
                               {{ g.galponLabel }}
-                              <small class="text-muted">· Seleccionado: {{ formatearNumero(totalSeleccionadoGalpon(g.lineas)) }}</small>
+                              <small class="text-muted">{{ g.nucleoLabel ? '· Núcleo: ' + g.nucleoLabel + ' ' : '' }}· Seleccionado: {{ formatearNumero(totalSeleccionadoGalpon(g.lineas)) }}</small>
                             </h4>
                             <div class="venta-granja-table-wrap">
                               <table class="venta-granja-table">
@@ -454,6 +457,32 @@
                         <section class="form-section">
                           <h3 class="form-section__title">Datos de despacho (salida / venta)</h3>
                           <div class="form-grid form-grid--3">
+                            <!-- «Empresa de venta»: a quién se vende o se envía el despacho. Las opciones salen de la
+                                 lista maestra venta_pollo_engorde_empresa de la empresa activa (por defecto «Planta»);
+                                 si la empresa no la tiene, el campo no se dibuja. -->
+                            @if (mostrarEmpresaVenta) {
+                              <div class="form-group">
+                                <label for="empresaVenta">
+                                  Empresa de venta
+                                  @if (exigeEmpresaVenta) {
+                                    <span class="req-mark" title="Obligatoria al registrar la venta">*</span>
+                                  }
+                                </label>
+                                <select
+                                  id="empresaVenta"
+                                  formControlName="empresaVenta"
+                                  class="form-select"
+                                  [class.form-input--invalid]="form.get('empresaVenta')?.touched && form.get('empresaVenta')?.invalid">
+                                  <option [ngValue]="null">— Seleccione la empresa —</option>
+                                  @for (e of empresasVenta; track e) {
+                                    <option [ngValue]="e">{{ e }}</option>
+                                  }
+                                </select>
+                                @if (form.get('empresaVenta')?.touched && form.get('empresaVenta')?.invalid) {
+                                  <small class="field-error">Seleccione a qué empresa se vende o envía el despacho.</small>
+                                }
+                              </div>
+                            }
                             <div class="form-group">
                               <label for="numeroDespacho">Número de despacho</label>
                               <input id="numeroDespacho" type="text" formControlName="numeroDespacho" class="form-input" placeholder="Ej. DESP-001" />
