@@ -8906,11 +8906,23 @@ fecha de hoy) y registros borrados/rehechos. Solo frontend; sin migración, sin 
       valores; guarda 201 con fecha 14/09; al reabrir no sale el aviso viejo. La grilla real sigue mostrando «14/09/2026 ·
       4 registros … huevos 0» en la primera línea.
 - [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_total_del_dia_plan.md`.
-- [ ] F1. `filasGrillaProduccion` + `totalDia` en la primera fila de un día con 2+ registros (+ spec).
-- [ ] F2. `tabs-principal`: «Total del día: N huevos» en la celda de la fecha (mortalidad/selección/consumo del día en el tooltip).
-- [ ] F3. `resumirGuardadoSeguimiento(request)` (pura + spec) y el toast de éxito de `lote-produccion-list` con el resumen.
-- [ ] V1. `ng test --include` de los specs tocados + `yarn build` (0 errores).
-- [ ] V2. Smoke en navegador contra la copia real (LPP 26): total del día en la primera línea, resumen en el aviso, un día
-      de un solo registro sin cambios.
-- [ ] V3. Sin procesos huérfanos (back :5002, front :4200, BD clon `smoke_real`, sesión y token de smoke).
-- [ ] C1. Commit (acotado a mis archivos; sin push ni deploy).
+- [x] F1. `filasGrillaProduccion` + `totalDia` en la primera fila de un día con 2+ registros, y `detalleTotalDia` para el
+      tooltip (+ spec: el caso real de 4 registros con el 1.º sin huevos → 21.030; día de un registro sin total).
+- [x] F2. `tabs-principal`: «Total del día: N huevos» en la celda de la fecha (mortalidad/selección/consumo del día en el
+      tooltip); las cifras y los botones de cada registro no cambian.
+- [x] F3. `resumirGuardadoSeguimiento(request, esEdicion)` (pura + spec, 14 casos) y el aviso de éxito de
+      `lote-produccion-list` con lo guardado («Seguimiento creado: huevos 7010 · mortalidad 15 · consumo 120 kg.»).
+- [x] V1. `ng test` de los 8 specs tocados → 108 SUCCESS, 0 FAILED; `yarn build` → 0 errores y 0 advertencias.
+- [x] V2. Smoke en navegador contra la copia real (LPP 26, back aislado sobre un clon; nunca contra RDS): la primera línea
+      del 14/09 muestra «5 registros — Total del día: 28,040 huevos» con el tooltip «mortalidad 30 · consumo 1215 kg»
+      (= la fn canónica: es la suma exacta de los registros); el guardado muestra «Seguimiento creado: huevos 7010 ·
+      mortalidad 15 · consumo 120 kg.». Medido en la copia: solo Santa Reyes tiene días de 2+ registros (4 días), o sea que
+      en las demás empresas no cambia nada.
+- [x] V3. Sin procesos huérfanos: puertos 5002/4200/9876/5501 libres, sin dotnet/ng/karma vivos, BD clon `smoke_real`
+      eliminada (verificado con `pg_database`), dump, tokens y content root borrados del scratchpad.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="total del dia"`; el bloque y los archivos de la otra sesión
+      quedaron intactos en el árbol). Sin push ni deploy: requieren OK explícito.
+
+Pendiente del usuario (no es código): elegir si se agrega un aviso informativo cuando el día ya tiene huevos; corregir en
+producción los datos ya cargados desde la app (eliminar 694, 695 y 691 —repetidos—, revisar 686 con fecha del 18/09, borrar
+el vacío 688, cargar los huevos de los Galpones 5 y 6); OK para desplegar `4f71cbe` + este commit.

@@ -11,6 +11,7 @@ import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../sh
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { buscarRegistroPorId } from '../../funciones/filas-grilla-produccion.funcion';
+import { resumirGuardadoSeguimiento } from '../../funciones/resumen-guardado-seguimiento.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { finalize, map, tap } from 'rxjs/operators';
@@ -884,7 +885,9 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
           if (capturaPendiente) {
             this.toast.info(MENSAJE_GUARDADO_SIN_RED);
           } else {
-            this.toast.success(isUpdate ? 'Seguimiento actualizado.' : 'Seguimiento creado.');
+            // Dice lo que el servidor aceptó («huevos 7010 · mortalidad 15 …»): sin esa confirmación el operario
+            // repetía la carga de huevos creyendo que no había entrado.
+            this.toast.success(resumirGuardadoSeguimiento(request, isUpdate));
           }
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = false;

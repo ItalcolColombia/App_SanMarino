@@ -15,7 +15,7 @@ import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-ta
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
-import { FilaGrillaProduccion, filasGrillaProduccion, registrosDeLaGrilla } from '../../funciones/filas-grilla-produccion.funcion';
+import { FilaGrillaProduccion, detalleTotalDia, filasGrillaProduccion, registrosDeLaGrilla } from '../../funciones/filas-grilla-produccion.funcion';
 
 @Component({
   selector: 'app-tabs-principal',
@@ -364,6 +364,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       if (idM > 0) ids.add(idM);
     }
     ids.forEach(id => this.ensureCatalogItemFetched(id));
+  }
+
+  /** Tooltip del «Total del día» de la primera fila de un día con varios registros (ver `detalleTotalDia`). */
+  tituloTotalDia(dia: SeguimientoItemDto): string {
+    return detalleTotalDia(dia, !this.ocultaMachosEnPostura);
   }
 
   getTipoAlimentoH(s: SeguimientoItemDto): string {

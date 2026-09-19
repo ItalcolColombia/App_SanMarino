@@ -50,9 +50,9 @@ Daño medido en la fn canónica y en el espejo de huevos:
    renglón agrupado del día (`totalDia`, la misma fn canónica que ya calcula el total), y la celda de la fecha agrega
    «Total del día: N huevos» (mortalidad, selección y consumo del día en el tooltip). Las cifras y los botones de cada renglón
    quedan intactos (cada registro sigue siendo editable/borrable por su fila).
-2. **El aviso de éxito dice qué se guardó:** `resumirGuardadoSeguimiento(request)` (pura) → «Seguimiento creado: 7.010
-   huevos · mortalidad 15 · consumo 1.215 kg» (solo lo que traiga valores). Así el operario ve en el momento que los
-   huevos SÍ entraron.
+2. **El aviso de éxito dice qué se guardó:** `resumirGuardadoSeguimiento(request, esEdicion)` (pura) → «Seguimiento
+   creado: huevos 7010 · mortalidad 15 · consumo 1215 kg.» (solo lo que traiga valores; sin valores dice «(sin huevos,
+   mortalidad ni consumo)»). Así el operario ve en el momento que los huevos SÍ entraron.
 
 Archivos: `lote-produccion/funciones/filas-grilla-produccion.funcion.ts` (+ spec),
 `lote-produccion/funciones/resumen-guardado-seguimiento.funcion.ts` (+ spec, nuevo),
@@ -62,7 +62,8 @@ Archivos: `lote-produccion/funciones/filas-grilla-produccion.funcion.ts` (+ spec
 
 - Un día con 1 registro: sin `totalDia` (idéntico a hoy). Con 2+: solo la primera fila lo lleva.
 - Resumen del guardado: solo huevos; huevos por ítems (suma) vs 11 categorías (`huevosTotales`); consumo por ítems (kg)
-  vs escalar (kg/g); todo en cero → texto sin cifras; miles con punto (es-CO).
+  vs escalar (kg/g; un medicamento o accesorio no cuenta como consumo de alimento); todo en cero → texto sin cifras;
+  enteros tal cual y con decimales hasta dos (sin separador de miles: el texto no depende del `LOCALE_ID`).
 - Navegador (copia real, LPP 26): la primera línea del 14/09 muestra el total del día; un guardado con huevos muestra el
   resumen; un día de un solo registro no cambia; Sanmarino (flag apagado) sin cambios.
 
@@ -75,3 +76,26 @@ Archivos: `lote-produccion/funciones/filas-grilla-produccion.funcion.ts` (+ spec
   Galpones 5 y 6): es corrección en producción, la hace un usuario autorizado desde la app (eliminar devuelve el
   inventario); no se toca la BD.
 - **Levante** tiene la misma grilla (`registros-por-dia`); aquí solo Producción, donde está la evidencia.
+
+## Resultado (18-sep-2026)
+
+- **Tests:** `ng test` de los 8 specs tocados (resumen-guardado, filas-grilla, cambios-modal, items-huevo-catalogo,
+  modal-seguimiento-diario, lote-produccion-list, tabs-principal, huevos-levante-items) → **108 SUCCESS, 0 FAILED**.
+  `yarn build` → **0 errores, 0 advertencias**.
+- **Navegador, con la copia real** (back aislado sobre un clon de la BD, front en dev; nunca contra RDS): la primera
+  línea del 14/09 del LPP 26 pasó de «… huevos 0» a **«14/09/2026 · 5 registros — Total del día: 28,040 huevos»** (los 4
+  reales = 21,030 + el registro que guardé en el smoke), con el tooltip «Suma de los 5 registros del día: mortalidad 30 ·
+  consumo 1215 kg». Se contrastó contra la fn canónica en la BD del clon (`fn_seguimiento_diario_produccion(26, 160)`):
+  el renglón agrupado del día es exactamente la suma de los registros (tras el segundo guardado de prueba: mortalidad 45,
+  consumo 1335 kg, huevos 35.050), o sea que el tooltip no inventa nada. El guardado con huevos muestra
+  «Seguimiento creado: huevos 7010 · mortalidad 15 · consumo 120 kg.». Un día de un solo registro queda igual que antes
+  (sin `totalDia`, lo cubre el spec).
+- **Sin efectos colaterales:** frontend puro; sin migración, sin flag, sin cambios de contrato ni de aritmética
+  (`totalDia` reutiliza el renglón que la fn ya calcula). Medido en la copia de producción: la única empresa con días de
+  2+ registros es Santa Reyes (4 días, máximo 4 en un día); en las demás cada día trae un registro y no aparece
+  «Total del día», o sea que Sanmarino/Demo no ven ningún cambio.
+- **No desplegado:** este commit y `4f71cbe` están solo en `main`; sin push ni deploy hasta el OK explícito del usuario.
+
+**Trampa para quien lo retome:** el `totalDia` de la primera fila es el renglón AGRUPADO del día, no el del registro. Las
+cifras de esa fila (y sus botones) siguen siendo las de SU registro; no «arreglar» la fila para que muestre el total: se
+rompería editar/borrar por registro.
