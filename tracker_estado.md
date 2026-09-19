@@ -8926,3 +8926,29 @@ fecha de hoy) y registros borrados/rehechos. Solo frontend; sin migración, sin 
 Pendiente del usuario (no es código): elegir si se agrega un aviso informativo cuando el día ya tiene huevos; corregir en
 producción los datos ya cargados desde la app (eliminar 694, 695 y 691 —repetidos—, revisar 686 con fecha del 18/09, borrar
 el vacío 688, cargar los huevos de los Galpones 5 y 6); OK para desplegar `4f71cbe` + este commit.
+
+---
+
+## VALIDADO-NACE-BIEN — Todo seguimiento nace con `validado` correcto y se puede comprobar (18-sep-2026)
+
+Plan: [validado_nace_correcto_seguimientos_plan.md](fase_de_desarrollo/validado_nace_correcto_seguimientos_plan.md)
+
+Hallazgo lateral de HUEVOS-PRIMER-GUARDADO: en Producción, la rama «Colombia modelo B + consumo por ítems» hacía `return`
+antes de `entity.Validado = !separa` y el registro nacía `validado = false` con la doble validación apagada. Medido en la
+copia de producción: 4 filas (#687, #692, #696, #697, Santa Reyes) con su consumo YA aplicado; además 6 pendientes legítimos
+con reserva (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados) y 1 reserva huérfana (#682: 982 kg + un Ingreso de
+982 kg sin Consumo previo) que dejó el apagado del flag con pendientes. Cuarta vez de la misma clase (Crud, traslados, cruce).
+
+- [x] P1. Plan escrito en `fase_de_desarrollo/validado_nace_correcto_seguimientos_plan.md` (medición, capas, lo que NO se hace).
+- [x] B1. `ProduccionService.CrearSeguimientoAsync`: `entity.Validado = !separa` justo después de resolver `separa`, antes de la rama Colombia (y sin la asignación duplicada de más abajo).
+- [x] B2. Las 3 entidades (`SeguimientoProduccion`, `SeguimientoDiario`, `SeguimientoDiarioAvesEngorde`): `Validado = true` por defecto (seguro por construcción); default de BD y config de EF SIN tocar (EF omite los `false` de un bool con default: cambiarlo a `true` haría nacer validados a los que separan, y en un deploy rodante también a las tareas viejas).
+- [x] B3. Migración data-only `20260918210000_NormalizarValidadoSeguimientosSinReserva` (+ Designer clonado, ModelSnapshot intacto): flag apagado + sin reservas + no borrado.
+- [x] B4. `backend/sql/verificar_validado_sin_reserva.sql`: mide normalizables / limbo / reservas huérfanas y simula la migración (2.ª pasada = 0); paso previo a encender el flag en cualquier empresa.
+- [x] T1. `SeguimientoNaceValidadoTests` (5 casos: contrato de las 3 entidades + quien separa queda pendiente + flag apagado coincide con el valor inicial).
+- [x] V1. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.316/4.316 y Domain.Tests 1/1. Gate `verificar-sql-llega-por-migracion.js` en OK.
+- [x] V2. Simulación sobre la copia real (ROLLBACK): afecta exactamente {687, 692, 696, 697}; 1.ª pasada `UPDATE 4/0/0`, 2.ª `0/0/0`; filas con reserva y filas de empresas con flag encendido que cambiaron = 0/0.
+- [x] V3. Smoke con backend aislado (:5501) sobre un clon de la copia real, migración aplicada por el arranque (399): flag OFF + Colombia B + ítems → 201, `validado=true`, `Consumo` aplicado; flag OFF clásico → `true`; flag OFF sobre arrastre en `false` → fusiona y queda `true`; flag ON → 201, `validado=false`, reservas ACTIVAS (10 kg y 2 aves) y sin movimiento; flag ON sobre arrastre nacido validado → pasa a `false` con reserva. Sin advertencias nuevas de EF.
+- [x] V4. Sin procesos huérfanos: back :5501 detenido, servidores MSBuild apagados (`dotnet build-server shutdown`), clon `smoke_validado` eliminado, token/content root/scripts borrados; la copia `sanmarinoapplocal` intacta (398 migraciones, 10 filas `false`).
+- [x] C1. Commit acotado a mis archivos (`git log --grep="validado nace"`; sin push ni deploy: requieren OK explícito; la migración corre sola en el deploy).
+
+Pendiente del usuario (no es código): decidir qué hacer con el limbo de Santa Reyes que dejó apagar el flag con pendientes —6 registros (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados), 1 reserva huérfana (#682: 982 kg) y un Ingreso de 982 kg sin Consumo previo sobre el ítem 373— (el plan lo detalla, con el script para medirlo); y si se implementa la propuesta de un guardia al APAGAR el flag con reservas ACTIVAS. OK para desplegar (la migración corre sola al arrancar).
