@@ -33,6 +33,13 @@ public class MovimientoPolloEngorde : AuditableEntity
     public int? GranjaDestinoId { get; set; }
     public string? NucleoDestinoId { get; set; }
     public string? GalponDestinoId { get; set; }
+
+    /// <summary>
+    /// Destino del despacho de venta: la «Empresa de venta» (a quién se vendió o se envió; «Planta» por defecto).
+    /// Se guarda como TEXTO de la lista maestra <c>venta_pollo_engorde_empresa</c> —los ids de las opciones cambian
+    /// cada vez que se edita la lista—. La carga masiva de ventas escribe en la misma columna («Planta Destino»),
+    /// así que puede traer texto libre que no está en la lista. Null en traslados y en ventas anteriores.
+    /// </summary>
     public string? PlantaDestino { get; set; }
 
     public int CantidadHembras { get; set; }

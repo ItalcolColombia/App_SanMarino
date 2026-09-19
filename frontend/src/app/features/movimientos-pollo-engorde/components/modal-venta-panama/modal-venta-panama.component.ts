@@ -25,6 +25,8 @@ import {
 import { VentaPanamaLineaUI } from '../../models/venta-panama.model';
 import { buildVentaPanamaDespachoDto, VentaPanamaFormValue } from '../../funciones/mapear-venta-panama-dto.funcion';
 import { formatearNumero as fmtNumero } from '../../funciones/formato.funcion';
+import { unirOpcionesEmpresaVenta } from '../../funciones/empresa-venta.funcion';
+import { EmpresaVentaEngordeService } from '../../services/empresa-venta-engorde.service';
 
 const SIN_GALPON = '__SIN_GALPON__';
 
@@ -79,6 +81,15 @@ export class ModalVentaPanamaComponent implements OnChanges {
   selectedGalponId: string | null = null;
   lineas: VentaPanamaLineaUI[] = [];
 
+  /**
+   * «Empresa de venta» (a quién se vende o se envía el despacho): opciones de la lista maestra
+   * `venta_pollo_engorde_empresa` de la empresa activa (por defecto «Planta»). Vacía = la empresa no tiene la
+   * lista ⇒ el campo NO se dibuja (fail-closed, igual que antes).
+   */
+  empresasVenta: string[] = [];
+  /** Descarta la respuesta de una apertura anterior si el modal se cerró y se volvió a abrir en el medio. */
+  private aperturaEmpresaVenta = 0;
+
   constructor(
     private fb: FormBuilder,
     private movimientoSvc: MovimientoPolloEngordeService,
@@ -86,7 +97,8 @@ export class ModalVentaPanamaComponent implements OnChanges {
     private tokenStorage: TokenStorageService,
     private companyConfig: ActiveCompanyConfigService,
     private cdr: ChangeDetectorRef,
-    private permService: UserPermissionService
+    private permService: UserPermissionService,
+    private empresaVentaSvc: EmpresaVentaEngordeService
   ) {
     this.buildForm();
     this.escucharKilosDespacho();
@@ -117,7 +129,39 @@ export class ModalVentaPanamaComponent implements OnChanges {
       this.resetForm();
       this.buildGalpones();
       this.resolverPesoDiferido();
+      this.cargarEmpresasVenta();
     }
+  }
+
+  /** ¿Se dibuja el campo «Empresa de venta»? Solo si la empresa activa tiene la lista. */
+  get mostrarEmpresaVenta(): boolean {
+    return this.empresasVenta.length > 0;
+  }
+
+  /**
+   * Pide las opciones de la lista maestra en cada apertura (así una opción recién agregada aparece sin
+   * recargar). La primera opción —«Planta» por defecto— viene preseleccionada y la empresa es obligatoria.
+   * Fail-closed: si la lista no existe o falla, `empresasVenta` queda vacío y el campo no se dibuja.
+   */
+  private cargarEmpresasVenta(): void {
+    this.empresasVenta = [];
+    this.aplicarValidadorEmpresaVenta();
+    const apertura = ++this.aperturaEmpresaVenta;
+    this.empresaVentaSvc.opciones().subscribe((opciones) => {
+      if (apertura !== this.aperturaEmpresaVenta) return;
+      this.empresasVenta = unirOpcionesEmpresaVenta(opciones);
+      const ctrl = this.form.get('empresaVenta');
+      if (!ctrl?.value && opciones.length > 0) ctrl?.setValue(opciones[0], { emitEvent: false });
+      this.aplicarValidadorEmpresaVenta();
+      this.cdr.detectChanges();
+    });
+  }
+
+  private aplicarValidadorEmpresaVenta(): void {
+    const ctrl = this.form?.get('empresaVenta');
+    if (!ctrl) return;
+    ctrl.setValidators(this.mostrarEmpresaVenta ? [Validators.required] : []);
+    ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
   private buildForm(): void {
@@ -135,6 +179,8 @@ export class ModalVentaPanamaComponent implements OnChanges {
       sellos: [null as string | null],
       ayuno: [null as string | null],
       conductor: [null as string | null],
+      // «Empresa de venta»: texto de la lista maestra; se manda como `plantaDestino`.
+      empresaVenta: [null as string | null],
       // Peso báscula obligatorio en ventas (misma regla que la venta Ecuador).
       pesoBruto: [null as number | null, [Validators.required, Validators.min(0.01)]],
       pesoTara: [null as number | null, [Validators.required, Validators.min(0)]],
@@ -157,7 +203,7 @@ export class ModalVentaPanamaComponent implements OnChanges {
       const id = (l.galponId ?? '').trim() || SIN_GALPON;
       if (seen.has(id)) continue;
       seen.add(id);
-      result.push({ id, label: this.labelGalpon(l) });
+      result.push({ id, label: this.labelGalponConNucleo(l) });
     }
     this.galpones = result.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
   }
@@ -167,6 +213,16 @@ export class ModalVentaPanamaComponent implements OnChanges {
     if (n && String(n).trim()) return String(n).trim();
     const id = (l.galponId ?? '').trim();
     return id || '— Sin galpón —';
+  }
+
+  /**
+   * «Núcleo X · Galpón»: el nombre de un galpón puede repetirse entre los núcleos de una misma granja, así que el
+   * núcleo va delante para poder distinguirlos (y los agrupa al ordenar). Sin núcleo, solo el galpón.
+   */
+  private labelGalponConNucleo(l: LoteAveEngordeDto): string {
+    const galpon = this.labelGalpon(l);
+    const nucleo = (l.nucleo?.nucleoNombre ?? '').trim() || (l.nucleoId ?? '').trim();
+    return nucleo ? `Núcleo ${nucleo} · ${galpon}` : galpon;
   }
 
   get hayLineasConCantidad(): boolean {
@@ -325,6 +381,7 @@ export class ModalVentaPanamaComponent implements OnChanges {
   /** Mensaje del primer control inválido (antes asumía que la única causa era el peso). */
   private mensajeFormInvalido(): string {
     if (this.form.get('fechaMovimiento')?.invalid) return 'Complete la fecha del despacho.';
+    if (this.form.get('empresaVenta')?.invalid) return 'Seleccione a qué empresa se vende o envía el despacho.';
     const bruto = this.form.get('pesoBruto');
     const tara = this.form.get('pesoTara');
     if (bruto?.invalid || tara?.invalid) {

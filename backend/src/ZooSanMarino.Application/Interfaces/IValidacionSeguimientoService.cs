@@ -119,6 +119,28 @@ public interface IValidacionSeguimientoService
     Task<ResultadoValidacionEnBloqueDto> ValidarPendientesDelLoteAsync(string modulo, int loteId, CancellationToken ct = default);
 
     /// <summary>
+    /// Valida TODOS los pendientes de una empresa —levante, producción, engorde y reproductora—. Es lo
+    /// que se hace justo antes de APAGAR su doble validación: con el flag apagado no hay botón de validar,
+    /// así que lo que quede pendiente queda colgado (con su alimento y sus aves separados) para siempre.
+    ///
+    /// <para>
+    /// Recorre los lotes con pendientes y aplica en cada uno la lógica de <see cref="ValidarPendientesDelLoteAsync"/>
+    /// (una transacción por registro, orden cronológico, corte en el primer fallo <b>del lote</b>, tope por
+    /// pasada que se repite hasta agotar). Un lote que corta no frena a los demás: el resultado lista todos
+    /// los cortes de una vez, para arreglarlos juntos. <b>No exige el permiso <c>*.validar</c></b>: lo
+    /// autoriza quien administra la empresa. Sin pendientes no hace nada.
+    /// </para>
+    ///
+    /// <para>
+    /// Se aplica bajo la empresa ACTIVA: <paramref name="companyId"/> tiene que ser la de la sesión (la
+    /// validación descuenta inventario y aves de esa empresa). Con pendientes y otra empresa activa lanza
+    /// <see cref="InvalidOperationException"/> con el motivo; sin pendientes no pregunta.
+    /// </para>
+    /// </summary>
+    /// <returns>El resultado agregado; <see cref="ResultadoValidacionEmpresaDto.Completo"/> dice si se puede apagar.</returns>
+    Task<ResultadoValidacionEmpresaDto> ValidarPendientesDeLaEmpresaAsync(int companyId, CancellationToken ct = default);
+
+    /// <summary>
     /// Deshace la validación: devuelve el alimento y las aves y vuelve a dejar el registro separado y
     /// editable. Requiere permiso propio — es la única vía para corregir un registro ya validado.
     /// </summary>

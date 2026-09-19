@@ -23,6 +23,8 @@ export interface VentaLineaGranja {
   loteNombre: string;
   galponId: string;
   galponLabel: string;
+  /** Núcleo del lote (nombre, o el id si no hay nombre); vacío si el lote no tiene núcleo. Solo para mostrar. */
+  nucleoLabel?: string;
   maxH: number;
   maxM: number;
   maxX: number;

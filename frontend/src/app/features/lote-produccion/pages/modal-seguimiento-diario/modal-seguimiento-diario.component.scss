@@ -634,6 +634,10 @@
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 :host .ux-hint { font-size: .8rem; color: var(--warm-400); margin-bottom: .5rem; }
+/* Sin esta regla `.ux-hint` (gris) le ganaba a la utilidad global `text-danger` y los avisos de error de
+   este modal (ítem sin elegir, sin silos, stock superado) se veían como una nota más. Mismo criterio que
+   levante y engorde; el color sale del token global --danger, no de un hex. */
+:host .ux-hint.text-danger { color: var(--danger); font-weight: 600; }
 
 /* ==========================================================================
    🕳️ Loading

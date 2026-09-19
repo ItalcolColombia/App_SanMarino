@@ -13,17 +13,20 @@ public partial class CompanyService : ICompanyService
     private readonly ICurrentUser _currentUser;
     private readonly IUserPermissionService _userPermissionService;
     private readonly ICompanyPermissionService _companyPermissionService;
+    private readonly IValidacionSeguimientoService _validacion;
 
     public CompanyService(
         ZooSanMarinoContext ctx,
         ICurrentUser currentUser,
         IUserPermissionService userPermissionService,
-        ICompanyPermissionService companyPermissionService)
+        ICompanyPermissionService companyPermissionService,
+        IValidacionSeguimientoService validacion)
     {
         _ctx = ctx;
         _currentUser = currentUser;
         _userPermissionService = userPermissionService;
         _companyPermissionService = companyPermissionService;
+        _validacion = validacion;
     }
 
     // Convierte entidad a DTO; requiere que c.Logo esté cargado (Include o eager)

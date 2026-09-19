@@ -8797,3 +8797,246 @@ y `mapFlags()` en el propio service ya la tenían bien; solo el spec quedó atr�
       TS1360, **11/11 SUCCESS**.
 - [x] Commit (sin push: requiere OK explícito).
 
+---
+
+## Cantidad de alimento sin ítem: exigir el ítem en Seguimiento Diario (Levante y Producción)
+
+Plan: [seguimiento_cantidad_sin_item_obligatorio_plan.md](fase_de_desarrollo/seguimiento_cantidad_sin_item_obligatorio_plan.md)
+
+Ticket de operación (18-sep-2026): don Diego tecleó la cantidad de alimento sin elegir el ítem y el sistema
+dejó guardar. El registro (Producción #676, empresa Santa Reyes) quedó con `cons_kg_h = 0`, sin ítems en el
+metadata y sin movimiento de inventario: no se perdió solo la «salida», se perdió el consumo entero.
+Causa: `onSave()` descarta en silencio toda fila sin ítem y el formulario la deja válida (ítem opcional).
+Regla nueva, en todas las empresas y con el flag `parcial` ON u OFF: **cantidad > 0 ⇒ ítem obligatorio**.
+Solo frontend; sin migración, sin flag, sin backend.
+
+- [x] E1. Causa raíz medida (código + registro #676 en la BD local + búsqueda de movimientos de inventario).
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_cantidad_sin_item_obligatorio_plan.md`.
+- [x] F1. Función pura `shared/utils/inventario/consumo-sin-item.funcion.ts` + spec Jasmine (20 casos).
+- [x] F2. Producción (`modal-seguimiento-diario`): aviso en línea + borde inválido, botón deshabilitado, aviso en
+      el pie y guarda con toast en `onSave()`. Además `:host .ux-hint.text-danger` en su SCSS: `.ux-hint` gris le
+      ganaba a `text-danger` y los avisos de error de ese modal (silo, stock superado, este) se veían grises.
+- [x] F3. Levante (`modal-create-edit`): lo mismo en Hembras, Machos e Ítems generales (+ vuelve a la pestaña
+      General si el aviso salta desde otra).
+- [x] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<spec>`: **20/20 SUCCESS**.
+- [x] V2. `yarn build` (front): **0 errores, 0 warnings** (2 veces: antes y después del ajuste de SCSS).
+- [x] V3. Smoke en navegador (back :5002 + front :4200 locales, BD local, empresa 6 = Santa Reyes, flag `parcial`
+      ON, silos ON, sesión minteada). Producción: registro #676 (el del ticket) tecleando 1200 sin ítem ⇒ borde
+      inválido + aviso rojo en línea + aviso en el pie (visible también desde la pestaña Huevos) + botón
+      «Actualizar» deshabilitado; con ítem ⇒ limpio (el tope de stock pre-existente sigue mandando: 1200 > 372 kg);
+      cantidad 0 ⇒ guarda como antes (flag `parcial`); quitar el ítem con cantidad ⇒ vuelve a bloquear; alta
+      (Nuevo registro) idem; cerrar/reabrir ⇒ estado limpio; registro heredado (consumo escalar sin ítem) sin
+      tocar ⇒ NO bloquea y `onSave` conserva el escalar (`consumoH: 1200`, sin ítems), tocado ⇒ bloquea. Levante
+      (lote 217A): alta con 500 sin ítem ⇒ igual; edición de un registro con ítem: al abrir no bloquea, vaciar el
+      ítem ⇒ bloquea; Machos (config sin flags) e Ítems generales ⇒ bloquean; Machos oculto (`soloHembras`) ⇒ no
+      bloquea; toast plural correcto. Consola: 0 errores, sin NG0100/NG0103.
+      ⚠️ Incidente mío en el smoke: un `cmp.onSave()` programático emitió `save` y el padre hizo un PUT REAL del
+      #676 en la BD local (mortalidad 3, consumo 1200). Revertido por la propia app (mortalidad 0, consumo 0, aves
+      del LPP 20 de nuevo en 2860), auditoría del #676 (`updated_at`/`updated_by`) restaurada por SQL y verificada
+      contra lo capturado al inicio; sin movimientos ni reservas de inventario. Único residuo: `updated_at` del
+      LPP 20. Desde ahí `save.emit` quedó anulado en cada instancia antes de abrir nada.
+- [x] V4. Sin procesos huérfanos: backend :5002 y front :4200 detenidos (`preview_stop`), 5002/4200/9876 libres,
+      sin dotnet/node propios vivos; borradas la fila de `sesiones_activas` y el `user_farms` que sembré para
+      el smoke; token borrado del scratchpad.
+- [x] C1. Commit `d46700f` (código + tests + tracker; plan en `bcdda0b`). Sin push ni deploy: requieren OK explícito.
+
+---
+
+## HUEVOS-PRIMER-GUARDADO — Los huevos «quedan en 0» y hay que registrar 2-3 veces (Seguimiento Diario Producción y Levante, 18-sep-2026)
+
+Plan: [seguimiento_huevos_primer_guardado_plan.md](fase_de_desarrollo/seguimiento_huevos_primer_guardado_plan.md)
+
+Reporte de Santa Reyes: al registrar la producción y guardar, queda el registro con huevos en 0 y hay que repetirlo
+2-3 veces (captura: P-LOTE 217A, un registro con mortalidad/consumo y huevos 0 + dos registros solo-huevos idénticos).
+Solo frontend; sin migración, sin flag, sin backend (medido: con el request correcto el backend guarda bien).
+
+- [x] E1. Causas medidas y reproducidas en navegador (clon de la BD local, Santa Reyes, back aislado :5002):
+      D1 `ngOnChanges` de Producción vacía el formulario ante cualquier `@Input` tardío (huevos tecleados se pierden
+      al llegar `informacion-lote`); D2 tras un guardado con error el modal queda vacío; D3 aviso «Seguimiento
+      Creado» viejo sobre el formulario nuevo, y Aceptar cierra el modal recién abierto; D4 Guardar no espera los
+      tipos de huevo (Producción y Levante); D5 el modal se abre con el id del LPP como `loteId` hasta que responde
+      el lote base (silos y huevos → 400).
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_primer_guardado_plan.md`.
+- [x] F1. `funciones/cambios-modal-seguimiento.funcion.ts` (pura) + spec (12 casos).
+- [x] F2. `resolverGuardadoConHuevos` (pura, `items-huevo-catalogo.funcion.ts`) + spec (6 casos).
+- [x] F3. Modal de Producción: `ngOnChanges(changes)` sin reset por datos tardíos, aviso viejo limpio al abrir (y
+      `showSuccessMessage` retirado), Guardar espera/confirma según los tipos de huevo, «Reintentar», `timeout`
+      (20 s) y guarda anti-doble-guardado.
+- [x] F4. `lote-produccion-list`: toast de éxito (no diálogo), `[loteId]` = lote base, «Nuevo registro» espera al lote base.
+- [x] F5. Levante (`modal-create-edit`): Guardar espera/confirma según los tipos de huevo (+ `timeout`).
+- [x] F6. Spec del componente de Producción (14 casos: un dato tardío —`fechaEncaset`, `loteId`, `loading`, galpón— no
+      borra lo tecleado; abrir sí reinicia y limpia el aviso; Guardar espera/confirma; empresa sin flag intacta).
+- [x] V1. `ng test --watch=false --browsers=ChromeHeadless --include=<7 specs>`: **90/90 SUCCESS** (0 FAILED, sin
+      warnings; los 3 tests de fallo simulado silencian su `console.error`). `yarn build`: **0 errores, 0 warnings**.
+- [x] V2. Smoke en navegador (back :5002 aislado con `--contentRoot` propio + clon de la BD local + front :4200; latencia
+      y fallos inyectados parcheando `XMLHttpRequest`). ANTES y DESPUÉS de cada defecto, mismo guion:
+      D1 huevos 656:5000+667:300 tecleados, `informacion-lote` a los 5 s → antes `[]`, ahora conserva huevos y mortalidad;
+      D2 guardado 400 (fecha futura) → antes formulario en 0, ahora conserva y, corregida la fecha, 201 con `huevoItems`;
+      D3 reabrir tras guardar → antes aviso viejo cuyo «Aceptar» cerraba el modal, ahora nada + toast «Seguimiento
+      creado.»; D4 tipos lentos → Guardar deshabilitado con aviso en el pie, `onSave()` forzado no envía; consulta caída →
+      «Guardar sin huevos» (cancelar no envía, conserva lo tecleado) y «Reintentar» restaura las 7 filas; Levante igual;
+      D5 lote base lento → «Nuevo registro» deshabilitado («Cargando el lote…») y abre con `loteId` 152 (antes 20 →
+      `LoteSilo/20` y `LoteHuevoItem/20` en 400). Además: edición con huevos por ítems (#680) rehidrata y sobrevive a un
+      `loading` del padre (PUT 204); Levante alta con huevos 201; **Sanmarino** (flag apagado, 11 categorías): un dato
+      tardío no borra, alta 201 con `huevoLimpio/huevoSucio/huevosTotales` y sin `huevoItems`, edición 204.
+- [x] V3. Sin procesos huérfanos: `preview_stop` del front y `TaskStop` del back; 5002/4200/9876 libres, sin dotnet ni node
+      propios; BD clon `smoke_huevos` DROPeada (la BD `sanmarinoapplocal` no se tocó: el back solo tuvo conexión al clon,
+      verificado con `pg_stat_activity`); tokens, dump y content root borrados del scratchpad.
+- [x] C1. Commit `4f71cbe` (código + specs + plan con resultados; plan y tracker iniciales en `136524f`), acotado a mis
+      archivos (el bloque y los archivos de la otra sesión quedaron intactos en el árbol). Sin push ni deploy: requieren
+      OK explícito.
+
+---
+
+## HUEVOS-TOTAL-DEL-DIA — «Queda en 0»: la primera línea del día no dice cuántos huevos hay (Producción, 18-sep-2026)
+
+Plan: [seguimiento_huevos_total_del_dia_plan.md](fase_de_desarrollo/seguimiento_huevos_total_del_dia_plan.md)
+
+El usuario cargó la BD real de producción (18-sep ~12:20) y se analizó el caso del Galpón 4 de La Esperanza (LPP 26,
+P-LOTE 217A): un operario puso al día el 14/09 de los 6 galpones y en el G4 repitió la carga de huevos 3 veces (#693,
+#694, #695 idénticos, 7.010) porque la primera línea del día seguía diciendo 0 huevos (#692, sin huevos): el sistema
+cuenta 21.030 huevos = 183 % de postura (G3: 15.060 = 135 %). También aparecieron el vaciado del formulario (#686 con la
+fecha de hoy) y registros borrados/rehechos. Solo frontend; sin migración, sin flag, sin backend.
+
+- [x] E1. Análisis de la copia de producción (registros, `sync_operaciones`, tombstones, movimientos de inventario,
+      sesiones, fn canónica, espejo de huevos) — ver el plan. Descartados: cola sin red, sesión vencida, doble clic,
+      silos/tipos de huevo del lote.
+- [x] E2. Validación del arreglo `4f71cbe` contra el lote real (copia clonada, back aislado): fecha 14/09 + 4 tipos +
+      mortalidad tecleados con `informacion-lote` 5 s tarde se conservan; durante «Guardando…» el formulario mantiene los
+      valores; guarda 201 con fecha 14/09; al reabrir no sale el aviso viejo. La grilla real sigue mostrando «14/09/2026 ·
+      4 registros … huevos 0» en la primera línea.
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_total_del_dia_plan.md`.
+- [x] F1. `filasGrillaProduccion` + `totalDia` en la primera fila de un día con 2+ registros, y `detalleTotalDia` para el
+      tooltip (+ spec: el caso real de 4 registros con el 1.º sin huevos → 21.030; día de un registro sin total).
+- [x] F2. `tabs-principal`: «Total del día: N huevos» en la celda de la fecha (mortalidad/selección/consumo del día en el
+      tooltip); las cifras y los botones de cada registro no cambian.
+- [x] F3. `resumirGuardadoSeguimiento(request, esEdicion)` (pura + spec, 14 casos) y el aviso de éxito de
+      `lote-produccion-list` con lo guardado («Seguimiento creado: huevos 7010 · mortalidad 15 · consumo 120 kg.»).
+- [x] V1. `ng test` de los 8 specs tocados → 108 SUCCESS, 0 FAILED; `yarn build` → 0 errores y 0 advertencias.
+- [x] V2. Smoke en navegador contra la copia real (LPP 26, back aislado sobre un clon; nunca contra RDS): la primera línea
+      del 14/09 muestra «5 registros — Total del día: 28,040 huevos» con el tooltip «mortalidad 30 · consumo 1215 kg»
+      (= la fn canónica: es la suma exacta de los registros); el guardado muestra «Seguimiento creado: huevos 7010 ·
+      mortalidad 15 · consumo 120 kg.». Medido en la copia: solo Santa Reyes tiene días de 2+ registros (4 días), o sea que
+      en las demás empresas no cambia nada.
+- [x] V3. Sin procesos huérfanos: puertos 5002/4200/9876/5501 libres, sin dotnet/ng/karma vivos, BD clon `smoke_real`
+      eliminada (verificado con `pg_database`), dump, tokens y content root borrados del scratchpad.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="total del dia"`; el bloque y los archivos de la otra sesión
+      quedaron intactos en el árbol). Sin push ni deploy: requieren OK explícito.
+
+Pendiente del usuario (no es código): elegir si se agrega un aviso informativo cuando el día ya tiene huevos; corregir en
+producción los datos ya cargados desde la app (eliminar 694, 695 y 691 —repetidos—, revisar 686 con fecha del 18/09, borrar
+el vacío 688, cargar los huevos de los Galpones 5 y 6); OK para desplegar `4f71cbe` + este commit.
+
+---
+
+## VALIDADO-NACE-BIEN — Todo seguimiento nace con `validado` correcto y se puede comprobar (18-sep-2026)
+
+Plan: [validado_nace_correcto_seguimientos_plan.md](fase_de_desarrollo/validado_nace_correcto_seguimientos_plan.md)
+
+Hallazgo lateral de HUEVOS-PRIMER-GUARDADO: en Producción, la rama «Colombia modelo B + consumo por ítems» hacía `return`
+antes de `entity.Validado = !separa` y el registro nacía `validado = false` con la doble validación apagada. Medido en la
+copia de producción: 4 filas (#687, #692, #696, #697, Santa Reyes) con su consumo YA aplicado; además 6 pendientes legítimos
+con reserva (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados) y 1 reserva huérfana (#682: 982 kg + un Ingreso de
+982 kg sin Consumo previo) que dejó el apagado del flag con pendientes. Cuarta vez de la misma clase (Crud, traslados, cruce).
+
+- [x] P1. Plan escrito en `fase_de_desarrollo/validado_nace_correcto_seguimientos_plan.md` (medición, capas, lo que NO se hace).
+- [x] B1. `ProduccionService.CrearSeguimientoAsync`: `entity.Validado = !separa` justo después de resolver `separa`, antes de la rama Colombia (y sin la asignación duplicada de más abajo).
+- [x] B2. Las 3 entidades (`SeguimientoProduccion`, `SeguimientoDiario`, `SeguimientoDiarioAvesEngorde`): `Validado = true` por defecto (seguro por construcción); default de BD y config de EF SIN tocar (EF omite los `false` de un bool con default: cambiarlo a `true` haría nacer validados a los que separan, y en un deploy rodante también a las tareas viejas).
+- [x] B3. Migración data-only `20260918210000_NormalizarValidadoSeguimientosSinReserva` (+ Designer clonado, ModelSnapshot intacto): flag apagado + sin reservas + no borrado.
+- [x] B4. `backend/sql/verificar_validado_sin_reserva.sql`: mide normalizables / limbo / reservas huérfanas y simula la migración (2.ª pasada = 0); paso previo a encender el flag en cualquier empresa.
+- [x] T1. `SeguimientoNaceValidadoTests` (5 casos: contrato de las 3 entidades + quien separa queda pendiente + flag apagado coincide con el valor inicial).
+- [x] V1. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.316/4.316 y Domain.Tests 1/1. Gate `verificar-sql-llega-por-migracion.js` en OK.
+- [x] V2. Simulación sobre la copia real (ROLLBACK): afecta exactamente {687, 692, 696, 697}; 1.ª pasada `UPDATE 4/0/0`, 2.ª `0/0/0`; filas con reserva y filas de empresas con flag encendido que cambiaron = 0/0.
+- [x] V3. Smoke con backend aislado (:5501) sobre un clon de la copia real, migración aplicada por el arranque (399): flag OFF + Colombia B + ítems → 201, `validado=true`, `Consumo` aplicado; flag OFF clásico → `true`; flag OFF sobre arrastre en `false` → fusiona y queda `true`; flag ON → 201, `validado=false`, reservas ACTIVAS (10 kg y 2 aves) y sin movimiento; flag ON sobre arrastre nacido validado → pasa a `false` con reserva. Sin advertencias nuevas de EF.
+- [x] V4. Sin procesos huérfanos: back :5501 detenido, servidores MSBuild apagados (`dotnet build-server shutdown`), clon `smoke_validado` eliminado, token/content root/scripts borrados; la copia `sanmarinoapplocal` intacta (398 migraciones, 10 filas `false`).
+- [x] C1. Commit acotado a mis archivos (`git log --grep="validado nace"`; sin push ni deploy: requieren OK explícito; la migración corre sola en el deploy).
+
+Pendiente del usuario (no es código): decidir qué hacer con el limbo de Santa Reyes que dejó apagar el flag con pendientes —6 registros (#676–#681: 7.011 kg y 259 aves separados y nunca aplicados), 1 reserva huérfana (#682: 982 kg) y un Ingreso de 982 kg sin Consumo previo sobre el ítem 373— (el plan lo detalla, con el script para medirlo); y si se implementa la propuesta de un guardia al APAGAR el flag con reservas ACTIVAS. OK para desplegar (la migración corre sola al arrancar).
+
+---
+
+## VENTA-ENGORDE-EMPRESA — Núcleo + «Empresa de venta» parametrizable en la venta de pollo engorde, Panamá y Ecuador (19-sep-2026)
+
+Plan: [venta_engorde_empresa_nucleo_plan.md](fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md)
+
+Pedido: (1) agregar el campo **Núcleo** en el módulo de venta de pollo engorde; (2) en el modal de venta, un campo nuevo
+**Empresa** (a quién se vendió/envió) **parametrizable desde Listas Maestras**, sembrado por migración con **Planta**;
+(3) que quede guardado; (4) poder **filtrar la tabla por la empresa de venta**. Se reutiliza `planta_destino` (ya existe y
+ya lo llena la carga masiva) guardando el TEXTO de la opción (las opciones de una lista maestra cambian de id en cada
+edición). Migración data-only, sin DDL ni cambios al snapshot. Sin flag nuevo: la señal es que la lista tenga opciones.
+
+- [x] P1. Plan escrito en `fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md` (medición, decisiones D1–D8, casos de prueba).
+- [x] P2. Bloque agregado al final de este tracker (la otra sesión con trabajo abierto queda intacta).
+- [x] B1. `MovimientoPolloEngordeCalculos.NormalizarEmpresaVenta` (pura: trim, vacío ⇒ null, > 200 ⇒ error).
+- [x] B2. DTO lectura `MovimientoPolloEngordeDto` (+`PlantaDestino`, `NucleoOrigenId`, `GalponOrigenId`) y `PlantaDestino` en `CreateVentaGranjaDespachoDto` / `CreateVentaPanamaDespachoDto`.
+- [x] B3. Servicios: `CreateAsync`/`UpdateAsync`/`ToDto`, `CreateVentaGranjaDespachoAsync` y `CreateVentaPanamaDespachoAsync` guardan y devuelven la empresa.
+- [x] B4. Migración data-only `20260919120000_SeedListaMaestraEmpresaVentaEngorde` (+ Designer clonado del snapshot; snapshot intacto). Comparte el prefijo `20260919120000` con la de otra sesión (`…_ValidarPendientesSinDobleValidacionProduccionColombia`): ids completos distintos, orden determinista, sin gate que lo impida.
+- [x] B5. `backend/sql/verificar_empresa_venta_engorde.sql` (solo lectura: listas sembradas, duplicados, ventas por empresa y valores fuera de la lista).
+- [x] T1. Tests xUnit `EmpresaVentaEngordeCalculosTests` (15: normalización, largo 200/201, contrato de los DTO).
+- [x] F1. `empresa-venta-engorde.service.ts` + `funciones/empresa-venta.funcion.ts` (+ spec de 15 casos).
+- [x] F2. Modelos/DTO/mapeadores del front (`plantaDestino`, `nucleoOrigenId`, `galponOrigenId`).
+- [x] F3. Modal Ecuador (`modal-movimiento-pollo-engorde`): select «Empresa de venta» (Planta preseleccionada, obligatoria al crear), núcleo en los títulos de galpón, detalle de solo lectura.
+- [x] F4. Modal Panamá (`modal-venta-panama`): select «Empresa de venta» y «Núcleo X · Galpón» en el desplegable de galpones.
+- [x] F5. Lista: paso «Núcleo» en la cascada + corrección de `onNucleoChange` (no recargaba los movimientos: probado por red, la búsqueda sale con `nucleoOrigenId`).
+- [x] F6. Lista: filtro «Empresa de venta» (lista ∪ valores presentes + «Sin empresa»), empresa en la columna Destino («Varias» si el despacho mezcla), núcleo/galpón en Origen y sub-detalle.
+- [x] F7. Excel de ventas con «Núcleo origen», «Galpón origen» y «Empresa de venta» (y los filtros en el subtítulo).
+- [x] V1. `dotnet build ZooSanMarino.sln`: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.331/4.331 (+15) y Domain.Tests 1/1.
+- [x] V2. Migración: SQL literal del `Up()` en `BEGIN…ROLLBACK` sobre la copia local, dos pasadas (1.ª: +5 listas +5 opciones; 2.ª: sin cambios), lista con opciones propias intacta, `Down` solo borra esa key, base como estaba. Además EF la descubrió y la aplicó sola al arrancar el backend sobre un clon.
+- [x] V3. `yarn build` (producción) sin errores ni advertencias y `ng test` del spec nuevo 15/15.
+- [x] V4. Smoke API con backend aislado sobre un clon (17/17): Ecuador y Panamá crean con empresa (recortada), sin empresa y con blancos ⇒ null, 201 caracteres ⇒ 400, `PUT` cambia / no toca / limpia con `""`, `search` la devuelve, `byKey` resuelve la lista.
+- [x] V5. Smoke UI en el navegador contra ese backend: cascada de 4 pasos y recarga por núcleo, filtro (Planta / Sin empresa / valor histórico), «Varias», Excel, modal Ecuador y modal Panamá con Planta preseleccionada y ventas guardadas desde el formulario (`planta_destino='Planta'` en BD), edición con valor histórico, empresa sin lista (modal sin campo y guarda sin empresa) y empresa 1 sin lista ni datos (filtro no se dibuja). Detalle cosmético corregido («N1 · Seleccionado»).
+- [x] V6. Sin procesos huérfanos: backend :5002 y `ng serve` :4200 detenidos, clon `smoke_venta` eliminado, tokens/content root/sesiones borrados del scratchpad, base compartida intacta (398 migraciones, 0 listas, 0 filas de smoke).
+- [x] C1. Commits acotados a mis archivos (`3a95295` backend, `f534f2f` front, `26cbc7c` plan), desarrollados y compilados en un worktree aislado y bajados a `main` por fast-forward; el trabajo sin commitear de la otra sesión quedó idéntico. Sin push ni deploy: requieren OK explícito (la migración corre sola en el deploy).
+
+Pendiente del usuario (no es código): OK para desplegar; después del deploy correr `backend/sql/verificar_empresa_venta_engorde.sql`
+y cargar en Config → Listas maestras («Empresa de venta (pollo engorde)») las empresas reales de cada país además de «Planta».
+Una empresa NUEVA no trae la lista hasta que se cree con la key `venta_pollo_engorde_empresa` (o con otra migración seed).
+## APAGAR-FLAG-VALIDA-PENDIENTES — Al apagar la doble validación se validan los pendientes; el limbo de Santa Reyes por migración (19-sep-2026)
+
+Plan: [apagar_doble_validacion_valida_pendientes_plan.md](fase_de_desarrollo/apagar_doble_validacion_valida_pendientes_plan.md)
+
+Decisiones del usuario sobre los hallazgos de VALIDADO-NACE-BIEN: (1) si a la empresa se le quita el validador, todos sus pendientes pasan a
+validarse y recién ahí se apaga (solo en la transición encendido → apagado); (2) el limbo de Santa Reyes (6 pendientes con reserva, 1 reserva
+huérfana, 1 Ingreso fantasma sobre el ítem 373) se corrige **por migración**, para que se aplique en producción.
+
+- [x] P1. Plan escrito (diseño A + B, verificación diferencial contra la API, lo que NO se hace).
+- [x] A1. `ApagadoDobleValidacionCalculos` (puro: `EsApagado`, `PuedeValidarDesdeEmpresaActiva`, mensajes con tope de líneas y fecha independiente de la cultura) + `ApagadoDobleValidacionCalculosTests` (24 casos).
+- [x] A2. `ValidacionSeguimientoService`: núcleo sin permiso de `ValidarAsync` (`ValidarRegistroAsync`) y de `ValidarPendientesDelLoteAsync` (comportamiento idéntico) + `ValidarPendientesDeLaEmpresaAsync` (lotes con pendientes de los 4 módulos, bucle hasta agotar con re-lectura, corte por lote, sin exigir `*.validar`).
+- [x] A3. `CompanyService.UpdateAsync`: en la transición true → false valida antes de cargar/asignar nada; si algo falla lanza y NO guarda nada. `CompanyController.Update`: `InvalidOperationException` → 400 con el detalle.
+- [x] A4. Front `company-management`: confirmación (`ConfirmDialogService`) al desmarcar el flag de una empresa existente, descripción del flag actualizada, toast que respeta saltos de línea y dura 20 s con errores largos; función pura `apagaDobleValidacion` + spec (16 de 16 en verde con el spec del componente).
+- [x] B1. Migración `20260919120000_ValidarPendientesSinDobleValidacionProduccionColombia` (+ Designer): SQL `DO $$` con sub-bloque por registro; Colombia modelo B; replica `ValidarAsync`.
+- [x] B2. Migración `20260919121000_LiberarReservasHuerfanasYCorregirIngresoFantasma682` (+ Designer): reservas huérfanas → LIBERADA; Ingreso fantasma del #682 compensado con `AjusteStock` (con guardas y marca de idempotencia).
+- [x] B3. `verificar_validado_sin_reserva.sql` alineado: sección [4b] de ingresos fantasma y cuarta columna del resumen; sobre la copia real da 4 / 6 / 1 / 1 y sobre el clon migrado 0 / 0 / 0 / 0.
+- [x] V1. Prueba DIFERENCIAL (dos clones de la copia real): 6 registros validados por la API (`POST …/validar`, binarios de antes del cambio) vs el SQL EXTRAÍDO de la migración. Movimientos nuevos, `inventario_gestion_stock` entero, reservas de alimento y aves, registros de producción, histórico espejado y filas de TODAS las tablas: **idénticos** (única diferencia: la fila de `sesiones_activas` del smoke). Bordes en otro clon: sin stock → omite ese registro y sigue (#680), silo inactivo (#678), ítem sin equivalente (#677) — cada omitido queda con `validado=false`, reserva ACTIVA y sin movimiento (el sub-bloque deshace el «marcar primero»); ya validado no se toca; 2.ª corrida = 0; empresa con flag ENCENDIDO = 0. B2: libera la reserva, compensa 982 kg con UN `AjusteStock`, 2.ª corrida = 0; con solo 500 kg en el renglón NO compensa y lo avisa.
+- [x] V2. Arranque real sobre un clon con `RunMigrations=true`: la app aplicó SOLA las tres migraciones (historial 398 → 401); `verificar_validado_sin_reserva.sql` pasó de 4/6/1/1 a **0/0/0/0**; 6 consumos por 7.011 kg, un `AjusteStock`, renglón fantasma en 0, 6 registros con `validado_por = 'migracion'`. Bordes y 2.ª corrida: ver V1.
+- [x] V3. Parte A con backend aislado sobre un clon (Santa Reyes con el flag ENCENDIDO y 10 pendientes): empresa activa distinta → 400 «cambie a esa empresa» sin tocar nada; un lote sin stock → 400 con el detalle, flag ON, el teléfono del mismo PUT NO se guarda y quedan validados los otros 8; corregido el stock, el reintento → 200 con flag apagado, 6 consumos por 7.011 kg y `validado_por` = quien apagó; ENCENDER el flag u omitirlo no valida nada; apagar sin pendientes desde otra empresa activa → 200. Log sin errores. **Otros módulos:** Panamá (flag ENCENDIDO, 21 pendientes de engorde + 4 de reproductora, 24+21 reservas ACTIVAS) → PUT 200, 0 pendientes, 0 reservas ACTIVAS, 24 consumos por 41.324,2 kg y el cruce de reproductora disparado.
+- [x] V4. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.340/4.340 (24 nuevos) y Domain.Tests 1/1. Front: `ng test` de los 2 specs de `company-management` 16/16 y `yarn build` 0 errores/0 advertencias.
+- [x] V5. Sin procesos huérfanos: API :5501 detenida, servidores MSBuild/compilador apagados, las 6 BD clon eliminadas (verificado con `pg_database`), tokens, content roots, copias de binarios y scripts borrados del scratchpad; sin dotnet vivos.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="apagar la doble validacion valida"`; el bloque y los archivos de otras sesiones quedaron intactos en el árbol). Sin push ni deploy: las migraciones corren solas al arrancar y requieren OK explícito.
+
+Pendiente del usuario (no es código): OK para desplegar `fa301b5` + este commit (tres migraciones data-only que corren solas al arrancar); después correr `backend/sql/verificar_validado_sin_reserva.sql` contra producción: los cuatro conteos tienen que dar 0 (un registro que ese día no tenga stock queda pendiente y el script lo lista, no aborta el arranque). Opcional: que borrar/editar decida por las reservas del propio registro.
+
+---
+
+## TICKETS-ABRIR-VS-ATENDER — Separar abrir de atender, empresa correcta y alcance EMPRESA/GLOBAL (19-sep-2026)
+
+Plan: [tickets_crear_vs_atender_empresa_global_plan.md](fase_de_desarrollo/tickets_crear_vs_atender_empresa_global_plan.md)
+
+Pedido: al parametrizar tickets en un usuario/rol «pasa a ser resolutor»; Lenin (Santa Reyes) habilitado y sin
+resolutor; Alexander Mejía (Sanmarino) sale «Global»; los globales solo los elige el admin de todas las empresas.
+Diagnóstico medido sobre la copia de prod: 5 causas (pestaña «Tickets» con dos significados opuestos; perfil y
+plantilla guardados en la empresa DEL QUE EDITA —5 de 10 perfiles fuera de su empresa, Lenin incluido—; abrir
+depende de la persona y 3 de 4 usuarios de Santa Reyes + 2 de Panamá no pueden abrir ningún tipo; «Global» =
+país NULL; `api/ticket-perfiles` y `api/tickets/global` sin gate).
+
+- [x] P1. Diagnóstico medido y plan escrito (F1 empresa correcta + gates + datos · F2 abrir por rol · F3 alcance EMPRESA/GLOBAL · F4 `tickets.admin` ≠ global).
+- [ ] D1. Decisiones del usuario: cómo se define «puede abrir» por rol; quién atiende Soporte/Dudas en Santa Reyes y Panamá; rol Costos; F4.
+- [ ] F1. `TicketPerfilEmpresaCalculos` + `TicketPerfilAutorizacionCalculos` (+ tests), service resuelve la empresa del usuario/rol, gates en `ticket-perfiles` y `tickets/global`, migración data-only de corrección, `verificar_perfiles_tickets_empresa.sql`.
+- [ ] F2. `roles.ticket_nivel_creacion` + `TicketNivelEfectivoCalculos` (+ tests de equivalencia), editor con bloques ① Abrir / ② Atender, estado vacío en «Nuevo caso».
+- [ ] F3. `alcance` EMPRESA/GLOBAL + migración (Admin/DESARROLLO → una fila GLOBAL), una sola fórmula de asignable (desplegable, crear, transferir, ver), sin copia de plantilla al asignar roles, siembra de empresa nueva, selector «Esta empresa / Todas las empresas».
+- [ ] F4. (según decisión) alcance de todas las empresas solo con `AdminEmpresas`.
+- [ ] V1. `dotnet build` + `dotnet test`, `yarn build`, gate de SQL por migración.
+- [ ] V2. Migraciones en BEGIN…ROLLBACK sobre la copia (2 pasadas) + verificador antes/después.
+- [ ] V3. Smoke API + UI con backend aislado sobre un clon (Lenin, Diego, Alexander, Costos, 403 de gates, empresa nueva).
+- [ ] V4. Sin procesos huérfanos.
+- [ ] C1. Commits acotados a mis archivos (sin push ni deploy).

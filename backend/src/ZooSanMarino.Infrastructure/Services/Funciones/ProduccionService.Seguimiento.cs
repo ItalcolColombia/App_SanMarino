@@ -255,6 +255,16 @@ public partial class ProduccionService
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
 
+        // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+        // apagado el registro descuenta AL GUARDAR, así que nace validado. Va AQUÍ, antes de cualquier
+        // rama: la de Colombia (modelo B con ítems) persiste y hace `return` más abajo, y con la
+        // asignación después de ella los registros de Santa Reyes quedaban en el default de la columna
+        // (`false`). Dejarlo así hacía que el día que la empresa encendiera la doble validación
+        // aparecieran pendientes, pasaran a EN RETRASO a las 24 h y bloquearan el alta de días nuevos
+        // —sin tener nada que validar—. También cubre la fila del arrastre de huevos (existente) que se
+        // fusiona con este registro.
+        entity.Validado = !separa;
+
         // Sin granja resuelta no hay separación posible: `farm_id` es NOT NULL con FK a `farms`, así que
         // `granjaId ?? 0` revienta con 23503 y el usuario ve un 500 opaco. Pasa de verdad —un LPP vivo
         // cuyo lote base está soft-deleted resuelve (null, null, Ninguno)—. Y si la FK no estuviera,
@@ -304,13 +314,7 @@ public partial class ProduccionService
             return entity.Id;
         }
 
-        // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
-        // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en el default
-        // (false) hacía que el día que la empresa encendiera la doble validación todos los registros
-        // creados desde el backfill aparecieran pendientes, pasaran a EN RETRASO a las 24 h y
-        // bloquearan el alta de días nuevos —sin tener nada que validar—.
-        entity.Validado = !separa;
-
+        // (`entity.Validado` ya quedó fijado arriba, al resolver `separa`: acá no se vuelve a decidir.)
         if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
 

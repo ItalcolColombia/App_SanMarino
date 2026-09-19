@@ -11,6 +11,7 @@ import { ValidacionSeguimientoService, RegistroValidacion } from '../../../../sh
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { buscarRegistroPorId } from '../../funciones/filas-grilla-produccion.funcion';
+import { resumirGuardadoSeguimiento } from '../../funciones/resumen-guardado-seguimiento.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { finalize, map, tap } from 'rxjs/operators';
@@ -143,6 +144,12 @@ export class LoteProduccionListComponent implements OnInit {
    * flujo legacy `selectedLoteId` YA es el id base.
    */
   loteIdBaseSeleccionado: number | null = null;
+  /**
+   * Se está resolviendo el lote base de un LPP (`GET /LotePosturaProduccion/{id}`). Mientras dura no hay
+   * un `loteId` correcto para el modal de seguimiento: abrirlo antes lo dejaba con el id del LPP (silos
+   * y tipos de huevo respondían 400, sin filas de huevo) y, al llegar el id bueno, se vaciaba lo tecleado.
+   */
+  resolviendoLoteBase = false;
   /** Contador que fuerza recarga del bloque de cohortes tras un traslado. */
   cohortesRefreshTrigger = 0;
 
@@ -223,6 +230,18 @@ export class LoteProduccionListComponent implements OnInit {
   /** true si se puede capturar/editar/eliminar seguimiento del lote seleccionado. */
   get puedeEditarSeguimiento(): boolean {
     return !!this.selectedLoteId && !this.loteProduccionCerrado;
+  }
+
+  /** «Nuevo registro»: además de poder editar, el modal necesita el lote base ya resuelto. */
+  get puedeCrearSeguimiento(): boolean {
+    return this.puedeEditarSeguimiento && !this.resolviendoLoteBase;
+  }
+
+  /** Avisa y corta si el modal de seguimiento aún no tiene el lote base (ver `resolviendoLoteBase`). */
+  private esperandoLoteBase(): boolean {
+    if (!this.resolviendoLoteBase) return false;
+    this.toast.info('Cargando el lote… intentá de nuevo en un instante.');
+    return true;
   }
 
   /**
@@ -441,6 +460,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLoteLPP = null;
     this.informacionLote = null;
     this.loteIdBaseSeleccionado = null;
+    this.resolviendoLoteBase = false;
     this.filtroDesde = null;
     this.filtroHasta = null;
 
@@ -550,24 +570,31 @@ export class LoteProduccionListComponent implements OnInit {
    * tabla. `[loteId]` del modal de seguimiento diario usa ese campo para pedir los silos asignados
    * al lote (`lote_silos.lote_id`, que referencia el lote BASE, no el LPP): con el id equivocado la
    * consulta no encontraba nada y el consumo de silo aparecía sin opciones en producción, aunque el
-   * mismo lote sí las mostrara desde levante (que ya usaba el id correcto). Reasignar
-   * `selectedLote` a un objeto nuevo dispara `ngOnChanges` en el modal (el componente es Eager) y
-   * recarga los silos con el id ya corregido.
+   * mismo lote sí las mostrara desde levante (que ya usaba el id correcto).
+   *
+   * El modal de seguimiento recibe `loteIdBaseSeleccionado` (nunca el id del LPP) y «Nuevo registro»
+   * espera a que esta consulta termine (`resolviendoLoteBase`): con el id del LPP los silos y los
+   * tipos de huevo respondían 400, y al llegar el id bueno el modal ya abierto perdía lo tecleado.
    */
   private resolverLoteIdBaseLPP(lotePosturaProduccionId: number): void {
+    this.resolviendoLoteBase = true;
     this.lppSvc.getById(lotePosturaProduccionId).subscribe({
       next: lpp => {
-        // Si el usuario ya cambió de lote, no pisar el valor nuevo.
+        // Si el usuario ya cambió de lote, no pisar el valor nuevo (el cambio ya reinició la bandera).
         if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;
         const loteIdBase = lpp?.loteId ?? null;
         this.loteIdBaseSeleccionado = loteIdBase;
         if (loteIdBase != null && this.selectedLote) {
           this.selectedLote = { ...this.selectedLote, loteId: loteIdBase };
         }
+        this.resolviendoLoteBase = false;
       },
       error: () => {
         if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;
         this.loteIdBaseSeleccionado = null;
+        this.resolviendoLoteBase = false;
+        // Sin lote base el modal no puede pedir silos ni tipos de huevo: se dice ahora, no al guardar.
+        this.toast.warning('No se pudo identificar el lote base: los silos y los tipos de huevo no cargarán. Volvé a seleccionar el lote.');
       }
     });
   }
@@ -691,6 +718,7 @@ export class LoteProduccionListComponent implements OnInit {
   create(): void {
     if (!this.selectedLoteId) return;
     if (this.bloqueadoPorLoteCerrado()) return;
+    if (this.esperandoLoteBase()) return;
 
     if (this.selectedLoteLPP) {
       this.editingSeguimiento = null;
@@ -852,10 +880,14 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: () => {
+          // El éxito se avisa con un toast: el modal se cierra en este mismo instante, así que un diálogo
+          // dentro de él nunca se veía y dejaba su aviso pendiente para el registro siguiente.
           if (capturaPendiente) {
             this.toast.info(MENSAJE_GUARDADO_SIN_RED);
-          } else if (this.modalSeguimientoDiario) {
-            this.modalSeguimientoDiario.showSuccessMessage(isUpdate);
+          } else {
+            // Dice lo que el servidor aceptó («huevos 7010 · mortalidad 15 …»): sin esa confirmación el operario
+            // repetía la carga de huevos creyendo que no había entrado.
+            this.toast.success(resumirGuardadoSeguimiento(request, isUpdate));
           }
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = false;
@@ -1000,6 +1032,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
   openDailyTrackingModal(): void {
     if (!this.selectedLoteId) return;
     if (this.bloqueadoPorLoteCerrado()) return;
+    if (this.esperandoLoteBase()) return;
     if (this.selectedLoteLPP || this.produccionLote?.id) {
       this.editingSeguimiento = null;
       this.modalSeguimientoDiarioOpen = true;
@@ -1012,6 +1045,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
    */
   editDailyTracking(seguimiento: SeguimientoItemDto): void {
     if (this.bloqueadoPorLoteCerrado()) return;
+    if (this.esperandoLoteBase()) return;
     this.loading = true;
     this.produccionSvc.obtenerSeguimientoPorId(seguimiento.id)
       .pipe(finalize(() => (this.loading = false)))

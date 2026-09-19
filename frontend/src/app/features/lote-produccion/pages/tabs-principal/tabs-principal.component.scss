@@ -573,3 +573,12 @@
 
 
 
+
+/* Total del día: bajo la fecha de la primera fila de un día con varios registros (esa fila solo muestra SU registro). */
+.dia-total {
+  display: block;
+  margin-top: 2px;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

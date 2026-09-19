@@ -37,6 +37,14 @@ import {
   fechaCorta as fmtFecha,
   fechaHoraCorta as fmtFechaHora
 } from '../../funciones/formato.funcion';
+import {
+  SIN_EMPRESA_VENTA,
+  claveEmpresaVenta,
+  coincideEmpresaVenta,
+  resumenEmpresaVenta,
+  unirOpcionesEmpresaVenta
+} from '../../funciones/empresa-venta.funcion';
+import { EmpresaVentaEngordeService } from '../../services/empresa-venta-engorde.service';
 import { ModalVentaPanamaComponent } from '../../components/modal-venta-panama/modal-venta-panama.component';
 import { ModalRegistroPesoComponent } from '../../components/modal-registro-peso/modal-registro-peso.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -68,6 +76,11 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
+  /**
+   * Opciones del paso «Núcleo» de la cascada: los núcleos de la granja elegida que tienen al menos un lote de
+   * engorde (los demás no tienen nada que vender). Referencia estable: se recalcula al cambiar de granja, no por getter.
+   */
+  nucleosOpciones: NucleoDto[] = [];
   galpones: Array<{ id: string; label: string }> = [];
   lotesOpciones: LoteOption[] = [];
 
@@ -100,6 +113,19 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   filtroBusqueda = '';
   filtroTipoMovimiento = '';
   filtroEstado = '';
+  /** Filtro «Empresa de venta»: `''` = todas; `SIN_EMPRESA_VENTA` = ventas sin empresa; o el texto de una empresa. */
+  filtroEmpresaVenta = '';
+  readonly SIN_EMPRESA_VENTA = SIN_EMPRESA_VENTA;
+  /**
+   * Opciones del filtro «Empresa de venta»: la lista maestra de la empresa activa ∪ las empresas que ya traen los
+   * movimientos cargados (así una venta vieja, o de una opción renombrada, sigue siendo filtrable). Vacía ⇒ el
+   * filtro no se dibuja (la empresa no usa el campo).
+   */
+  empresasVentaFiltro: string[] = [];
+  /** Hay ventas sin empresa en lo cargado ⇒ se ofrece «Sin empresa» en el filtro. */
+  hayVentasSinEmpresa = false;
+  /** Empresas de la lista maestra (en su orden), tal como las devolvió el backend. */
+  private empresasVentaLista: string[] = [];
 
   loading = false;
   error: string | null = null;
@@ -145,6 +171,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   expandedDespacho: Record<string, boolean> = {};
 
   private galponNameById = new Map<string, string>();
+  /** Nombres de núcleo y galpón de TODO el catálogo (id → nombre): para mostrar el origen de cada movimiento. */
+  private nucleoNombrePorId = new Map<string, string>();
+  private galponNombrePorId = new Map<string, string>();
   /** IDs de lotes Ave Engorde presentes en ventas registradas (resultado actual). */
   private ventaLoteAveEngordeIdSet = new Set<number>();
 
@@ -205,7 +234,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     private movimientoSvc: MovimientoPolloEngordeService,
     private toastService: ToastService,
     private countryFilter: CountryFilterService,
-    private companyConfig: ActiveCompanyConfigService
+    private companyConfig: ActiveCompanyConfigService,
+    private empresaVentaSvc: EmpresaVentaEngordeService
   ) {}
 
   auditarVentas(dryRun: boolean, aplicarCorreccion: boolean): void {
@@ -373,6 +403,12 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       next: (activo) => (this.pesoDiferido = activo),
       error: () => (this.pesoDiferido = false)
     });
+    // «Empresa de venta»: opciones de la lista maestra de la empresa activa. Fail-closed: si no hay lista
+    // (o falla), el filtro y la columna no se dibujan y la pantalla queda como antes.
+    this.empresaVentaSvc.opciones().subscribe((opciones) => {
+      this.empresasVentaLista = opciones;
+      this.reconstruirOpcionesEmpresaFiltro();
+    });
     this.filteredMovimientos = [];
     this.loading = true;
     this.movimientoSvc
@@ -384,6 +420,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           this.allNucleosFull = data.nucleos ?? [];
           this.allGalponesFull = data.galpones ?? [];
           this.allLoteAveEngorde = data.lotesAveEngorde ?? [];
+          this.rebuildNombresUbicacion();
           this.refreshLotesParaVentaGranja();
         },
         error: () => {
@@ -391,10 +428,66 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           this.allNucleosFull = [];
           this.allGalponesFull = [];
           this.allLoteAveEngorde = [];
+          this.rebuildNombresUbicacion();
           this.refreshLotesParaVentaGranja();
           this.toastService.error('No se pudieron cargar los filtros. Revise la sesión o intente de nuevo.');
         }
       });
+  }
+
+  /** Mapas id → nombre de núcleo y galpón del catálogo completo (para mostrar el origen de cada movimiento). */
+  private rebuildNombresUbicacion(): void {
+    this.nucleoNombrePorId = new Map(
+      this.allNucleosFull.map((n) => [String(n.nucleoId).trim(), (n.nucleoNombre || String(n.nucleoId)).trim()] as [string, string])
+    );
+    this.galponNombrePorId = new Map(
+      this.allGalponesFull.map((g) => [String(g.galponId).trim(), (g.galponNombre || String(g.galponId)).trim()] as [string, string])
+    );
+  }
+
+  /** Nombre del núcleo (o el id si no se conoce el nombre); vacío si no hay núcleo. */
+  nombreNucleo(id: string | null | undefined): string {
+    const k = (id ?? '').trim();
+    return k ? (this.nucleoNombrePorId.get(k) ?? k) : '';
+  }
+
+  /** Nombre del galpón (o el id si no se conoce el nombre); vacío si no hay galpón. */
+  nombreGalpon(id: string | null | undefined): string {
+    const k = (id ?? '').trim();
+    return k ? (this.galponNombrePorId.get(k) ?? k) : '';
+  }
+
+  /** «Núcleo: X · Galpón: Y» del origen de un movimiento; vacío si no tiene ninguno de los dos. */
+  ubicacionOrigen(m: MovimientoPolloEngordeDto): string {
+    const n = this.nombreNucleo(m.nucleoOrigenId);
+    const g = this.nombreGalpon(m.galponOrigenId);
+    return [n ? `Núcleo: ${n}` : '', g ? `Galpón: ${g}` : ''].filter(Boolean).join(' · ');
+  }
+
+  /** Empresa de venta de un despacho (una sola / «Varias» / ninguna). */
+  empresaDelGrupo(movs: MovimientoPolloEngordeDto[]): string | null {
+    return resumenEmpresaVenta(movs);
+  }
+
+  /**
+   * Recalcula las opciones del filtro «Empresa de venta» (lista maestra ∪ lo que traen los movimientos) y descarta
+   * la selección que ya no exista. Se llama al llegar la lista maestra y después de cada carga de movimientos.
+   */
+  private reconstruirOpcionesEmpresaFiltro(): void {
+    this.empresasVentaFiltro = unirOpcionesEmpresaVenta(
+      this.empresasVentaLista,
+      this.movimientos.map((m) => m.plantaDestino)
+    );
+    this.hayVentasSinEmpresa = this.movimientos.some(
+      (m) => m.tipoMovimiento === 'Venta' && claveEmpresaVenta(m.plantaDestino) === ''
+    );
+    const f = this.filtroEmpresaVenta;
+    if (!f) return;
+    const sigueVigente =
+      f === SIN_EMPRESA_VENTA
+        ? this.hayVentasSinEmpresa
+        : this.empresasVentaFiltro.some((e) => claveEmpresaVenta(e) === claveEmpresaVenta(f));
+    if (!sigueVigente) this.filtroEmpresaVenta = '';
   }
 
   onGranjaChange(granjaId: number | null): void {
@@ -407,6 +500,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.galpones = [];
     this.lotesOpciones = [];
     this.nucleos = [];
+    this.nucleosOpciones = [];
     this.ventaLoteAveEngordeIdSet = new Set<number>();
 
     if (!this.selectedGranjaId) {
@@ -415,21 +509,42 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     }
 
     this.nucleos = this.allNucleosFull.filter((n) => n.granjaId === this.selectedGranjaId);
+    this.refreshNucleosOpciones();
     this.fillGalponMapFromCache();
     this.refreshLotesParaVentaGranja();
     this.loadMovimientos();
+  }
+
+  /** Núcleos de la granja elegida con al menos un lote de engorde: son los que se ofrecen en el paso «Núcleo». */
+  private refreshNucleosOpciones(): void {
+    if (!this.selectedGranjaId) {
+      this.nucleosOpciones = [];
+      return;
+    }
+    const gid = String(this.selectedGranjaId);
+    const conLotes = new Set(
+      this.allLoteAveEngorde
+        .filter((l) => String(l.granjaId) === gid)
+        .map((l) => (l.nucleoId ?? '').trim())
+        .filter((id) => !!id)
+    );
+    this.nucleosOpciones = this.nucleos.filter((n) => conLotes.has(String(n.nucleoId).trim()));
   }
 
   onNucleoChange(nucleoId: string | null): void {
     this.selectedNucleoId = nucleoId;
     this.selectedGalponId = null;
     this.selectedLoteValue = null;
+    this.loteDetalleAveEngorde = null;
+    this.resumenAvesLote = null;
     this.movimientos = [];
     this.filteredMovimientos = [];
-    this.selectedLoteValue = null;
     this.buildLotesOpciones();
     this.fillGalponMapFromCache();
     this.refreshLotesParaVentaGranja();
+    // Antes de este paso la cascada no dibujaba el núcleo y el método NO recargaba: al elegirlo la tabla habría
+    // quedado vacía. La búsqueda ya manda `nucleoOrigenId` (buildMovimientoSearchParams).
+    this.loadMovimientos();
   }
 
   onGalponChange(galponId: string | null): void {
@@ -639,6 +754,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           this.movimientos = res.items ?? [];
           this.rebuildVentaBasedFilterOptions();
           this.rebuildAuditoriaMeta();
+          this.reconstruirOpcionesEmpresaFiltro();
           this.aplicarFiltros();
         },
         error: (err) => {
@@ -648,6 +764,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           this.ventaLoteAveEngordeIdSet = new Set<number>();
           this.galpones = [];
           this.lotesOpciones = [];
+          this.reconstruirOpcionesEmpresaFiltro();
         }
       });
   }
@@ -708,6 +825,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           m.loteDestinoNombre ?? '',
           m.granjaOrigenNombre ?? '',
           m.granjaDestinoNombre ?? '',
+          m.plantaDestino ?? '',
           m.motivoMovimiento ?? '',
           m.estado ?? ''
         ]
@@ -718,6 +836,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     }
     if (this.filtroTipoMovimiento) filtered = filtered.filter((m) => m.tipoMovimiento === this.filtroTipoMovimiento);
     if (this.filtroEstado) filtered = filtered.filter((m) => m.estado === this.filtroEstado);
+    if (this.filtroEmpresaVenta) {
+      filtered = filtered.filter((m) => coincideEmpresaVenta(m.tipoMovimiento, m.plantaDestino, this.filtroEmpresaVenta));
+    }
     this.filteredMovimientos = filtered;
   }
 
@@ -729,6 +850,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.filtroBusqueda = '';
     this.filtroTipoMovimiento = '';
     this.filtroEstado = '';
+    this.filtroEmpresaVenta = '';
     this.aplicarFiltros();
   }
 
@@ -1052,13 +1174,22 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     }
 
     const filtros: string[] = [];
+    if (this.selectedNucleoId) filtros.push(`Núcleo: ${this.selectedNucleoNombre || this.selectedNucleoId}`);
     if (this.selectedGalponId) filtros.push(`Galpón: ${this.selectedGalponNombre}`);
     if (this.selectedLoteValue) filtros.push(`Lote: ${this.selectedLoteNombre}`);
     if ((this.filtroTipoMovimiento || '').trim()) filtros.push(`Tipo: ${this.filtroTipoMovimiento}`);
     if ((this.filtroEstado || '').trim()) filtros.push(`Estado: ${this.filtroEstado}`);
+    if (this.filtroEmpresaVenta) {
+      filtros.push(`Empresa de venta: ${this.filtroEmpresaVenta === SIN_EMPRESA_VENTA ? 'Sin empresa' : this.filtroEmpresaVenta}`);
+    }
     if ((this.filtroBusqueda || '').trim()) filtros.push(`Búsqueda: ${this.filtroBusqueda.trim()}`);
 
-    exportarVentasExcel(rows, { granjaNombre: this.selectedGranjaName, filtros });
+    exportarVentasExcel(rows, {
+      granjaNombre: this.selectedGranjaName,
+      filtros,
+      nombreNucleo: (id) => this.nombreNucleo(id),
+      nombreGalpon: (id) => this.nombreGalpon(id)
+    });
   }
   /** Total aves en lote Ave Engorde (hembras + machos + mixtas o avesEncasetadas). */
   totalAvesAveEngorde(l: LoteAveEngordeDto | null): number {

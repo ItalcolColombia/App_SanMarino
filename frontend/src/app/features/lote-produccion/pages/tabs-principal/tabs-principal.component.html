@@ -312,6 +312,11 @@
                             @if (f.total > 1) {
                               <span class="ux-hint" [title]="'Este día tiene ' + f.total + ' registros'">· {{ f.total }} registros</span>
                             }
+                            <!-- Esta fila muestra SOLO su registro: los huevos del 2.º o del 3.º no se ven acá y parecía
+                                 que «quedaban en 0». El total del día lo dice donde el operario mira primero. -->
+                            @if (f.totalDia; as dia) {
+                              <span class="dia-total" [title]="tituloTotalDia(dia)">Total del día: {{ dia.huevosTotales | number:'1.0-0' }} huevos</span>
+                            }
                           </td>
                           <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
                           <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>

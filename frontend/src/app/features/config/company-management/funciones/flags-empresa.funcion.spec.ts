@@ -2,6 +2,7 @@ import { CompanyFlags } from '../../../../core/services/company-config/active-co
 import {
   FLAGS_EMPRESA,
   GRUPOS_FLAGS_EMPRESA,
+  apagaDobleValidacion,
   contarFlagsActivos,
   controlesDeFlags,
   flagsDelFormulario,
@@ -154,6 +155,36 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     it('no cuenta campos de la empresa que no son flags del catálogo', () => {
       // La ficha de empresa trae decenas de campos; el contador es de flags, no de propiedades.
       expect(contarFlagsActivos({ name: 'Santa Reyes', activo: true, visible: true })).toBe(0);
+    });
+  });
+
+  /**
+   * Apagar la doble validación valida antes los pendientes de la empresa (Santa Reyes, 18-sep-2026: se
+   * apagó con 6 registros pendientes y quedaron colgados). La confirmación solo tiene sentido en esa
+   * transición.
+   */
+  describe('apagaDobleValidacion', () => {
+    it('solo la transición encendido → apagado', () => {
+      expect(apagaDobleValidacion(true, false)).toBe(true);
+    });
+
+    it('sin cambio, encendiéndola o ya apagada: no avisa', () => {
+      expect(apagaDobleValidacion(true, true)).toBe(false);
+      expect(apagaDobleValidacion(false, true)).toBe(false);
+      expect(apagaDobleValidacion(false, false)).toBe(false);
+    });
+
+    it('fail-closed: un valor que no es el booleano exacto no cuenta', () => {
+      expect(apagaDobleValidacion(null, false)).toBe(false);
+      expect(apagaDobleValidacion(undefined, false)).toBe(false);
+      expect(apagaDobleValidacion(true, null)).toBe(false);
+      expect(apagaDobleValidacion(true, undefined)).toBe(false);
+      expect(apagaDobleValidacion('true' as unknown as boolean, false)).toBe(false);
+    });
+
+    it('la descripción del flag avisa que al apagarlo se validan los pendientes', () => {
+      const flag = FLAGS_EMPRESA.find(f => f.key === 'requiereValidacionSeguimientoDiario');
+      expect(flag?.descripcion).toContain('se validan antes todos los pendientes');
     });
   });
 });

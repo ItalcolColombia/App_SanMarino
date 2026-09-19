@@ -3,11 +3,14 @@ import { HuevoCatalogOption, HuevoFilaFija, TIPO_HUEVO_SIN_CATEGORIA } from '../
 import { HuevoItemSeguimiento } from '../services/produccion.service';
 import {
   agruparItemsHuevoPorTipo,
+  CONFIRMACION_GUARDAR_SIN_HUEVOS,
   construirFilasFijasHuevo,
   esItemEnKilos,
   esVigentePrimeraPostura,
   fusionarItemsHuevoGuardados,
   mapearItemsHuevoACatalogo,
+  MENSAJE_ESPERAR_TIPOS_HUEVO,
+  resolverGuardadoConHuevos,
   sumarCantidadesHuevo
 } from './items-huevo-catalogo.funcion';
 
@@ -271,6 +274,39 @@ describe('items-huevo-catalogo', () => {
       expect(esItemEnKilos(null)).toBeFalse();
       expect(esItemEnKilos(undefined)).toBeFalse();
       expect(esItemEnKilos('')).toBeFalse();
+    });
+  });
+
+  describe('resolverGuardadoConHuevos', () => {
+    // Santa Reyes, 18-sep-2026: el botón Guardar seguía habilitado mientras las filas de huevo estaban
+    // ocultas ("Cargando…") o la consulta había fallado, y el día se guardaba con huevos en 0 sin aviso.
+
+    it('sin desglose por ítems (flag apagado o tab que no corresponde): siempre permite, pase lo que pase', () => {
+      // Empresa sin `clasificacion_huevo_por_items` ⇒ comportamiento de siempre, aunque los flags de estado estén en true.
+      expect(resolverGuardadoConHuevos({ aplica: false, cargando: false, error: false })).toBe('permitir');
+      expect(resolverGuardadoConHuevos({ aplica: false, cargando: true, error: true })).toBe('permitir');
+    });
+
+    it('los tipos del lote siguen viajando: espera', () => {
+      expect(resolverGuardadoConHuevos({ aplica: true, cargando: true, error: false })).toBe('esperar');
+    });
+
+    it('esperar gana sobre confirmar: un reintento en curso no pide confirmación de un error viejo', () => {
+      expect(resolverGuardadoConHuevos({ aplica: true, cargando: true, error: true })).toBe('esperar');
+    });
+
+    it('la consulta falló: pide confirmar antes de guardar sin huevos', () => {
+      expect(resolverGuardadoConHuevos({ aplica: true, cargando: false, error: true })).toBe('confirmar');
+    });
+
+    it('tipos cargados (o lote sin tipos declarados): permite', () => {
+      expect(resolverGuardadoConHuevos({ aplica: true, cargando: false, error: false })).toBe('permitir');
+    });
+
+    it('el aviso y la confirmación dicen qué pasa con los huevos', () => {
+      expect(MENSAJE_ESPERAR_TIPOS_HUEVO).toContain('tipos de huevo');
+      expect(CONFIRMACION_GUARDAR_SIN_HUEVOS.message).toContain('SIN huevos');
+      expect(CONFIRMACION_GUARDAR_SIN_HUEVOS.type).toBe('warning');
     });
   });
 });

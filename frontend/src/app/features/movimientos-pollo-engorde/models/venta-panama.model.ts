@@ -31,6 +31,8 @@ export interface CreateVentaPanamaDespachoDto {
   sellos?: string | null;
   ayuno?: string | null;
   conductor?: string | null;
+  /** Empresa de venta / destino del despacho (texto de la lista maestra `venta_pollo_engorde_empresa`). */
+  plantaDestino?: string | null;
   pesoBruto?: number | null;
   pesoTara?: number | null;
   lineas: VentaPanamaLineaDto[];

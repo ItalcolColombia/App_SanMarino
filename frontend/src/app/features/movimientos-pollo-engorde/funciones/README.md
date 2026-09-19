@@ -24,6 +24,7 @@ un botón— para que sea **fácil de encontrar, testear y reutilizar**.
 | `prorateo-peso.funcion.ts` | `calcularProrateoPreview` / `calcularProrateoTotales`. |
 | `detectar-lotes-bloqueados-venta.funcion.ts` | `marcarLotesBloqueadosVenta`: bloquea en Venta por granja los lotes cerrados o de una corrida anterior en el mismo galpón. |
 | `filtrar-lotes-destino.funcion.ts` | `filtrarLotesDestinoEngorde` / `construirOpcionesLoteDestino`: candidatos a lote DESTINO de un traslado según la cascada Granja → Núcleo → Galpón. |
+| `empresa-venta.funcion.ts` | «Empresa de venta» del despacho (lista maestra `venta_pollo_engorde_empresa`, guardada como texto en `plantaDestino`): `unirOpcionesEmpresaVenta` (lista ∪ valor guardado ∪ valores vistos, sin repetir), `coincideEmpresaVenta` (filtro de la tabla, con «Sin empresa» solo para ventas) y `resumenEmpresaVenta` (una empresa / «Varias» en un despacho multi-lote). |
 
 ## Nota multi-país
 

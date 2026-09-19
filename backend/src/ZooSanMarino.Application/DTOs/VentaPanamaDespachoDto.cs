@@ -40,6 +40,11 @@ public sealed class CreateVentaPanamaDespachoDto
     public string? Sellos { get; set; }
     public string? Ayuno { get; set; }
     public string? Conductor { get; set; }
+    /// <summary>
+    /// Empresa de venta / destino del despacho (lista maestra <c>venta_pollo_engorde_empresa</c>). Se guarda como texto
+    /// en <c>planta_destino</c> de cada línea. Opcional: sin valor la venta queda sin empresa, como siempre.
+    /// </summary>
+    public string? PlantaDestino { get; set; }
     public double? PesoBruto { get; set; }
     public double? PesoTara { get; set; }
     public List<VentaPanamaDespachoLineaDto> Lineas { get; set; } = new();

@@ -51,6 +51,19 @@ public partial class ValidacionSeguimientoService
             throw new UnauthorizedAccessException(
                 $"No tiene el permiso '{permiso}' para validar este registro.");
 
+        return await ValidarPendientesDelLoteSinPermisoAsync(modulo, loteId, ct);
+    }
+
+    /// <summary>
+    /// Núcleo de <see cref="ValidarPendientesDelLoteAsync"/>: todo lo que sigue al chequeo del permiso.
+    /// Lo comparte el apagado de la doble validación de una empresa (<see cref="ValidarPendientesDeLaEmpresaAsync"/>),
+    /// que valida en nombre de quien la administra. El permiso se chequea UNA vez, antes, por quien llama:
+    /// no depende del registro, así que cada uno se valida con <see cref="ValidarRegistroAsync"/> sin
+    /// volver a preguntarlo.
+    /// </summary>
+    private async Task<ResultadoValidacionEnBloqueDto> ValidarPendientesDelLoteSinPermisoAsync(
+        string modulo, int loteId, CancellationToken ct)
+    {
         if (_ctx.Database.CurrentTransaction is not null)
             throw new InvalidOperationException(
                 "No se puede validar en bloque dentro de una transacción abierta: las validaciones no " +
@@ -71,7 +84,7 @@ public partial class ValidacionSeguimientoService
             var p = seleccionados[i];
             try
             {
-                var r = await ValidarAsync(modulo, p.SeguimientoId, ct);
+                var r = await ValidarRegistroAsync(modulo, p.SeguimientoId, ct);
                 items.Add(ValidacionEnBloqueCalculos.ItemAplicado(
                     p, r.ItemsAplicados, r.KgAplicados, r.AvesDescontadas, r.YaEstabaValidado));
             }

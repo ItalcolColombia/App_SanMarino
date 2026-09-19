@@ -89,8 +89,8 @@
           type="button"
           (click)="create()"
           class="btn btn--primary"
-          [disabled]="!puedeEditarSeguimiento"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : (loteProduccionCerrado ? 'El lote de producción está cerrado' : 'Crear nuevo registro')">
+          [disabled]="!puedeCrearSeguimiento"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : (loteProduccionCerrado ? 'El lote de producción está cerrado' : (resolviendoLoteBase ? 'Cargando el lote…' : 'Crear nuevo registro'))">
           Nuevo registro
         </button>
         <!-- Validar en bloque. Solo aparece con la doble validación encendida y algo pendiente:
@@ -220,7 +220,7 @@
       [fechaEncaset]="informacionLote?.fechaEncaset || selectedLote?.fechaEncaset || null"
       [raza]="selectedLote?.raza || null"
       [granjaId]="selectedLote?.granjaId || null"
-      [loteId]="selectedLote?.loteId || null"
+      [loteId]="loteIdBaseSeleccionado"
       [nucleoId]="selectedLote?.nucleoId || null"
       [galponId]="selectedLote?.galponId || null"
       (close)="cancelSeguimientoDiario()"
