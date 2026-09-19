@@ -537,6 +537,8 @@
   flex: 1;
   font-size: 14px;
   font-weight: 500;
+  /* Respeta los saltos de línea del mensaje (el detalle por registro del apagado de la doble validación). */
+  white-space: pre-line;
 }
 
 .toast-close {

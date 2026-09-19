@@ -99,9 +99,19 @@ public class CompanyController : ControllerBase
     public async Task<IActionResult> Update(int id, UpdateCompanyDto dto)
     {
         if (dto.Id != id) return BadRequest();
-        return (await _svc.UpdateAsync(dto)) is CompanyDto upd
-          ? Ok(upd)
-          : NotFound();
+        try
+        {
+            return (await _svc.UpdateAsync(dto)) is CompanyDto upd
+              ? Ok(upd)
+              : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Apagar la doble validación con pendientes que no se pueden validar (p. ej. falta stock): es
+            // culpa del pedido, no del servidor. El mensaje ya nombra cada registro y qué hacer, y no se
+            // guardó nada. Con el manejador global saldría como 500.
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "AdminEmpresas")]

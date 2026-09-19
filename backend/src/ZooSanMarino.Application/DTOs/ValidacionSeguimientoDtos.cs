@@ -131,3 +131,49 @@ public record ResultadoValidacionEnBloqueDto(
     string Mensaje,
     IReadOnlyList<ResultadoValidacionEnBloqueItemDto> Detalle
 );
+
+/// <summary>
+/// Un registro que no se pudo validar cuando se intentó apagar la doble validación de la empresa.
+/// </summary>
+/// <param name="Modulo">Uno de <see cref="ModuloSeguimiento"/>.</param>
+/// <param name="LoteId">Clave numérica del lote en ese módulo.</param>
+/// <param name="SeguimientoId">Registro que cortó el lote.</param>
+/// <param name="Fecha">Día del registro.</param>
+/// <param name="Motivo">Por qué no se pudo, en texto legible («Stock insuficiente…»).</param>
+public record FalloValidacionEmpresaDto(
+    string Modulo,
+    int LoteId,
+    long SeguimientoId,
+    DateOnly Fecha,
+    string Motivo
+);
+
+/// <summary>
+/// Resultado de validar TODOS los pendientes de una empresa (lo que se hace justo antes de apagar su
+/// doble validación). Es la suma de los bloques por lote: una transacción por registro, en orden
+/// cronológico, con corte en el primer fallo <b>dentro de cada lote</b>.
+/// </summary>
+/// <param name="LotesConPendientes">Lotes (de los cuatro módulos) que tenían algún pendiente.</param>
+/// <param name="Pendientes">Registros sin validar al empezar.</param>
+/// <param name="Validados">Validados en esta corrida (con o sin efecto sobre inventario y aves).</param>
+/// <param name="YaValidados">Alguien los validó mientras tanto; no se tocaron.</param>
+/// <param name="Fallidos">Registros que cortaron su lote.</param>
+/// <param name="NoIntentados">Quedaron después de un corte, o sin agotar.</param>
+/// <param name="KgAplicados">Kilos de alimento descontados en total.</param>
+/// <param name="AvesDescontadas">Aves descontadas en total.</param>
+/// <param name="Fallos">Uno por lote cortado, con el motivo.</param>
+public record ResultadoValidacionEmpresaDto(
+    int LotesConPendientes,
+    int Pendientes,
+    int Validados,
+    int YaValidados,
+    int Fallidos,
+    int NoIntentados,
+    decimal KgAplicados,
+    int AvesDescontadas,
+    IReadOnlyList<FalloValidacionEmpresaDto> Fallos
+)
+{
+    /// <summary>True si no quedó ningún pendiente: solo entonces se puede apagar el flag.</summary>
+    public bool Completo => Fallidos == 0 && NoIntentados == 0;
+}

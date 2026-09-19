@@ -129,6 +129,25 @@ public partial class CompanyService
 
     public async Task<CompanyDto?> UpdateAsync(UpdateCompanyDto dto)
     {
+        // Apagar la doble validación (encendida → apagada) VALIDA ANTES los pendientes de la empresa. Con el
+        // flag apagado no hay botón de validar, así que lo que quede pendiente queda colgado para siempre,
+        // con su alimento y sus aves separados (Santa Reyes, 18-sep-2026: 6 registros y 7.011 kg). Se hace
+        // ANTES de cargar la empresa rastreada porque la validación limpia el ChangeTracker cuando un
+        // registro falla; y ANTES de asignar nada: si algo no se puede validar se lanza y no se guarda
+        // NINGÚN cambio (ni el flag ni el resto del formulario), que es lo que ve quien lo intentó.
+        var flagActual = await _ctx.Companies.AsNoTracking()
+            .Where(x => x.Id == dto.Id)
+            .Select(x => (bool?)x.RequiereValidacionSeguimientoDiario)
+            .FirstOrDefaultAsync();
+        if (flagActual is null) return null;
+
+        if (ApagadoDobleValidacionCalculos.EsApagado(flagActual.Value, dto.RequiereValidacionSeguimientoDiario))
+        {
+            var validacion = await _validacion.ValidarPendientesDeLaEmpresaAsync(dto.Id);
+            if (!validacion.Completo)
+                throw new InvalidOperationException(ApagadoDobleValidacionCalculos.MensajeNoSePudoApagar(validacion));
+        }
+
         var c = await _ctx.Companies.FindAsync(dto.Id);
         if (c is null) return null;
 

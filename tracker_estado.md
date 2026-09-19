@@ -8991,3 +8991,30 @@ edición). Migración data-only, sin DDL ni cambios al snapshot. Sin flag nuevo:
 Pendiente del usuario (no es código): OK para desplegar; después del deploy correr `backend/sql/verificar_empresa_venta_engorde.sql`
 y cargar en Config → Listas maestras («Empresa de venta (pollo engorde)») las empresas reales de cada país además de «Planta».
 Una empresa NUEVA no trae la lista hasta que se cree con la key `venta_pollo_engorde_empresa` (o con otra migración seed).
+## APAGAR-FLAG-VALIDA-PENDIENTES — Al apagar la doble validación se validan los pendientes; el limbo de Santa Reyes por migración (19-sep-2026)
+
+Plan: [apagar_doble_validacion_valida_pendientes_plan.md](fase_de_desarrollo/apagar_doble_validacion_valida_pendientes_plan.md)
+
+Decisiones del usuario sobre los hallazgos de VALIDADO-NACE-BIEN: (1) si a la empresa se le quita el validador, todos sus pendientes pasan a
+validarse y recién ahí se apaga (solo en la transición encendido → apagado); (2) el limbo de Santa Reyes (6 pendientes con reserva, 1 reserva
+huérfana, 1 Ingreso fantasma sobre el ítem 373) se corrige **por migración**, para que se aplique en producción.
+
+- [x] P1. Plan escrito (diseño A + B, verificación diferencial contra la API, lo que NO se hace).
+- [x] A1. `ApagadoDobleValidacionCalculos` (puro: `EsApagado`, `PuedeValidarDesdeEmpresaActiva`, mensajes con tope de líneas y fecha independiente de la cultura) + `ApagadoDobleValidacionCalculosTests` (24 casos).
+- [x] A2. `ValidacionSeguimientoService`: núcleo sin permiso de `ValidarAsync` (`ValidarRegistroAsync`) y de `ValidarPendientesDelLoteAsync` (comportamiento idéntico) + `ValidarPendientesDeLaEmpresaAsync` (lotes con pendientes de los 4 módulos, bucle hasta agotar con re-lectura, corte por lote, sin exigir `*.validar`).
+- [x] A3. `CompanyService.UpdateAsync`: en la transición true → false valida antes de cargar/asignar nada; si algo falla lanza y NO guarda nada. `CompanyController.Update`: `InvalidOperationException` → 400 con el detalle.
+- [x] A4. Front `company-management`: confirmación (`ConfirmDialogService`) al desmarcar el flag de una empresa existente, descripción del flag actualizada, toast que respeta saltos de línea y dura 20 s con errores largos; función pura `apagaDobleValidacion` + spec (16 de 16 en verde con el spec del componente).
+- [x] B1. Migración `20260919120000_ValidarPendientesSinDobleValidacionProduccionColombia` (+ Designer): SQL `DO $$` con sub-bloque por registro; Colombia modelo B; replica `ValidarAsync`.
+- [x] B2. Migración `20260919121000_LiberarReservasHuerfanasYCorregirIngresoFantasma682` (+ Designer): reservas huérfanas → LIBERADA; Ingreso fantasma del #682 compensado con `AjusteStock` (con guardas y marca de idempotencia).
+- [x] B3. `verificar_validado_sin_reserva.sql` alineado: sección [4b] de ingresos fantasma y cuarta columna del resumen; sobre la copia real da 4 / 6 / 1 / 1 y sobre el clon migrado 0 / 0 / 0 / 0.
+- [x] V1. Prueba DIFERENCIAL (dos clones de la copia real): 6 registros validados por la API (`POST …/validar`, binarios de antes del cambio) vs el SQL EXTRAÍDO de la migración. Movimientos nuevos, `inventario_gestion_stock` entero, reservas de alimento y aves, registros de producción, histórico espejado y filas de TODAS las tablas: **idénticos** (única diferencia: la fila de `sesiones_activas` del smoke). Bordes en otro clon: sin stock → omite ese registro y sigue (#680), silo inactivo (#678), ítem sin equivalente (#677) — cada omitido queda con `validado=false`, reserva ACTIVA y sin movimiento (el sub-bloque deshace el «marcar primero»); ya validado no se toca; 2.ª corrida = 0; empresa con flag ENCENDIDO = 0. B2: libera la reserva, compensa 982 kg con UN `AjusteStock`, 2.ª corrida = 0; con solo 500 kg en el renglón NO compensa y lo avisa.
+- [x] V2. Arranque real sobre un clon con `RunMigrations=true`: la app aplicó SOLA las tres migraciones (historial 398 → 401); `verificar_validado_sin_reserva.sql` pasó de 4/6/1/1 a **0/0/0/0**; 6 consumos por 7.011 kg, un `AjusteStock`, renglón fantasma en 0, 6 registros con `validado_por = 'migracion'`. Bordes y 2.ª corrida: ver V1.
+- [x] V3. Parte A con backend aislado sobre un clon (Santa Reyes con el flag ENCENDIDO y 10 pendientes): empresa activa distinta → 400 «cambie a esa empresa» sin tocar nada; un lote sin stock → 400 con el detalle, flag ON, el teléfono del mismo PUT NO se guarda y quedan validados los otros 8; corregido el stock, el reintento → 200 con flag apagado, 6 consumos por 7.011 kg y `validado_por` = quien apagó; ENCENDER el flag u omitirlo no valida nada; apagar sin pendientes desde otra empresa activa → 200. Log sin errores. **Otros módulos:** Panamá (flag ENCENDIDO, 21 pendientes de engorde + 4 de reproductora, 24+21 reservas ACTIVAS) → PUT 200, 0 pendientes, 0 reservas ACTIVAS, 24 consumos por 41.324,2 kg y el cruce de reproductora disparado.
+- [x] V4. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.340/4.340 (24 nuevos) y Domain.Tests 1/1. Front: `ng test` de los 2 specs de `company-management` 16/16 y `yarn build` 0 errores/0 advertencias.
+- [x] V5. Sin procesos huérfanos: API :5501 detenida, servidores MSBuild/compilador apagados, las 6 BD clon eliminadas (verificado con `pg_database`), tokens, content roots, copias de binarios y scripts borrados del scratchpad; sin dotnet vivos.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="apagar la doble validacion valida"`; el bloque y los archivos de otras sesiones quedaron intactos en el árbol). Sin push ni deploy: las migraciones corren solas al arrancar y requieren OK explícito.
+
+Pendiente del usuario (no es código): OK para desplegar `fa301b5` + este commit (tres migraciones data-only que corren solas al arrancar); después correr `backend/sql/verificar_validado_sin_reserva.sql` contra producción: los cuatro conteos tienen que dar 0 (un registro que ese día no tenga stock queda pendiente y el script lo lista, no aborta el arranque). Opcional: que borrar/editar decida por las reservas del propio registro.
+
+---
+

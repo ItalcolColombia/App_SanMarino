@@ -158,7 +158,7 @@ export const FLAGS_EMPRESA: readonly FlagEmpresa[] = Object.freeze([
   {
     key: 'requiereValidacionSeguimientoDiario',
     titulo: 'Doble validación del seguimiento diario',
-    descripcion: 'Guardar ya no descuenta: separa el alimento y las aves. El descuento se aplica al VALIDAR el registro, y hasta entonces se puede editar y eliminar. Los registros vencidos bloquean días nuevos. Apagado, el descuento ocurre al guardar, como siempre.',
+    descripcion: 'Guardar ya no descuenta: separa el alimento y las aves. El descuento se aplica al VALIDAR el registro, y hasta entonces se puede editar y eliminar. Los registros vencidos bloquean días nuevos. Apagado, el descuento ocurre al guardar, como siempre. Al APAGARLA se validan antes todos los pendientes de la empresa (se descuenta su alimento y sus aves); si alguno no se puede validar —por ejemplo, falta stock—, no se apaga.',
     grupo: 'Operación'
   },
   {
@@ -217,4 +217,19 @@ export function flagsDelFormulario(valor: Record<string, unknown> | null | undef
 /** Cuántos flags tiene encendidos una empresa. Alimenta el contador de la lista. */
 export function contarFlagsActivos(empresa: Record<string, unknown> | null | undefined): number {
   return FLAGS_EMPRESA.filter(f => empresa?.[f.key] === true).length;
+}
+
+/**
+ * ¿Este guardado APAGA la doble validación de una empresa que la tenía encendida?
+ *
+ * Solo la transición encendido → apagado: es la única que hace que el backend valide ANTES todos los
+ * pendientes de la empresa (aplica su alimento y sus aves) y solo entonces apague el flag; por eso pide
+ * confirmación. Apagada de antes, encendida o sin cambio, no hay nada que avisar. Un valor que no sea el
+ * booleano exacto no cuenta (fail-closed en las dos puntas), igual que el resto de este catálogo.
+ */
+export function apagaDobleValidacion(
+  anterior: boolean | null | undefined,
+  nuevo: boolean | null | undefined
+): boolean {
+  return anterior === true && nuevo === false;
 }

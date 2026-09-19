@@ -7,9 +7,15 @@
 -- 20260918210000_NormalizarValidadoSeguimientosSinReserva dos veces (la 2.ª debe decir UPDATE 0).
 --
 -- ▶ PASO PREVIO A ENCENDER `requiere_validacion_seguimiento_diario` EN CUALQUIER EMPRESA: en el
---   resumen final ([7]) `normalizables_tras_migracion`, `limbo_pendiente_de_decidir` y
---   `reservas_huerfanas` tienen que dar 0. Encender el flag con filas «mal nacidas» las muestra como
---   pendientes, a las 24 h pasan a EN RETRASO y bloquean el alta de días nuevos del lote.
+--   resumen final ([7]) `normalizables_tras_migracion`, `limbo_pendiente_de_decidir`,
+--   `reservas_huerfanas` e `ingresos_fantasma_produccion` tienen que dar 0. Encender el flag con filas
+--   «mal nacidas» las muestra como pendientes, a las 24 h pasan a EN RETRASO y bloquean el alta de días
+--   nuevos del lote.
+--
+-- ▶ DESPUÉS DEL DEPLOY de las migraciones del 19-sep-2026 (validan el limbo de Santa Reyes, liberan las
+--   reservas huérfanas y compensan el Ingreso fantasma del #682) los cuatro conteos tienen que dar 0. Un
+--   registro que la migración de validación no pudo aplicar (p. ej. sin stock en el silo ese día) sigue en
+--   [3] y hay que validarlo a mano o resolver el stock.
 --
 -- Uso:  psql -h <host> -p <port> -U <user> -d <db> -v ON_ERROR_STOP=1 -f verificar_validado_sin_reserva.sql
 --
@@ -24,6 +30,10 @@
 --       borrarlos (libera la reserva) es una decisión de operación—. Con el flag apagado la pantalla no
 --       muestra el botón de validar.
 --   [4] RESERVAS HUÉRFANAS: ACTIVAS cuyo registro dueño ya no existe. Comprometen stock sin dueño.
+--   [4b] INGRESOS FANTASMA de producción: «devolución por eliminación» de un registro del que NUNCA salió
+--       nada (ningún Consumo suyo) y que no se compensó. Acreditan stock que no se tiene: pasó cuando se
+--       borró un registro que solo tenía el alimento SEPARADO (doble validación encendida) con el flag ya
+--       apagado, y el ítem del catálogo se tomó como id de inventario (otro ítem).
 --   [5] Informativo: sin validar y sin reserva en empresas con el flag ENCENDIDO. Pueden ser
 --       registros sin nada que separar que esperan la confirmación; NO se normalizan.
 --   [6] Simulación de la migración: filas afectadas por módulo (producción, levante, engorde), 2.ª
@@ -92,7 +102,7 @@ SELECT s.modulo, s.company_id, c.name AS empresa, count(*) AS filas,
  GROUP BY 1, 2, 3
  ORDER BY 1, 2;
 
-\echo '[3] LIMBO: sin validar CON reserva, flag APAGADO (NO los toca la migración: hay que decidir)'
+\echo '[3] LIMBO: sin validar CON reserva, flag APAGADO (los de producción/Colombia los valida la migración del 19-sep; lo que quede hay que resolverlo)'
 SELECT s.modulo, s.company_id, c.name AS empresa, s.id, s.fecha,
        string_agg(DISTINCT r.estado, '/') AS estados_reserva,
        coalesce(sum(r.cantidad) FILTER (WHERE r.tipo = 'alimento' AND r.estado = 'ACTIVA'), 0) AS kg_reservados,
@@ -110,6 +120,33 @@ SELECT tipo, origen_modulo AS modulo, count(*) AS filas, sum(cantidad) AS cantid
   FROM _huerfanas
  GROUP BY 1, 2
  ORDER BY 1, 2;
+
+-- Ingresos de «devolución por eliminación» de un registro de PRODUCCIÓN del que nunca salió nada. Los
+-- patrones usan `_`/`.` en lugar de las tildes a propósito: psql en Windows manda el archivo con la
+-- codificación del cliente y un literal con tilde no coincidiría con el que guardó la app.
+CREATE TEMP VIEW _ingresos_fantasma AS
+SELECT m.id, m.company_id, m.item_inventario_id, m.silo_id, m.quantity, m.reference,
+       ((regexp_match(m.reference, '^Seguimiento producci.n #([0-9]+) '))[1])::bigint AS seg_id
+  FROM public.inventario_gestion_movimiento m
+ WHERE m.movement_type = 'Ingreso'
+   AND m.reference LIKE 'Seguimiento producci_n #% (devoluci_n por eliminaci_n)'
+   -- nunca salió nada de ese registro: ningún Consumo suyo
+   AND NOT EXISTS (
+        SELECT 1
+          FROM public.inventario_gestion_movimiento c
+         WHERE c.movement_type = 'Consumo' AND c.company_id = m.company_id
+           AND c.reference LIKE 'Seguimiento producci_n #' ||
+               ((regexp_match(m.reference, '^Seguimiento producci.n #([0-9]+) '))[1]) || ' %')
+   -- y no se compensó (la migración lo marca con esta referencia)
+   AND NOT EXISTS (
+        SELECT 1
+          FROM public.inventario_gestion_movimiento a
+         WHERE a.movement_type = 'AjusteStock' AND a.reference = 'Correccion del movimiento #' || m.id);
+
+\echo '[4b] INGRESOS FANTASMA de producción: devolución por eliminación de un registro del que nunca salió nada, sin compensar'
+SELECT id AS movimiento, company_id, reference AS referencia, item_inventario_id AS item, silo_id, quantity AS kg
+  FROM _ingresos_fantasma
+ ORDER BY id;
 
 \echo '[5] Informativo: sin validar y sin reserva con el flag ENCENDIDO (NO se normalizan)'
 SELECT s.modulo, s.company_id, c.name AS empresa, count(*) AS filas, min(s.fecha) AS desde, max(s.fecha) AS hasta
@@ -221,7 +258,7 @@ SELECT (SELECT count(*) FROM _con_reserva_antes a
           JOIN _seg s ON s.modulo = a.modulo AND s.id = a.id
          WHERE s.validado IS DISTINCT FROM a.validado) AS flag_encendido_que_cambio;
 
-\echo '[7] Resumen — para encender la doble validación en una empresa, las tres últimas columnas tienen que ser 0'
+\echo '[7] Resumen — para encender la doble validación en una empresa, las cuatro últimas columnas tienen que ser 0'
 SELECT (SELECT count(*) FROM _normalizables_antes) AS normalizables_que_arregla_la_migracion,
        (SELECT count(*)
           FROM _seg s JOIN public.companies c ON c.id = s.company_id
@@ -231,6 +268,7 @@ SELECT (SELECT count(*) FROM _normalizables_antes) AS normalizables_que_arregla_
           FROM _seg s JOIN public.companies c ON c.id = s.company_id
          WHERE NOT s.validado AND NOT c.requiere_validacion_seguimiento_diario
            AND EXISTS (SELECT 1 FROM _res r WHERE r.modulo = s.modulo AND r.id = s.id)) AS limbo_pendiente_de_decidir,
-       (SELECT count(*) FROM _huerfanas) AS reservas_huerfanas;
+       (SELECT count(*) FROM _huerfanas) AS reservas_huerfanas,
+       (SELECT count(*) FROM _ingresos_fantasma) AS ingresos_fantasma_produccion;
 
 ROLLBACK;

@@ -53,9 +53,10 @@ import { diffPaises, addPaisesOps } from './funciones/paises.funcion';
 import { filtrarPermisosEmpresa, contarPermisosEnUsoQueSeApagan } from './funciones/permisos-empresa.funcion';
 import {
   FLAGS_EMPRESA, GRUPOS_FLAGS_EMPRESA, flagsDelGrupo, controlesDeFlags,
-  valoresDeFlags, flagsDelFormulario, contarFlagsActivos,
+  valoresDeFlags, flagsDelFormulario, contarFlagsActivos, apagaDobleValidacion,
   type FlagEmpresa, type GrupoFlagEmpresa
 } from './funciones/flags-empresa.funcion';
+import { ConfirmDialogService } from '../../../shared/services/confirm-dialog.service';
 import { resolverSemanaOpcionalParaGuardar } from './funciones/parametro-semana-opcional.funcion';
 
 @Component({
@@ -161,6 +162,13 @@ export class CompanyManagementComponent implements OnInit {
   permEditEmpresaConModulos = false;
 
   private readonly permissionModuleSvc = inject(PermissionModuleService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+
+  /**
+   * Cómo estaba la doble validación de la empresa al ABRIR el formulario. Con eso se sabe si el guardado
+   * la APAGA (encendida → apagada), que es cuando el backend valida antes todos los pendientes.
+   */
+  private dobleValidacionAlAbrir = false;
 
   // Confirmación eliminar
   confirmDeleteOpen = false;
@@ -373,6 +381,7 @@ export class CompanyManagementComponent implements OnInit {
   // ========= Modal =========
   openModal(c?: Company): void {
     this.editing = !!c;
+    this.dobleValidacionAlAbrir = false;   // lo fija applyCompanyToModal con el valor real de la empresa
     this.step = 1;
     this.logoError = null;
     this.logoChanged = false;
@@ -414,6 +423,7 @@ export class CompanyManagementComponent implements OnInit {
 
   private applyCompanyToModal(c: Company): void {
     this.logoPreviewDataUrl = c?.logoDataUrl ?? null;
+    this.dobleValidacionAlAbrir = c?.requiereValidacionSeguimientoDiario === true;
 
     const codeCountry = resolveCountryCode((c as any)?.countryId, c.country);
     this.onCountryChange(codeCountry);
@@ -465,7 +475,7 @@ export class CompanyManagementComponent implements OnInit {
   }
 
   // ========= Guardado =========
-  save(): void {
+  async save(): Promise<void> {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     if (this.selectedPaisIds.length === 0) {
       this.showToast('error', 'Debe seleccionar al menos un país para la empresa');
@@ -500,6 +510,23 @@ export class CompanyManagementComponent implements OnInit {
     };
 
     if (this.logoChanged) payload.logoDataUrl = this.logoPreviewDataUrl ?? '';
+
+    // Apagar la doble validación (encendida → apagada) hace que el backend valide ANTES todos los
+    // pendientes de la empresa —descuenta su alimento y sus aves— y solo entonces apague el flag. Es
+    // una operación de inventario, no un cambio de casilla: se pide confirmación.
+    if (this.editing && apagaDobleValidacion(this.dobleValidacionAlAbrir, payload['requiereValidacionSeguimientoDiario'])) {
+      const confirmado = await this.confirmDialog.ask({
+        title: 'Apagar la doble validación',
+        message:
+          'Al apagarla se validan ahora todos los registros pendientes de la empresa: se descuenta su alimento ' +
+          'del inventario y sus aves. Si alguno no se puede validar (por ejemplo, falta stock) no se apaga y ' +
+          'no se guarda ningún cambio. Si hay pendientes, la empresa tiene que ser la activa en su sesión. ¿Continuar?',
+        type: 'warning',
+        confirmText: 'Apagar y validar',
+        cancelText: 'Cancelar'
+      });
+      if (!confirmado) return;
+    }
 
     this.loading = true;
     const call$: Observable<any> = this.editing ? this.svc.update(payload) : this.svc.create(payload);
@@ -586,7 +613,10 @@ export class CompanyManagementComponent implements OnInit {
     this.toastType = type;
     this.toastMessage = message;
     this.toastVisible = true;
-    this.toastTimeout = setTimeout(() => { this.toastVisible = false; this.toastTimeout = null; }, 5000);
+    // Un error largo (p. ej. el detalle de lo que no se pudo validar al apagar la doble validación, con una
+    // línea por registro) necesita tiempo de lectura: 5 s alcanzan para «Empresa actualizada», no para eso.
+    const ms = type === 'error' && message.length > 120 ? 20000 : 5000;
+    this.toastTimeout = setTimeout(() => { this.toastVisible = false; this.toastTimeout = null; }, ms);
   }
 
   closeToast(): void {

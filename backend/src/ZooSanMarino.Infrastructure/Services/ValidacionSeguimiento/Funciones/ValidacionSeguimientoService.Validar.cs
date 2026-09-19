@@ -51,6 +51,17 @@ public partial class ValidacionSeguimientoService
         if (!_current.Permissions.Contains(permiso))
             throw new UnauthorizedAccessException($"No tiene el permiso '{permiso}' para validar este registro.");
 
+        return await ValidarRegistroAsync(modulo, seguimientoId, ct);
+    }
+
+    /// <summary>
+    /// Núcleo de <see cref="ValidarAsync"/>: todo lo que sigue al chequeo del permiso, sin tocarlo. Existe
+    /// para que el apagado de la doble validación de una empresa pueda validar sus pendientes en nombre de
+    /// quien la administra (autorizado por la policy <c>AdminEmpresas</c> del <c>PUT</c>) sin exigirle además
+    /// el permiso <c>*.validar</c> de cada módulo. Sigue exigiendo que el registro sea de la empresa activa.
+    /// </summary>
+    private async Task<ResultadoValidacionDto> ValidarRegistroAsync(string modulo, long seguimientoId, CancellationToken ct)
+    {
         var estado = await LeerEstadoAsync(modulo, seguimientoId, ct);
         if (!estado.Existe || !EsDeLaEmpresaActiva(estado.CompanyId))
             throw new InvalidOperationException("El registro de seguimiento no existe o no pertenece a la compañía.");
