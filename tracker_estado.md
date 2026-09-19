@@ -8885,3 +8885,32 @@ Solo frontend; sin migración, sin flag, sin backend (medido: con el request cor
 - [x] C1. Commit `4f71cbe` (código + specs + plan con resultados; plan y tracker iniciales en `136524f`), acotado a mis
       archivos (el bloque y los archivos de la otra sesión quedaron intactos en el árbol). Sin push ni deploy: requieren
       OK explícito.
+
+---
+
+## HUEVOS-TOTAL-DEL-DIA — «Queda en 0»: la primera línea del día no dice cuántos huevos hay (Producción, 18-sep-2026)
+
+Plan: [seguimiento_huevos_total_del_dia_plan.md](fase_de_desarrollo/seguimiento_huevos_total_del_dia_plan.md)
+
+El usuario cargó la BD real de producción (18-sep ~12:20) y se analizó el caso del Galpón 4 de La Esperanza (LPP 26,
+P-LOTE 217A): un operario puso al día el 14/09 de los 6 galpones y en el G4 repitió la carga de huevos 3 veces (#693,
+#694, #695 idénticos, 7.010) porque la primera línea del día seguía diciendo 0 huevos (#692, sin huevos): el sistema
+cuenta 21.030 huevos = 183 % de postura (G3: 15.060 = 135 %). También aparecieron el vaciado del formulario (#686 con la
+fecha de hoy) y registros borrados/rehechos. Solo frontend; sin migración, sin flag, sin backend.
+
+- [x] E1. Análisis de la copia de producción (registros, `sync_operaciones`, tombstones, movimientos de inventario,
+      sesiones, fn canónica, espejo de huevos) — ver el plan. Descartados: cola sin red, sesión vencida, doble clic,
+      silos/tipos de huevo del lote.
+- [x] E2. Validación del arreglo `4f71cbe` contra el lote real (copia clonada, back aislado): fecha 14/09 + 4 tipos +
+      mortalidad tecleados con `informacion-lote` 5 s tarde se conservan; durante «Guardando…» el formulario mantiene los
+      valores; guarda 201 con fecha 14/09; al reabrir no sale el aviso viejo. La grilla real sigue mostrando «14/09/2026 ·
+      4 registros … huevos 0» en la primera línea.
+- [x] P1. Plan escrito en `fase_de_desarrollo/seguimiento_huevos_total_del_dia_plan.md`.
+- [ ] F1. `filasGrillaProduccion` + `totalDia` en la primera fila de un día con 2+ registros (+ spec).
+- [ ] F2. `tabs-principal`: «Total del día: N huevos» en la celda de la fecha (mortalidad/selección/consumo del día en el tooltip).
+- [ ] F3. `resumirGuardadoSeguimiento(request)` (pura + spec) y el toast de éxito de `lote-produccion-list` con el resumen.
+- [ ] V1. `ng test --include` de los specs tocados + `yarn build` (0 errores).
+- [ ] V2. Smoke en navegador contra la copia real (LPP 26): total del día en la primera línea, resumen en el aviso, un día
+      de un solo registro sin cambios.
+- [ ] V3. Sin procesos huérfanos (back :5002, front :4200, BD clon `smoke_real`, sesión y token de smoke).
+- [ ] C1. Commit (acotado a mis archivos; sin push ni deploy).
