@@ -259,3 +259,59 @@ convierte 1 GLOBAL y apaga 4 copias (F3); 2.ª = 0 cambios; `verificar_perfiles_
 - No se borra ninguna fila: todo lo que se corrige queda `activo = false` o se muda de empresa.
 - No se toca el trabajo sin commitear de `PERFIL-TICKETS-AL-CREAR` (otra sesión).
 - No se despliega sin pedido explícito.
+
+---
+
+## Decisiones tomadas (19-sep-2026) y qué se implementó
+
+| Decisión del usuario | Cómo quedó |
+|---|---|
+| «Puede abrir» se define **por rol**, en la pestaña Tickets del rol | Columna `roles.ticket_nivel_creacion` (NULL = no define ⇒ NORMAL) + bloque ① en el editor |
+| Soporte/Dudas de Santa Reyes y Panamá **los configura el usuario después** | La migración NO siembra resolutores nuevos; el verificador mide los «usuarios mudos» que quedan |
+| Rol **Costos**: apagar la fila de resolutor y darle Implementador | Regla genérica en la migración: fila de rol NO administrador en empresa ajena ⇒ se apaga y, si era Desarrollo/Requerimiento, el rol recibe `IMPLEMENTADOR` |
+| **F4** entra en esta entrega | `tickets.admin` administra su empresa activa; todas las empresas solo el admin global |
+
+### Backend
+
+- **Cálculos puros nuevos** (`Application/Calculos/`), todos con tests xUnit:
+  `TicketPerfilEmpresaCalculos` (en qué empresa vive el perfil), `TicketPerfilAutorizacionCalculos` (quién
+  puede escribir, y que GLOBAL es solo del admin global), `TicketNivelEfectivoCalculos` (nivel = mayor entre
+  permiso, roles y perfil personal; equivalencia con lo previo), `TicketResolutorAlcanceCalculos` (aplica /
+  etiqueta / plan de guardado sin pisar otras empresas) y `TicketAlcanceAdministracionCalculos` (F4).
+- `TicketAlcance` (EMPRESA/GLOBAL) en Domain; `alcance` en `ticket_resolutores` y `ticket_resolutor_rol`;
+  `Role.TicketNivelCreacion`.
+- **Una sola fórmula de asignable**: `TicketAsignablesConsulta` la usan el desplegable, `CreateAsync`,
+  `TransferirAsync` y la visibilidad del caso (antes eran tres reglas distintas).
+- `TicketPerfilService` reescrito: resuelve la empresa del usuario/rol, exige permiso (403 con motivo),
+  devuelve `companyId`/`companyName`/`nivelPorRol`/`puedeElegirGlobal`, y el `companyId` opcional permite al
+  admin global configurar otra empresa.
+- `ICurrentUser.EsAdminEmpresas` (misma regla que la policy `AdminEmpresas`) resuelto en `HttpCurrentUser`.
+- `UserService` ya **no copia** la plantilla del rol al asignar roles (y se retiran `SeedPerfilDesdeRol` /
+  `ReaplicarPlantillaRol` con sus endpoints y su botón).
+- F4 en `TicketService` (tablero/roadmap/panel, `tickets/global`, detalle, gestión de caso y «a nombre de»)
+  y en `TicketTareaService`; `GET api/tickets/global` pasa a exigir `tickets.admin` (antes, nada).
+- Siembra de empresa nueva: omite los tipos que ya cubre una fila GLOBAL.
+
+### Migraciones
+
+1. `20260920010340_AddAlcanceYNivelCreacionTickets` — DDL idempotente (`ADD COLUMN IF NOT EXISTS` + CHECK).
+   Se le quitó el `AlterColumn` de `produccion_resultado_levante.lote_id` que EF quiso arrastrar: es una
+   **deriva previa del modelo** (la entidad dice `int`, el snapshot decía `int/text`, la BD tiene `text`),
+   ajena a este trabajo, y se dejó el snapshot como estaba en ese punto.
+2. `20260920010400_CorregirEmpresaYAlcanceConfiguracionTickets` — data-only (Designer clonado): muda/apaga
+   los perfiles fuera de su empresa, apaga la fila de Costos y le da el nivel, y convierte
+   `Admin`/DESARROLLO en una fila GLOBAL apagando las 4 copias.
+
+### Medido sobre un clon de la copia de producción
+
+| | Antes | Después |
+|---|---|---|
+| Perfiles de apertura activos fuera de su empresa | 4 | **0** |
+| Plantillas de rol activas en empresa ajena no esperadas | 1 (Costos) | **0** |
+| Filas GLOBAL | 0 | 1 (`Admin`/Desarrollo → Jose Moises) |
+| Copias por empresa que la GLOBAL ya cubre | — | **0** |
+| Usuarios que no pueden abrir ningún tipo (Santa Reyes / Panamá) | 3 / 11 | **2 / 9** |
+
+Los que siguen mudos son los que dependen de la decisión pendiente (nadie atiende Soporte/Dudas en esas dos
+empresas): Diego Ospina y Sebastián Zubieta en Santa Reyes, y 9 usuarios de Panamá. Segunda corrida de la
+migración: 0 filas afectadas.

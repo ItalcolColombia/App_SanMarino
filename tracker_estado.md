@@ -9030,13 +9030,23 @@ depende de la persona y 3 de 4 usuarios de Santa Reyes + 2 de Panamá no pueden 
 país NULL; `api/ticket-perfiles` y `api/tickets/global` sin gate).
 
 - [x] P1. Diagnóstico medido y plan escrito (F1 empresa correcta + gates + datos · F2 abrir por rol · F3 alcance EMPRESA/GLOBAL · F4 `tickets.admin` ≠ global).
-- [ ] D1. Decisiones del usuario: cómo se define «puede abrir» por rol; quién atiende Soporte/Dudas en Santa Reyes y Panamá; rol Costos; F4.
-- [ ] F1. `TicketPerfilEmpresaCalculos` + `TicketPerfilAutorizacionCalculos` (+ tests), service resuelve la empresa del usuario/rol, gates en `ticket-perfiles` y `tickets/global`, migración data-only de corrección, `verificar_perfiles_tickets_empresa.sql`.
-- [ ] F2. `roles.ticket_nivel_creacion` + `TicketNivelEfectivoCalculos` (+ tests de equivalencia), editor con bloques ① Abrir / ② Atender, estado vacío en «Nuevo caso».
-- [ ] F3. `alcance` EMPRESA/GLOBAL + migración (Admin/DESARROLLO → una fila GLOBAL), una sola fórmula de asignable (desplegable, crear, transferir, ver), sin copia de plantilla al asignar roles, siembra de empresa nueva, selector «Esta empresa / Todas las empresas».
-- [ ] F4. (según decisión) alcance de todas las empresas solo con `AdminEmpresas`.
-- [ ] V1. `dotnet build` + `dotnet test`, `yarn build`, gate de SQL por migración.
-- [ ] V2. Migraciones en BEGIN…ROLLBACK sobre la copia (2 pasadas) + verificador antes/después.
-- [ ] V3. Smoke API + UI con backend aislado sobre un clon (Lenin, Diego, Alexander, Costos, 403 de gates, empresa nueva).
-- [ ] V4. Sin procesos huérfanos.
+- [x] D1. Decisiones del usuario: «puede abrir» por rol (pestaña Tickets del rol) · Soporte/Dudas de Santa Reyes y Panamá los configura él después · rol Costos: apagar el resolutor y darle Implementador · F4 entra en esta entrega.
+- [x] B1. Cálculos puros + tests xUnit: `TicketPerfilEmpresaCalculos` (9), `TicketPerfilAutorizacionCalculos` (8), `TicketNivelEfectivoCalculos` (15), `TicketResolutorAlcanceCalculos` (16), `TicketAlcanceAdministracionCalculos` (13).
+- [x] B2. Dominio y EF: `TicketAlcance` (EMPRESA/GLOBAL), `alcance` en `ticket_resolutores` / `ticket_resolutor_rol`, `Role.TicketNivelCreacion` + configuraciones.
+- [x] B3. `TicketAsignablesConsulta`: UNA sola fórmula de «quién puede recibir» para el desplegable, `CreateAsync`, `TransferirAsync` y la visibilidad del caso (antes tres reglas distintas; la API aceptaba a quien el desplegable no ofrecía).
+- [x] B4. `TicketPerfilService` reescrito: empresa del usuario/rol (no la del que edita), gate con 403 y motivo, `companyId` opcional para el admin global, DTO con `companyId`/`companyName`/`nivelPorRol`/`puedeElegirGlobal`, nivel efectivo = mayor(permiso, roles, perfil).
+- [x] B5. `ICurrentUser.EsAdminEmpresas` (misma regla que la policy `AdminEmpresas`) en `HttpCurrentUser`.
+- [x] B6. Se retira la COPIA de la plantilla del rol al asignar roles (`UserService`) y con ella `SeedPerfilDesdeRol` / `ReaplicarPlantillaRol`, sus endpoints y el botón.
+- [x] B7. F4: `tickets.admin` administra su empresa activa y solo el admin global todas — tablero/roadmap/panel, `GET api/tickets/global` (que además ahora EXIGE `tickets.admin`; antes no pedía nada), detalle, gestión del caso, tareas, tiempos y «a nombre de».
+- [x] B8. Siembra de empresa nueva: omite los tipos que ya cubre una fila GLOBAL.
+- [x] M1. `20260920010340_AddAlcanceYNivelCreacionTickets` (DDL idempotente + CHECK). Se le quitó el `AlterColumn` de `produccion_resultado_levante.lote_id` que EF quiso arrastrar (deriva previa del modelo, ajena) y el snapshot quedó sin ese cambio.
+- [x] M2. `20260920010400_CorregirEmpresaYAlcanceConfiguracionTickets` (data-only, Designer clonado): muda/apaga los perfiles fuera de su empresa, apaga la fila del rol en empresa ajena y le da el nivel, y convierte `Admin`/DESARROLLO en una fila GLOBAL apagando las 4 copias.
+- [x] M3. `backend/sql/verificar_perfiles_tickets_empresa.sql` (solo lectura, congela/compara): perfiles y plantillas fuera de su empresa, resolutores directos ajenos, filas GLOBAL vigentes, copias redundantes y **usuarios mudos por empresa**.
+- [x] F1. Front: `ticket-perfil.service.ts` (alcance, nivelCreacion, companyId), editor reescrito con ① ABRIR / ② ATENDER separados, selector «Esta empresa / Todas las empresas (Global)» (Global solo para el admin global, por `isSuperAdmin` o rol exacto — se elimina el `includes('admin')`), selector de empresa para el admin global, y mensajes del backend a la vista.
+- [x] F2. `funciones/estado-resolutores.funcion.ts` + spec (13 casos) y README de la carpeta; `role-management` guarda por `construirRequestRol()` y avisa el error; «Nuevo caso» muestra un aviso cuando no hay ningún tipo disponible (antes: formulario mudo).
+- [x] V1. `dotnet build` de la API (con Infrastructure y Application): 0 errores. `dotnet test`: Application.Tests 4.417/4.419 y Domain.Tests 1/1 — los 2 rojos son los conocidos `RazaGuiaAliasParidadSqlTests` por compilar con `--artifacts-path` fuera del repo (leen el espejo `.sql` subiendo desde el binario), no tienen relación con este cambio.
+- [x] V2. Migración de datos probada sobre un clon de la copia real, dos pasadas: 1.ª muda 4 perfiles, apaga la fila de Costos y le da Implementador, convierte 1 fila a GLOBAL y apaga 4 copias; 2.ª **0 filas**. Verificador antes/después: perfiles activos fuera de su empresa 4 → **0**, plantillas no esperadas en empresa ajena 1 → **0**, filas GLOBAL 0 → 1, copias redundantes 0, usuarios mudos Santa Reyes 3 → **2** y Panamá 11 → **9** (los que quedan dependen de la decisión pendiente de quién atiende Soporte/Dudas).
+- [ ] V3. Smoke de API con backend aislado (:5501) sobre un clon: migraciones aplicadas al arrancar, Lenin con tipos, 403 de los gates, nivel por rol sin tocar a la persona, etiqueta de Alexander y Costos fuera del desplegable de Sanmarino.
+- [ ] V4. `yarn build` del front (bloqueado por un error de TypeScript en `core/auth/auth.interceptor.ts`, de otra sesión en curso) + `ng test` del spec nuevo.
+- [ ] V5. Sin procesos huérfanos: API :5501 detenida, clon eliminado, sesiones de smoke borradas.
 - [ ] C1. Commits acotados a mis archivos (sin push ni deploy).
