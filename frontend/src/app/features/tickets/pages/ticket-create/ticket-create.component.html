@@ -144,6 +144,18 @@
                   Tipo de ticket <span class="text-ital-orange">*</span>
                   <span class="ml-1 font-normal text-ital-muted">(disponibles en tu país)</span>
                 </label>
+                <!-- Sin tipos el formulario quedaba mudo: la request devuelve 200 con lista vacía y no
+                     había nada que explicara por qué no se podía elegir nada (caso Santa Reyes). -->
+                @if (!loadingTipos() && tiposPermitidos.length === 0) {
+                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p class="font-semibold">No podés abrir ningún tipo de caso todavía.</p>
+                    <p class="mt-1 text-[13px] leading-relaxed">
+                      O tu rol solo habilita tipos que nadie atiende en tu empresa, o tu empresa no tiene
+                      resolutores configurados. Pedile al administrador que revise
+                      <strong>Roles → Tickets</strong>: ① qué puede abrir tu rol y ② quién atiende cada tipo.
+                    </p>
+                  </div>
+                }
                 <div class="grid grid-cols-2 gap-2.5">
                   @for (t of tiposPermitidos; track t.tipo) {
                     <label

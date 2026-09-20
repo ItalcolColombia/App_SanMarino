@@ -11,25 +11,24 @@
       <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
       </svg>
-      ROL — Quién RECIBE los tickets (plantilla del rol)
+      ROL — ① quién puede ABRIR · ② quién ATIENDE
     </div>
   } @else {
     <div class="flex items-center gap-2 px-5 py-2 bg-ital-orange text-white text-[11px] font-bold uppercase tracking-widest">
       <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
       </svg>
-      USUARIO — Quién puede CREAR tickets
+      USUARIO — excepción personal para ABRIR tickets
     </div>
   }
 
   <!-- ── Header ───────────────────────────────────────────── -->
-  <div class="flex items-center justify-between gap-3 px-5 py-3.5 border-b"
+  <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b"
        [class.bg-green-50]="modo === 'rol'"
        [class.border-ital-green-100]="modo === 'rol'"
        [class.bg-orange-50]="modo !== 'rol'"
        [class.border-orange-100]="modo !== 'rol'">
     <div class="flex items-center gap-3">
-      <!-- Ícono -->
       <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl shadow-sm"
            [class.bg-ital-green]="modo === 'rol'"
            [class.bg-ital-orange]="modo !== 'rol'">
@@ -37,215 +36,230 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
         </svg>
       </div>
-      <!-- Texto + badge de modo -->
       <div>
-        <div class="flex items-center gap-2">
-          <h3 class="text-sm font-bold text-slate-800 leading-none">
-            {{ modo === 'rol' ? 'Plantilla de atención del rol' : 'Perfil de tickets del usuario' }}
-          </h3>
-          <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider leading-none"
-                [class.bg-ital-green]="modo === 'rol'"
-                [class.text-white]="modo === 'rol'"
-                [class.bg-orange-200]="modo !== 'rol'"
-                [class.text-orange-800]="modo !== 'rol'">
-            {{ modo === 'rol' ? 'Plantilla' : 'Por persona' }}
-          </span>
-        </div>
+        <h3 class="text-sm font-bold text-slate-800 leading-none">
+          {{ modo === 'rol' ? 'Tickets del rol' : 'Tickets de esta persona' }}
+        </h3>
         <p class="text-[11px] text-slate-500 mt-1 leading-tight">
           {{ modo === 'rol'
-              ? 'Define qué tickets recibe quien tenga este rol. No configura quién puede crear.'
-              : 'Define el nivel de acceso para abrir tickets. La atención (quién recibe) se configura por rol.' }}
+              ? 'Abrir y atender son dos cosas distintas: habilitar la apertura NO convierte al rol en resolutor.'
+              : 'Excepción por persona. Lo que ATIENDE (recibe) se configura en Roles → Tickets.' }}
         </p>
       </div>
     </div>
-    <!-- Badge Admin / País -->
-    @if (esAdmin) {
-      <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-        🔑 Admin
-      </span>
-    } @else {
-      <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-        📍 {{ paises[1]?.label ?? 'Mi país' }}
-      </span>
-    }
+
+    <!-- Empresa de la configuración -->
+    <div class="flex shrink-0 items-center gap-2">
+      @if (puedeElegirGlobal && empresas.length > 0) {
+        <label class="text-[11px] font-semibold text-slate-500">Empresa:</label>
+        <select [ngModel]="companyId" (ngModelChange)="cambiarEmpresa($event)"
+                class="rounded-lg border-slate-200 py-1 pl-2 pr-7 text-xs font-medium text-slate-700 focus:border-ital-green focus:ring-ital-green">
+          @for (e of empresas; track e.id) {
+            <option [ngValue]="e.id">{{ e.name }}</option>
+          }
+        </select>
+      } @else {
+        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+          🏢 {{ companyName ?? 'Empresa del ' + modo }}
+        </span>
+      }
+    </div>
   </div>
 
   <!-- ── Body ─────────────────────────────────────────────── -->
   @if (loading()) {
-    <!-- Skeleton -->
     <div class="space-y-2.5 p-5">
       <div class="h-16 animate-pulse rounded-xl bg-slate-100"></div>
       <div class="h-16 animate-pulse rounded-xl bg-slate-100"></div>
       <div class="h-16 animate-pulse rounded-xl bg-slate-100"></div>
     </div>
+  } @else if (errorCarga) {
+    <div class="p-5">
+      <p class="rounded-xl bg-red-50 px-4 py-3 text-xs font-medium text-red-700 ring-1 ring-red-100">
+        {{ errorCarga }}
+      </p>
+    </div>
   } @else {
     <div class="space-y-5 p-5">
 
-      <!-- ① CREACIÓN (solo modo usuario) -->
-      @if (modo === 'usuario') {
-        <section>
-          <div class="mb-3 flex items-center gap-2.5">
-            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-ital-orange text-[11px] font-bold text-white shadow-sm">1</span>
-            <div>
-              <h4 class="text-xs font-bold uppercase tracking-wide text-orange-700 leading-none">Creación de solicitudes</h4>
-              <p class="text-[11px] text-slate-400 mt-0.5">Qué tipos puede <strong>abrir</strong> esta persona.</p>
-            </div>
-          </div>
-
-          <!-- Hint cuando aún no se seleccionó nivel -->
-          @if (nivel === '') {
-            <p class="mb-2 rounded-lg bg-orange-50 px-3 py-2 text-[11px] font-medium text-orange-600 ring-1 ring-orange-100">
-              Seleccioná un nivel para este usuario antes de guardar.
-            </p>
-          }
-
-          <!-- Cards de nivel (radio) -->
-          <div class="grid grid-cols-2 gap-2">
-            @for (n of niveles; track n.v) {
-              <label class="cursor-pointer select-none">
-                <input type="radio" [(ngModel)]="nivel" [value]="n.v" class="sr-only"
-                       (change)="changed.emit()" />
-                <div class="rounded-xl border-2 p-3.5 transition-all"
-                     [class.border-ital-orange]="nivel === n.v"
-                     [class.bg-orange-50]="nivel === n.v"
-                     [class.border-slate-200]="nivel !== n.v"
-                     [class.bg-slate-50]="nivel !== n.v">
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-sm font-semibold leading-tight"
-                          [class.text-orange-700]="nivel === n.v"
-                          [class.text-slate-600]="nivel !== n.v">{{ n.label }}</span>
-                    <!-- Radio indicador visual -->
-                    <div class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 transition-colors"
-                         [class.border-ital-orange]="nivel === n.v"
-                         [class.bg-ital-orange]="nivel === n.v"
-                         [class.border-slate-300]="nivel !== n.v"
-                         [class.bg-white]="nivel !== n.v">
-                      @if (nivel === n.v) {
-                        <svg class="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-                        </svg>
-                      }
-                    </div>
-                  </div>
-                  <p class="mt-1.5 text-[11px] leading-relaxed"
-                     [class.text-orange-600]="nivel === n.v"
-                     [class.text-slate-400]="nivel !== n.v">{{ n.desc }}</p>
-                </div>
-              </label>
-            }
-          </div>
-        </section>
-
-      }
-
-      <!-- ② ATENCIÓN — solo modo rol (la atención de usuario se hereda del rol) -->
-      @if (modo === 'rol') {
+      <!-- ① ABRIR -->
       <section>
         <div class="mb-3 flex items-center gap-2.5">
-          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-ital-green text-white shadow-sm">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-            </svg>
-          </span>
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-ital-orange text-[11px] font-bold text-white shadow-sm">1</span>
           <div>
-            <h4 class="text-xs font-bold uppercase tracking-wide text-ital-green-dark leading-none">Tipos que atiende este rol</h4>
-            <p class="text-[11px] text-slate-400 mt-0.5">Los tickets de estos tipos <strong>le llegarán</strong> a quien tenga el rol.</p>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-orange-700 leading-none">
+              {{ modo === 'rol' ? 'Qué puede ABRIR quien tenga este rol' : 'Qué puede ABRIR esta persona' }}
+            </h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Tipos de caso que puede <strong>registrar</strong>. No recibe nada por esto.</p>
           </div>
         </div>
 
-        <!-- Toggles por tipo de ticket -->
-        <div class="space-y-2">
-          @for (t of tipos; track t.value) {
-            <div class="rounded-xl border px-4 py-3 transition-all"
-                 [class.border-ital-green]="resolutorActivo[t.value]"
-                 [class.bg-ital-green-50]="resolutorActivo[t.value]"
-                 [class.border-slate-200]="!resolutorActivo[t.value]"
-                 [class.bg-white]="!resolutorActivo[t.value]">
-              <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold"
-                     [class.text-ital-green-dark]="resolutorActivo[t.value]"
-                     [class.text-slate-700]="!resolutorActivo[t.value]">{{ t.label }}</p>
-                  <p class="text-xs text-slate-400">{{ t.descripcion }}</p>
-                </div>
-                <!-- Toggle ON/OFF -->
-                <button type="button"
-                        (click)="resolutorActivo[t.value] = !resolutorActivo[t.value]; changed.emit()"
-                        class="relative h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none"
-                        [class.bg-ital-green]="resolutorActivo[t.value]"
-                        [class.border-ital-green]="resolutorActivo[t.value]"
-                        [class.bg-slate-200]="!resolutorActivo[t.value]"
-                        [class.border-slate-200]="!resolutorActivo[t.value]"
-                        role="switch"
-                        [attr.aria-checked]="resolutorActivo[t.value]">
-                  <span class="absolute inset-y-0 my-auto h-4 w-4 rounded-full bg-white shadow transition-transform"
-                        [class.translate-x-5]="resolutorActivo[t.value]"
-                        [class.translate-x-0.5]="!resolutorActivo[t.value]"></span>
-                </button>
-              </div>
+        @if (modo === 'usuario') {
+          <p class="mb-2 rounded-lg px-3 py-2 text-[11px] font-medium ring-1"
+             [class.bg-ital-green-50]="nivelPorRol === 'IMPLEMENTADOR'"
+             [class.text-ital-green-dark]="nivelPorRol === 'IMPLEMENTADOR'"
+             [class.ring-ital-green-100]="nivelPorRol === 'IMPLEMENTADOR'"
+             [class.bg-slate-50]="nivelPorRol !== 'IMPLEMENTADOR'"
+             [class.text-slate-500]="nivelPorRol !== 'IMPLEMENTADOR'"
+             [class.ring-slate-100]="nivelPorRol !== 'IMPLEMENTADOR'">
+            @if (nivelPorRol === 'IMPLEMENTADOR') {
+              Por su rol ya puede abrir Desarrollo y Requerimiento: no hace falta tocar nada acá.
+            } @else {
+              Por su rol solo puede abrir Soporte y Dudas. Lo mejor es habilitarlo en <strong>Roles → Tickets</strong>,
+              para no repetirlo persona por persona; esto es la excepción individual.
+            }
+          </p>
+          @if (nivel === '') {
+            <p class="mb-2 rounded-lg bg-orange-50 px-3 py-2 text-[11px] font-medium text-orange-600 ring-1 ring-orange-100">
+              Seleccioná un nivel para esta persona antes de guardar.
+            </p>
+          }
+        }
 
-              <!-- Selector de país (visible si activo) -->
-              @if (resolutorActivo[t.value]) {
-                <div class="mt-3 flex items-center gap-2.5 rounded-lg bg-white/80 px-3 py-2 ring-1 ring-slate-200">
-                  <svg class="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
-                  </svg>
-                  <label class="shrink-0 text-xs font-semibold text-slate-500">Atiende en:</label>
-                  <select [(ngModel)]="resolutorPais[t.value]"
-                          class="flex-1 rounded-lg border-slate-200 py-1 pl-2 pr-7 text-xs font-medium text-slate-700 focus:border-ital-green focus:ring-ital-green">
-                    @for (p of paises; track p.id) {
-                      <option [ngValue]="p.id">{{ p.label }}</option>
-                    }
-                  </select>
-                </div>
-                @if (resolutorPais[t.value] === null) {
-                  <p class="mt-1.5 text-[11px] font-medium text-indigo-600">
-                    ⚡ Global — todos los países · tipo {{ t.label }}.
-                  </p>
-                } @else {
-                  <p class="mt-1.5 text-[11px] font-medium text-ital-green-dark">
-                    📍 Solo {{ getNombrePais(resolutorPais[t.value]) }} · {{ t.label }}.
-                  </p>
-                }
+        <div class="grid grid-cols-2 gap-2">
+          @for (n of niveles; track n.v) {
+            <label class="cursor-pointer select-none">
+              @if (modo === 'rol') {
+                <input type="radio" [(ngModel)]="nivelCreacionRol" [value]="n.v === 'IMPLEMENTADOR' ? 'IMPLEMENTADOR' : ''"
+                       class="sr-only" (change)="changed.emit()" />
+              } @else {
+                <input type="radio" [(ngModel)]="nivel" [value]="n.v" class="sr-only" (change)="changed.emit()" />
               }
-            </div>
+              <div class="rounded-xl border-2 p-3.5 transition-all"
+                   [class.border-ital-orange]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') === (n.v === 'IMPLEMENTADOR') : nivel === n.v"
+                   [class.bg-orange-50]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') === (n.v === 'IMPLEMENTADOR') : nivel === n.v"
+                   [class.border-slate-200]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') !== (n.v === 'IMPLEMENTADOR') : nivel !== n.v"
+                   [class.bg-slate-50]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') !== (n.v === 'IMPLEMENTADOR') : nivel !== n.v">
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-sm font-semibold leading-tight text-slate-700">{{ n.label }}</span>
+                  <div class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 transition-colors"
+                       [class.border-ital-orange]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') === (n.v === 'IMPLEMENTADOR') : nivel === n.v"
+                       [class.bg-ital-orange]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') === (n.v === 'IMPLEMENTADOR') : nivel === n.v"
+                       [class.border-slate-300]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') !== (n.v === 'IMPLEMENTADOR') : nivel !== n.v"
+                       [class.bg-white]="modo === 'rol' ? (nivelCreacionRol === 'IMPLEMENTADOR') !== (n.v === 'IMPLEMENTADOR') : nivel !== n.v">
+                    <svg class="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                    </svg>
+                  </div>
+                </div>
+                <p class="mt-1.5 text-[11px] leading-relaxed text-slate-400">{{ n.desc }}</p>
+              </div>
+            </label>
           }
         </div>
       </section>
-      } <!-- /ATENCIÓN rol -->
 
-      <!-- Nota informativa (solo modo rol) -->
+      <!-- ② ATENDER -->
       @if (modo === 'rol') {
-        <div class="flex items-start gap-2.5 rounded-xl bg-slate-50 px-3.5 py-2.5 ring-1 ring-slate-100">
-          <span class="mt-0.5 shrink-0 text-[13px]">ℹ️</span>
-          <p class="text-[11px] text-slate-500 leading-relaxed">
-            El <strong class="text-slate-600">nivel de creación</strong> (Normal / Implementador) — quién puede abrir solicitudes — se configura por usuario, no por rol.
-          </p>
-        </div>
+        <section>
+          <div class="mb-3 flex items-center gap-2.5">
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-ital-green text-[11px] font-bold text-white shadow-sm">2</span>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wide text-ital-green-dark leading-none">Qué ATIENDE este rol (resolutor)</h4>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                Los casos de estos tipos <strong>le llegarán</strong> a quien tenga el rol. Si solo querés que pueda
+                registrar casos, no prendas nada acá.
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            @for (t of tipos; track t.value) {
+              <div class="rounded-xl border px-4 py-3 transition-all"
+                   [class.border-ital-green]="resolutorActivo[t.value]"
+                   [class.bg-ital-green-50]="resolutorActivo[t.value]"
+                   [class.border-slate-200]="!resolutorActivo[t.value]"
+                   [class.bg-white]="!resolutorActivo[t.value]">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold"
+                       [class.text-ital-green-dark]="resolutorActivo[t.value]"
+                       [class.text-slate-700]="!resolutorActivo[t.value]">{{ t.label }}</p>
+                    <p class="text-xs text-slate-400">{{ t.descripcion }}</p>
+                  </div>
+                  <button type="button" (click)="alternarResolutor(t.value)"
+                          class="relative h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none"
+                          [class.bg-ital-green]="resolutorActivo[t.value]"
+                          [class.border-ital-green]="resolutorActivo[t.value]"
+                          [class.bg-slate-200]="!resolutorActivo[t.value]"
+                          [class.border-slate-200]="!resolutorActivo[t.value]"
+                          role="switch"
+                          [attr.aria-checked]="resolutorActivo[t.value]">
+                    <span class="absolute inset-y-0 my-auto h-4 w-4 rounded-full bg-white shadow transition-transform"
+                          [class.translate-x-5]="resolutorActivo[t.value]"
+                          [class.translate-x-0.5]="!resolutorActivo[t.value]"></span>
+                  </button>
+                </div>
+
+                @if (resolutorActivo[t.value]) {
+                  <div class="mt-3 rounded-lg bg-white/80 px-3 py-2 ring-1 ring-slate-200">
+                    <p class="mb-1.5 text-xs font-semibold text-slate-500">Atiende los casos de:</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button type="button" (click)="cambiarAlcance(t.value, 'EMPRESA')"
+                              class="rounded-lg border px-2.5 py-1 text-xs font-semibold transition"
+                              [class.border-ital-green]="resolutorAlcance[t.value] !== 'GLOBAL'"
+                              [class.bg-ital-green-50]="resolutorAlcance[t.value] !== 'GLOBAL'"
+                              [class.text-ital-green-dark]="resolutorAlcance[t.value] !== 'GLOBAL'"
+                              [class.border-slate-200]="resolutorAlcance[t.value] === 'GLOBAL'"
+                              [class.text-slate-500]="resolutorAlcance[t.value] === 'GLOBAL'">
+                        🏢 {{ companyName ?? 'Esta empresa' }}
+                      </button>
+                      <button type="button" (click)="cambiarAlcance(t.value, 'GLOBAL')"
+                              [disabled]="!puedeElegirGlobal"
+                              [attr.title]="puedeElegirGlobal ? null : 'Solo el administrador de todas las empresas puede marcar Global'"
+                              class="rounded-lg border px-2.5 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                              [class.border-indigo-400]="resolutorAlcance[t.value] === 'GLOBAL'"
+                              [class.bg-indigo-50]="resolutorAlcance[t.value] === 'GLOBAL'"
+                              [class.text-indigo-700]="resolutorAlcance[t.value] === 'GLOBAL'"
+                              [class.border-slate-200]="resolutorAlcance[t.value] !== 'GLOBAL'"
+                              [class.text-slate-500]="resolutorAlcance[t.value] !== 'GLOBAL'">
+                        🌍 Todas las empresas (Global)
+                      </button>
+                    </div>
+                    @if (resolutorAlcance[t.value] === 'GLOBAL') {
+                      <p class="mt-1.5 text-[11px] font-medium text-indigo-600">
+                        Global: recibe los casos de {{ t.label }} de todas las empresas, también de las que se creen.
+                      </p>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      } @else {
+        <!-- modo usuario: lo que atiende, en lectura -->
+        <section>
+          <div class="mb-2 flex items-center gap-2.5">
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-slate-200 text-[11px] font-bold text-slate-600">2</span>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wide text-slate-600 leading-none">Qué ATIENDE hoy esta persona</h4>
+              <p class="text-[11px] text-slate-400 mt-0.5">Configurado por persona. Lo del rol se ve y se cambia en Roles → Tickets.</p>
+            </div>
+          </div>
+          @if (atiendePersonal.length === 0) {
+            <p class="rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-500 ring-1 ring-slate-100">
+              No atiende ningún tipo por configuración personal.
+            </p>
+          } @else {
+            <div class="flex flex-wrap gap-2">
+              @for (a of atiendePersonal; track a.tipo) {
+                <span class="rounded-full bg-ital-green-50 px-2.5 py-1 text-[11px] font-semibold text-ital-green-dark ring-1 ring-ital-green-100">
+                  {{ a.label }} · {{ a.etiqueta }}
+                </span>
+              }
+            </div>
+          }
+        </section>
       }
 
       <!-- ── Footer de acciones (oculto cuando el padre controla el save) ── -->
       @if (!hideSaveButton) {
-      <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-        <p class="text-[11px] text-slate-400">
-          @if (modo === 'rol') { Guardá primero; luego aplicá a los usuarios existentes. }
-          @else { Los cambios afectan solo a este usuario. }
-        </p>
-        <div class="flex flex-wrap items-center gap-2">
-          @if (modo === 'rol') {
-            <button (click)="reaplicarPlantilla()" [disabled]="reaplicando() || saving()"
-                    class="inline-flex items-center gap-2 rounded-xl border border-ital-green px-4 py-2 text-sm font-semibold text-ital-green-dark transition hover:bg-ital-green-50 disabled:opacity-60">
-              @if (reaplicando()) {
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-ital-green border-t-transparent"></span>
-              } @else {
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
-                </svg>
-              }
-              Aplicar a usuarios del rol
-            </button>
-          }
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+          <p class="text-[11px] text-slate-400">
+            @if (modo === 'rol') { Afecta a todos los usuarios que tengan este rol. }
+            @else { Los cambios afectan solo a esta persona. }
+          </p>
           <button (click)="save()" [disabled]="saving()"
                   class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-5 py-2 text-sm font-semibold text-white shadow-md shadow-ital-green/20 transition hover:-translate-y-0.5 disabled:opacity-60">
             @if (saving()) {
@@ -255,11 +269,10 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
               </svg>
             }
-            {{ modo === 'rol' ? 'Guardar plantilla' : 'Guardar perfil' }}
+            Guardar
           </button>
         </div>
-      </div>
-      } <!-- /hideSaveButton -->
+      }
 
     </div>
   }

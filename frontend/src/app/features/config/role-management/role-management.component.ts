@@ -972,15 +972,20 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       });
   }
 
-  /** Guarda el perfil de tickets del rol solo si el usuario abrió el tab. Errores silenciosos — no bloquea el guardado principal. */
+  /**
+   * Guarda la configuración de tickets del rol (qué puede ABRIR + qué ATIENDE) solo si el usuario abrió
+   * el tab. El armado del request vive en el editor (una sola fórmula, con el alcance y la empresa).
+   * El error se avisa —un 403 por marcar Global sin ser admin global tiene que verse— pero no tumba el
+   * guardado del rol, que ya se hizo.
+   */
   private saveTicketPerfilIfLoaded(roleId: number) {
     const editor = this.ticketEditor;
     if (!editor || editor.loading() || !this.ticketTabVisited) return of(null);
-    const resolutores = editor.tipos
-      .filter(t => editor.resolutorActivo[t.value])
-      .map(t => ({ tipo: t.value, paisId: editor.resolutorPais[t.value] ?? null }));
-    return this.ticketPerfilSvc.upsertPerfilRol(roleId, { resolutores })
-      .pipe(catchError(() => of(null)));
+    return this.ticketPerfilSvc.upsertPerfilRol(roleId, editor.construirRequestRol())
+      .pipe(catchError(err => {
+        this.toast.error(err?.error?.message || err?.error || 'No se pudo guardar la configuración de tickets del rol');
+        return of(null);
+      }));
   }
 
   async deleteRole(id: number) {
