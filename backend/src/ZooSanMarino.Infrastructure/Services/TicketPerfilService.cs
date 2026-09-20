@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Tickets;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -7,9 +8,22 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Servicio de perfiles de atención del módulo de tickets.
-/// Gestiona resolutores por (usuario|rol, tipo, país/global) y nivel del solicitante.
+/// Configuración de tickets: quién puede ABRIR (nivel del usuario y de sus roles) y quién ATIENDE
+/// (resolutores por usuario o por rol, con alcance EMPRESA o GLOBAL).
 /// </summary>
+/// <remarks>
+/// <para>
+/// Reglas (19-sep-2026, plan <c>fase_de_desarrollo/tickets_crear_vs_atender_empresa_global_plan.md</c>):
+/// <list type="bullet">
+/// <item>El perfil se guarda en la empresa del USUARIO / ROL, no en la empresa activa del que edita
+///   (<see cref="TicketPerfilEmpresaCalculos"/>).</item>
+/// <item>Escribir exige ser admin global o <c>tickets.admin</c> de esa empresa; tocar GLOBAL, solo el
+///   admin global (<see cref="TicketPerfilAutorizacionCalculos"/>).</item>
+/// <item>Abrir y atender no se mezclan: el nivel de apertura no crea resolutores y asignar un rol ya no
+///   copia su plantilla al usuario.</item>
+/// </list>
+/// </para>
+/// </remarks>
 public class TicketPerfilService : ITicketPerfilService
 {
     private readonly ZooSanMarinoContext _ctx;
@@ -41,28 +55,25 @@ public class TicketPerfilService : ITicketPerfilService
         var paisId = _currentUser.PaisId;
         var userGuid = _currentUser.UserGuid;
 
-        // 1) Nivel del usuario actual — si tiene tickets.gestionar o tickets.admin → IMPLEMENTADOR
-        string nivel = NivelTicket.Normal;
-        var perms = _currentUser.Permissions;
-        if (perms.Contains("tickets.gestionar", StringComparer.OrdinalIgnoreCase) ||
-            perms.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase))
+        // Nivel efectivo: permiso gestionar/admin, nivel de sus roles o su perfil personal (gana el mayor).
+        IReadOnlyList<string?> nivelesDeRoles = Array.Empty<string?>();
+        string? nivelPerfil = null;
+        if (userGuid.HasValue)
         {
-            nivel = NivelTicket.Implementador;
+            nivelesDeRoles = await NivelesDeRolesDelUsuarioAsync(userGuid.Value, ct);
+            nivelPerfil = await _ctx.TicketPerfilesUsuario.AsNoTracking()
+                .Where(p => p.UserId == userGuid.Value && p.CompanyId == companyId && p.Activo)
+                .Select(p => p.Nivel)
+                .FirstOrDefaultAsync(ct);
         }
-        else if (userGuid.HasValue)
-        {
-            var perfil = await _ctx.TicketPerfilesUsuario.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.UserId == userGuid.Value && p.CompanyId == companyId && p.Activo, ct);
-            if (perfil != null) nivel = perfil.Nivel;
-        }
+        var nivel = TicketNivelEfectivoCalculos.NivelEfectivo(_currentUser.Permissions, nivelesDeRoles, nivelPerfil);
 
-        var tiposDelNivel = NivelTicket.GetTiposPermitidos(nivel);
-
-        // 2) Para cada tipo del nivel, buscar asignables (país == paisId OR global)
+        // Un tipo sin nadie que lo atienda en esta empresa no se ofrece (ver memoria
+        // tipo-de-ticket-sin-resolutor-no-existe); el front muestra un aviso cuando la lista queda vacía.
         var result = new List<TipoPermitidoDto>();
-        foreach (var tipo in tiposDelNivel)
+        foreach (var tipo in NivelTicket.GetTiposPermitidos(nivel))
         {
-            var asignables = await GetAsignablesInternalAsync(tipo, paisId, companyId, ct);
+            var asignables = await TicketAsignablesConsulta.ListarAsync(_ctx, tipo, paisId, companyId, ct);
             if (asignables.Count > 0)
                 result.Add(new TipoPermitidoDto(tipo, TipoLabel(tipo), asignables));
         }
@@ -72,214 +83,237 @@ public class TicketPerfilService : ITicketPerfilService
     public async Task<IReadOnlyList<AsignableDto>> GetAsignablesAsync(string tipo, int? paisId, CancellationToken ct)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        return await GetAsignablesInternalAsync(tipo, paisId, companyId, ct);
-    }
-
-    private async Task<IReadOnlyList<AsignableDto>> GetAsignablesInternalAsync(
-        string tipo, int? paisId, int companyId, CancellationToken ct)
-    {
-        var result = new List<AsignableDto>();
-        var addedUserIds = new HashSet<Guid>();
-
-        // 1. Resolutores directos por usuario: tipo + empresa + (pais_id == paisId OR global).
-        // A diferencia de los resolutores por ROL (sección 2), acá SÍ se filtra por empresa: la
-        // fila la configura un admin para SU empresa (`ux_ticket_resolutores_user_tipo_pais_company`
-        // incluye company_id a propósito) y sin este filtro un resolutor de una empresa aparecía
-        // como asignable en los tickets de cualquier otra.
-        var directResolutores = await _ctx.TicketResolutores.AsNoTracking()
-            .Where(r => r.Activo &&
-                        r.Tipo == tipo.ToUpperInvariant() &&
-                        r.CompanyId == companyId &&
-                        (r.PaisId == null || r.PaisId == paisId))
-            .Select(r => new { r.UserId, r.PaisId })
-            .ToListAsync(ct);
-
-        foreach (var r in directResolutores)
-        {
-            if (!addedUserIds.Add(r.UserId)) continue;
-            var user = await _ctx.Set<User>().AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == r.UserId, ct);
-            if (user == null) continue;
-            result.Add(new AsignableDto(r.UserId,
-                $"{user.firstName} {user.surName}".Trim(),
-                r.PaisId == null ? "Global" : $"País #{r.PaisId}"));
-        }
-
-        // 2. Resolutores por rol: usuarios de la empresa que tengan un rol configurado
-        //    como resolutor para este tipo+país. Cubre el caso donde el admin configura
-        //    el rol en "Perfil de Atención" sin necesidad de "Reaplicar" manualmente.
-        // La FILA sí se filtra por empresa (`r.CompanyId == companyId`): es lo que hace que un
-        // rol como "Admin Demo" (configurado para su propia empresa) no aparezca como asignable
-        // en los tickets de otra. Para que un rol cubra varias empresas, se agrega una fila por
-        // empresa (patrón ya usado por el rol Admin/DESARROLLO) — no se logra dejando la fila sin
-        // empresa.
-        var roleResolutores = await _ctx.TicketResolutorRoles.AsNoTracking()
-            .Where(r => r.Activo &&
-                        r.Tipo == tipo.ToUpperInvariant() &&
-                        r.CompanyId == companyId &&
-                        (r.PaisId == null || r.PaisId == paisId))
-            .Select(r => new { r.RoleId, r.PaisId })
-            .ToListAsync(ct);
-
-        foreach (var rr in roleResolutores)
-        {
-            // La MEMBRESÍA del rol, en cambio, no se filtra por empresa: un usuario puede tener
-            // el UserRole anotado con el company_id de otra empresa (p. ej. el rol se le asignó
-            // desde la empresa central) y sigue contando, porque lo que importa es si TIENE el
-            // rol, no en qué empresa quedó registrada esa fila.
-            var userIds = await _ctx.UserRoles.AsNoTracking()
-                .Where(ur => ur.RoleId == rr.RoleId)
-                .Select(ur => ur.UserId)
-                .Distinct()
-                .ToListAsync(ct);
-
-            foreach (var uid in userIds)
-            {
-                if (!addedUserIds.Add(uid)) continue;
-                var user = await _ctx.Set<User>().AsNoTracking()
-                    .FirstOrDefaultAsync(u => u.Id == uid, ct);
-                if (user == null) continue;
-                result.Add(new AsignableDto(uid,
-                    $"{user.firstName} {user.surName}".Trim(),
-                    rr.PaisId == null ? "Global" : $"País #{rr.PaisId}"));
-            }
-        }
-
-        return result;
+        return await TicketAsignablesConsulta.ListarAsync(_ctx, tipo, paisId, companyId, ct);
     }
 
     // ─────────────── Perfil de usuario ───────────────
 
-    public async Task<TicketPerfilDto> GetPerfilUsuarioAsync(Guid userId, CancellationToken ct)
+    public async Task<TicketPerfilDto> GetPerfilUsuarioAsync(Guid userId, int? companyId, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-
-        var perfil = await _ctx.TicketPerfilesUsuario.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.CompanyId == companyId, ct);
-
-        var resolutores = await _ctx.TicketResolutores.AsNoTracking()
-            .Where(r => r.UserId == userId && r.CompanyId == companyId)
-            .Select(r => new ResolutorItemDto(r.Id, r.Tipo, r.PaisId, r.Activo))
-            .ToListAsync(ct);
-
-        return new TicketPerfilDto(userId, perfil?.Nivel ?? NivelTicket.Normal, resolutores, perfil != null);
+        var empresa = await ResolverEmpresaUsuarioAsync(userId, companyId, ct);
+        return await ArmarPerfilUsuarioAsync(userId, empresa, ct);
     }
 
     public async Task<TicketPerfilDto> UpsertPerfilUsuarioAsync(Guid userId, UpsertTicketPerfilRequest req, CancellationToken ct)
     {
-        if (!NivelTicket.Todos.Contains(req.Nivel))
+        if (!NivelTicket.Todos.Contains(req.Nivel ?? ""))
             throw new InvalidOperationException($"Nivel inválido: {req.Nivel}. Use NORMAL o IMPLEMENTADOR.");
 
-        var companyId = await GetEffectiveCompanyIdAsync();
+        var empresa = await ResolverEmpresaUsuarioAsync(userId, req.CompanyId, ct);
         var now = DateTime.UtcNow;
 
-        // Upsert nivel
+        // Plantilla de atención del usuario vista desde esa empresa: sus filas EMPRESA de ahí + las GLOBAL.
+        var existentes = await _ctx.TicketResolutores
+            .Where(r => r.UserId == userId && (r.CompanyId == empresa || r.Alcance == TicketAlcance.Global))
+            .ToListAsync(ct);
+        var plan = TicketResolutorAlcanceCalculos.Planificar(
+            existentes.Select(r => new TicketResolutorAlcanceCalculos.Fila(r.Id, r.Tipo, r.PaisId, r.CompanyId, r.Alcance, r.Activo)).ToList(),
+            PedidoValido(req.Resolutores),
+            empresa);
+
+        await ExigirPermisoAsync(empresa, esUnoMismo: _currentUser.UserGuid == userId, plan.TocaGlobal);
+
         var perfil = await _ctx.TicketPerfilesUsuario
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.CompanyId == companyId, ct);
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.CompanyId == empresa, ct);
         if (perfil == null)
         {
-            _ctx.TicketPerfilesUsuario.Add(new TicketPerfilUsuario { UserId = userId, CompanyId = companyId, Nivel = req.Nivel.ToUpperInvariant(), CreatedAt = now });
+            _ctx.TicketPerfilesUsuario.Add(new TicketPerfilUsuario { UserId = userId, CompanyId = empresa, Nivel = req.Nivel!.ToUpperInvariant(), CreatedAt = now });
         }
         else
         {
-            perfil.Nivel = req.Nivel.ToUpperInvariant();
+            perfil.Nivel = req.Nivel!.ToUpperInvariant();
+            perfil.Activo = true;
             perfil.UpdatedAt = now;
         }
 
-        // Desactivar todos los resolutores actuales del usuario
-        var existing = await _ctx.TicketResolutores
-            .Where(r => r.UserId == userId && r.CompanyId == companyId)
-            .ToListAsync(ct);
-        foreach (var e in existing) e.Activo = false;
-
-        // Upsert con los nuevos
-        foreach (var item in req.Resolutores)
+        var porId = existentes.ToDictionary(r => r.Id);
+        foreach (var c in plan.Cambios)
         {
-            if (!TicketTipos.EsValido(item.Tipo)) continue;
-            var tipo = item.Tipo.ToUpperInvariant();
-            var found = existing.FirstOrDefault(r => r.Tipo == tipo && r.PaisId == item.PaisId);
-            if (found != null) { found.Activo = true; found.UpdatedAt = now; }
-            else _ctx.TicketResolutores.Add(new TicketResolutor { UserId = userId, Tipo = tipo, PaisId = item.PaisId, CompanyId = companyId, CreatedAt = now });
+            var fila = porId[c.Id];
+            fila.Activo = c.Activo;
+            fila.Alcance = c.Alcance;
+            fila.UpdatedAt = now;
         }
+        foreach (var a in plan.Altas)
+            _ctx.TicketResolutores.Add(new TicketResolutor
+            {
+                UserId = userId, Tipo = a.Tipo, PaisId = a.PaisId, CompanyId = empresa,
+                Alcance = a.Alcance, CreatedAt = now,
+            });
 
         await _ctx.SaveChangesAsync(ct);
-        return await GetPerfilUsuarioAsync(userId, ct);
+        return await ArmarPerfilUsuarioAsync(userId, empresa, ct);
     }
 
-    // ─────────────── Perfil de rol (defaults) ───────────────
-
-    public async Task<TicketResolutorRolDto> GetPerfilRolAsync(int roleId, CancellationToken ct)
+    private async Task<TicketPerfilDto> ArmarPerfilUsuarioAsync(Guid userId, int empresa, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-        var items = await _ctx.TicketResolutorRoles.AsNoTracking()
-            .Where(r => r.RoleId == roleId && r.CompanyId == companyId)
-            .Select(r => new ResolutorItemDto(r.Id, r.Tipo, r.PaisId, r.Activo))
+        var perfil = await _ctx.TicketPerfilesUsuario.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.CompanyId == empresa, ct);
+
+        var resolutores = await _ctx.TicketResolutores.AsNoTracking()
+            .Where(r => r.UserId == userId && (r.CompanyId == empresa || r.Alcance == TicketAlcance.Global))
+            .OrderBy(r => r.Id)
+            .Select(r => new ResolutorItemDto(r.Id, r.Tipo, r.PaisId, r.Activo, r.Alcance, r.CompanyId))
             .ToListAsync(ct);
-        return new TicketResolutorRolDto(roleId, items);
+
+        var nivelPorRol = TicketNivelEfectivoCalculos.NivelDeRoles(await NivelesDeRolesDelUsuarioAsync(userId, ct));
+
+        return new TicketPerfilDto(userId, perfil?.Nivel ?? NivelTicket.Normal, resolutores, perfil != null,
+            empresa, await NombreEmpresaAsync(empresa, ct), nivelPorRol,
+            TicketPerfilAutorizacionCalculos.PuedeElegirGlobal(_currentUser.EsAdminEmpresas));
+    }
+
+    // ─────────────── Configuración de rol ───────────────
+
+    public async Task<TicketResolutorRolDto> GetPerfilRolAsync(int roleId, int? companyId, CancellationToken ct)
+    {
+        var empresa = await ResolverEmpresaRolAsync(roleId, companyId, ct);
+        return await ArmarPerfilRolAsync(roleId, empresa, ct);
     }
 
     public async Task<TicketResolutorRolDto> UpsertPerfilRolAsync(int roleId, UpsertTicketResolutorRolRequest req, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-        var now = DateTime.UtcNow;
+        var rol = await _ctx.Roles.FirstOrDefaultAsync(r => r.Id == roleId, ct)
+            ?? throw new InvalidOperationException("El rol no existe.");
 
-        var existing = await _ctx.TicketResolutorRoles
-            .Where(r => r.RoleId == roleId && r.CompanyId == companyId)
-            .ToListAsync(ct);
-        foreach (var e in existing) e.Activo = false;
-
-        foreach (var item in req.Resolutores)
+        // null = no tocar; "" = el rol deja de definir el nivel; si no, tiene que ser un nivel válido.
+        string? nivelNuevo = null;
+        var tocaNivel = req.NivelCreacion is not null;
+        if (tocaNivel)
         {
-            if (!TicketTipos.EsValido(item.Tipo)) continue;
-            var tipo = item.Tipo.ToUpperInvariant();
-            var found = existing.FirstOrDefault(r => r.Tipo == tipo && r.PaisId == item.PaisId);
-            if (found != null) { found.Activo = true; found.UpdatedAt = now; }
-            else _ctx.TicketResolutorRoles.Add(new TicketResolutorRol { RoleId = roleId, Tipo = tipo, PaisId = item.PaisId, CompanyId = companyId, CreatedAt = now });
+            nivelNuevo = TicketNivelEfectivoCalculos.NormalizarNivelRol(req.NivelCreacion);
+            if (nivelNuevo is null && !string.IsNullOrWhiteSpace(req.NivelCreacion))
+                throw new InvalidOperationException($"Nivel de apertura inválido: {req.NivelCreacion}. Use NORMAL o IMPLEMENTADOR.");
         }
 
-        await _ctx.SaveChangesAsync(ct);
-        return await GetPerfilRolAsync(roleId, ct);
-    }
-
-    public async Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, CancellationToken ct)
-    {
-        var companyId = await GetEffectiveCompanyIdAsync();
-        await SeedPerfilDesdeRolAsync(userId, roleId, companyId, ct);
-    }
-
-    public async Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, int companyId, CancellationToken ct)
-    {
-        var defaults = await _ctx.TicketResolutorRoles.AsNoTracking()
-            .Where(r => r.RoleId == roleId && r.CompanyId == companyId && r.Activo)
-            .ToListAsync(ct);
-
-        if (!defaults.Any()) return;
+        var empresa = await ResolverEmpresaRolAsync(roleId, req.CompanyId, ct);
         var now = DateTime.UtcNow;
 
-        foreach (var d in defaults)
+        var existentes = await _ctx.TicketResolutorRoles
+            .Where(r => r.RoleId == roleId && (r.CompanyId == empresa || r.Alcance == TicketAlcance.Global))
+            .ToListAsync(ct);
+        var plan = TicketResolutorAlcanceCalculos.Planificar(
+            existentes.Select(r => new TicketResolutorAlcanceCalculos.Fila(r.Id, r.Tipo, r.PaisId, r.CompanyId, r.Alcance, r.Activo)).ToList(),
+            PedidoValido(req.Resolutores),
+            empresa);
+
+        await ExigirPermisoAsync(empresa, esUnoMismo: false, plan.TocaGlobal);
+
+        if (tocaNivel) rol.TicketNivelCreacion = nivelNuevo;
+
+        var porId = existentes.ToDictionary(r => r.Id);
+        foreach (var c in plan.Cambios)
         {
-            var exists = await _ctx.TicketResolutores
-                .AnyAsync(r => r.UserId == userId && r.Tipo == d.Tipo && r.PaisId == d.PaisId && r.CompanyId == companyId, ct);
-            if (!exists)
-                _ctx.TicketResolutores.Add(new TicketResolutor { UserId = userId, Tipo = d.Tipo, PaisId = d.PaisId, CompanyId = companyId, CreatedAt = now });
+            var fila = porId[c.Id];
+            fila.Activo = c.Activo;
+            fila.Alcance = c.Alcance;
+            fila.UpdatedAt = now;
         }
+        foreach (var a in plan.Altas)
+            _ctx.TicketResolutorRoles.Add(new TicketResolutorRol
+            {
+                RoleId = roleId, Tipo = a.Tipo, PaisId = a.PaisId, CompanyId = empresa,
+                Alcance = a.Alcance, CreatedAt = now,
+            });
+
         await _ctx.SaveChangesAsync(ct);
+        return await ArmarPerfilRolAsync(roleId, empresa, ct);
     }
 
-    public async Task ReaplicarPlantillaRolAsync(int roleId, CancellationToken ct)
+    private async Task<TicketResolutorRolDto> ArmarPerfilRolAsync(int roleId, int empresa, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-
-        // Usuarios que tienen este rol en la empresa activa.
-        var userIds = await _ctx.UserRoles.AsNoTracking()
-            .Where(ur => ur.RoleId == roleId && ur.CompanyId == companyId)
-            .Select(ur => ur.UserId)
-            .Distinct()
+        var items = await _ctx.TicketResolutorRoles.AsNoTracking()
+            .Where(r => r.RoleId == roleId && (r.CompanyId == empresa || r.Alcance == TicketAlcance.Global))
+            .OrderBy(r => r.Id)
+            .Select(r => new ResolutorItemDto(r.Id, r.Tipo, r.PaisId, r.Activo, r.Alcance, r.CompanyId))
             .ToListAsync(ct);
 
-        foreach (var uid in userIds)
-            await SeedPerfilDesdeRolAsync(uid, roleId, companyId, ct);
+        var nivel = await _ctx.Roles.AsNoTracking()
+            .Where(r => r.Id == roleId)
+            .Select(r => r.TicketNivelCreacion)
+            .FirstOrDefaultAsync(ct);
+
+        return new TicketResolutorRolDto(roleId, items, TicketNivelEfectivoCalculos.NormalizarNivelRol(nivel),
+            empresa, await NombreEmpresaAsync(empresa, ct),
+            TicketPerfilAutorizacionCalculos.PuedeElegirGlobal(_currentUser.EsAdminEmpresas));
     }
+
+    // ─────────────── Empresa del destino + permiso ───────────────
+
+    /// <summary>
+    /// Empresa donde vive el perfil del usuario: la pedida (solo si es la activa o si la sesión es admin
+    /// global) o la del usuario según <see cref="TicketPerfilEmpresaCalculos"/>.
+    /// </summary>
+    private async Task<int> ResolverEmpresaUsuarioAsync(Guid userId, int? pedida, CancellationToken ct)
+    {
+        var empresas = await _ctx.UserCompanies.AsNoTracking()
+            .Where(uc => uc.UserId == userId)
+            .Select(uc => uc.CompanyId)
+            .ToListAsync(ct);
+        return await ResolverEmpresaAsync("usuario", empresas, pedida);
+    }
+
+    /// <summary>Empresa de la plantilla del rol: la pedida (idem) o la del rol (<c>role_companies</c>).</summary>
+    private async Task<int> ResolverEmpresaRolAsync(int roleId, int? pedida, CancellationToken ct)
+    {
+        var empresas = await _ctx.RoleCompanies.AsNoTracking()
+            .Where(rc => rc.RoleId == roleId)
+            .Select(rc => rc.CompanyId)
+            .ToListAsync(ct);
+        return await ResolverEmpresaAsync("rol", empresas, pedida);
+    }
+
+    private async Task<int> ResolverEmpresaAsync(string destino, IReadOnlyCollection<int> empresasDelDestino, int? pedida)
+    {
+        var activa = await GetEffectiveCompanyIdAsync();
+
+        if (pedida is int p && p > 0)
+        {
+            // Otra empresa que no es la activa, o una a la que el destino no pertenece: solo el admin
+            // global (así configura, explícito, que alguien atienda los tickets de una empresa ajena).
+            if (!_currentUser.EsAdminEmpresas && (p != activa || !empresasDelDestino.Contains(p)))
+                throw new UnauthorizedAccessException(
+                    $"Solo el administrador global puede configurar los tickets de un {destino} en otra empresa.");
+            return p;
+        }
+
+        return TicketPerfilEmpresaCalculos.ResolverEmpresa(activa, empresasDelDestino)
+            ?? throw new InvalidOperationException(
+                TicketPerfilEmpresaCalculos.MensajeSinEmpresa(destino, empresasDelDestino.Distinct().Count()));
+    }
+
+    private async Task ExigirPermisoAsync(int empresaDestino, bool esUnoMismo, bool tocaGlobal)
+    {
+        var decision = TicketPerfilAutorizacionCalculos.PuedeEscribir(
+            _currentUser.EsAdminEmpresas, _currentUser.Permissions,
+            await GetEffectiveCompanyIdAsync(), empresaDestino, esUnoMismo, tocaGlobal);
+        if (!decision.Permitido)
+            throw new UnauthorizedAccessException(decision.Motivo);
+    }
+
+    // ─────────────── Helpers ───────────────
+
+    /// <summary>
+    /// <c>roles.ticket_nivel_creacion</c> de todos los roles del usuario. Mismo conjunto de roles que
+    /// arma los permisos de la sesión (todos sus <c>user_roles</c>, cada uno con su empresa).
+    /// </summary>
+    private async Task<IReadOnlyList<string?>> NivelesDeRolesDelUsuarioAsync(Guid userId, CancellationToken ct) =>
+        await _ctx.UserRoles.AsNoTracking()
+            .Where(ur => ur.UserId == userId)
+            .Select(ur => ur.Role.TicketNivelCreacion)
+            .ToListAsync(ct);
+
+    private Task<string?> NombreEmpresaAsync(int companyId, CancellationToken ct) =>
+        _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (string?)c.Name)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>Pedido de la pantalla sin tipos inválidos (se descartan, como antes).</summary>
+    private static IEnumerable<TicketResolutorAlcanceCalculos.Pedido> PedidoValido(IEnumerable<ResolutorItemRequest>? items) =>
+        (items ?? Enumerable.Empty<ResolutorItemRequest>())
+            .Where(i => i is not null && TicketTipos.EsValido(i.Tipo))
+            .Select(i => new TicketResolutorAlcanceCalculos.Pedido(i.Tipo.ToUpperInvariant(), i.PaisId, i.Alcance));
 
     private static string TipoLabel(string tipo) => tipo switch
     {

@@ -21,12 +21,12 @@ public partial class TicketService
         // La autorización se valida por visibilidad, no por empresa activa.
         var meta = await _ctx.Tickets.AsNoTracking()
             .Where(x => x.Id == id && x.DeletedAt == null)
-            .Select(x => new { x.PaisId, x.Tipo, x.CreatedByUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
+            .Select(x => new { x.CompanyId, x.PaisId, x.Tipo, x.CreatedByUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
                                x.SolicitanteUserGuid, x.SolicitanteUserId })
             .FirstOrDefaultAsync(ct);
         if (meta is null) return null;
 
-        if (!await PuedeVerTicketAsync(meta.PaisId, meta.Tipo, meta.CreatedByUserId,
+        if (!await PuedeVerTicketAsync(meta.CompanyId, meta.PaisId, meta.Tipo, meta.CreatedByUserId,
                                        meta.CreatedByUserGuid, meta.AssignedToUserGuid,
                                        meta.SolicitanteUserGuid, meta.SolicitanteUserId, ct))
             return null;   // 404: no revela existencia de tickets ajenos
@@ -36,10 +36,15 @@ public partial class TicketService
 
     /// <summary>
     /// Reglas de visibilidad de un ticket: lo ve su creador, el solicitante a cuyo nombre se
-    /// registró, su asignado, un resolutor cuyo perfil matchea (tipo, país), o cualquiera con
-    /// <c>tickets.admin</c>.
+    /// registró, su asignado, un resolutor directo cuyo perfil aplica (tipo, país y empresa del caso,
+    /// o alcance GLOBAL), o quien administra tickets de la empresa del caso (<c>tickets.admin</c>: de
+    /// su empresa activa; el admin global, de todas).
     /// </summary>
-    private async Task<bool> PuedeVerTicketAsync(int paisId, string tipo, int createdByUserId,
+    /// <remarks>
+    /// Hasta el 19-sep-2026 ni el resolutor ni <c>tickets.admin</c> miraban la empresa: un resolutor de
+    /// Soporte de Ecuador podía abrir por id un caso de Soporte de Sanmarino.
+    /// </remarks>
+    private async Task<bool> PuedeVerTicketAsync(int companyId, int paisId, string tipo, int createdByUserId,
         Guid? createdByGuid, Guid? assignedGuid, Guid? solicitanteGuid, int? solicitanteUserId,
         CancellationToken ct)
     {
@@ -54,16 +59,12 @@ public partial class TicketService
             if (solicitanteGuid == userGuid.Value) return true; // solicitante delegado
         }
 
-        if (EsSuperAdmin())
+        if (await AdministraEmpresaAsync(companyId))
             return true;
 
-        if (userGuid.HasValue)
-        {
-            var esResolutor = await _ctx.TicketResolutores.AsNoTracking()
-                .AnyAsync(r => r.UserId == userGuid.Value && r.Activo &&
-                               r.Tipo == tipo && (r.PaisId == null || r.PaisId == paisId), ct);
-            if (esResolutor) return true;
-        }
+        if (userGuid.HasValue &&
+            await TicketAsignablesConsulta.EsResolutorDirectoAsync(_ctx, userGuid.Value, tipo, paisId, companyId, ct))
+            return true;
 
         return false;
     }

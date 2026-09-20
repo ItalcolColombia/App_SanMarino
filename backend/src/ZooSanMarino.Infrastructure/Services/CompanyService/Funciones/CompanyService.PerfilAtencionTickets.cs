@@ -28,9 +28,13 @@ public partial class CompanyService
     /// <see cref="TicketPerfilAtencionSiembraCalculos"/>, con sus tests.
     /// </para>
     /// <para>
-    /// <c>pais_id = NULL</c> ⇒ global, que es como están las filas del rol <c>Admin</c> en las cuatro
-    /// empresas anteriores y lo que espera el filtro del service
+    /// <c>pais_id = NULL</c> ⇒ todos los países de la empresa, que es como están las filas del rol
+    /// <c>Admin</c> en las empresas anteriores y lo que espera el filtro del service
     /// (<c>r.PaisId == null || r.PaisId == paisId</c>).
+    /// </para>
+    /// <para>
+    /// Desde el 19-sep-2026 los tipos que el rol ya atiende con alcance <b>GLOBAL</b> (hoy: Desarrollo)
+    /// no se siembran: la fila global ya cubre a la empresa nueva.
     /// </para>
     /// </remarks>
     private async Task SembrarResolutorGlobalTicketsAsync(int companyId)
@@ -45,9 +49,17 @@ public partial class CompanyService
             .Select(r => new { r.Id, r.Name })
             .ToListAsync();
 
+        // Lo que ya cubre una fila GLOBAL (atiende todas las empresas, también las nuevas) cuenta como
+        // «ya está»: sembrarlo de nuevo por empresa sería una copia redundante de lo mismo.
+        var cubiertosPorGlobal = await _ctx.TicketResolutorRoles
+            .AsNoTracking()
+            .Where(r => r.Activo && r.PaisId == null && r.Alcance == TicketAlcance.Global)
+            .Select(r => new { r.RoleId, r.Tipo })
+            .ToListAsync();
+
         var filas = TicketPerfilAtencionSiembraCalculos.FilasFaltantes(
             roles.Select(r => (r.Id, (string?)r.Name)),
-            existentes: null);
+            existentes: cubiertosPorGlobal.Select(c => (c.RoleId, c.Tipo)));
         if (filas.Count == 0) return;
 
         var now = DateTime.UtcNow;

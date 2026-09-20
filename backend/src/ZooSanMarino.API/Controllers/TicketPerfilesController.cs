@@ -5,10 +5,15 @@ using ZooSanMarino.Application.Interfaces;
 namespace ZooSanMarino.API.Controllers;
 
 /// <summary>
-/// Gestión de perfiles de atención del módulo de tickets.
-/// Determina quién atiende qué tipo de ticket en qué país, el nivel del solicitante
-/// y los defaults por rol.
+/// Configuración de tickets: quién puede ABRIR (nivel del usuario y de sus roles) y quién ATIENDE
+/// (resolutores por usuario o por rol, con alcance EMPRESA o GLOBAL).
 /// </summary>
+/// <remarks>
+/// Las escrituras exigen admin global o <c>tickets.admin</c> de la empresa del destino, y tocar GLOBAL
+/// solo el admin global (<c>TicketPerfilAutorizacionCalculos</c>) ⇒ 403. Empresa ambigua o datos
+/// inválidos ⇒ 400. Hasta el 19-sep-2026 no había ningún gate: cualquier sesión podía hacerse
+/// Implementador o resolutor con un PUT sobre su propio id.
+/// </remarks>
 [ApiController]
 [Route("api/ticket-perfiles")]
 [Produces("application/json")]
@@ -37,58 +42,60 @@ public class TicketPerfilesController : ControllerBase
 
     // ── Perfil de usuario ────────────────────────────────────────────────
 
-    /// <summary>Obtiene el perfil de atención de un usuario (nivel + resolutores).</summary>
+    /// <summary>
+    /// Perfil de tickets de un usuario en SU empresa (o en <paramref name="companyId"/>, solo para el
+    /// admin global u otra empresa activa válida).
+    /// </summary>
     [HttpGet("usuario/{userId:guid}")]
     [ProducesResponseType(typeof(TicketPerfilDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<TicketPerfilDto>> GetPerfilUsuario(Guid userId, CancellationToken ct)
-        => Ok(await _svc.GetPerfilUsuarioAsync(userId, ct));
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<TicketPerfilDto>> GetPerfilUsuario(
+        Guid userId, [FromQuery] int? companyId = null, CancellationToken ct = default)
+    {
+        try { return Ok(await _svc.GetPerfilUsuarioAsync(userId, companyId, ct)); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+    }
 
-    /// <summary>Crea o actualiza el perfil de atención de un usuario.</summary>
+    /// <summary>Crea o actualiza el perfil de tickets de un usuario.</summary>
     [HttpPut("usuario/{userId:guid}")]
     [ProducesResponseType(typeof(TicketPerfilDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<TicketPerfilDto>> UpsertPerfilUsuario(
         Guid userId, [FromBody] UpsertTicketPerfilRequest req, CancellationToken ct)
     {
         try { return Ok(await _svc.UpsertPerfilUsuarioAsync(userId, req, ct)); }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
     }
 
-    // ── Perfil de rol (defaults) ─────────────────────────────────────────
+    // ── Configuración de rol (abrir + atender) ───────────────────────────
 
-    /// <summary>Obtiene los perfiles de atención de un rol (defaults para sus usuarios).</summary>
+    /// <summary>Qué puede ABRIR y qué ATIENDE quien tenga el rol, en la empresa del rol.</summary>
     [HttpGet("rol/{roleId:int}")]
     [ProducesResponseType(typeof(TicketResolutorRolDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<TicketResolutorRolDto>> GetPerfilRol(int roleId, CancellationToken ct)
-        => Ok(await _svc.GetPerfilRolAsync(roleId, ct));
-
-    /// <summary>Crea o actualiza los perfiles de atención de un rol.</summary>
-    [HttpPut("rol/{roleId:int}")]
-    [ProducesResponseType(typeof(TicketResolutorRolDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<TicketResolutorRolDto>> UpsertPerfilRol(
-        int roleId, [FromBody] UpsertTicketResolutorRolRequest req, CancellationToken ct)
-        => Ok(await _svc.UpsertPerfilRolAsync(roleId, req, ct));
-
-    /// <summary>
-    /// Siembra perfiles de resolutor de un rol en un usuario (al asignarle el rol).
-    /// </summary>
-    [HttpPost("usuario/{userId:guid}/seed-desde-rol/{roleId:int}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> SeedDesdeRol(Guid userId, int roleId, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<TicketResolutorRolDto>> GetPerfilRol(
+        int roleId, [FromQuery] int? companyId = null, CancellationToken ct = default)
     {
-        await _svc.SeedPerfilDesdeRolAsync(userId, roleId, ct);
-        return NoContent();
+        try { return Ok(await _svc.GetPerfilRolAsync(roleId, companyId, ct)); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
     }
 
-    /// <summary>
-    /// Re-aplica la plantilla de resolutor del rol a todos sus usuarios en la empresa activa.
-    /// Idempotente: solo agrega lo faltante, no elimina ajustes hechos por usuario.
-    /// </summary>
-    [HttpPost("rol/{roleId:int}/reaplicar")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> ReaplicarPlantillaRol(int roleId, CancellationToken ct)
+    /// <summary>Crea o actualiza la configuración de tickets de un rol.</summary>
+    [HttpPut("rol/{roleId:int}")]
+    [ProducesResponseType(typeof(TicketResolutorRolDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<TicketResolutorRolDto>> UpsertPerfilRol(
+        int roleId, [FromBody] UpsertTicketResolutorRolRequest req, CancellationToken ct)
     {
-        await _svc.ReaplicarPlantillaRolAsync(roleId, ct);
-        return NoContent();
+        try { return Ok(await _svc.UpsertPerfilRolAsync(roleId, req, ct)); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
     }
 }

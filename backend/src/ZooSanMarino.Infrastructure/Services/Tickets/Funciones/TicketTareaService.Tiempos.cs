@@ -111,7 +111,7 @@ public partial class TicketTareaService
         // Cada quien borra lo suyo; el administrador puede corregir cualquier registro.
         var esMio = (_currentUser.UserGuid.HasValue && tiempo.UserGuid == _currentUser.UserGuid.Value)
                     || (tiempo.UserId != 0 && tiempo.UserId == _currentUser.UserId);
-        if (!esMio && !EsSuperAdmin())
+        if (!esMio && !await AdministraCasoAsync(caso))
             throw new InvalidOperationException("Solo podés eliminar los registros de tiempo que cargaste vos.");
 
         tiempo.DeletedAt = DateTime.UtcNow;

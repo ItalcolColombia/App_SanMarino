@@ -15,9 +15,17 @@ namespace ZooSanMarino.Infrastructure.Services;
 /// </remarks>
 public partial class TicketService
 {
-    /// <summary>Permiso para operar sobre casos ajenos (resolutor o administrador).</summary>
-    private bool PuedeGestionar() =>
-        EsSuperAdmin() || _currentUser.Permissions.Contains("tickets.gestionar", StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Permiso para operar sobre un caso ajeno: <c>tickets.admin</c> / <c>tickets.gestionar</c> sobre
+    /// los casos de la empresa activa o los que tiene asignados; el admin global, sobre todos. Antes
+    /// bastaba el permiso para gestionar por id un caso de cualquier empresa. Ver
+    /// <see cref="TicketAlcanceAdministracionCalculos.PuedeGestionarCaso"/>.
+    /// </summary>
+    private async Task<bool> PuedeGestionarAsync(int empresaCaso, Guid? asignado) =>
+        TicketAlcanceAdministracionCalculos.PuedeGestionarCaso(
+            _currentUser.EsAdminEmpresas, _currentUser.Permissions,
+            await GetEffectiveCompanyIdAsync(), empresaCaso,
+            asignadoAMi: _currentUser.UserGuid.HasValue && asignado == _currentUser.UserGuid.Value);
 
     /// <summary>
     /// Carga el caso y valida que el usuario actual pueda gestionarlo. Devuelve null si no existe
@@ -28,7 +36,7 @@ public partial class TicketService
         var ticket = await _ctx.Tickets.FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
 
-        if (!PuedeGestionar())
+        if (!await PuedeGestionarAsync(ticket.CompanyId, ticket.AssignedToUserGuid))
             throw new InvalidOperationException("No tenés permisos para gestionar este caso.");
         if (EsSolicitante(ticket))
             throw new InvalidOperationException("Sos el solicitante de este caso; lo gestiona el equipo que atiende.");
@@ -249,7 +257,7 @@ public partial class TicketService
 
     public async Task<TicketTableroDto> GetTableroAsync(TicketTableroFiltro filtro, CancellationToken ct)
     {
-        var query = AplicarFiltroTablero(filtro);
+        var query = await AplicarFiltroTableroAsync(filtro);
         var max = filtro.MaxPorColumna is < 1 or > 200 ? 60 : filtro.MaxPorColumna;
 
         // 1) Conteo real por columna (la BD agrupa; no se traen filas para contar).
@@ -329,16 +337,31 @@ public partial class TicketService
     /// tablero y el roadmap sigue haciendo falta <c>tickets.admin</c>. La regla vive en
     /// <see cref="TicketAlcancePanelCalculos"/> y está cubierta por tests.
     /// </param>
-    private IQueryable<Ticket> AplicarFiltroTablero(TicketTableroFiltro filtro, bool vistaSoloLectura = false)
+    /// <remarks>
+    /// F4 (19-sep-2026): el alcance de TODAS las empresas queda para el admin global; con el permiso de
+    /// la vista y sin ser admin global, el alcance es la empresa activa
+    /// (<see cref="TicketAlcanceAdministracionCalculos.AlcanceTablero"/>). Antes <c>tickets.admin</c> de
+    /// un rol de una sola empresa veía el tablero de todas.
+    /// </remarks>
+    private async Task<IQueryable<Ticket>> AplicarFiltroTableroAsync(TicketTableroFiltro filtro, bool vistaSoloLectura = false)
     {
         var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
 
-        if (!TicketAlcancePanelCalculos.TieneAlcanceGlobal(_currentUser.Permissions, vistaSoloLectura))
+        switch (TicketAlcanceAdministracionCalculos.AlcanceTablero(
+                    _currentUser.EsAdminEmpresas, _currentUser.Permissions, vistaSoloLectura))
         {
-            var miGuid = _currentUser.UserGuid;
-            query = miGuid.HasValue
-                ? query.Where(x => x.AssignedToUserGuid == miGuid.Value)
-                : query.Where(_ => false);
+            case TicketAlcanceAdministracionCalculos.Alcance.Todas:
+                break;
+            case TicketAlcanceAdministracionCalculos.Alcance.EmpresaActiva:
+                var activa = await GetEffectiveCompanyIdAsync();
+                query = query.Where(x => x.CompanyId == activa);
+                break;
+            default:
+                var miGuid = _currentUser.UserGuid;
+                query = miGuid.HasValue
+                    ? query.Where(x => x.AssignedToUserGuid == miGuid.Value)
+                    : query.Where(_ => false);
+                break;
         }
 
         // Selección múltiple de países: manda sobre el país único.
@@ -417,7 +440,7 @@ public partial class TicketService
 
     public async Task<TicketRoadmapDto> GetRoadmapAsync(TicketTableroFiltro filtro, CancellationToken ct)
     {
-        var query = AplicarFiltroTablero(filtro);
+        var query = await AplicarFiltroTableroAsync(filtro);
 
         var casos = await query
             .OrderBy(x => x.FechaInicioPlan ?? DateOnly.FromDateTime(x.CreatedAt))
@@ -498,7 +521,7 @@ public partial class TicketService
 
         if (t is null) return Array.Empty<TicketTimelineEventoDto>();
 
-        if (!await PuedeVerTicketAsync(t.PaisId, t.Tipo, t.CreatedByUserId, t.CreatedByUserGuid,
+        if (!await PuedeVerTicketAsync(t.CompanyId, t.PaisId, t.Tipo, t.CreatedByUserId, t.CreatedByUserGuid,
                                        t.AssignedToUserGuid, t.SolicitanteUserGuid, t.SolicitanteUserId, ct))
             return Array.Empty<TicketTimelineEventoDto>();
 
@@ -534,7 +557,7 @@ public partial class TicketService
             t.FechaCierreSolicitante, t.FechaNotificacionCorreo, t.CorreoNotificadoA);
 
         // Las notas internas son del equipo: el solicitante que no gestiona no las ve.
-        var incluirInternas = PuedeGestionar();
+        var incluirInternas = await PuedeGestionarAsync(t.CompanyId, t.AssignedToUserGuid);
 
         var eventos = TicketTimelineCalculos.Construir(
             cabecera,
@@ -561,7 +584,7 @@ public partial class TicketService
             .Where(x => x.Id == id && x.DeletedAt == null)
             .Select(x => new
             {
-                x.PaisId, x.Tipo, x.Estado, x.CreatedAt, x.CreatedByUserId, x.CreatedByUserGuid,
+                x.CompanyId, x.PaisId, x.Tipo, x.Estado, x.CreatedAt, x.CreatedByUserId, x.CreatedByUserGuid,
                 x.AssignedToUserGuid, x.SolicitanteUserGuid, x.SolicitanteUserId,
                 x.FechaPrimeraApertura, x.FechaSolucion, x.FechaCierreSolicitante,
                 x.FechaLimite, x.HorasEstimadas,
@@ -575,7 +598,7 @@ public partial class TicketService
 
         if (t is null) return null;
 
-        if (!await PuedeVerTicketAsync(t.PaisId, t.Tipo, t.CreatedByUserId, t.CreatedByUserGuid,
+        if (!await PuedeVerTicketAsync(t.CompanyId, t.PaisId, t.Tipo, t.CreatedByUserId, t.CreatedByUserGuid,
                                        t.AssignedToUserGuid, t.SolicitanteUserGuid, t.SolicitanteUserId, ct))
             return null;
 
@@ -617,10 +640,17 @@ public partial class TicketService
 
     public async Task<IReadOnlyList<SolicitanteCandidatoDto>> GetSolicitantesAsync(string? texto, CancellationToken ct)
     {
-        // Fail-closed: sin el permiso global no se devuelve el padrón de usuarios.
-        if (!EsSuperAdmin()) return Array.Empty<SolicitanteCandidatoDto>();
+        // Fail-closed: sin tickets.admin no se devuelve el padrón de usuarios. El admin de una empresa
+        // solo ve a los de su empresa activa; el admin global, a todos.
+        var alcance = AlcanceAdministracion();
+        if (alcance == TicketAlcanceAdministracionCalculos.Alcance.Ninguno) return Array.Empty<SolicitanteCandidatoDto>();
 
         var query = _ctx.Set<User>().AsNoTracking().Where(u => u.IsActive);
+        if (alcance == TicketAlcanceAdministracionCalculos.Alcance.EmpresaActiva)
+        {
+            var activa = await GetEffectiveCompanyIdAsync();
+            query = query.Where(u => u.UserCompanies.Any(uc => uc.CompanyId == activa));
+        }
 
         if (!string.IsNullOrWhiteSpace(texto))
         {

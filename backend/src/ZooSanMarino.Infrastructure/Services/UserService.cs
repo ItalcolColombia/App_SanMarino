@@ -14,38 +14,22 @@ public class UserService : IUserService
     private readonly IPasswordHasher<Login> _hasher;
     private readonly ICurrentUser _currentUser;
     private readonly IUserPermissionService _userPermissionService;
-    private readonly ITicketPerfilService _ticketPerfil;
 
     // B1 — dar de baja a alguien tiene que sacarlo del sistema YA. Hasta ago-2026 un usuario
     // desactivado seguía operando con su token hasta que venciera: el login lo frenaba, la sesión
     // ya emitida no.
     private readonly ISesionActivaService _sesiones;
 
-    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ITicketPerfilService ticketPerfil, ISesionActivaService sesiones)
+    // Asignar un rol ya NO copia su plantilla de atención de tickets al usuario (19-sep-2026): la copia
+    // quedaba para siempre aunque le quitaran el rol, y la plantilla ya se lee en vivo al armar los
+    // asignables (TicketAsignablesConsulta). Ver fase_de_desarrollo/tickets_crear_vs_atender_empresa_global_plan.md.
+    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ISesionActivaService sesiones)
     {
         _ctx = ctx;
         _hasher = hasher;
         _currentUser = currentUser;
         _userPermissionService = userPermissionService;
-        _ticketPerfil = ticketPerfil;
         _sesiones = sesiones;
-    }
-
-    /// <summary>
-    /// Siembra los perfiles de resolutor desde la plantilla de cada rol asignado.
-    /// Idempotente y "best effort": un fallo aquí NUNCA debe romper el alta/edición del usuario.
-    /// </summary>
-    private async Task SeedTicketPerfilesAsync(Guid userId, IEnumerable<(int CompanyId, int RoleId)> pairs)
-    {
-        try
-        {
-            foreach (var p in pairs)
-                await _ticketPerfil.SeedPerfilDesdeRolAsync(userId, p.RoleId, p.CompanyId, CancellationToken.None);
-        }
-        catch
-        {
-            // El sembrado de perfiles de atención es accesorio: si falla, el usuario igual queda creado/editado.
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -135,10 +119,6 @@ public class UserService : IUserService
         }
 
         await tx.CommitAsync();
-
-        // Auto-aplicar la plantilla de resolutor de cada rol asignado (best effort).
-        var pairsToSeed = from c in companyIds from r in roleIds select (c, r);
-        await SeedTicketPerfilesAsync(user.Id, pairsToSeed);
 
         // Proyección
         var rolesNames = await _ctx.UserRoles
@@ -414,9 +394,6 @@ public class UserService : IUserService
         if (dto.RoleIds is not null)
             await ValidateRolesAsync(roleIdsIncoming);
 
-        // Pares (empresa, rol) recién asignados → se siembran sus plantillas tras el commit.
-        var pairsToSeed = new List<(int CompanyId, int RoleId)>();
-
         using var tx = await _ctx.Database.BeginTransactionAsync();
 
         // 1) Sincronizar compañías si se enviaron
@@ -471,8 +448,6 @@ public class UserService : IUserService
                     .Select(p => new UserRole { UserId = user.Id, CompanyId = p.c, RoleId = p.r })
                     .ToList();
                 if (toAdd.Count > 0) _ctx.UserRoles.AddRange(toAdd);
-
-                pairsToSeed.AddRange(toAdd.Select(ur => (ur.CompanyId, ur.RoleId)));
             }
         }
 
@@ -483,10 +458,6 @@ public class UserService : IUserService
         if (quedaDesactivado)
             await _sesiones.RevocarTodasDelUsuarioAsync(
                 user.Id, revocadaPor: _currentUser.UserGuid, motivo: "Usuario desactivado", CancellationToken.None);
-
-        // Auto-aplicar la plantilla de resolutor de cada rol recién asignado (best effort).
-        if (pairsToSeed.Count > 0)
-            await SeedTicketPerfilesAsync(user.Id, pairsToSeed);
 
         // Proyección final
         var rolesNames = await _ctx.UserRoles
