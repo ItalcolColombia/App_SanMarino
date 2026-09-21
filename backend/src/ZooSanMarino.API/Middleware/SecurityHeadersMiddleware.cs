@@ -87,19 +87,9 @@ public class SecurityHeadersMiddleware
         var isProduction = _environment.IsProduction();
         var isHttps = context.Request.IsHttps;
         
-        // Verificar también X-Forwarded-Proto para detectar HTTPS cuando está detrás de un proxy/load balancer
-        // AWS ALB/CloudFront envía X-Forwarded-Proto: https cuando termina HTTPS
-        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
-        
-        // También verificar X-Forwarded-Ssl (algunos proxies usan este header)
-        var forwardedSsl = context.Request.Headers["X-Forwarded-Ssl"].FirstOrDefault();
-        var isHttpsViaSslHeader = string.Equals(forwardedSsl, "on", StringComparison.OrdinalIgnoreCase);
-        
-        // Aplicar HSTS si:
-        // 1. Estamos en producción Y
-        // 2. Hay HTTPS directo O vía proxy
-        if (isProduction && (isHttps || isHttpsViaProxy || isHttpsViaSslHeader))
+        // IsHttps incluye el esquema de un proxy sólo después de UseForwardedHeaders,
+        // que valida su dirección. No confiar en cabeceras suministradas por cualquiera.
+        if (isProduction && isHttps)
         {
             // HSTS solo debe aplicarse cuando hay HTTPS
             // max-age=31536000 = 1 año

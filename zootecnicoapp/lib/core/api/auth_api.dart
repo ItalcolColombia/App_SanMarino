@@ -94,6 +94,7 @@ class AuthApi {
       companyId: principal['companyId'] as int?,
       companyName: companyName,
       token: (j['token'] as String?) ?? '',
+      platformKey: j['platformKey'] as String?,
       // Los módulos llegan aparte: el `menu` del login viene vacío en varios
       // roles, mientras que `/Auth/menu` sí lo resuelve.
       modulos: const [],

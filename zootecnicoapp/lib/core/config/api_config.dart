@@ -19,6 +19,12 @@ library;
 class ApiConfig {
   const ApiConfig._();
 
+  static bool get transporteSeguroEnRelease {
+    const release = bool.fromEnvironment('dart.vm.product');
+    final uri = Uri.tryParse(baseUrl);
+    return !release || (uri != null && uri.scheme == 'https');
+  }
+
   /// En emulador Android `localhost` es el propio emulador: el host se alcanza
   /// por `10.0.2.2`. En iOS/desktop/dispositivo físico en la misma red, poné la IP.
   static const String baseUrl = String.fromEnvironment(

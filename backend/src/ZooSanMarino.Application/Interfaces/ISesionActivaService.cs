@@ -25,8 +25,8 @@ public interface ISesionActivaService
     /// <summary>
     /// ¿Sigue viva la sesión de este token? Se llama en el camino de TODO request autenticado, así
     /// que va cacheada.
-    /// <b>Ante un fallo de BD devuelve <see cref="EstadoSesion.NoVerificable"/></b> (o sea: deja
-    /// pasar) — es la excepción deliberada al fail-closed, documentada en el service. Un token sin
+    /// <b>Ante un fallo de BD devuelve <see cref="EstadoSesion.NoVerificable"/></b>: el pipeline
+    /// rechaza con 503 temporal, sin cerrar la sesión del cliente. Un token sin
     /// <c>jti</c> devuelve <see cref="EstadoSesion.Legado"/>, que desde V39.13 <b>no</b> pasa.
     /// </summary>
     Task<EstadoSesion> EvaluarAsync(string? jti, DateTime expiracionToken, CancellationToken ct);

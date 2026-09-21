@@ -76,6 +76,7 @@ public class SesionActivaService : ISesionActivaService
 
     public async Task<EstadoSesion> EvaluarAsync(string? jti, DateTime expiracionToken, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         // Token sin `jti`. Hasta V39.13 esto era la ventana de gracia del despliegue de B1 y pasaba;
         // desde el 21-ago-2026 se RECHAZA (la decisión vive en RevocacionSesionCalculos, que es lo
         // testeado). No se consulta nada: sin `jti` no hay fila que buscar.
@@ -112,17 +113,16 @@ public class SesionActivaService : ISesionActivaService
                     ahoraUtc: ahora);
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            // ⛔ EXCEPCIÓN DELIBERADA AL FAIL-CLOSED. Si RDS se cae, rechazar todo convertiría una
-            // caída de base en el deslogueo simultáneo de todas las tablets en campo —con sus colas
-            // de capturas sin subir—, que es peor que el riesgo que evita. Se acepta el token y se
-            // loguea. No se cachea: al volver la BD, el request siguiente ya verifica de verdad.
-            // Estado PROPIO (`NoVerificable`, V39.13): hasta entonces compartía valor con `Legado`,
-            // y cerrar la ventana de gracia sin separarlos habría hecho que un blip de RDS
-            // deslogueara a todo el mundo — exactamente el desastre que esta rama existe para evitar.
+            // No autorizar sin verificar. El pipeline responde 503, distinto de un 401 que
+            // cierra la sesión; así el dispositivo conserva sus capturas pendientes. No cachear.
             _logger.LogError(ex,
-                "No se pudo verificar la sesión contra la base. Se acepta el token (fail-open deliberado).");
+                "No se pudo verificar la sesión contra la base. La operación se rechaza temporalmente.");
             return EstadoSesion.NoVerificable;
         }
 
@@ -132,6 +132,7 @@ public class SesionActivaService : ISesionActivaService
 
     public async Task TocarAsync(string? jti, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(jti) || !Guid.TryParse(jti, out var jtiGuid))
             return;
 
@@ -153,6 +154,10 @@ public class SesionActivaService : ISesionActivaService
             }
 
             _cache.Set(claveTocada, true, RevocacionSesionCalculos.UmbralUltimaVistaPorDefecto);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -231,6 +236,7 @@ public class SesionActivaService : ISesionActivaService
 
     public async Task<int> LimpiarVencidasAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         // Perezosa: como mucho una pasada por hora y por tarea. Sin HostedService — no hay ninguno
         // en el proyecto y no se introduce un patrón nuevo por una limpieza de retención.
         if (_cache.TryGetValue(ClaveLimpieza, out _))
@@ -244,6 +250,10 @@ public class SesionActivaService : ISesionActivaService
             return await _ctx.SesionesActivas
                 .Where(s => s.ExpiresAt < corte)
                 .ExecuteDeleteAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

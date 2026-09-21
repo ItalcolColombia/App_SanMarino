@@ -24,14 +24,8 @@ public enum EstadoSesion
     Vencida = 4,
 
     /// <summary>
-    /// <b>No se pudo consultar la base.</b> Se acepta el token a propósito (<i>fail-open</i>): si RDS
-    /// se cae, rechazar todo convertiría una caída de base en el deslogueo simultáneo de todas las
-    /// tablets en campo. Es el único estado «indeterminado» y <b>nunca</b> se cachea.
-    ///
-    /// <para>
-    /// Existe porque hasta V39.13 este caso compartía valor con <see cref="Legado"/>, y cerrar la
-    /// ventana de gracia sin separarlos habría convertido un blip de RDS en un logout masivo.
-    /// </para>
+    /// <b>No se pudo consultar la base.</b> No autoriza la operación. El pipeline responde 503
+    /// temporal, conservando la sesión y las capturas pendientes del cliente. Nunca se cachea.
     /// </summary>
     NoVerificable = 5,
 }
@@ -69,6 +63,9 @@ public static class RevocacionSesionCalculos
     /// <summary><c>errorCode</c> de token vencido: el cliente ya lo trata como fin de sesión normal.</summary>
     public const string MotivoExpirado = "token-expirado";
 
+    /// <summary>Indisponibilidad temporal de verificación; no equivale a cerrar sesión.</summary>
+    public const string MotivoNoVerificable = "session-validation-unavailable";
+
     /// <summary>Permiso que habilita revocar sesiones de OTROS usuarios (además del super admin).</summary>
     public const string PermisoRevocarSesion = "usuarios.revocar_sesion";
 
@@ -101,10 +98,9 @@ public static class RevocacionSesionCalculos
     /// </para>
     ///
     /// <para>
-    /// ⚠️ <b>Lo que NO se cerró.</b> El <i>fail-open</i> ante una caída de base sigue vivo y es otra
-    /// cosa: vive en <c>SesionActivaService</c> y devuelve <see cref="EstadoSesion.NoVerificable"/>.
-    /// Los dos casos compartían el valor <see cref="EstadoSesion.Legado"/> hasta V39.13; borrar la
-    /// rama sin separarlos convertía un blip de RDS en un logout masivo.
+    /// Una caída de base devuelve <see cref="EstadoSesion.NoVerificable"/>: se rechaza la operación
+    /// con 503 temporal. Se distingue de una revocación para no desloguear las tablets por un fallo
+    /// de infraestructura.
     /// </para>
     /// </summary>
     /// <param name="jti">Claim <c>jti</c> del token, o <c>null</c> si el token es anterior a B1.</param>
@@ -188,16 +184,15 @@ public static class RevocacionSesionCalculos
     public static DateTime? AUtc(DateTime? valor) => valor.HasValue ? AUtc(valor.Value) : null;
 
     /// <summary>
-    /// ¿El estado deja pasar el request? Sólo <see cref="EstadoSesion.Valida"/> (la sesión existe y
-    /// nadie la apagó) y <see cref="EstadoSesion.NoVerificable"/> (no se pudo preguntar; fail-open
-    /// deliberado). <see cref="EstadoSesion.Legado"/> dejó de pasar el 21-ago-2026 — V39.13.
+    /// ¿El estado deja pasar el request? Sólo <see cref="EstadoSesion.Valida"/>. No poder verificar
+    /// la sesión rechaza temporalmente la operación, sin convertir la indisponibilidad en un logout.
     /// </summary>
     public static bool EsSesionValida(EstadoSesion estado) =>
-        estado is EstadoSesion.Valida or EstadoSesion.NoVerificable;
+        estado == EstadoSesion.Valida;
 
     /// <summary>
-    /// <c>errorCode</c> que viaja al cliente en el cuerpo del 401. Nunca <c>null</c> para un estado
-    /// inválido: el front decide si cierra la sesión leyendo exactamente este valor.
+    /// <c>errorCode</c> del rechazo. Revocación/vencimiento responden 401; NoVerificable responde
+    /// 503 para que el cliente conserve su sesión y reintente.
     /// </summary>
     public static string? MotivoParaCliente(EstadoSesion estado) => estado switch
     {
@@ -208,6 +203,7 @@ public static class RevocacionSesionCalculos
         // emite un token nuevo, con `jti` y con su fila.
         EstadoSesion.Legado => MotivoRevocada,
         EstadoSesion.Vencida => MotivoExpirado,
+        EstadoSesion.NoVerificable => MotivoNoVerificable,
         _ => null,
     };
 

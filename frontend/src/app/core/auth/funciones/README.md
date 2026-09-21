@@ -15,6 +15,7 @@ Siguen la convención del repo (ver la sección *CLEAN CODE* de `CLAUDE.md`, mó
 | `cripto-llavero.funcion.ts` | El cifrado del llavero: PBKDF2 desde el PIN + AES-GCM. Lo único cifrado de verdad en la app |
 | `debe-cerrar-sesion-por-401.funcion.ts` | Si un 401 significa que la sesión terminó |
 | `resolver-empresa-activa.funcion.ts` | Qué empresa/país/logo corresponden al nombre elegido |
+| `resolver-destino-api.funcion.ts` | Si la URL normalizada pertenece al origen y prefijo del backend antes de adjuntar credenciales |
 
 ## Por qué estas reglas viven acá y no adentro del servicio
 
