@@ -1,9 +1,11 @@
 // src/ZooSanMarino.Application/Options/JwtOptions.cs
+using System.Text;
+
 namespace ZooSanMarino.Application.Options;
 
 public sealed class JwtOptions
 {
-    /// <summary>Clave simétrica usada para firmar el JWT (mín. 16 chars recomendado).</summary>
+    /// <summary>Clave simétrica para HS256: al menos 32 bytes UTF-8.</summary>
     public string Key { get; set; } = string.Empty;
 
     /// <summary>Issuer/emisor del token.</summary>
@@ -18,8 +20,8 @@ public sealed class JwtOptions
     /// <summary>Valida que las opciones mínimas estén presentes.</summary>
     public void EnsureValid()
     {
-        if (string.IsNullOrWhiteSpace(Key) || Key.Length < 16)
-            throw new InvalidOperationException("JwtOptions.Key no configurado o demasiado corto (>= 16).");
+        if (string.IsNullOrWhiteSpace(Key) || Encoding.UTF8.GetByteCount(Key) < 32)
+            throw new InvalidOperationException("JwtOptions.Key no configurado o demasiado corto (>= 32 bytes UTF-8).");
         if (string.IsNullOrWhiteSpace(Issuer))
             throw new InvalidOperationException("JwtOptions.Issuer no configurado.");
         if (string.IsNullOrWhiteSpace(Audience))

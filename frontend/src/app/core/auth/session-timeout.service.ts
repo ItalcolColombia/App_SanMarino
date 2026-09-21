@@ -155,15 +155,19 @@ export class SessionTimeoutService {
   private checkHeartbeat(): void {
     if (!this.running) return;
     if (!debeHacerHeartbeat(this.estadoActual(), this.limites)) return;
+    const tokenConsultado = this.storage.get()?.accessToken;
 
     this.heartbeatSub?.unsubscribe();
     this.heartbeatSub = this.auth.heartbeat().subscribe({
       next: () => {
+        if (tokenConsultado !== this.storage.get()?.accessToken) return;
         this.heartbeatFails = 0;
         this.registrarContactoReal();
         this.marcarEnLinea(true);
       },
       error: (err: HttpErrorResponse) => {
+        // Cambiar de cuenta puede ocurrir mientras el heartbeat anterior sigue en vuelo.
+        if (tokenConsultado !== this.storage.get()?.accessToken) return;
         // 401 de autenticación: el token ya no vale, la sesión terminó de verdad.
         // El 401 del gate de plataforma NO cuenta (ver debe-cerrar-sesion-por-401.funcion.ts).
         if (debeCerrarSesionPor401(err, true)) {

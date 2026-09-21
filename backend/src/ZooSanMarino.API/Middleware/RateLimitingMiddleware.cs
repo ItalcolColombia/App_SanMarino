@@ -1,6 +1,6 @@
 // src/ZooSanMarino.API/Middleware/RateLimitingMiddleware.cs
 using Microsoft.Extensions.Caching.Memory;
-using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Routing;
 using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.API.Middleware;
@@ -19,7 +19,9 @@ public class RateLimitingMiddleware
     private readonly RateLimitOptions _options;
 
     // Cache para almacenar contadores de peticiones por IP
-    private static readonly ConcurrentDictionary<string, RateLimitInfo> _rateLimitCache = new();
+    private readonly Dictionary<string, RateLimitInfo> _rateLimitCache = new();
+    private readonly object _counterLock = new();
+    private DateTime _nextCleanupUtc = DateTime.MinValue;
 
     public RateLimitingMiddleware(
         RequestDelegate next,
@@ -55,7 +57,7 @@ public class RateLimitingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var path = context.Request.Path.Value?.ToLower() ?? "";
+        var path = context.Request.Path.Value?.ToLowerInvariant().TrimEnd('/') ?? "";
 
         if (path == HeartbeatPath)
         {
@@ -79,11 +81,12 @@ public class RateLimitingMiddleware
             _options.MaxRequestsPerMinuteForSync);
         var windowSeconds = 60; // Ventana de 1 minuto
 
-        var key = $"{identidad}:{path}";
+        // Agrupar auth evita multiplicar intentos cambiando acción, mayúsculas o slash final.
+        // Para el resto usamos la plantilla de ruta: /lotes/1 y /lotes/2 comparten contador.
+        var route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? path;
+        var bucket = alcance == AlcanceRateLimit.Auth ? "auth" : route.ToLowerInvariant().TrimEnd('/');
+        var key = $"{identidad}:{bucket}";
         var now = DateTime.UtcNow;
-
-        // Limpiar entradas antiguas periódicamente
-        CleanupOldEntries(now);
 
         // Verificar si aplica un bloqueo vigente según el alcance de la ruta
         foreach (var blockKey in RateLimitingCalculos.ClavesAVerificar(identidad, alcance, clientIp))
@@ -113,33 +116,29 @@ public class RateLimitingMiddleware
             _cache.Remove(blockKey);
         }
 
-        // Obtener o crear información de rate limit para esta IP
-        if (!_rateLimitCache.TryGetValue(key, out var rateLimitInfo))
+        int requestCount;
+        DateTime windowStart;
+        // Creación, cambio de ventana, incremento y limpieza son una sola operación atómica.
+        // No hay I/O ni awaits dentro del lock; las ráfagas paralelas no pierden incrementos.
+        lock (_counterLock)
         {
-            rateLimitInfo = new RateLimitInfo
+            CleanupOldEntries(now);
+            if (!_rateLimitCache.TryGetValue(key, out var rateLimitInfo) ||
+                RateLimitingCalculos.VentanaExpirada(now, rateLimitInfo.WindowStart, windowSeconds))
             {
-                RequestCount = 0,
-                WindowStart = now
-            };
-            _rateLimitCache.TryAdd(key, rateLimitInfo);
+                rateLimitInfo = new RateLimitInfo { WindowStart = now };
+                _rateLimitCache[key] = rateLimitInfo;
+            }
+            requestCount = ++rateLimitInfo.RequestCount;
+            windowStart = rateLimitInfo.WindowStart;
         }
-
-        // Resetear contador si la ventana de tiempo expiró
-        if (RateLimitingCalculos.VentanaExpirada(now, rateLimitInfo.WindowStart, windowSeconds))
-        {
-            rateLimitInfo.RequestCount = 0;
-            rateLimitInfo.WindowStart = now;
-        }
-
-        // Incrementar contador
-        rateLimitInfo.RequestCount++;
 
         // Verificar si excedió el límite
-        if (RateLimitingCalculos.ExcedeLimite(rateLimitInfo.RequestCount, limit))
+        if (RateLimitingCalculos.ExcedeLimite(requestCount, limit))
         {
             _logger.LogWarning(
                 "Rate limit excedido: {Identidad} (ip {ClientIp}) desde {Path}. Intentos: {Count}/{Limit}",
-                identidad, clientIp, path, rateLimitInfo.RequestCount, limit);
+                identidad, clientIp, path, requestCount, limit);
 
             // Bloquear por el tiempo configurado, con el alcance que corresponda: auth bloquea
             // solo auth de esa IP, sync bloquea solo la sincronización de ESE dispositivo, y el
@@ -170,34 +169,23 @@ public class RateLimitingMiddleware
 
         // Agregar headers informativos
         context.Response.Headers["X-RateLimit-Limit"] = limit.ToString();
-        context.Response.Headers["X-RateLimit-Remaining"] = Math.Max(0, limit - rateLimitInfo.RequestCount).ToString();
-        context.Response.Headers["X-RateLimit-Reset"] = rateLimitInfo.WindowStart.AddSeconds(windowSeconds).ToString("R");
+        context.Response.Headers["X-RateLimit-Remaining"] = Math.Max(0, limit - requestCount).ToString();
+        context.Response.Headers["X-RateLimit-Reset"] = windowStart.AddSeconds(windowSeconds).ToString("R");
 
         await _next(context);
     }
 
-    private string GetClientIpAddress(HttpContext context)
-    {
-        // Intentar obtener IP real considerando proxies y load balancers
-        var ip = context.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-              ?? context.Request.Headers["X-Real-IP"].FirstOrDefault()
-              ?? context.Connection.RemoteIpAddress?.ToString()
-              ?? "unknown";
-
-        // Si hay múltiples IPs (X-Forwarded-For puede tener varios), tomar la primera
-        if (ip.Contains(','))
-        {
-            ip = ip.Split(',')[0].Trim();
-        }
-
-        return ip;
-    }
+    private static string GetClientIpAddress(HttpContext context) =>
+        // UseForwardedHeaders ya verificó que el proxy inmediato sea confiable.
+        // Leer X-Forwarded-For/X-Real-IP acá permitiría eludir el límite con una IP inventada.
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private void CleanupOldEntries(DateTime now)
     {
-        // Limpiar entradas más antiguas que 2 minutos (solo ocasionalmente para no impactar performance)
-        if (Random.Shared.Next(0, 100) < 5) // 5% de probabilidad
+        // Se invoca bajo _counterLock, como máximo una vez por minuto.
+        if (now >= _nextCleanupUtc)
         {
+            _nextCleanupUtc = now.AddMinutes(1);
             var keysToRemove = new List<string>();
             foreach (var kvp in _rateLimitCache)
             {
@@ -209,7 +197,7 @@ public class RateLimitingMiddleware
 
             foreach (var key in keysToRemove)
             {
-                _rateLimitCache.TryRemove(key, out _);
+                _rateLimitCache.Remove(key);
             }
         }
     }

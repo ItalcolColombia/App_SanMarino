@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { SessionTimeoutService } from './session-timeout.service';
@@ -25,6 +25,7 @@ describe('SessionTimeoutService · la jornada por slot', () => {
   let session$: BehaviorSubject<AuthSession | null>;
   let marcarContactoOk: jasmine.Spy;
   let heartbeat: jasmine.Spy;
+  let logout: jasmine.Spy;
 
   /** `checkHeartbeat` es privado y vive detrás de un `setInterval` de 90 s: se llama directo. */
   function dispararHeartbeat(): void {
@@ -35,6 +36,7 @@ describe('SessionTimeoutService · la jornada por slot', () => {
     session$ = new BehaviorSubject<AuthSession | null>(null);
     marcarContactoOk = jasmine.createSpy('marcarContactoOk');
     heartbeat = jasmine.createSpy('heartbeat').and.returnValue(of({}));
+    logout = jasmine.createSpy('logout');
 
     TestBed.configureTestingModule({
       providers: [
@@ -44,7 +46,7 @@ describe('SessionTimeoutService · la jornada por slot', () => {
           provide: TokenStorageService,
           useValue: { session$: session$.asObservable(), get: () => session$.value }
         },
-        { provide: AuthService, useValue: { heartbeat, logout: () => undefined } },
+        { provide: AuthService, useValue: { heartbeat, logout } },
         { provide: LlaveroSesionesService, useValue: { marcarContactoOk } },
         { provide: ToastService, useValue: { info: () => undefined } }
       ]
@@ -125,5 +127,39 @@ describe('SessionTimeoutService · la jornada por slot', () => {
     dispararHeartbeat();
 
     expect(marcarContactoOk).toHaveBeenCalledTimes(2);
+  });
+
+  it('un 401 del heartbeat de A no cierra la sesión nueva de B', () => {
+    const respuesta = new Subject<unknown>();
+    heartbeat.and.returnValue(respuesta);
+    session$.next(sesion);
+    dispararHeartbeat();
+    session$.next({ ...sesion, accessToken: 'token-b', user: { ...sesion.user, id: 'guid-b' } });
+
+    respuesta.error(new HttpErrorResponse({ status: 401 }));
+
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it('un heartbeat válido de A no renueva la jornada offline de B', () => {
+    const respuesta = new Subject<unknown>();
+    heartbeat.and.returnValue(respuesta);
+    session$.next(sesion);
+    dispararHeartbeat();
+    session$.next({ ...sesion, accessToken: 'token-b', user: { ...sesion.user, id: 'guid-b' } });
+
+    respuesta.next({});
+    respuesta.complete();
+
+    expect(marcarContactoOk).not.toHaveBeenCalled();
+  });
+
+  it('un 401 del heartbeat actual sigue cerrando la sesión', () => {
+    session$.next(sesion);
+    heartbeat.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+
+    dispararHeartbeat();
+
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 });
