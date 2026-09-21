@@ -9123,3 +9123,25 @@ que nadie pidió, y hoy la única defensa es acordarse de borrarlo a mano.
 - [x] C1. Commit acotado a mis archivos (`git log --grep="deriva de produccion_resultado_levante"`); `.devpilot/events.jsonl` queda fuera. Sin push ni deploy: no hay migración, el cambio es solo de metadatos del modelo.
 
 Nota para otras sesiones: hasta que esta rama llegue a `main`, las demás ramas siguen viendo el `AlterColumn` y tienen que seguir sacándolo a mano.
+
+---
+
+## USERS-CREATE-USERDTO — `POST /api/Users` responde `UserDto`, no `AuthResponseDto` (retomado 21-sep-2026)
+
+Plan: [users_create_endpoint_userdto_plan.md](fase_de_desarrollo/users_create_endpoint_userdto_plan.md) (ver la «Revisión 21-sep» al principio).
+
+Arrancado el 16-sep en el worktree `strange-babbage` (WIP guardado en `claude/strange-babbage-dbf369` → `9695d2f`).
+`UsersController.Create` reusa `_auth.RegisterAsync` (el del login): responde forma de sesión (`token`,
+`platformKey`, `menu`…) y emite un JWT + fila fantasma en `sesiones_activas` para el usuario recién creado.
+Decisión del usuario: fix de raíz (usar `_userService.CreateAsync`), no parche aditivo.
+
+- [x] P1. Plan re-verificado contra `main` de hoy: el controller CONSERVA `RegisterDto` (su validación de entrada —contraseña ≥ 8 con letra y número, email con formato, anti-inyección— no existe en `CreateUserDto`); la siembra de perfiles de tickets ya no existe (`42dc6ec`); diferencias Register vs Create re-medidas.
+- [ ] B1. `AltaUsuarioCalculos.DesdeRegistro(RegisterDto) → CreateUserDto` (Application, puro) + tests xUnit.
+- [ ] B2. DTOs: `CreateUserDto.IsPlatformUser` y `UserDto.Email`/`EmailSent`/`EmailQueueId` (opcionales al final).
+- [ ] B3. `UserService`: `IEmailService` inyectado; `CreateAsync` con `IsEmailLogin = !IsPlatformUser` + correo de bienvenida best-effort + `Email`/`EmailSent`/`EmailQueueId`; `GetAllAsync`/`GetByIdAsync`/`UpdateAsync` devuelven `Email`.
+- [ ] B4. `UsersController.Create`: sigue con `[FromBody] RegisterDto`, llama a `CreateAsync(AltaUsuarioCalculos.DesdeRegistro(dto))`, `ProducesResponseType(UserDto)`.
+- [ ] F1. Front: sin cambio funcional; actualizar el comentario del parche de `120a646` (queda como tolerancia para la ventana del deploy).
+- [ ] V1. `dotnet build` 0/0 + `dotnet test`.
+- [ ] V2. Smoke local: 201 con `id`/`email` y sin `token`; GET/lista/PUT con el mismo `email`; `isPlatformUser` sin correo e `IsEmailLogin=false`; el alta NO inserta en `sesiones_activas`; email duplicado → 400; validación de `RegisterDto` intacta (contraseña débil → 400); `/Auth/login` sigue igual. Limpieza de usuarios, logins, cola de correo y sesiones del smoke.
+- [ ] V3. Sin procesos huérfanos (back detenido, puertos libres, build-server apagado).
+- [ ] C1. Commit acotado a mis archivos (sin push ni deploy).
