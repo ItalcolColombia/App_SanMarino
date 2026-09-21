@@ -8321,7 +8321,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("hembra_viva");
 
-                    b.Property<int>("LoteId")
+                    b.Property<string>("LoteId")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("lote_id");
 

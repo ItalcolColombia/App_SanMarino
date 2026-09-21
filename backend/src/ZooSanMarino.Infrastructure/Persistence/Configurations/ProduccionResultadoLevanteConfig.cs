@@ -11,7 +11,11 @@ public class ProduccionResultadoLevanteConfig : IEntityTypeConfiguration<Producc
         b.ToTable("produccion_resultado_levante");
         // La columna es TEXT (la escribe sp_recalcular_seguimiento_levante con su l_lote_id text); la
         // entidad sigue int. Sin la conversión, el filtro por lote comparaba text = integer.
-        b.Property(x => x.LoteId).HasColumnName("lote_id").HasConversion<string>();
+        // HasColumnType("text") NO es decorativo: HasConversion<string>() sobre un int resuelve a
+        // NumberToStringConverter<int>, cuyos mapping hints traen size: 64. Sin tipo explícito ese 64
+        // decide el almacenamiento, el modelo calcula character varying(64) contra la BD/snapshot en
+        // text, y TODA migración nueva (de cualquier módulo) salía arrastrando un AlterColumn ajeno.
+        b.Property(x => x.LoteId).HasColumnName("lote_id").HasConversion<string>().HasColumnType("text");
         b.Property(x => x.Fecha).HasColumnName("fecha");
         b.Property(x => x.EdadSemana).HasColumnName("edad_semana");
 

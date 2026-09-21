@@ -9050,3 +9050,23 @@ país NULL; `api/ticket-perfiles` y `api/tickets/global` sin gate).
 - [ ] V4. `yarn build` del front (bloqueado por un error de TypeScript en `core/auth/auth.interceptor.ts`, de otra sesión en curso) + `ng test` del spec nuevo.
 - [ ] V5. Sin procesos huérfanos: API :5501 detenida, clon eliminado, sesiones de smoke borradas.
 - [ ] C1. Commits acotados a mis archivos (sin push ni deploy).
+
+---
+
+## LEVANTE-LOTEID-DERIVA — `produccion_resultado_levante.lote_id` ensucia toda migración nueva (19-sep-2026)
+
+Plan: [produccion_resultado_levante_lote_id_deriva_modelo_plan.md](fase_de_desarrollo/produccion_resultado_levante_lote_id_deriva_modelo_plan.md)
+
+Cada `dotnet ef migrations add` de cualquier sesión arrastra un `AlterColumn` a `character varying(64)`
+que nadie pidió, y hoy la única defensa es acordarse de borrarlo a mano.
+
+- [x] P1. Diagnóstico medido: BD `lote_id text NOT NULL`, 11 filas, largo máx. 2, 0 no numéricos; único escritor `sp_recalcular_seguimiento_levante(l_lote_id text)`; único lector C# `GetResultadoAsync` (keyless). El tipo ya lo decidió `20260912130000` (`text`, `Down` vacío a propósito). Causa del `64`: `HasConversion<string>()` sobre `int` = `NumberToStringConverter<int>`, *mapping hints* `size: 64`.
+- [x] P2. Plan escrito + bloque propio en el tracker (sin tocar el de otras sesiones).
+- [x] B1. `ProduccionResultadoLevanteConfig`: `.HasColumnType("text")` + comentario con la causa. Sin DDL: la BD ya es `text`.
+- [x] V1. Gate de la deriva: migración descartable ANTES = el `AlterColumn` a `character varying(64)` reportado; DESPUÉS = `Up`/`Down` vacíos; una segunda (idempotencia) = vacía y snapshot byte a byte idéntico. El snapshot queda en la forma canónica de EF (`Property<string>` + `IsRequired()`, sigue `text`: sin DDL). `has-pending-model-changes`: «No changes have been made to the model since the last migration». Limpieza a mano, sin `migrations remove`.
+- [x] V2. `dotnet build` de la solución: 0 advertencias / 0 errores. `dotnet test`: Application.Tests 4.419/4.419 y Domain.Tests 1/1. Gate `verificar-sql-llega-por-migracion.js`: OK.
+- [x] V3. Lectura real con el modelo EF compilado contra la copia local (programa descartable en el scratchpad, solo `SELECT`): el modelo calcula `text` sin largo, el SQL es `WHERE p.lote_id = @loteId` con `@loteId='13'`, y devuelve las mismas 7 filas que psql, valor por valor.
+- [x] V4. Sin procesos huérfanos: no se levantó backend (:5002/:5501 libres), servidores MSBuild/compilador apagados (`dotnet build-server shutdown`, 0 procesos), sin archivos `ZZZ*` en `Migrations/`.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="deriva de produccion_resultado_levante"`); `.devpilot/events.jsonl` queda fuera. Sin push ni deploy: no hay migración, el cambio es solo de metadatos del modelo.
+
+Nota para otras sesiones: hasta que esta rama llegue a `main`, las demás ramas siguen viendo el `AlterColumn` y tienen que seguir sacándolo a mano.
