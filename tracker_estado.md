@@ -8780,6 +8780,59 @@ que el flag quede ortogonal a `permite_multiples_seguimientos_diarios` (no acopl
 
 ---
 
+## PERFIL-TICKETS-AL-CREAR — Pestaña "Tickets" alcanzable al crear un usuario, no solo al editar (16-sep-2026)
+
+Plan: [`fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md`](fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md)
+
+Reporte del usuario: en Santa Reyes, usuarios nuevos no pueden abrir un ticket que le llegue a él
+("verlo como desarrollador global"). Causa raíz (no es específico de Santa Reyes): un usuario nuevo
+nace con nivel de tickets `NORMAL` (solo Soporte/Dudas) y la única forma de subirlo a
+`IMPLEMENTADOR` (habilita Desarrollo/Requerimiento) es la pestaña "Tickets" del modal de Usuarios,
+que hoy solo se muestra en modo EDICIÓN — al crear, el modal cierra solo sin dar esa opción.
+
+- [x] F1. `modal-create-edit.component.ts`: nuevo `@Output() userCreated`; en el `next` de
+      `create()` emitir `userCreated` + `activeTab='tickets'` + toast, sin cerrar el modal;
+      `resetForm()` vuelve `activeTab` a `'personal'`.
+- [x] F2. `user-management.component.ts`: `onUserCreated(user)` setea `editingUser = user` sin
+      tocar `modalOpen`.
+- [x] F3. `user-management.component.html`: bindear `(userCreated)="onUserCreated($event)"`.
+- [x] F4 (encontrado en el smoke, no estaba en el plan). `POST /api/Users` responde con forma de
+      `AuthResponseDto` (`userId`/`username`), no `UserDto` (`id`/`email`) como el resto de los
+      endpoints de usuario. Sin mapear, `editingUser!.id` quedaba `undefined` (`GET /api/Users/undefined`
+      404) y, tras arreglar eso, `editingUser?.email` (fuente de `loadUserData()` para el campo email
+      del form) también quedaba vacío y el form nacía inválido con el botón Guardar deshabilitado.
+      Fix: `const usuarioCreado: UserListItem = { ...result, id: result?.id ?? result?.userId, email:
+      result?.email ?? result?.username }` antes de emitir `userCreated`. Flaggeado para revisión de
+      fondo del contrato del endpoint (no se toca en este fix, es puro parche de consumo en el front).
+- [x] V1. `yarn build` (front): **0 errores**, 2 veces (antes y después de F4).
+- [x] V2. Smoke real en navegador (Browser pane, back :5002 + front :4200 locales, BD local),
+      sesión minteada a mano (JWT HS256 + fila en `sesiones_activas`, ver [[smokes-y-testigos]]) para
+      el usuario real Admin/company 1 (`Jose Moises Desarrollo`, el propio usuario detrás de esta
+      sesión). 3 usuarios de prueba creados end-to-end contra el backend real (rol "Supervisor de
+      Granja", CERO permisos en company 1 — el caso que antes quedaba mudo):
+      1er intento reveló F4 (id undefined → 404, toast "No se pudo cargar el perfil"); 2do intento
+      reveló la mitad de F4 que faltaba (email undefined → form inválido → botón Guardar
+      deshabilitado); 3er intento **end-to-end limpio**: crear → modal se queda abierto en modo
+      edición → salta solo a pestaña "Perfil de Atención" → sin toast de error → radio Implementador
+      → "Actualizar" → `PUT /api/Users/{id}` 200 + `PUT /api/ticket-perfiles/usuario/{id}` 200 → modal
+      cierra → verificado en BD (`ticket_perfil_usuario.nivel = 'IMPLEMENTADOR'` para el usuario
+      recién creado, algo imposible de lograr antes de este fix sin un segundo viaje manual a
+      editarlo). Confirmado además que "Crear Usuario" en una apertura posterior arranca en pestaña
+      Personal (no quedó pegado en Tickets). Limpieza: 3 usuarios de prueba borrados por la UI (`DELETE
+      /api/Users/{id}` 204 ×3), 1 fila huérfana de `ticket_perfil_usuario` y 2 filas de
+      `sesiones_activas` del smoke borradas a mano, verificado 0 rastros en BD. Backend y frontend
+      locales detenidos, puertos 5002/4200 confirmados libres.
+- [x] V1b. Re-validación 21-sep-2026 antes de commitear, sobre `main` = `origin/main` (`753644a`), que ya
+      trae el editor de tickets reescrito por TICKETS-ABRIR-VS-ATENDER (① ABRIR / ② ATENDER, `3477d3e`):
+      los archivos del modal no los tocó ese cambio y el gate de la pestaña
+      (`activeTab === 'tickets' && isEditing && editingUser && !soloLectura`) sigue igual. `yarn build`
+      con Node portable 22.23.1: **0 errores, 0 advertencias**. El smoke de V2 NO se repitió con el
+      editor nuevo.
+- [x] V3. Commit acotado a los archivos de esta fase (3 del front, el plan y solo este bloque del
+      tracker; los bloques de otras sesiones quedan intactos en el árbol). Sin push ni deploy.
+
+---
+
 ## Fix CI: fixture de test desincronizado tras `permiteSeguimientoDiarioParcial`
 
 Plan: [seguimiento_diario_campos_opcionales_plan.md](fase_de_desarrollo/seguimiento_diario_campos_opcionales_plan.md) (feature ya cerrada arriba, F1).
