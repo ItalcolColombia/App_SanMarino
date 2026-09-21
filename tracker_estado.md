@@ -9136,12 +9136,14 @@ Arrancado el 16-sep en el worktree `strange-babbage` (WIP guardado en `claude/st
 Decisión del usuario: fix de raíz (usar `_userService.CreateAsync`), no parche aditivo.
 
 - [x] P1. Plan re-verificado contra `main` de hoy: el controller CONSERVA `RegisterDto` (su validación de entrada —contraseña ≥ 8 con letra y número, email con formato, anti-inyección— no existe en `CreateUserDto`); la siembra de perfiles de tickets ya no existe (`42dc6ec`); diferencias Register vs Create re-medidas.
-- [ ] B1. `AltaUsuarioCalculos.DesdeRegistro(RegisterDto) → CreateUserDto` (Application, puro) + tests xUnit.
-- [ ] B2. DTOs: `CreateUserDto.IsPlatformUser` y `UserDto.Email`/`EmailSent`/`EmailQueueId` (opcionales al final).
-- [ ] B3. `UserService`: `IEmailService` inyectado; `CreateAsync` con `IsEmailLogin = !IsPlatformUser` + correo de bienvenida best-effort + `Email`/`EmailSent`/`EmailQueueId`; `GetAllAsync`/`GetByIdAsync`/`UpdateAsync` devuelven `Email`.
-- [ ] B4. `UsersController.Create`: sigue con `[FromBody] RegisterDto`, llama a `CreateAsync(AltaUsuarioCalculos.DesdeRegistro(dto))`, `ProducesResponseType(UserDto)`.
-- [ ] F1. Front: sin cambio funcional; actualizar el comentario del parche de `120a646` (queda como tolerancia para la ventana del deploy).
-- [ ] V1. `dotnet build` 0/0 + `dotnet test`.
-- [ ] V2. Smoke local: 201 con `id`/`email` y sin `token`; GET/lista/PUT con el mismo `email`; `isPlatformUser` sin correo e `IsEmailLogin=false`; el alta NO inserta en `sesiones_activas`; email duplicado → 400; validación de `RegisterDto` intacta (contraseña débil → 400); `/Auth/login` sigue igual. Limpieza de usuarios, logins, cola de correo y sesiones del smoke.
-- [ ] V3. Sin procesos huérfanos (back detenido, puertos libres, build-server apagado).
-- [ ] C1. Commit acotado a mis archivos (sin push ni deploy).
+- [x] B1. `AltaUsuarioCalculos.DesdeRegistro(RegisterDto) → CreateUserDto` (Application, puro) + `AltaUsuarioCalculosTests` (11 casos: mapeo completo, granjas siempre vacías, plataforma, roles null → vacío, zona null, y guarda de que `RegisterDto` sigue rechazando contraseña débil —`abc123`, sin número, sin letra— y email sin formato).
+- [x] B2. DTOs: `CreateUserDto.IsPlatformUser` y `UserDto.Email`/`EmailSent`/`EmailQueueId` (opcionales al final).
+- [x] B3. `UserService` (WIP de `9695d2f` aplicado con 3-way; 2 conflictos con `42dc6ec` resueltos: constructor sin `ITicketPerfilService` y sin la siembra de perfiles): `IEmailService` inyectado; `CreateAsync` con `IsEmailLogin = !IsPlatformUser` + correo de bienvenida best-effort + `Email`/`EmailSent`/`EmailQueueId`; `GetAllAsync`/`GetByIdAsync`/`UpdateAsync` devuelven `Email`.
+- [x] B4. `UsersController.Create`: sigue con `[FromBody] RegisterDto`, llama a `CreateAsync(AltaUsuarioCalculos.DesdeRegistro(dto))`, `ProducesResponseType(UserDto)`.
+- [x] F1. Front: sin cambio funcional; comentario del parche de `120a646` actualizado (tolerancia para la ventana del deploy). Chequeo de sintaxis TS del archivo: 0 errores.
+- [x] V1. `dotnet build` de la solución: 0 errores / 0 advertencias. `dotnet test`: Application.Tests **4.430/4.430** (11 nuevos) y Domain.Tests 1/1.
+- [x] V2. Smoke local contra el back nuevo (`backend-nobuild`, BD local), **17/17**: `POST /api/Users` → 201 con `id`/`email`/`roles`/`companyIds` y SIN `token`/`platformKey`/`menu`/`permisos`/`userId`; correo de bienvenida encolado (`emailSent=true`, `emailQueueId` real) e `is_email_login=true`; **0 filas en `sesiones_activas` para el usuario nuevo** (total 1690 → 1690); `GET /api/Users/{id}`, `GET /api/Users` y `PUT /api/Users/{id}` devuelven el mismo `email`; plataforma → 201 sin correo, `is_email_login=false` y sin fila en `email_queue`; email duplicado → 400 «El correo ya está registrado.»; contraseña `abc123` y email sin formato → 400 por la validación de `RegisterDto`; el usuario recién creado **inicia sesión** por `/api/Auth/login` (body cifrado como el front) y recibe token. Limpieza: 2 `DELETE /api/Users` → 204, sesiones y cola de correo del smoke borradas, 0 rastros en BD. En dev `Email:Queue:Enabled=false`: ningún correo salió.
+- [x] V3. Sin procesos huérfanos: back detenido, puertos 5002/4200 libres, build-server apagado, 0 `dotnet` vivos.
+- [x] C1. Commit acotado a mis archivos (sin push ni deploy).
+
+Pendiente del usuario (no es código): OK para push. Al desplegar, el front y el back viajan juntos; el `??` del modal tolera el orden en que lleguen. La rama `claude/strange-babbage-dbf369` (WIP) queda obsoleta: se puede borrar.

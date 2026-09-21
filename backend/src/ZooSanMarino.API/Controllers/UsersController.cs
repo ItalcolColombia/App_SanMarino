@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using ZooSanMarino.API.Infrastructure;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -33,14 +34,15 @@ public class UsersController : ControllerBase
     // Crear nuevo usuario (campos obligatorios)
     // ─────────────────────────────────────────────────────────────────────
     [HttpPost]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] RegisterDto dto)
     {
         try
         {
-            // Mantén el flujo de registro para garantizar obligatoriedad y consistencia (login + vínculos).
-            var result = await _auth.RegisterAsync(dto);
+            // El body sigue siendo RegisterDto por su validación de entrada; solo cambia la respuesta
+            // (UserDto, sin emitir token ni sesión). Ver AltaUsuarioCalculos.
+            var result = await _userService.CreateAsync(AltaUsuarioCalculos.DesdeRegistro(dto));
             return Created(string.Empty, result);
         }
         catch (Exception ex)

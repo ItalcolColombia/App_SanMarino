@@ -20,16 +20,20 @@ public class UserService : IUserService
     // ya emitida no.
     private readonly ISesionActivaService _sesiones;
 
+    // Correo de bienvenida al crear (best-effort, igual que AuthService.RegisterAsync — ver CreateAsync).
+    private readonly IEmailService _emailService;
+
     // Asignar un rol ya NO copia su plantilla de atención de tickets al usuario (19-sep-2026): la copia
     // quedaba para siempre aunque le quitaran el rol, y la plantilla ya se lee en vivo al armar los
     // asignables (TicketAsignablesConsulta). Ver fase_de_desarrollo/tickets_crear_vs_atender_empresa_global_plan.md.
-    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ISesionActivaService sesiones)
+    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ISesionActivaService sesiones, IEmailService emailService)
     {
         _ctx = ctx;
         _hasher = hasher;
         _currentUser = currentUser;
         _userPermissionService = userPermissionService;
         _sesiones = sesiones;
+        _emailService = emailService;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -83,7 +87,7 @@ public class UserService : IUserService
             Id           = Guid.NewGuid(),
             email        = dto.Email.Trim(),
             PasswordHash = _hasher.HashPassword(null!, dto.Password),
-            IsEmailLogin = true,
+            IsEmailLogin = !dto.IsPlatformUser,
             IsDeleted    = false
         };
         _ctx.Logins.Add(login);
@@ -120,6 +124,33 @@ public class UserService : IUserService
 
         await tx.CommitAsync();
 
+        // Correo de bienvenida solo si es un usuario con email real (mismo criterio y mismo
+        // best-effort que AuthService.RegisterAsync: un fallo de correo nunca deshace el alta).
+        int? emailQueueId = null;
+        bool emailQueued = false;
+
+        if (!dto.IsPlatformUser)
+        {
+            try
+            {
+                var userName = $"{user.firstName} {user.surName}".Trim();
+                if (string.IsNullOrWhiteSpace(userName))
+                    userName = login.email;
+
+                emailQueueId = await _emailService.SendWelcomeEmailAsync(
+                    login.email,
+                    dto.Password,
+                    userName,
+                    "https://zootecnico.sanmarino.com.co"
+                );
+                emailQueued = emailQueueId.HasValue;
+            }
+            catch (Exception)
+            {
+                // No fallar el alta si el email falla.
+            }
+        }
+
         // Proyección
         var rolesNames = await _ctx.UserRoles
             .Where(ur => ur.UserId == user.Id)
@@ -153,7 +184,10 @@ public class UserService : IUserService
             user.IsLocked,
             user.CreatedAt,
             user.LastLoginAt,
-            user.Zona
+            user.Zona,
+            login.email,
+            emailQueued,
+            emailQueueId
         );
     }
 
@@ -167,6 +201,7 @@ public class UserService : IUserService
         
         IQueryable<User> query = _ctx.Users
             .AsNoTracking()
+            .Include(u => u.UserLogins).ThenInclude(ul => ul.Login)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UserCompanies)
             .Include(u => u.UserFarms).ThenInclude(uf => uf.Farm);
@@ -175,9 +210,9 @@ public class UserService : IUserService
         if (!isAdmin)
         {
             // Obtener el Guid del usuario desde ICurrentUser (preferido) o calcular desde int
-            var userIdGuid = _currentUser.UserGuid ?? 
+            var userIdGuid = _currentUser.UserGuid ??
                 throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
-            
+
             // Obtener todas las empresas asignadas al usuario en sesión desde UserCompanies
             var userCompanyIds = await _ctx.UserCompanies
                 .AsNoTracking()
@@ -219,7 +254,8 @@ public class UserService : IUserService
                 u.IsLocked,
                 u.CreatedAt,
                 u.LastLoginAt,
-                u.Zona
+                u.Zona,
+                u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
             ))
             .ToListAsync();
     }
@@ -318,6 +354,7 @@ public class UserService : IUserService
     {
         var user = await _ctx.Users
             .AsNoTracking()
+            .Include(u => u.UserLogins).ThenInclude(ul => ul.Login)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UserCompanies)
             .Include(u => u.UserFarms).ThenInclude(uf => uf.Farm)
@@ -345,7 +382,8 @@ public class UserService : IUserService
             user.IsLocked,
             user.CreatedAt,
             user.LastLoginAt,
-            user.Zona
+            user.Zona,
+            user.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
         );
     }
 
@@ -483,6 +521,11 @@ public class UserService : IUserService
             ))
             .ToArrayAsync();
 
+        var email = await _ctx.UserLogins
+            .Where(ul => ul.UserId == user.Id)
+            .Select(ul => ul.Login.email)
+            .FirstOrDefaultAsync();
+
         return new UserDto(
             user.Id,
             user.surName ?? string.Empty,
@@ -497,7 +540,8 @@ public class UserService : IUserService
             user.IsLocked,
             user.CreatedAt,
             user.LastLoginAt,
-            user.Zona
+            user.Zona,
+            email
         );
     }
 

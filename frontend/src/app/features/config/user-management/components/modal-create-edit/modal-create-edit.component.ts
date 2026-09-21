@@ -493,12 +493,12 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
             // No cerrar el modal: pasa a modo edición del usuario recién creado y salta a la
             // pestaña Tickets, que hasta ahora era inalcanzable durante la creación (ver
             // fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md).
-            // El endpoint de alta responde con forma de AuthResponseDto (`userId`/`username`, no
-            // `id`/`email` como el resto de los endpoints de usuario). Sin este mapeo,
-            // `editingUser!.id` y el GET de `loadUserData()` quedan en `undefined`, y
-            // `loadUserData()` usa `editingUser?.email` como fuente del campo email del form
-            // (comentario "Usar email del usuario original") — sin él, el form vuelve a nacer
-            // inválido y el botón Guardar queda deshabilitado.
+            // Desde el 21-sep-2026 el alta responde UserDto (`id`/`email`, como el resto de los
+            // endpoints de usuario) y el `??` toma esos. El fallback a `userId`/`username` cubre un
+            // backend anterior (forma de AuthResponseDto), p. ej. la ventana de un deploy en que el
+            // front nuevo llega antes que el back. Sin `id`, el GET de `loadUserData()` iría a
+            // `undefined`; sin `email`, el form nace inválido y Guardar queda deshabilitado.
+            // Ver fase_de_desarrollo/users_create_endpoint_userdto_plan.md.
             const usuarioCreado: UserListItem = {
               ...result,
               id: result?.id ?? result?.userId,

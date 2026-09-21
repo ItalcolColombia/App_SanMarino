@@ -210,3 +210,11 @@ make up
 make down
 netstat -ano | grep LISTENING | grep ":5002"   # debe salir vacío
 ```
+
+## Resultado (21-sep-2026)
+
+Implementado segun la revision del principio. Validacion: `dotnet build` 0/0; `dotnet test`
+Application.Tests 4.430/4.430 (11 nuevos en `AltaUsuarioCalculosTests`) y Domain.Tests 1/1; smoke HTTP
+contra el back nuevo y la BD local 17/17 (detalle en el bloque USERS-CREATE-USERDTO de `tracker_estado.md`).
+El caso 8 (login) se probo con el body cifrado como lo cifra el front: el usuario creado por el camino
+nuevo inicia sesion y recibe token.
