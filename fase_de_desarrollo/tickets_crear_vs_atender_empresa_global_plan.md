@@ -315,3 +315,26 @@ convierte 1 GLOBAL y apaga 4 copias (F3); 2.ª = 0 cambios; `verificar_perfiles_
 Los que siguen mudos son los que dependen de la decisión pendiente (nadie atiende Soporte/Dudas en esas dos
 empresas): Diego Ospina y Sebastián Zubieta en Santa Reyes, y 9 usuarios de Panamá. Segunda corrida de la
 migración: 0 filas afectadas.
+
+### Smoke de API diferencial (21-sep-2026, sobre `main` = `753644a`)
+
+Dos backends aislados, cada uno sobre su clon de la copia local: el binario **viejo** (`e4bfeb1`, antes de
+tickets) y el **nuevo**, que aplicó al arrancar las 6 migraciones pendientes (las 2 de tickets incluidas, sin
+errores). Mismos usuarios, credenciales equivalentes al login real.
+
+| # | Caso | Antes | Después |
+|---|---|---|---|
+| 1 | Lenin (Santa Reyes): «Nuevo caso» | ningún tipo | Desarrollo «Jose Moises · Global» + Requerimiento «Jose Moises · Santa Reyes» |
+| 2 | Diego Ospina con su ROL en Implementador | ningún tipo | Desarrollo + Requerimiento; su usuario intacto y ausente de todos los asignables |
+| 3 | Sanmarino | Alexander «Global»; Isaac y Rafael en Desarrollo | Alexander «Agroavicola Sanmarino»; Isaac y Rafael fuera |
+| 4 | Admin en Sanmarino edita a un usuario de Santa Reyes | fila en la empresa 1 | fila en la 6, la respuesta lo dice |
+| 5 | Lenin: su propio perfil / `GET api/tickets/global` | 200 / 200 con los 199 casos de todas las empresas | **403 / 403** |
+| 6 | Admin Santa Reyes: GLOBAL / su empresa | — | 403 / 200 |
+| 7 | Empresa nueva | 4 filas por empresa, Desarrollo incluido | 3 filas, Desarrollo lo atiende la GLOBAL |
+| 8 | Ecuador y Demo | — | mismas personas por tipo; solo cambia la etiqueta |
+
+Dos precisiones sobre lo que este plan esperaba: en el caso 1, Requerimiento **no** sale «Global» porque la
+fila `Admin`/REQUERIMIENTO de Santa Reyes sigue siendo de empresa (la migración solo convirtió Desarrollo), y
+esa es la etiqueta correcta; en el caso 3, Isaac y Rafael estaban en **Desarrollo**, no en Soporte. El
+verificador SQL sobre un tercer clon, migrado por la app al arrancar, dio los mismos números que la tabla de
+arriba. Front: `ng build` 0/0 y el spec de `estado-resolutores` 8/8.
