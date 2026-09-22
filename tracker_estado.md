@@ -9225,3 +9225,19 @@ Plan: [wiki_documentacion_plan.md](fase_de_desarrollo/wiki_documentacion_plan.md
 - [x] U1. **Usuario:** creó la primera página de la wiki desde la web (GitHub no expone API para inicializarla).
 - [x] P1. Push al repo de la wiki (`e3c9ae1`, 195 archivos; solo se reemplazó la `Home.md` provisoria). Verificado por HTTP sin login: portada, `Documentacion`, `aws-infrastructure`, `requisito-ciberseguridad` y 12 páginas del índice → 200 (una inventada → 302); links que salen de la carpeta → 200 en GitHub; menú lateral y pie presentes.
 - [x] R1. Commit solo de lo propio (generador en `eb8c710`; este cierre aparte). Re-publicar: clonar `App_SanMarino.wiki.git`, `node backend/scripts/generar-wiki-documentacion.js <clon>`, commit y push.
+
+---
+
+## REPORTE-COSTOS-MORTALIDAD-SEXO — Reporte Diario Costos engorde: mortalidad H/M por galpón (22-sep-2026)
+
+Plan: [reporte_costos_engorde_mortalidad_por_sexo_plan.md](fase_de_desarrollo/reporte_costos_engorde_mortalidad_por_sexo_plan.md). Pedido de Ecuador. Gate = flag existente `companies.seguimiento_engorde_mixto` (Panamá ON ⇒ sin cambios).
+
+- [ ] B1. fn v4 (`galpones` JSON + 6 claves por sexo) — espejo `.sql` + migración (Up v4 / Down v3) + Designer.
+- [ ] B2. DTOs + `ReporteDiarioCostosEngordeCalculos` (totales por sexo, `MuestraMortalidadPorSexo`) + service lee el flag.
+- [ ] B3. Tests xUnit del cálculo.
+- [ ] F1. Front: modelo + tabla H | M | Total por galpón (cuerpo y footer) gateado por `mortalidadPorSexo`.
+- [ ] F2. Excel con el mismo layout + spec de la función.
+- [ ] V1. SQL en transacción revertida, todas las empresas: v4 sin claves nuevas == v3; H+M = mort_sel.
+- [ ] V2. `dotnet build` + `dotnet test` + `yarn build` + test del front.
+- [ ] V3. Smoke API/UI: Ecuador (Kilometro 22 / 2604) con desglose; Panamá idéntico. Puertos libres al terminar.
+- [ ] R1. Commit solo de lo propio.
