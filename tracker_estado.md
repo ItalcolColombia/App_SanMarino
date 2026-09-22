@@ -9159,3 +9159,16 @@ Plan: [make_dev_ruta_con_espacio_plan.md](fase_de_desarrollo/make_dev_ruta_con_e
 - [x] I1. `dev.ps1`: ruta de cada script entre comillas; `make dev` corre `dev-kill-back.cmd` antes.
 - [x] V1. `make dev` real desde PowerShell: en 116 s :5002 (Swagger 200, `/api/Farm` 401) y :4200 (200); `dev.ps1` ASCII puro y sin errores de parseo. Antes, sueltos: `dev-back.ps1` tardó 25 min en compilar (VBCSCompiler 6,7 GB con 0,4-1,5 GB de RAM libre, paginando), `dev-front.ps1` 311 s.
 - [x] R1. Procesos de prueba bajados (árbol completo, puertos libres antes de `make dev`); las ventanas de `make dev` quedan arriba a pedido del usuario. Commit solo de lo propio.
+
+---
+
+## JWT-FIRMA-PRODUCCION — Clave propia por TaskDef y guarda de arranque (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md)
+
+- [x] A1. Auditoría: `appsettings.json` (clave `Development_Only`) viaja en la imagen; snapshots `backend/deploy/*.json` con `JwtSettings__Key` en claro; AWS local vencido (no se lee la TaskDef viva).
+- [x] I1. `JwtClaveProduccionCalculos` + llamada en `Program.cs` solo en `Production`.
+- [x] I2. Tests xUnit `JwtClaveProduccionCalculosTests` (leen las claves reales de los `appsettings*.json` versionados + el placeholder del ejemplo).
+- [x] I3. Ejemplo completo `backend/deploy/jwt-produccion.example.md` (Secrets Manager recomendado, variable directa como alternativa, IAM, verificación).
+- [x] V1. `dotnet test` Application.Tests 4446/4446 (16 nuevos) + `dotnet build` API 0 err / 0 warn (artifacts propios, 9 min 41 s). Smoke del binario en `Production` con BD falsa: sin `JwtSettings__Key` no arranca y el mensaje no trae la clave; con clave aleatoria pasa la guarda (escucha y cae solo por la BD falsa). Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio. **Pendiente del usuario:** cargar la clave en AWS ANTES de desplegar este commit (ver `backend/deploy/jwt-produccion.example.md`).

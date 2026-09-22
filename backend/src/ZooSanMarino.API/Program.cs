@@ -134,6 +134,11 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 var jwt = builder.Configuration.GetSection("JwtSettings").Get<JwtOptions>() ?? new JwtOptions();
 jwt.EnsureValid();
+// appsettings.json viaja en la imagen con la clave de desarrollo: si la TaskDef no define
+// JwtSettings__Key, producción firmaría con esa clave del repo sin avisar. Mejor no arrancar.
+if (builder.Environment.IsProduction()
+    && JwtClaveProduccionCalculos.MotivoRechazo(jwt.Key) is { } motivoClaveJwt)
+    throw new InvalidOperationException(motivoClaveJwt);
 builder.Services.AddSingleton(jwt);
 
 // ─────────────────────────────────────
