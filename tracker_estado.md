@@ -9147,3 +9147,15 @@ Decisión del usuario: fix de raíz (usar `_userService.CreateAsync`), no parche
 - [x] C1. Commit acotado a mis archivos (sin push ni deploy).
 
 Pendiente del usuario (no es código): OK para push. Al desplegar, el front y el back viajan juntos; el `??` del modal tolera el orden en que lleguen. La rama `claude/strange-babbage-dbf369` (WIP) queda obsoleta: se puede borrar.
+
+---
+
+## MAKE-DEV — `make dev` no levantaba nada por la ruta con espacio (22-sep-2026)
+
+Plan: [make_dev_ruta_con_espacio_plan.md](fase_de_desarrollo/make_dev_ruta_con_espacio_plan.md)
+
+- [x] D1. Bajar back/front vivos (no había ninguno: :5002 y :4200 libres; los `node.exe` vivos son MCP/Codex, no se tocan).
+- [x] D2. Reproducir: `Start-Process -ArgumentList` no pone comillas → `-File C:\Users\SAN` (exit -196608).
+- [x] I1. `dev.ps1`: ruta de cada script entre comillas; `make dev` corre `dev-kill-back.cmd` antes.
+- [x] V1. `make dev` real desde PowerShell: en 116 s :5002 (Swagger 200, `/api/Farm` 401) y :4200 (200); `dev.ps1` ASCII puro y sin errores de parseo. Antes, sueltos: `dev-back.ps1` tardó 25 min en compilar (VBCSCompiler 6,7 GB con 0,4-1,5 GB de RAM libre, paginando), `dev-front.ps1` 311 s.
+- [x] R1. Procesos de prueba bajados (árbol completo, puertos libres antes de `make dev`); las ventanas de `make dev` quedan arriba a pedido del usuario. Commit solo de lo propio.
