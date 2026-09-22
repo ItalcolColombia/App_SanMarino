@@ -9213,3 +9213,15 @@ Plan: [reverse_proxy_known_networks_pipeline_plan.md](fase_de_desarrollo/reverse
 - [x] I2. Paso «Confiar en el ALB (ReverseProxy) en la TaskDef» después de la rotación JWT y antes de «Actualizar imagen». Sin cambios de C#, Dockerfile ni AWS.
 - [x] V1. Pasos EXTRAÍDOS del workflow (JWT + proxy) sobre TaskDef sintética en 2 deploys: el 1.º agrega las 3 redes, el 2.º las respeta (7 variables, sin duplicados) y la JWT rota las dos veces. YAML OK. Medición con las variables EXACTAS de esa TaskDef + `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`: mismo cliente con XFF inventado 99→98→97, otro cliente 99. Puerto 5599 libre.
 - [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear). **Nada pendiente en AWS.**
+
+---
+
+## WIKI-DOCUMENTACION — `backend/documentacion` en la wiki de GitHub (22-sep-2026)
+
+Plan: [wiki_documentacion_plan.md](fase_de_desarrollo/wiki_documentacion_plan.md). Decisión del usuario, avisado de que el repo es público: publicar la carpeta entera tal cual.
+
+- [x] I1. `backend/scripts/generar-wiki-documentacion.js` + test `node --test` (7/7).
+- [x] V1. Corrida real sobre `backend/documentacion`: 179 páginas + 13 adjuntos + Home/_Sidebar/_Footer; 179/179 páginas idénticas al original fuera de los destinos de link (14 con algún link ajustado); 0 links `.md` sin convertir; adjuntos iguales byte a byte.
+- [ ] U1. **Usuario:** crear la primera página de la wiki desde la web (GitHub no expone API para inicializarla).
+- [ ] P1. Push del árbol generado al repo de la wiki y verificación de páginas en la web.
+- [ ] R1. Commit solo de lo propio.
