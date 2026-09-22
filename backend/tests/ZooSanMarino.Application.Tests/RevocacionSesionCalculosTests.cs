@@ -9,8 +9,8 @@ namespace ZooSanMarino.Application.Tests;
 ///
 /// <para>
 /// Los dos invariantes que no se pueden romper: <b>fail-closed</b> (un <c>jti</c> sin fila no pasa)
-/// y <b>fail-open ante caída de base</b> (<see cref="EstadoSesion.NoVerificable"/> sí pasa, o un blip
-/// de RDS desloguea a todo el mundo de golpe, tablets con capturas sin subir incluidas).
+/// y <b>rechazo temporal ante caída de base</b> (<see cref="EstadoSesion.NoVerificable"/> responde
+/// 503, sin autorizar la operación ni borrar la sesión/capturas pendientes del cliente).
 /// </para>
 ///
 /// <para>
@@ -18,7 +18,7 @@ namespace ZooSanMarino.Application.Tests;
 /// pasaba, porque al desplegar B1 todos los tokens vivos eran de antes. Con
 /// <c>JwtSettings__DurationInMinutes = 60</c> en la TaskDef, un día después no quedaba ninguno, así
 /// que ahora se rechaza. Los tests de abajo dejan escrito que <b>los dos casos son distintos</b>:
-/// sin <c>jti</c> se rechaza, sin base se acepta.
+/// sin <c>jti</c> se rechaza con 401; sin base se rechaza temporalmente con 503.
 /// </para>
 /// </summary>
 public class RevocacionSesionCalculosTests
@@ -127,7 +127,7 @@ public class RevocacionSesionCalculosTests
 
         // Los que pasan no tienen motivo de fallo.
         Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Valida));
-        Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
+        Assert.Equal("session-validation-unavailable", RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
     }
 
     [Fact]
@@ -256,14 +256,10 @@ public class RevocacionSesionCalculosTests
     }
 
     [Fact]
-    public void T16_CaidaDeBase_SigueDejandoPasar_failOpen()
+    public void T16_CaidaDeBase_NoAutorizaYSenalaFalloTemporal()
     {
-        // El invariante que V39.13 NO podía romper. `SesionActivaService` devuelve este estado desde
-        // su `catch`: si RDS parpadea, el request sigue. Borrar la rama junto con la ventana de
-        // gracia -los dos casos compartían el valor `Legado`- habría convertido un blip de base en
-        // el deslogueo simultáneo de todas las tablets en campo.
-        Assert.True(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
-        Assert.Null(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
+        Assert.False(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+        Assert.Equal("session-validation-unavailable", RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
     }
 
     [Fact]
@@ -282,7 +278,9 @@ public class RevocacionSesionCalculosTests
         // fusionarlos, este test cae - sea cual sea la dirección en que los fusione.
         Assert.NotEqual(EstadoSesion.Legado, EstadoSesion.NoVerificable);
         Assert.False(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.Legado));
-        Assert.True(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+        Assert.False(RevocacionSesionCalculos.EsSesionValida(EstadoSesion.NoVerificable));
+        Assert.NotEqual(RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.Legado),
+            RevocacionSesionCalculos.MotivoParaCliente(EstadoSesion.NoVerificable));
     }
 
     // ─────────── Fechas de la base: hora LOCAL, no UTC (26-ago-2026) ───────────
@@ -408,7 +406,7 @@ public class RevocacionSesionCalculosTests
     }
 
     [Fact]
-    public void T19_LosUnicosDosEstadosQuePasan_SonValidaYNoVerificable()
+    public void T19_ElUnicoEstadoQuePasa_EsValida()
     {
         // Barrido exhaustivo del enum: deja el contrato cerrado y obliga a decidir explícitamente
         // qué hace un estado nuevo el día que alguien agregue uno.
@@ -417,6 +415,6 @@ public class RevocacionSesionCalculosTests
             .OrderBy(e => e)
             .ToArray();
 
-        Assert.Equal(new[] { EstadoSesion.Valida, EstadoSesion.NoVerificable }, pasan);
+        Assert.Equal(new[] { EstadoSesion.Valida }, pasan);
     }
 }

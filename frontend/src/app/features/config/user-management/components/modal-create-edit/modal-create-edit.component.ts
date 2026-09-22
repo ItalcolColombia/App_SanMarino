@@ -17,6 +17,7 @@ import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
 import { ShowIfCountryDirective } from '../../../../../core/directives/show-if-country.directive';
 import { TicketPerfilEditorComponent } from '../../../../../features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
 import { TicketPerfilService } from '../../../../../features/tickets/services/ticket-perfil.service';
+import { ToastService } from '../../../../../shared/services/toast.service';
 import { interval, Subscription } from 'rxjs';
 
 // === Validador: array requerido (>=1 ítem) ===
@@ -59,6 +60,13 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
 
   @Output() close = new EventEmitter<void>();
   @Output() userSaved = new EventEmitter<UserListItem>();
+  /**
+   * Se emite SOLO al crear (no al editar). A diferencia de `userSaved`, el padre NO cierra el
+   * modal: actualiza su propio `editingUser` para que este mismo modal pase a modo edición y la
+   * pestaña "Tickets" (antes inalcanzable durante la creación) quede disponible para setear el
+   * nivel del usuario recién creado sin tener que volver a buscarlo en la lista.
+   */
+  @Output() userCreated = new EventEmitter<UserListItem>();
 
   // Iconos
   faUserPlus = faUserPlus;
@@ -120,6 +128,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   private ticketPerfilSvc = inject(TicketPerfilService);
+  private toast = inject(ToastService);
 
   ngOnInit(): void {
     this.initForm();
@@ -332,6 +341,9 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
 
   resetForm(): void {
     this.isPlatformUser = false;
+    // Por si la apertura anterior terminó en la pestaña Tickets (creación de OTRO usuario): un
+    // alta nueva siempre arranca en Personal.
+    this.activeTab = 'personal';
     this.userForm.reset({
       surName: '',
       firstName: '',
@@ -478,11 +490,24 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
               this.startEmailStatusCheck();
             }
 
-            this.userSaved.emit(result);
-            // No cerrar el modal inmediatamente si hay correo pendiente
-            if (!result?.emailQueueId || result?.emailSent) {
-              this.closeModal();
-            }
+            // No cerrar el modal: pasa a modo edición del usuario recién creado y salta a la
+            // pestaña Tickets, que hasta ahora era inalcanzable durante la creación (ver
+            // fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md).
+            // Desde el 21-sep-2026 el alta responde UserDto (`id`/`email`, como el resto de los
+            // endpoints de usuario) y el `??` toma esos. El fallback a `userId`/`username` cubre un
+            // backend anterior (forma de AuthResponseDto), p. ej. la ventana de un deploy en que el
+            // front nuevo llega antes que el back. Sin `id`, el GET de `loadUserData()` iría a
+            // `undefined`; sin `email`, el form nace inválido y Guardar queda deshabilitado.
+            // Ver fase_de_desarrollo/users_create_endpoint_userdto_plan.md.
+            const usuarioCreado: UserListItem = {
+              ...result,
+              id: result?.id ?? result?.userId,
+              email: result?.email ?? result?.username
+            };
+            this.userCreated.emit(usuarioCreado);
+            this.activeTab = 'tickets';
+            this.toast.success('Usuario creado. Configurá su nivel de tickets antes de cerrar.');
+            this.cdr.detectChanges();
           },
           error: (error: any) => {
             console.error('Error creating user:', error);

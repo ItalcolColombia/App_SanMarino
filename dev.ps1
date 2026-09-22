@@ -19,8 +19,13 @@ if (-not $pg.TcpTestSucceeded) {
     Write-Host "[dev]        Levanta la base (PG17) antes de continuar." -ForegroundColor Yellow
 }
 
-Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'dev-back.ps1')
-Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'dev-front.ps1')
+# Start-Process (PS 5.1) une -ArgumentList con espacios SIN comillas. La ruta del repo
+# tiene un espacio ("SAN MARINO") -> sin las comillas la ventana recibia -File C:\Users\SAN,
+# no encontraba el script y quedaba abierta (-NoExit) mostrando solo el error.
+$backScript  = Join-Path $PSScriptRoot 'dev-back.ps1'
+$frontScript = Join-Path $PSScriptRoot 'dev-front.ps1'
+Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$backScript`""
+Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$frontScript`""
 
 Write-Host "[dev] Backend y Frontend lanzados en ventanas separadas." -ForegroundColor Green
 Write-Host "[dev]   Backend : http://localhost:5002/swagger" -ForegroundColor Green

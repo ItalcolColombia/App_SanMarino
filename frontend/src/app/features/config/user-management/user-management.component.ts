@@ -153,8 +153,19 @@ export class UserManagementComponent implements OnInit {
   }
 
   onUserSaved(user: UserListItem): void {
-    
+
     this.closeModal();
     // Aquí podrías emitir un evento para recargar la lista
+  }
+
+  /**
+   * Se dispara SOLO al crear un usuario (ver `ModalCreateEditComponent.userCreated`). A propósito
+   * NO toca `modalOpen`: el modal sigue abierto, ahora en modo edición del usuario recién creado,
+   * para que la pestaña Tickets (nivel de creación de casos) quede alcanzable sin tener que volver
+   * a buscarlo en la lista.
+   */
+  onUserCreated(user: UserListItem): void {
+    this.editingUser = user;
+    this.modalSoloLectura = false;
   }
 }

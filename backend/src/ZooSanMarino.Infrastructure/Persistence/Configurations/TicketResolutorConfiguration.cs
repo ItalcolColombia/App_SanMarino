@@ -17,6 +17,9 @@ public class TicketResolutorConfiguration : IEntityTypeConfiguration<TicketResol
         b.Property(x => x.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
         b.Property(x => x.PaisId).HasColumnName("pais_id");           // NULL = global
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
+        // EMPRESA | GLOBAL (ver TicketAlcance). CHECK en la migración AddAlcanceYNivelCreacionTickets.
+        b.Property(x => x.Alcance).HasColumnName("alcance").HasMaxLength(10)
+            .HasDefaultValue(TicketAlcance.Empresa).IsRequired();
         b.Property(x => x.Activo).HasColumnName("activo").HasDefaultValue(true).IsRequired();
         b.Property(x => x.CreatedAt).HasColumnName("created_at")
             .HasDefaultValueSql("timezone('utc', now())").IsRequired();

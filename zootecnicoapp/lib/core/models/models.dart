@@ -38,6 +38,7 @@ class Usuario {
     required this.companyId,
     required this.companyName,
     required this.token,
+    this.platformKey,
     required this.modulos,
     this.descuentaInventarioDesdeMovil = false,
   });
@@ -63,6 +64,10 @@ class Usuario {
 
   /// JWT. Vive 60 min en producción; la cola offline le sobrevive.
   final String token;
+
+  /// Firma derivada del `jti` emitida por el backend. No es un secreto de cliente;
+  /// sólo permite al servidor asociar la petición con esta sesión.
+  final String? platformKey;
 
   final List<ModuloSeguimiento> modulos;
 
@@ -92,12 +97,13 @@ class Usuario {
     return partes.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
-  Usuario copyWith({List<ModuloSeguimiento>? modulos, String? token, String? granja}) => Usuario(
+  Usuario copyWith({List<ModuloSeguimiento>? modulos, String? token, String? granja, String? platformKey}) => Usuario(
     id: id, nombre: nombre, email: email, cargo: cargo,
     granja: granja ?? this.granja,
     paisId: paisId, paisNombre: paisNombre,
     companyId: companyId, companyName: companyName,
     token: token ?? this.token,
+    platformKey: platformKey ?? this.platformKey,
     modulos: modulos ?? this.modulos,
     descuentaInventarioDesdeMovil: descuentaInventarioDesdeMovil,
   );
@@ -114,6 +120,7 @@ class Usuario {
     companyId: j['companyId'] as int?,
     companyName: j['companyName'] as String? ?? '',
     token: j['token'] as String? ?? '',
+    platformKey: j['platformKey'] as String?,
     modulos: ((j['modulos'] as List?) ?? const [])
         .map((m) => ModuloSeguimiento.fromId(m as String))
         .whereType<ModuloSeguimiento>()
@@ -127,6 +134,7 @@ class Usuario {
     'paisId': paisId, 'paisNombre': paisNombre,
     'companyId': companyId, 'companyName': companyName,
     'token': token,
+    'platformKey': platformKey,
     'modulos': modulos.map((m) => m.id).toList(),
     'descuentaInventarioDesdeMovil': descuentaInventarioDesdeMovil,
   };

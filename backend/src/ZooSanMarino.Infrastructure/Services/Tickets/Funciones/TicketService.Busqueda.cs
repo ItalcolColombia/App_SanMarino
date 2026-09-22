@@ -90,8 +90,11 @@ public partial class TicketService
 
     public async Task<PagedResult<TicketListItemDto>> SearchAdminAsync(TicketSearchRequest req, CancellationToken ct)
     {
-        // Admin global: todos los tickets de todas las empresas/países, sin filtro implícito.
-        var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
+        // Admin global: todos los tickets de todas las empresas/países, sin filtro implícito. El admin
+        // de una empresa (tickets.admin sin ser admin global): los de su empresa activa. Sin
+        // tickets.admin: 403 — hasta el 19-sep-2026 este endpoint no pedía nada y cualquier sesión
+        // listaba los casos de todas las empresas.
+        var query = await BaseQueryAdministracionAsync();
         if (req.PaisId.HasValue)
             query = query.Where(x => x.PaisId == req.PaisId.Value);
         return await PageAsync(ApplyFilters(query, req), req, ct);
@@ -99,8 +102,8 @@ public partial class TicketService
 
     public async Task<IReadOnlyList<ResolutorListItemDto>> GetResolutoresAdminAsync(CancellationToken ct)
     {
-        var guids = await _ctx.Tickets.AsNoTracking()
-            .Where(x => x.AssignedToUserGuid != null && x.DeletedAt == null)
+        var guids = await (await BaseQueryAdministracionAsync())
+            .Where(x => x.AssignedToUserGuid != null)
             .Select(x => x.AssignedToUserGuid!.Value)
             .Distinct()
             .ToListAsync(ct);
@@ -115,6 +118,26 @@ public partial class TicketService
         return users.Select(u => new ResolutorListItemDto(u.Id, $"{u.firstName} {u.surName}".Trim()))
                     .OrderBy(r => r.Nombre)
                     .ToList();
+    }
+
+    /// <summary>
+    /// Tickets que abarca la administración de la sesión (ver
+    /// <see cref="TicketAlcanceAdministracionCalculos.AlcanceAdministracion"/>). Lanza
+    /// <see cref="UnauthorizedAccessException"/> (403) sin <c>tickets.admin</c>.
+    /// </summary>
+    private async Task<IQueryable<Ticket>> BaseQueryAdministracionAsync()
+    {
+        var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
+        switch (AlcanceAdministracion())
+        {
+            case TicketAlcanceAdministracionCalculos.Alcance.Todas:
+                return query;
+            case TicketAlcanceAdministracionCalculos.Alcance.EmpresaActiva:
+                var activa = await GetEffectiveCompanyIdAsync();
+                return query.Where(x => x.CompanyId == activa);
+            default:
+                throw new UnauthorizedAccessException("La bandeja de administración de tickets requiere el permiso tickets.admin.");
+        }
     }
 
     private IQueryable<Ticket> BaseQuery(int companyId) =>

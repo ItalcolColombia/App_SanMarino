@@ -25,6 +25,11 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
                    .IsRequired()
                    .HasDefaultValue(false);
 
+            // NORMAL | IMPLEMENTADOR | NULL (no define). CHECK en la migración AddAlcanceYNivelCreacionTickets.
+            builder.Property(r => r.TicketNivelCreacion)
+                   .HasColumnName("ticket_nivel_creacion")
+                   .HasMaxLength(20);
+
             // Role -> RolePermissions
             builder.HasMany(r => r.RolePermissions)
                    .WithOne(rp => rp.Role)

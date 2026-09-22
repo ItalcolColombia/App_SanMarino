@@ -19,6 +19,10 @@ public class TicketResolutor
     public int? PaisId { get; set; }
 
     public int CompanyId { get; set; }
+
+    /// <summary>EMPRESA (solo tickets de <see cref="CompanyId"/>) | GLOBAL (todas las empresas) — ver <see cref="TicketAlcance"/>.</summary>
+    public string Alcance { get; set; } = TicketAlcance.Empresa;
+
     public bool Activo { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

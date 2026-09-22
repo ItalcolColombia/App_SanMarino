@@ -35,6 +35,7 @@ help:
 # ==========================================
 
 dev:
+	@cmd /c ".\dev-kill-back.cmd"
 	powershell -NoProfile -ExecutionPolicy Bypass -File dev.ps1
 
 dev-back:

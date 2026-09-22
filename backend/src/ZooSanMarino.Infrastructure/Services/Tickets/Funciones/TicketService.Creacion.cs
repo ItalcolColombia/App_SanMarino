@@ -27,44 +27,18 @@ public partial class TicketService
         var companyId = await GetEffectiveCompanyIdAsync();
         var now = DateTime.UtcNow;
 
-        // Validar que el resolutor sea asignable para (tipo, país): directo O por rol.
         var paisId = _currentUser.PaisId;
         var tipoUpper = req.Tipo.ToUpperInvariant();
 
-        var resolutorValido = await _ctx.TicketResolutores.AsNoTracking()
-            .AnyAsync(r => r.UserId == req.AssignedToUserGuid &&
-                           r.Tipo == tipoUpper &&
-                           r.Activo &&
-                           (r.PaisId == null || r.PaisId == paisId), ct);
-
-        if (!resolutorValido)
-        {
-            // Verificar si es resolutor por rol.
-            var roleIds = await _ctx.TicketResolutorRoles.AsNoTracking()
-                .Where(r => r.Activo && r.Tipo == tipoUpper &&
-                            (r.PaisId == null || r.PaisId == paisId))
-                .Select(r => r.RoleId)
-                .ToListAsync(ct);
-
-            // Sin filtro de company: los resolutores por rol son globales. Espeja a
-            // TicketPerfilService.GetAsignablesInternalAsync para que el resolutor ofrecido en el
-            // dropdown (admin con rol en la empresa central) también valide al crear en otra empresa.
-            if (roleIds.Count > 0)
-                resolutorValido = await _ctx.UserRoles.AsNoTracking()
-                    .AnyAsync(ur => ur.UserId == req.AssignedToUserGuid &&
-                                    roleIds.Contains(ur.RoleId), ct);
-        }
-
-        if (!resolutorValido)
-            throw new InvalidOperationException("El resolutor seleccionado no está disponible para este tipo y país.");
-
-        // Solicitante delegado ("a nombre de"): privilegio exclusivo de tickets.admin. Sin este
+        // Solicitante delegado ("a nombre de"): privilegio de tickets.admin — de cualquier usuario para
+        // el admin global, de los usuarios de su empresa activa para el admin de una empresa. Sin este
         // campo el caso queda idéntico a como se creaba antes (solicitante = creador).
         Guid? solicitanteGuid = null;
         int?  solicitanteCedula = null;
         if (req.SolicitanteUserGuid is { } delegado && delegado != Guid.Empty)
         {
-            if (!EsSuperAdmin())
+            var alcance = AlcanceAdministracion();
+            if (alcance == TicketAlcanceAdministracionCalculos.Alcance.Ninguno)
                 throw new InvalidOperationException("Solo el administrador de tickets puede registrar un caso a nombre de otro usuario.");
 
             var destino = await _ctx.Set<User>().AsNoTracking()
@@ -77,6 +51,8 @@ public partial class TicketService
                 .FirstOrDefaultAsync(ct);
             if (destino is null)
                 throw new InvalidOperationException("El usuario indicado como solicitante no existe.");
+            if (alcance == TicketAlcanceAdministracionCalculos.Alcance.EmpresaActiva && !destino.Empresas.Contains(companyId))
+                throw new InvalidOperationException("Solo podés registrar casos a nombre de usuarios de tu empresa activa.");
 
             // Delegar en uno mismo es redundante: se ignora y el caso queda como propio.
             if (!_currentUser.UserGuid.HasValue || destino.Id != _currentUser.UserGuid.Value)
@@ -92,6 +68,12 @@ public partial class TicketService
                     companyId = destino.Empresas[0];
             }
         }
+
+        // El resolutor tiene que atender (tipo, país) en la empresa FINAL del caso (la del solicitante
+        // delegado si lo hay). Misma fórmula que el desplegable «Asignar a»: antes esta validación no
+        // filtraba por empresa y la API aceptaba a quien el desplegable no ofrecía.
+        if (!await TicketAsignablesConsulta.EsAsignableAsync(_ctx, req.AssignedToUserGuid, tipoUpper, paisId, companyId, ct))
+            throw new InvalidOperationException("El resolutor seleccionado no está disponible para este tipo y país.");
 
         var entity = new Ticket
         {
@@ -223,13 +205,10 @@ public partial class TicketService
         if (ticket.Tipo != TicketTipos.Requerimiento)
             throw new InvalidOperationException("Solo se pueden transferir tickets de tipo REQUERIMIENTO.");
 
-        // Validar que el nuevo asignado sea resolutor de DESARROLLO en el país del ticket.
-        // Sin filtro de company: los resolutores son globales.
-        var resolutorValido = await _ctx.TicketResolutores.AsNoTracking()
-            .AnyAsync(r => r.UserId == req.NuevoAsignadoGuid &&
-                           r.Tipo == TicketTipos.Desarrollo &&
-                           r.Activo &&
-                           (r.PaisId == null || r.PaisId == ticket.PaisId), ct);
+        // Validar que el nuevo asignado atienda DESARROLLO en el país y la empresa del ticket (misma
+        // fórmula que el desplegable: directo o por rol, con alcance GLOBAL o de esa empresa).
+        var resolutorValido = await TicketAsignablesConsulta.EsAsignableAsync(
+            _ctx, req.NuevoAsignadoGuid, TicketTipos.Desarrollo, ticket.PaisId, ticket.CompanyId, ct);
         if (!resolutorValido)
             throw new InvalidOperationException("El usuario destino no es resolutor de DESARROLLO en este país.");
 

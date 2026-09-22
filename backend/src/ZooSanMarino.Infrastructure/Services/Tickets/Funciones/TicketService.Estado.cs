@@ -18,9 +18,18 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class TicketService
 {
-    /// <summary>True si el usuario actual tiene el permiso de administración global del módulo.</summary>
-    private bool EsSuperAdmin() =>
-        _currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Hasta dónde administra tickets la sesión: todas las empresas (admin global con
+    /// <c>tickets.admin</c>), solo la empresa activa (<c>tickets.admin</c> de una empresa) o nada. Hasta
+    /// el 19-sep-2026 <c>tickets.admin</c> alcanzaba para administrar TODAS las empresas, y lo tienen
+    /// roles de una sola. Ver <see cref="TicketAlcanceAdministracionCalculos"/>.
+    /// </summary>
+    private TicketAlcanceAdministracionCalculos.Alcance AlcanceAdministracion() =>
+        TicketAlcanceAdministracionCalculos.AlcanceAdministracion(_currentUser.EsAdminEmpresas, _currentUser.Permissions);
+
+    /// <summary>¿La sesión administra los tickets de <paramref name="empresaCaso"/>?</summary>
+    private async Task<bool> AdministraEmpresaAsync(int empresaCaso) =>
+        TicketAlcanceAdministracionCalculos.Cubre(AlcanceAdministracion(), await GetEffectiveCompanyIdAsync(), empresaCaso);
 
     /// <summary>
     /// True si el usuario actual es EL SOLICITANTE del caso — el delegado cuando existe, el creador

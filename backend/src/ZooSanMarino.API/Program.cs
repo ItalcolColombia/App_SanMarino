@@ -134,6 +134,12 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 var jwt = builder.Configuration.GetSection("JwtSettings").Get<JwtOptions>() ?? new JwtOptions();
 jwt.EnsureValid();
+// appsettings.json viaja en la imagen con la clave de desarrollo: si la TaskDef no define
+// JwtSettings__Key, producción firmaría con esa clave del repo sin avisar. Mejor no arrancar.
+// (El deploy pone una clave nueva en cada revisión; la anterior, si no sirve, solo se ignora.)
+if (builder.Environment.IsProduction()
+    && JwtClaveProduccionCalculos.MotivoRechazo(jwt.Key) is { } motivoClaveJwt)
+    throw new InvalidOperationException(motivoClaveJwt);
 builder.Services.AddSingleton(jwt);
 
 // ─────────────────────────────────────
@@ -141,6 +147,7 @@ builder.Services.AddSingleton(jwt);
 // ─────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCorsFromOrigins("AppCors", allowedOrigins);
+builder.Services.AddTrustedProxyHeaders(builder.Configuration);
 
 // ─────────────────────────────────────
 /* 6) DbContext */
@@ -441,7 +448,6 @@ builder.Services.AddHealthChecks();
 //   - "Bearer sk_..."  → esquema "ServiceToken" (PAT de larga duración, solo /api/tickets).
 //   - cualquier otro   → JwtBearer (config existente TAL CUAL).
 // La config del JWT NO cambia; solo se movió dentro de esta cadena.
-var keyBytes = Encoding.UTF8.GetBytes(jwt.Key ?? "");
 builder.Services.AddAuthentication(o =>
     {
         o.DefaultScheme = "Smart";
@@ -457,81 +463,8 @@ builder.Services.AddAuthentication(o =>
                 : JwtBearerDefaults.AuthenticationScheme;
         };
     })
-    .AddJwtBearer(opts =>
-    {
-        opts.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidateLifetime = true,
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
-            ClockSkew = TimeSpan.Zero
-        };
-
-        opts.Events = new JwtBearerEvents
-        {
-            // No se loguean tokens ni el header Authorization (evita filtrar credenciales).
-            OnMessageReceived = ctx =>
-            {
-                // El preflight CORS (OPTIONS) no lleva token: no intentar autenticarlo.
-                if (HttpMethods.IsOptions(ctx.Request.Method))
-                    ctx.NoResult();
-                return Task.CompletedTask;
-            },
-
-            // B1 — REVOCACIÓN. Firma y `exp` válidos ya no alcanzan: la sesión tiene que seguir
-            // viva en `sesiones_activas`. Va acá y no en un middleware por dos razones: corre DENTRO
-            // de UseAuthentication() —o sea antes de resolver empresa activa y de evaluar permisos— y
-            // cubre TODOS los endpoints, incluidos los que todavía no existen (un middleware con
-            // lista de rutas se desactualiza).
-            // El esquema ServiceToken (PAT `sk_…`) NO pasa por acá: tiene su propia revocación.
-            OnTokenValidated = async ctx =>
-            {
-                var jti = ctx.Principal?.FindFirst(
-                    System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
-
-                var expiracion = (ctx.SecurityToken as Microsoft.IdentityModel.JsonWebTokens.JsonWebToken)?.ValidTo
-                    ?? DateTime.UtcNow;
-
-                var sesiones = ctx.HttpContext.RequestServices.GetRequiredService<ISesionActivaService>();
-                var estado = await sesiones.EvaluarAsync(jti, expiracion, ctx.HttpContext.RequestAborted);
-
-                if (RevocacionSesionCalculos.EsSesionValida(estado))
-                    return;
-
-                // El motivo viaja por Items hasta OnChallenge, que es quien escribe la respuesta.
-                ctx.HttpContext.Items[RevocacionSesionCalculos.MotivoRevocada] =
-                    RevocacionSesionCalculos.MotivoParaCliente(estado);
-                ctx.Fail("Sesión revocada o no registrada.");
-            },
-
-            // Mismo contrato que PlatformSecretMiddleware: cabecera X-Auth-Failure + `errorCode` en
-            // el CUERPO (en dev el front es otro origen y no puede leer cabeceras personalizadas).
-            // Sólo se toca la respuesta cuando el rechazo es NUESTRO; el resto de los 401 del
-            // JwtBearer siguen saliendo exactamente igual que antes.
-            OnChallenge = async ctx =>
-            {
-                if (ctx.HttpContext.Items[RevocacionSesionCalculos.MotivoRevocada] is not string motivo)
-                    return;
-
-                ctx.HandleResponse();
-                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                ctx.Response.ContentType = "application/json";
-                ctx.Response.Headers[PlatformSecretMiddleware.AuthFailureHeader] = motivo;
-                await ctx.Response.WriteAsJsonAsync(new
-                {
-                    error = "Unauthorized",
-                    errorCode = motivo,
-                    message = motivo == RevocacionSesionCalculos.MotivoRevocada
-                        ? "La sesión fue cerrada. Inicia sesión de nuevo."
-                        : "La sesión expiró. Inicia sesión de nuevo."
-                });
-            }
-        };
-    })
+    .AddJwtBearer(opts => ZooSanMarino.API.Infrastructure.JwtAuthenticationConfiguration.Configure(
+        opts, jwt, builder.Environment.IsProduction()))
     // Esquema de PAT (Service Token): activado por el policy scheme "Smart" cuando el header
     // empieza con "Bearer sk_". El handler valida el token y limita el alcance a /api/tickets.
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
@@ -760,6 +693,10 @@ builder.Services.AddControllers()
     });
 
 var app = builder.Build();
+
+// Normaliza IP y esquema únicamente desde proxies registrados antes de cualquier
+// middleware que tome decisiones de seguridad o escriba HSTS.
+app.UseForwardedHeaders();
 
 // ─────────────────────────────────────
 // 13.1) Dev bootstrap (solo Development)
@@ -1156,26 +1093,3 @@ public record SwaggerTokenRequest(string Email, string Password);
 // ─────────────────────────────────────
 // Extensión: CORS desde lista de orígenes
 // ─────────────────────────────────────
-internal static class CorsExtensions
-{
-    public static void AddCorsFromOrigins(this IServiceCollection services, string policyName, string[] origins)
-    {
-        services.AddCors(options =>
-        {
-            options.AddPolicy(policyName, policy =>
-            {
-                if (origins is null || origins.Length == 0 || Array.Exists(origins, x => x == "*"))
-                {
-                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-                }
-                else
-                {
-                    policy.WithOrigins(origins)
-                          .AllowAnyMethod()
-                          .AllowAnyHeader();
-                    // Si usas cookies: .AllowCredentials()
-                }
-            });
-        });
-    }
-}

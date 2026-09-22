@@ -25,7 +25,7 @@ public partial class TicketTareaService
     /// Mismos permisos que ya protegen tablero, roadmap y panel.
     /// </summary>
     private bool PuedeGestionarItalJira() =>
-        EsSuperAdmin() ||
+        TienePermisoAdminTickets() ||
         _currentUser.Permissions.Contains("tickets.gestionar", StringComparer.OrdinalIgnoreCase);
 
     private void ExigirGestionItalJira()
@@ -376,7 +376,7 @@ public partial class TicketTareaService
         {
             var caso = await CargarCasoAsync(ticketId, ct);
             if (caso is null) return null;
-            if (!PuedeGestionar(caso))
+            if (!await PuedeGestionarAsync(caso))
                 throw new InvalidOperationException("No tenés permisos para gestionar las tareas de este caso.");
             return tarea;
         }

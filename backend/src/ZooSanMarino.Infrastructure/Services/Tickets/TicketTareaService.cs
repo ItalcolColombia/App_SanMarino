@@ -19,11 +19,24 @@ public partial class TicketTareaService : ITicketTareaService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly ICompanyResolver _companyResolver;
 
-    public TicketTareaService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public TicketTareaService(ZooSanMarinoContext ctx, ICurrentUser currentUser, ICompanyResolver companyResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _companyResolver = companyResolver;
+    }
+
+    /// <summary>Empresa activa validada de la sesión (nunca el header crudo). Espeja a TicketService.</summary>
+    private async Task<int> GetEffectiveCompanyIdAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
+        {
+            var cid = await _companyResolver.GetCompanyIdByNameAsync(_currentUser.ActiveCompanyName);
+            if (cid.HasValue) return cid.Value;
+        }
+        return _currentUser.CompanyId;
     }
 
     // ────────────────── Reflejo en el checklist de Implementación (I1.3) ──────────────────
@@ -91,17 +104,30 @@ public partial class TicketTareaService : ITicketTareaService
                 x.SolicitanteUserGuid, x.SolicitanteUserId))
             .FirstOrDefaultAsync(ct)!;
 
-    private bool EsSuperAdmin() =>
+    /// <summary>¿Tiene el permiso de administración del módulo (sin mirar empresas)?</summary>
+    private bool TienePermisoAdminTickets() =>
         _currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Quién puede CREAR/EDITAR/MOVER tareas: el administrador global, un resolutor del módulo
-    /// o el responsable del caso. El solicitante ve las tareas pero no las toca.
+    /// ¿ADMINISTRA los tickets de la empresa del caso? (<c>tickets.admin</c> de su empresa activa; el
+    /// admin global, de todas). Es el permiso que corrige registros ajenos, más estricto que gestionar.
     /// </summary>
-    private bool PuedeGestionar(CasoMeta caso) =>
-        EsSuperAdmin()
-        || _currentUser.Permissions.Contains("tickets.gestionar", StringComparer.OrdinalIgnoreCase)
-        || (_currentUser.UserGuid.HasValue && caso.AssignedToUserGuid == _currentUser.UserGuid.Value);
+    private async Task<bool> AdministraCasoAsync(CasoMeta caso) =>
+        TicketAlcanceAdministracionCalculos.Cubre(
+            TicketAlcanceAdministracionCalculos.AlcanceAdministracion(_currentUser.EsAdminEmpresas, _currentUser.Permissions),
+            await GetEffectiveCompanyIdAsync(), caso.CompanyId);
+
+    /// <summary>
+    /// Quién puede CREAR/EDITAR/MOVER tareas: quien administra o gestiona los tickets de la empresa DEL
+    /// CASO (el admin global, todas) o el responsable del caso. El solicitante ve las tareas pero no las
+    /// toca. Antes bastaba el permiso, sin mirar de qué empresa era el caso
+    /// (<see cref="TicketAlcanceAdministracionCalculos.PuedeGestionarCaso"/>).
+    /// </summary>
+    private async Task<bool> PuedeGestionarAsync(CasoMeta caso) =>
+        TicketAlcanceAdministracionCalculos.PuedeGestionarCaso(
+            _currentUser.EsAdminEmpresas, _currentUser.Permissions,
+            await GetEffectiveCompanyIdAsync(), caso.CompanyId,
+            asignadoAMi: _currentUser.UserGuid.HasValue && caso.AssignedToUserGuid == _currentUser.UserGuid.Value);
 
     /// <summary>
     /// Quién puede VER las tareas: quien puede ver el caso — su creador, el solicitante a cuyo
@@ -110,7 +136,7 @@ public partial class TicketTareaService : ITicketTareaService
     /// </summary>
     private async Task<bool> PuedeVerAsync(CasoMeta caso, CancellationToken ct)
     {
-        if (PuedeGestionar(caso)) return true;
+        if (await PuedeGestionarAsync(caso)) return true;
 
         if (caso.CreatedByUserId != 0 && caso.CreatedByUserId == _currentUser.UserId) return true;
         if (caso.SolicitanteUserId is { } sol && sol != 0 && sol == _currentUser.UserId) return true;
@@ -121,10 +147,10 @@ public partial class TicketTareaService : ITicketTareaService
             if (caso.CreatedByUserGuid == miGuid.Value) return true;
             if (caso.SolicitanteUserGuid == miGuid.Value) return true;
 
-            return await _ctx.TicketResolutores.AsNoTracking()
-                .AnyAsync(r => r.UserId == miGuid.Value && r.Activo &&
-                               r.Tipo == caso.Tipo &&
-                               (r.PaisId == null || r.PaisId == caso.PaisId), ct);
+            // Resolutor directo cuyo perfil aplica al caso: mismo filtro de empresa/alcance que el
+            // desplegable (antes no miraba la empresa del caso).
+            return await TicketAsignablesConsulta.EsResolutorDirectoAsync(
+                _ctx, miGuid.Value, caso.Tipo, caso.PaisId, caso.CompanyId, ct);
         }
 
         return false;
@@ -135,7 +161,7 @@ public partial class TicketTareaService : ITicketTareaService
     {
         var caso = await CargarCasoAsync(ticketId, ct);
         if (caso is null) return null;
-        if (!PuedeGestionar(caso))
+        if (!await PuedeGestionarAsync(caso))
             throw new InvalidOperationException("No tenés permisos para gestionar las tareas de este caso.");
         return caso;
     }

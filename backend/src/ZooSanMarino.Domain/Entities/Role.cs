@@ -14,6 +14,14 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool IsCompanyAdmin { get; set; }
 
+        /// <summary>
+        /// Qué tipos de ticket puede ABRIR quien tenga este rol: NORMAL | IMPLEMENTADOR (ver
+        /// <c>NivelTicket</c>). NULL = el rol no define ⇒ NORMAL, igual que antes de existir la
+        /// columna. Es lo opuesto a la plantilla de resolutor (quién ATIENDE): dar nivel de apertura
+        /// NUNCA convierte a nadie en resolutor.
+        /// </summary>
+        public string? TicketNivelCreacion { get; set; }
+
         // N:M con usuarios
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 

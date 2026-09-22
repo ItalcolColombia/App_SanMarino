@@ -8321,7 +8321,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("hembra_viva");
 
-                    b.Property<int>("LoteId")
+                    b.Property<string>("LoteId")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("lote_id");
 
@@ -8673,6 +8674,11 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<string>("TicketNivelCreacion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ticket_nivel_creacion");
 
                     b.HasKey("Id")
                         .HasName("pk_roles");
@@ -10866,6 +10872,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("activo");
 
+                    b.Property<string>("Alcance")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("EMPRESA")
+                        .HasColumnName("alcance");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("integer")
                         .HasColumnName("company_id");
@@ -10930,6 +10944,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("activo");
+
+                    b.Property<string>("Alcance")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("EMPRESA")
+                        .HasColumnName("alcance");
 
                     b.Property<int>("CompanyId")
                         .HasColumnType("integer")

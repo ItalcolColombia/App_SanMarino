@@ -38,6 +38,12 @@ enum TipoFallo {
 
   /// 403, 404, 5xx y demás.
   servidor,
+
+  /// La sesión no se pudo verificar por una indisponibilidad temporal del backend.
+  validacionSesionIndisponible,
+
+  /// El servidor pidió esperar antes de continuar.
+  limiteExcedido,
 }
 
 class ApiError implements Exception {
@@ -48,7 +54,7 @@ class ApiError implements Exception {
   final int? status;
 
   /// Sólo estos dos justifican reintentar más tarde sin tocar nada.
-  bool get esReintentable => tipo == TipoFallo.sinRed || tipo == TipoFallo.servidor;
+  bool get esReintentable => tipo == TipoFallo.sinRed || tipo == TipoFallo.servidor || tipo == TipoFallo.validacionSesionIndisponible || tipo == TipoFallo.limiteExcedido;
 
   @override
   String toString() => mensaje;
@@ -71,10 +77,19 @@ class ApiClient {
               // El backend responde el login como text/plain y los errores como
               // JSON: se procesa el cuerpo a mano según el caso.
               responseType: ResponseType.plain,
+              followRedirects: false,
+              maxRedirects: 0,
               // Los status de error los traduce [_traducir], no una excepción de Dio.
               validateStatus: (_) => true,
             )) {
+    if (!ApiConfig.transporteSeguroEnRelease) {
+      throw StateError('API_BASE_URL debe usar HTTPS en una compilación release');
+    }
     _dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      if (!_esDestinoApi(options.uri)) {
+        handler.reject(DioException(requestOptions: options, error: 'Destino HTTP no autorizado'));
+        return;
+      }
       options.headers.addAll(_headers(esLogin: options.path.contains('/Auth/login')));
       handler.next(options);
     }));
@@ -111,12 +126,25 @@ class ApiClient {
     final u = _sesion.usuario;
     if (u == null) return h;
 
-    if (u.token.isNotEmpty) h['Authorization'] = 'Bearer ${u.token}';
+    if (!esLogin && u.token.isNotEmpty) h['Authorization'] = 'Bearer ${u.token}';
+    final platformKey = u.platformKey;
+    if (!esLogin && platformKey != null && platformKey.isNotEmpty) {
+      h['X-Secret-Up'] = platformKey;
+    }
+    if (esLogin) return h;
     h['X-Active-Company'] = u.companyName;
     if (u.companyId != null) h['X-Active-Company-Id'] = '${u.companyId}';
     if (u.paisId != null) h['X-Active-Pais'] = '${u.paisId}';
     if (u.paisNombre.isNotEmpty) h['X-Active-Pais-Nombre'] = u.paisNombre;
     return h;
+  }
+
+  bool _esDestinoApi(Uri uri) {
+    final base = Uri.tryParse(ApiConfig.baseUrl);
+    if (base == null || base.scheme != uri.scheme || base.host.toLowerCase() != uri.host.toLowerCase() || base.port != uri.port) return false;
+    final prefijo = base.path.replaceFirst(RegExp(r'/+$'), '');
+    final ruta = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    return prefijo.isNotEmpty && (ruta == prefijo || ruta.startsWith('$prefijo/'));
   }
 
   /// GET que devuelve el cuerpo crudo. El llamador decide si es JSON o base64 cifrado.
@@ -163,6 +191,14 @@ class ApiClient {
       return ApiError(TipoFallo.sesionVencida, mensaje, status: status);
     }
 
+    final errorCode = _codigoDelBackend(cuerpo);
+    if (status == 503 && errorCode == 'session-validation-unavailable') {
+      return ApiError(TipoFallo.validacionSesionIndisponible, mensaje, status: status);
+    }
+    if (status == 429) {
+      return ApiError(TipoFallo.limiteExcedido, mensaje, status: status);
+    }
+
     // El duplicado se detecta por CONTENIDO, no por status. Engorde lo traduce a
     // un 400 legible, pero el controller de reproductora deja escapar la
     // violación del índice único como 500 con el `23505` crudo de Postgres. Si
@@ -175,6 +211,15 @@ class ApiClient {
       return ApiError(TipoFallo.datosInvalidos, mensaje, status: status);
     }
     return ApiError(TipoFallo.servidor, mensaje, status: status);
+  }
+
+  static String? _codigoDelBackend(String cuerpo) {
+    try {
+      final json = jsonDecode(cuerpo);
+      return json is Map && json['errorCode'] is String ? json['errorCode'] as String : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Texto único para el duplicado: el del 500 de reproductora es el error crudo

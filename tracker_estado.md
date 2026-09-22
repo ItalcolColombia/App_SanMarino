@@ -8780,6 +8780,59 @@ que el flag quede ortogonal a `permite_multiples_seguimientos_diarios` (no acopl
 
 ---
 
+## PERFIL-TICKETS-AL-CREAR — Pestaña "Tickets" alcanzable al crear un usuario, no solo al editar (16-sep-2026)
+
+Plan: [`fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md`](fase_de_desarrollo/usuario_nuevo_perfil_tickets_al_crear_plan.md)
+
+Reporte del usuario: en Santa Reyes, usuarios nuevos no pueden abrir un ticket que le llegue a él
+("verlo como desarrollador global"). Causa raíz (no es específico de Santa Reyes): un usuario nuevo
+nace con nivel de tickets `NORMAL` (solo Soporte/Dudas) y la única forma de subirlo a
+`IMPLEMENTADOR` (habilita Desarrollo/Requerimiento) es la pestaña "Tickets" del modal de Usuarios,
+que hoy solo se muestra en modo EDICIÓN — al crear, el modal cierra solo sin dar esa opción.
+
+- [x] F1. `modal-create-edit.component.ts`: nuevo `@Output() userCreated`; en el `next` de
+      `create()` emitir `userCreated` + `activeTab='tickets'` + toast, sin cerrar el modal;
+      `resetForm()` vuelve `activeTab` a `'personal'`.
+- [x] F2. `user-management.component.ts`: `onUserCreated(user)` setea `editingUser = user` sin
+      tocar `modalOpen`.
+- [x] F3. `user-management.component.html`: bindear `(userCreated)="onUserCreated($event)"`.
+- [x] F4 (encontrado en el smoke, no estaba en el plan). `POST /api/Users` responde con forma de
+      `AuthResponseDto` (`userId`/`username`), no `UserDto` (`id`/`email`) como el resto de los
+      endpoints de usuario. Sin mapear, `editingUser!.id` quedaba `undefined` (`GET /api/Users/undefined`
+      404) y, tras arreglar eso, `editingUser?.email` (fuente de `loadUserData()` para el campo email
+      del form) también quedaba vacío y el form nacía inválido con el botón Guardar deshabilitado.
+      Fix: `const usuarioCreado: UserListItem = { ...result, id: result?.id ?? result?.userId, email:
+      result?.email ?? result?.username }` antes de emitir `userCreated`. Flaggeado para revisión de
+      fondo del contrato del endpoint (no se toca en este fix, es puro parche de consumo en el front).
+- [x] V1. `yarn build` (front): **0 errores**, 2 veces (antes y después de F4).
+- [x] V2. Smoke real en navegador (Browser pane, back :5002 + front :4200 locales, BD local),
+      sesión minteada a mano (JWT HS256 + fila en `sesiones_activas`, ver [[smokes-y-testigos]]) para
+      el usuario real Admin/company 1 (`Jose Moises Desarrollo`, el propio usuario detrás de esta
+      sesión). 3 usuarios de prueba creados end-to-end contra el backend real (rol "Supervisor de
+      Granja", CERO permisos en company 1 — el caso que antes quedaba mudo):
+      1er intento reveló F4 (id undefined → 404, toast "No se pudo cargar el perfil"); 2do intento
+      reveló la mitad de F4 que faltaba (email undefined → form inválido → botón Guardar
+      deshabilitado); 3er intento **end-to-end limpio**: crear → modal se queda abierto en modo
+      edición → salta solo a pestaña "Perfil de Atención" → sin toast de error → radio Implementador
+      → "Actualizar" → `PUT /api/Users/{id}` 200 + `PUT /api/ticket-perfiles/usuario/{id}` 200 → modal
+      cierra → verificado en BD (`ticket_perfil_usuario.nivel = 'IMPLEMENTADOR'` para el usuario
+      recién creado, algo imposible de lograr antes de este fix sin un segundo viaje manual a
+      editarlo). Confirmado además que "Crear Usuario" en una apertura posterior arranca en pestaña
+      Personal (no quedó pegado en Tickets). Limpieza: 3 usuarios de prueba borrados por la UI (`DELETE
+      /api/Users/{id}` 204 ×3), 1 fila huérfana de `ticket_perfil_usuario` y 2 filas de
+      `sesiones_activas` del smoke borradas a mano, verificado 0 rastros en BD. Backend y frontend
+      locales detenidos, puertos 5002/4200 confirmados libres.
+- [x] V1b. Re-validación 21-sep-2026 antes de commitear, sobre `main` = `origin/main` (`753644a`), que ya
+      trae el editor de tickets reescrito por TICKETS-ABRIR-VS-ATENDER (① ABRIR / ② ATENDER, `3477d3e`):
+      los archivos del modal no los tocó ese cambio y el gate de la pestaña
+      (`activeTab === 'tickets' && isEditing && editingUser && !soloLectura`) sigue igual. `yarn build`
+      con Node portable 22.23.1: **0 errores, 0 advertencias**. El smoke de V2 NO se repitió con el
+      editor nuevo.
+- [x] V3. Commit acotado a los archivos de esta fase (3 del front, el plan y solo este bloque del
+      tracker; los bloques de otras sesiones quedan intactos en el árbol). Sin push ni deploy.
+
+---
+
 ## Fix CI: fixture de test desincronizado tras `permiteSeguimientoDiarioParcial`
 
 Plan: [seguimiento_diario_campos_opcionales_plan.md](fase_de_desarrollo/seguimiento_diario_campos_opcionales_plan.md) (feature ya cerrada arriba, F1).
@@ -9030,13 +9083,133 @@ depende de la persona y 3 de 4 usuarios de Santa Reyes + 2 de Panamá no pueden 
 país NULL; `api/ticket-perfiles` y `api/tickets/global` sin gate).
 
 - [x] P1. Diagnóstico medido y plan escrito (F1 empresa correcta + gates + datos · F2 abrir por rol · F3 alcance EMPRESA/GLOBAL · F4 `tickets.admin` ≠ global).
-- [ ] D1. Decisiones del usuario: cómo se define «puede abrir» por rol; quién atiende Soporte/Dudas en Santa Reyes y Panamá; rol Costos; F4.
-- [ ] F1. `TicketPerfilEmpresaCalculos` + `TicketPerfilAutorizacionCalculos` (+ tests), service resuelve la empresa del usuario/rol, gates en `ticket-perfiles` y `tickets/global`, migración data-only de corrección, `verificar_perfiles_tickets_empresa.sql`.
-- [ ] F2. `roles.ticket_nivel_creacion` + `TicketNivelEfectivoCalculos` (+ tests de equivalencia), editor con bloques ① Abrir / ② Atender, estado vacío en «Nuevo caso».
-- [ ] F3. `alcance` EMPRESA/GLOBAL + migración (Admin/DESARROLLO → una fila GLOBAL), una sola fórmula de asignable (desplegable, crear, transferir, ver), sin copia de plantilla al asignar roles, siembra de empresa nueva, selector «Esta empresa / Todas las empresas».
-- [ ] F4. (según decisión) alcance de todas las empresas solo con `AdminEmpresas`.
-- [ ] V1. `dotnet build` + `dotnet test`, `yarn build`, gate de SQL por migración.
-- [ ] V2. Migraciones en BEGIN…ROLLBACK sobre la copia (2 pasadas) + verificador antes/después.
-- [ ] V3. Smoke API + UI con backend aislado sobre un clon (Lenin, Diego, Alexander, Costos, 403 de gates, empresa nueva).
-- [ ] V4. Sin procesos huérfanos.
-- [ ] C1. Commits acotados a mis archivos (sin push ni deploy).
+- [x] D1. Decisiones del usuario: «puede abrir» por rol (pestaña Tickets del rol) · Soporte/Dudas de Santa Reyes y Panamá los configura él después · rol Costos: apagar el resolutor y darle Implementador · F4 entra en esta entrega.
+- [x] B1. Cálculos puros + tests xUnit: `TicketPerfilEmpresaCalculos` (9), `TicketPerfilAutorizacionCalculos` (8), `TicketNivelEfectivoCalculos` (15), `TicketResolutorAlcanceCalculos` (16), `TicketAlcanceAdministracionCalculos` (13).
+- [x] B2. Dominio y EF: `TicketAlcance` (EMPRESA/GLOBAL), `alcance` en `ticket_resolutores` / `ticket_resolutor_rol`, `Role.TicketNivelCreacion` + configuraciones.
+- [x] B3. `TicketAsignablesConsulta`: UNA sola fórmula de «quién puede recibir» para el desplegable, `CreateAsync`, `TransferirAsync` y la visibilidad del caso (antes tres reglas distintas; la API aceptaba a quien el desplegable no ofrecía).
+- [x] B4. `TicketPerfilService` reescrito: empresa del usuario/rol (no la del que edita), gate con 403 y motivo, `companyId` opcional para el admin global, DTO con `companyId`/`companyName`/`nivelPorRol`/`puedeElegirGlobal`, nivel efectivo = mayor(permiso, roles, perfil).
+- [x] B5. `ICurrentUser.EsAdminEmpresas` (misma regla que la policy `AdminEmpresas`) en `HttpCurrentUser`.
+- [x] B6. Se retira la COPIA de la plantilla del rol al asignar roles (`UserService`) y con ella `SeedPerfilDesdeRol` / `ReaplicarPlantillaRol`, sus endpoints y el botón.
+- [x] B7. F4: `tickets.admin` administra su empresa activa y solo el admin global todas — tablero/roadmap/panel, `GET api/tickets/global` (que además ahora EXIGE `tickets.admin`; antes no pedía nada), detalle, gestión del caso, tareas, tiempos y «a nombre de».
+- [x] B8. Siembra de empresa nueva: omite los tipos que ya cubre una fila GLOBAL.
+- [x] M1. `20260920010340_AddAlcanceYNivelCreacionTickets` (DDL idempotente + CHECK). Se le quitó el `AlterColumn` de `produccion_resultado_levante.lote_id` que EF quiso arrastrar (deriva previa del modelo, ajena) y el snapshot quedó sin ese cambio.
+- [x] M2. `20260920010400_CorregirEmpresaYAlcanceConfiguracionTickets` (data-only, Designer clonado): muda/apaga los perfiles fuera de su empresa, apaga la fila del rol en empresa ajena y le da el nivel, y convierte `Admin`/DESARROLLO en una fila GLOBAL apagando las 4 copias.
+- [x] M3. `backend/sql/verificar_perfiles_tickets_empresa.sql` (solo lectura, congela/compara): perfiles y plantillas fuera de su empresa, resolutores directos ajenos, filas GLOBAL vigentes, copias redundantes y **usuarios mudos por empresa**.
+- [x] F1. Front: `ticket-perfil.service.ts` (alcance, nivelCreacion, companyId), editor reescrito con ① ABRIR / ② ATENDER separados, selector «Esta empresa / Todas las empresas (Global)» (Global solo para el admin global, por `isSuperAdmin` o rol exacto — se elimina el `includes('admin')`), selector de empresa para el admin global, y mensajes del backend a la vista.
+- [x] F2. `funciones/estado-resolutores.funcion.ts` + spec (8 pruebas, 17 aserciones — antes decía «13 casos») y README de la carpeta; `role-management` guarda por `construirRequestRol()` y avisa el error; «Nuevo caso» muestra un aviso cuando no hay ningún tipo disponible (antes: formulario mudo).
+- [x] V1. `dotnet build` de la API (con Infrastructure y Application): 0 errores. `dotnet test`: Application.Tests 4.417/4.419 y Domain.Tests 1/1 — los 2 rojos son los conocidos `RazaGuiaAliasParidadSqlTests` por compilar con `--artifacts-path` fuera del repo (leen el espejo `.sql` subiendo desde el binario), no tienen relación con este cambio.
+- [x] V2. Migración de datos probada sobre un clon de la copia real, dos pasadas: 1.ª muda 4 perfiles, apaga la fila de Costos y le da Implementador, convierte 1 fila a GLOBAL y apaga 4 copias; 2.ª **0 filas**. Verificador antes/después: perfiles activos fuera de su empresa 4 → **0**, plantillas no esperadas en empresa ajena 1 → **0**, filas GLOBAL 0 → 1, copias redundantes 0, usuarios mudos Santa Reyes 3 → **2** y Panamá 11 → **9** (los que quedan dependen de la decisión pendiente de quién atiende Soporte/Dudas).
+- [x] V3. Smoke de API **diferencial** (21-sep, sobre `main` = `753644a`): binario viejo `e4bfeb1` en :5501 sobre un clon y binario nuevo en :5502 sobre otro, con las **6 migraciones pendientes aplicadas por la app al arrancar** (las 2 de tickets incluidas, sin errores); `pg_stat_activity` = solo los clones. Los 8 casos del plan, antes → después: (1) Lenin `[]` → Desarrollo «Jose Moises · Global» + Requerimiento «Jose Moises · Santa Reyes» (esa etiqueta es correcta: la fila `Admin`/REQUERIMIENTO de la empresa 6 sigue siendo de empresa; el plan decía «Global» para las dos); (2) Diego `[]` → Desarrollo/Requerimiento solo por poner su ROL en Implementador, su usuario intacto (0 perfiles/0 resolutores antes y después) y ausente de los asignables de los 4 tipos; (3) Sanmarino: Alexander «Global» → «Agroavicola Sanmarino»; Isaac y Rafael (Costos, Panamá) estaban en DESARROLLO —no en Soporte— y desaparecen; (4) admin parado en Sanmarino edita a un usuario de Santa Reyes: la fila iba a la empresa 1 → va a la 6 y la respuesta dice «Santa Reyes»; (5) Lenin: PUT de su propio perfil 200 → **403**, `GET /api/tickets/global` 200 con los **199 casos de todas las empresas** → **403**; (6) Admin Santa Reyes: GLOBAL → 403, resolutor de su empresa → 200 (`SOPORTE|6|EMPRESA`); (7) empresa nueva: 4 filas por empresa con DESARROLLO → 3 sin DESARROLLO y Desarrollo asignable «Jose Moises · Global»; (8) Ecuador y Demo: mismas personas por tipo, solo cambia la etiqueta. Verificador sobre un 3er clon recién migrado por la app: perfiles fuera de su empresa 4 → 0, plantilla ajena no esperada → 0, GLOBAL 1, copias 0, mudos Santa Reyes 2 y Panamá 9 (idéntico a V2).
+- [x] V4. `ng build` del front sobre el merge con `441cf8f`: 0 errores/0 advertencias (el error de `auth.interceptor.ts` ya no está). `ng test --include` del spec nuevo: **8/8 SUCCESS**.
+- [x] V5. Sin procesos huérfanos: APIs :5501/:5502/:5503 detenidas (solo las propias, por `CommandLine`), Karma :9876 libre, servidores MSBuild/compilador apagados; los 3 clones borrados (`pg_database` = 0); junction de `node_modules` quitada con `rmdir` y `subst X:` deshecho; tokens borrados. La BD compartida sin rastro: 0 migraciones nuevas, 0 sesiones de smoke, 0 empresas de prueba.
+- [x] C1. Commits acotados a mis archivos: `42dc6ec`, `3477d3e`, `4d23619` (en `origin/main` desde `753644a`) + el cierre de V3–V5 (`git log --grep="cierra V3"`). Sin deploy: las 2 migraciones corren solas al arrancar cuando esto llegue a `main-produccion`.
+
+---
+
+## LEVANTE-LOTEID-DERIVA — `produccion_resultado_levante.lote_id` ensucia toda migración nueva (19-sep-2026)
+
+Plan: [produccion_resultado_levante_lote_id_deriva_modelo_plan.md](fase_de_desarrollo/produccion_resultado_levante_lote_id_deriva_modelo_plan.md)
+
+Cada `dotnet ef migrations add` de cualquier sesión arrastra un `AlterColumn` a `character varying(64)`
+que nadie pidió, y hoy la única defensa es acordarse de borrarlo a mano.
+
+- [x] P1. Diagnóstico medido: BD `lote_id text NOT NULL`, 11 filas, largo máx. 2, 0 no numéricos; único escritor `sp_recalcular_seguimiento_levante(l_lote_id text)`; único lector C# `GetResultadoAsync` (keyless). El tipo ya lo decidió `20260912130000` (`text`, `Down` vacío a propósito). Causa del `64`: `HasConversion<string>()` sobre `int` = `NumberToStringConverter<int>`, *mapping hints* `size: 64`.
+- [x] P2. Plan escrito + bloque propio en el tracker (sin tocar el de otras sesiones).
+- [x] B1. `ProduccionResultadoLevanteConfig`: `.HasColumnType("text")` + comentario con la causa. Sin DDL: la BD ya es `text`.
+- [x] V1. Gate de la deriva: migración descartable ANTES = el `AlterColumn` a `character varying(64)` reportado; DESPUÉS = `Up`/`Down` vacíos; una segunda (idempotencia) = vacía y snapshot byte a byte idéntico. El snapshot queda en la forma canónica de EF (`Property<string>` + `IsRequired()`, sigue `text`: sin DDL). `has-pending-model-changes`: «No changes have been made to the model since the last migration». Limpieza a mano, sin `migrations remove`.
+- [x] V2. `dotnet build` de la solución: 0 advertencias / 0 errores. `dotnet test`: Application.Tests 4.419/4.419 y Domain.Tests 1/1. Gate `verificar-sql-llega-por-migracion.js`: OK.
+- [x] V3. Lectura real con el modelo EF compilado contra la copia local (programa descartable en el scratchpad, solo `SELECT`): el modelo calcula `text` sin largo, el SQL es `WHERE p.lote_id = @loteId` con `@loteId='13'`, y devuelve las mismas 7 filas que psql, valor por valor.
+- [x] V4. Sin procesos huérfanos: no se levantó backend (:5002/:5501 libres), servidores MSBuild/compilador apagados (`dotnet build-server shutdown`, 0 procesos), sin archivos `ZZZ*` en `Migrations/`.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="deriva de produccion_resultado_levante"`); `.devpilot/events.jsonl` queda fuera. Sin push ni deploy: no hay migración, el cambio es solo de metadatos del modelo.
+
+Nota para otras sesiones: hasta que esta rama llegue a `main`, las demás ramas siguen viendo el `AlterColumn` y tienen que seguir sacándolo a mano.
+
+---
+
+## USERS-CREATE-USERDTO — `POST /api/Users` responde `UserDto`, no `AuthResponseDto` (retomado 21-sep-2026)
+
+Plan: [users_create_endpoint_userdto_plan.md](fase_de_desarrollo/users_create_endpoint_userdto_plan.md) (ver la «Revisión 21-sep» al principio).
+
+Arrancado el 16-sep en el worktree `strange-babbage` (WIP guardado en `claude/strange-babbage-dbf369` → `9695d2f`).
+`UsersController.Create` reusa `_auth.RegisterAsync` (el del login): responde forma de sesión (`token`,
+`platformKey`, `menu`…) y emite un JWT + fila fantasma en `sesiones_activas` para el usuario recién creado.
+Decisión del usuario: fix de raíz (usar `_userService.CreateAsync`), no parche aditivo.
+
+- [x] P1. Plan re-verificado contra `main` de hoy: el controller CONSERVA `RegisterDto` (su validación de entrada —contraseña ≥ 8 con letra y número, email con formato, anti-inyección— no existe en `CreateUserDto`); la siembra de perfiles de tickets ya no existe (`42dc6ec`); diferencias Register vs Create re-medidas.
+- [x] B1. `AltaUsuarioCalculos.DesdeRegistro(RegisterDto) → CreateUserDto` (Application, puro) + `AltaUsuarioCalculosTests` (11 casos: mapeo completo, granjas siempre vacías, plataforma, roles null → vacío, zona null, y guarda de que `RegisterDto` sigue rechazando contraseña débil —`abc123`, sin número, sin letra— y email sin formato).
+- [x] B2. DTOs: `CreateUserDto.IsPlatformUser` y `UserDto.Email`/`EmailSent`/`EmailQueueId` (opcionales al final).
+- [x] B3. `UserService` (WIP de `9695d2f` aplicado con 3-way; 2 conflictos con `42dc6ec` resueltos: constructor sin `ITicketPerfilService` y sin la siembra de perfiles): `IEmailService` inyectado; `CreateAsync` con `IsEmailLogin = !IsPlatformUser` + correo de bienvenida best-effort + `Email`/`EmailSent`/`EmailQueueId`; `GetAllAsync`/`GetByIdAsync`/`UpdateAsync` devuelven `Email`.
+- [x] B4. `UsersController.Create`: sigue con `[FromBody] RegisterDto`, llama a `CreateAsync(AltaUsuarioCalculos.DesdeRegistro(dto))`, `ProducesResponseType(UserDto)`.
+- [x] F1. Front: sin cambio funcional; comentario del parche de `120a646` actualizado (tolerancia para la ventana del deploy). Chequeo de sintaxis TS del archivo: 0 errores.
+- [x] V1. `dotnet build` de la solución: 0 errores / 0 advertencias. `dotnet test`: Application.Tests **4.430/4.430** (11 nuevos) y Domain.Tests 1/1.
+- [x] V2. Smoke local contra el back nuevo (`backend-nobuild`, BD local), **17/17**: `POST /api/Users` → 201 con `id`/`email`/`roles`/`companyIds` y SIN `token`/`platformKey`/`menu`/`permisos`/`userId`; correo de bienvenida encolado (`emailSent=true`, `emailQueueId` real) e `is_email_login=true`; **0 filas en `sesiones_activas` para el usuario nuevo** (total 1690 → 1690); `GET /api/Users/{id}`, `GET /api/Users` y `PUT /api/Users/{id}` devuelven el mismo `email`; plataforma → 201 sin correo, `is_email_login=false` y sin fila en `email_queue`; email duplicado → 400 «El correo ya está registrado.»; contraseña `abc123` y email sin formato → 400 por la validación de `RegisterDto`; el usuario recién creado **inicia sesión** por `/api/Auth/login` (body cifrado como el front) y recibe token. Limpieza: 2 `DELETE /api/Users` → 204, sesiones y cola de correo del smoke borradas, 0 rastros en BD. En dev `Email:Queue:Enabled=false`: ningún correo salió.
+- [x] V3. Sin procesos huérfanos: back detenido, puertos 5002/4200 libres, build-server apagado, 0 `dotnet` vivos.
+- [x] C1. Commit acotado a mis archivos (sin push ni deploy).
+
+Pendiente del usuario (no es código): OK para push. Al desplegar, el front y el back viajan juntos; el `??` del modal tolera el orden en que lleguen. La rama `claude/strange-babbage-dbf369` (WIP) queda obsoleta: se puede borrar.
+
+---
+
+## MAKE-DEV — `make dev` no levantaba nada por la ruta con espacio (22-sep-2026)
+
+Plan: [make_dev_ruta_con_espacio_plan.md](fase_de_desarrollo/make_dev_ruta_con_espacio_plan.md)
+
+- [x] D1. Bajar back/front vivos (no había ninguno: :5002 y :4200 libres; los `node.exe` vivos son MCP/Codex, no se tocan).
+- [x] D2. Reproducir: `Start-Process -ArgumentList` no pone comillas → `-File C:\Users\SAN` (exit -196608).
+- [x] I1. `dev.ps1`: ruta de cada script entre comillas; `make dev` corre `dev-kill-back.cmd` antes.
+- [x] V1. `make dev` real desde PowerShell: en 116 s :5002 (Swagger 200, `/api/Farm` 401) y :4200 (200); `dev.ps1` ASCII puro y sin errores de parseo. Antes, sueltos: `dev-back.ps1` tardó 25 min en compilar (VBCSCompiler 6,7 GB con 0,4-1,5 GB de RAM libre, paginando), `dev-front.ps1` 311 s.
+- [x] R1. Procesos de prueba bajados (árbol completo, puertos libres antes de `make dev`); las ventanas de `make dev` quedan arriba a pedido del usuario. Commit solo de lo propio.
+
+---
+
+## JWT-FIRMA-PRODUCCION — Clave propia por TaskDef y guarda de arranque (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md)
+
+- [x] A1. Auditoría: `appsettings.json` (clave `Development_Only`) viaja en la imagen; snapshots `backend/deploy/*.json` con `JwtSettings__Key` en claro; AWS local vencido (no se lee la TaskDef viva).
+- [x] I1. `JwtClaveProduccionCalculos` + llamada en `Program.cs` solo en `Production`.
+- [x] I2. Tests xUnit `JwtClaveProduccionCalculosTests` (leen las claves reales de los `appsettings*.json` versionados + el placeholder del ejemplo).
+- [x] I3. Ejemplo completo `backend/deploy/jwt-produccion.example.md` (Secrets Manager recomendado, variable directa como alternativa, IAM, verificación).
+- [x] V1. `dotnet test` Application.Tests 4446/4446 (16 nuevos) + `dotnet build` API 0 err / 0 warn (artifacts propios, 9 min 41 s). Smoke del binario en `Production` con BD falsa: sin `JwtSettings__Key` no arranca y el mensaje no trae la clave; con clave aleatoria pasa la guarda (escucha y cae solo por la BD falsa). Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio. **Pendiente del usuario:** cargar la clave en AWS ANTES de desplegar este commit (ver `backend/deploy/jwt-produccion.example.md`).
+
+---
+
+## JWT-ROTACION-POR-DEPLOY — Clave nueva en cada deploy (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md) (sección «Fase 2»). Decisión del usuario: rotar en cada deploy.
+
+- [x] I1. `JwtOptions.PreviousKey` + `JwtRotacionClaveCalculos` + `IssuerSigningKeys` (actual + anterior) + guarda de producción para `PreviousKey`.
+- [x] I2. Workflow: `JWT_SECRET_ID` + «Verificar que la TaskDef lea la clave JWT de Secrets Manager» + «Rotar clave JWT» (solo job del back; el gate de la otra sesión no se toca).
+- [x] I3. Ejemplo reescrito: setup único (secreto con 2 versiones, IAM de los 2 roles, TaskDef con `AWSPREVIOUS`) + qué esperar en cada deploy + emergencia.
+- [x] V1. Application.Tests 4454/4454 (24 de JWT).
+- [x] V2. `dotnet build` del API OK (8 min, sin errores ni advertencias). Harness con el `Configure` REAL compilado: token de la clave actual y de la anterior → válido; otra clave y la de dos rotaciones atrás → inválido; sin `PreviousKey` = comportamiento previo. Smoke en `Production` (BD falsa): `PreviousKey` del repo o de 20 bytes → no arranca; dos aleatorias → escucha.
+- [x] V3. Expresión `jq` EXTRAÍDA del workflow (jq 1.7.1 oficial, SHA-256 verificado, borrado al terminar) contra 7 TaskDefs de prueba: pasa la correcta, corta sin PreviousKey / PreviousKey sin AWSPREVIOUS / Key en environment / otro secreto / sin secrets / Key apuntando a AWSPREVIOUS. `bash -n` del paso de rotación OK; YAML parsea y el orden de pasos es Obtener → Verificar → Rotar → Actualizar imagen → Desplegar; el gate de la otra sesión sigue.
+- [x] R1. Commit solo de lo propio (hunks del workflow separados: el gate de VALIDACION-CLAVES-PRODUCCION queda sin commitear en el working tree). **Pendiente del usuario:** setup de AWS ANTES del próximo push a `main-produccion` (`backend/deploy/jwt-produccion.example.md`).
+
+---
+
+## JWT-SIN-AWS-NUEVO — Rotación por deploy sin Secrets Manager ni IAM (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md) (sección «Fase 3»). El usuario no administra AWS: se quita todo lo que necesite servicios o permisos nuevos.
+
+- [x] Q1. Quitados del workflow `JWT_SECRET_ID`, «Verificar que la TaskDef lea la clave JWT de Secrets Manager» y «Rotar clave JWT (Secrets Manager)»: 0 menciones a `secretsmanager` / `AWSPREVIOUS`; el `env` del job volvió al original.
+- [x] I1. `backend/scripts/rotar-clave-jwt-taskdef.js` + test `node --test` (8/8); paso «Rotar clave JWT en la TaskDef» en el job del back, entre «Obtener task definition» y «Actualizar imagen».
+- [x] I2. API: `PreviousKey` inválida se ignora (no tumba el arranque); `Configure(options, jwt, esProduccion)`; `MotivoRechazo` vuelve a un solo parámetro y sin mencionar Secrets Manager.
+- [x] I3. Ejemplo reescrito: no hay nada que hacer en AWS; qué esperar; rotar a demanda desde GitHub Actions; cómo saber que rotó.
+- [x] V1. Paso EXTRAÍDO del workflow corrido sobre una TaskDef sintética en dos deploys encadenados: Key nueva de 88, PreviousKey = la de antes, sin duplicados, el resto de la TaskDef idéntico, 0 claves en la salida fuera de `::add-mask::`. YAML parsea; el gate de la otra sesión sigue.
+- [x] V2. Application.Tests 4459/4459; `dotnet build` API 0 err / 0 warn (10 min 49 s). Harness con el `Configure` REAL 9/9 (actual/anterior válidas; otra y dos atrás inválidas; anterior del repo ignorada en prod y aceptada en dev). Smoke `Production` con BD falsa: sin Key no arranca; Key + anterior del repo / anterior de 20 bytes / anterior aleatoria → arranca. Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear en el workflow). **Nada pendiente en AWS.**
+
+---
+
+## REVERSE-PROXY-POR-PIPELINE — `ReverseProxy:KnownNetworks` sin AWS (22-sep-2026)
+
+Plan: [reverse_proxy_known_networks_pipeline_plan.md](fase_de_desarrollo/reverse_proxy_known_networks_pipeline_plan.md)
+
+- [x] A1. Topología medida por DNS/cabeceras públicas: dominio = alias directo del ALB, sin CloudFront; `/api` = Kestrel.
+- [x] A2. Medido con el binario de hoy: con `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` y sin `ReverseProxy` el rate limit **se elude** (XFF inventado = contador nuevo); sin la variable, un contador para toda la empresa; con KnownNetworks RFC 1918, correcto.
+- [x] I1. `backend/scripts/confiar-proxy-alb-taskdef.js` + test `node --test` (8/8): agrega `ReverseProxy__KnownNetworks__0..2` RFC 1918 si no hay `ReverseProxy__*`; si hay, respeta; `ForwardLimit` intacto; idempotente.
+- [x] I2. Paso «Confiar en el ALB (ReverseProxy) en la TaskDef» después de la rotación JWT y antes de «Actualizar imagen». Sin cambios de C#, Dockerfile ni AWS.
+- [x] V1. Pasos EXTRAÍDOS del workflow (JWT + proxy) sobre TaskDef sintética en 2 deploys: el 1.º agrega las 3 redes, el 2.º las respeta (7 variables, sin duplicados) y la JWT rota las dos veces. YAML OK. Medición con las variables EXACTAS de esa TaskDef + `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`: mismo cliente con XFF inventado 99→98→97, otro cliente 99. Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear). **Nada pendiente en AWS.**

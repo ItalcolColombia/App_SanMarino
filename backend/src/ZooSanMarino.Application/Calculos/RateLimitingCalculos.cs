@@ -39,8 +39,9 @@ public static class RateLimitingCalculos
     /// El orden de <see cref="LimiteParaRuta"/> ya lo garantiza: auth se evalúa antes que Swagger.
     /// </para>
     /// </summary>
-    public static bool EsRutaAuth(string path) =>
-        path.Contains("/auth/login") || path.Contains("/auth/register") || path == "/swagger/token";
+    public static bool EsRutaAuth(string path) => path.TrimEnd('/').ToLowerInvariant() is
+        "/api/auth/login" or "/auth/login" or "/api/auth/register" or "/auth/register" or
+        "/api/auth/recover-password" or "/api/auth/reset-password" or "/swagger/token";
 
     public static bool EsRutaSwagger(string path) =>
         path.StartsWith("/swagger") || path.StartsWith("/swagger-ui");

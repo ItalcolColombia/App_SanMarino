@@ -14,6 +14,7 @@ public sealed class HttpCurrentUser : ICurrentUser
     public string? ActiveCompanyName { get; }
     public Guid? UserGuid { get; private set; }
     public IReadOnlyList<string> Permissions { get; private set; } = Array.Empty<string>();
+    public bool EsAdminEmpresas { get; private set; }
 
     public HttpCurrentUser(IHttpContextAccessor accessor)
     {
@@ -99,6 +100,12 @@ public sealed class HttpCurrentUser : ICurrentUser
             }
 
             Permissions = http.User.FindAll("permission").Select(c => c.Value).ToList().AsReadOnly();
+            // Misma regla que la policy "AdminEmpresas" (Program.cs): super admin por el dato o rol
+            // de administrador de la aplicación por nombre exacto.
+            EsAdminEmpresas = AdministracionEmpresasAutorizacionCalculos.PuedeAdministrarEmpresas(
+                AdministracionEmpresasAutorizacionCalculos.LeerMarcaSuperAdmin(
+                    http.User.FindFirst("is_super_admin")?.Value),
+                http.User.FindAll(ClaimTypes.Role).Select(c => c.Value));
             CompanyId = cid;
             UserId    = uid;
             UserGuid  = userGuid;

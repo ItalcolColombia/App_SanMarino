@@ -15,7 +15,12 @@ public record UserDto(
     bool     IsLocked,
     DateTime CreatedAt,
     DateTime? LastLoginAt,
-    string?  Zona = null
+    string?  Zona = null,
+    // Solo se completan al crear (ver UserService.CreateAsync); en GetAll/GetById/Update quedan
+    // null salvo Email, que se resuelve siempre desde el mismo join a UserLogins→Login.
+    string?  Email = null,
+    bool?    EmailSent = null,
+    int?     EmailQueueId = null
 );
 
 public record CreateUserDto(
@@ -29,7 +34,10 @@ public record CreateUserDto(
     int[]    CompanyIds,
     int[]    RoleIds,
     int[]    FarmIds,
-    string?  Zona = null
+    string?  Zona = null,
+    // Espejo de RegisterDto.IsPlatformUser: email sintético (@zootecnico.com), sin correo de
+    // bienvenida y con IsEmailLogin=false. Ver UserService.CreateAsync.
+    bool     IsPlatformUser = false
 );
 public record UpdateUserDto(
     string?  SurName,

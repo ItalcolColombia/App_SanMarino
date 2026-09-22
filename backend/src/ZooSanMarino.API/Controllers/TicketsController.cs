@@ -225,6 +225,7 @@ public class TicketsController : ControllerBase
     /// <remarks>Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.</remarks>
     [HttpGet("global")]
     [ProducesResponseType(typeof(PagedResult<TicketListItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedResult<TicketListItemDto>>> Admin(
         [FromQuery] int?    paisId         = null,
         [FromQuery] Guid?   assignedToGuid = null,
@@ -235,15 +236,27 @@ public class TicketsController : ControllerBase
         [FromQuery] int     page           = 1,
         [FromQuery] int     pageSize       = 20,
         CancellationToken ct = default)
-        => Ok(await _service.SearchAdminAsync(
-            new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize, assignedToGuid), ct));
+    {
+        // Todas las empresas: admin global. tickets.admin de una empresa: su empresa activa. Sin
+        // tickets.admin: 403 (antes cualquier sesión listaba los casos de todas las empresas).
+        try
+        {
+            return Ok(await _service.SearchAdminAsync(
+                new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize, assignedToGuid), ct));
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+    }
 
     /// <summary>Lista de resolutores con tickets asignados (para el dropdown de filtro del admin).</summary>
     /// <remarks>Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.</remarks>
     [HttpGet("global/resolutores")]
     [ProducesResponseType(typeof(IReadOnlyList<ResolutorListItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<ResolutorListItemDto>>> GetResolutoresAdmin(CancellationToken ct)
-        => Ok(await _service.GetResolutoresAdminAsync(ct));
+    {
+        try { return Ok(await _service.GetResolutoresAdminAsync(ct)); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+    }
 
     // ───────────────────────── Bandeja asignados ─────────────────────────
 
