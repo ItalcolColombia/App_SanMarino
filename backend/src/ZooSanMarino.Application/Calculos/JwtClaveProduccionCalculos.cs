@@ -35,23 +35,20 @@ public static class JwtClaveProduccionCalculos
 
     /// <summary>
     /// <c>null</c> si la clave sirve para producción; si no, el motivo para cortar el arranque.
-    /// <paramref name="nombre"/> es la clave de configuración que se evalúa (<c>JwtSettings:Key</c> o
-    /// <c>JwtSettings:PreviousKey</c>). El mensaje <b>nunca</b> incluye la clave.
+    /// El mensaje <b>nunca</b> incluye la clave.
     /// </summary>
-    public static string? MotivoRechazo(string? clave, string nombre = "JwtSettings:Key")
+    public static string? MotivoRechazo(string? clave)
     {
-        var variable = nombre.Replace(":", "__");
-
         if (string.IsNullOrWhiteSpace(clave))
-            return $"{nombre} no esta configurada en produccion. Definila en la TaskDef de ECS " +
-                   $"({variable} desde Secrets Manager; ver backend/deploy/jwt-produccion.example.md).";
+            return "JwtSettings:Key no esta configurada en produccion. La pone el deploy del pipeline en la " +
+                   "TaskDef de ECS (JwtSettings__Key); ver backend/deploy/jwt-produccion.example.md.";
 
         foreach (var marca in MarcasNoProductivas)
         {
             if (clave.Contains(marca, StringComparison.OrdinalIgnoreCase))
-                return $"{nombre} de produccion es una clave de ejemplo o de desarrollo del repositorio " +
-                       $"(contiene \"{marca}\"). Falta {variable} en la TaskDef de ECS o sigue con el " +
-                       "valor de ejemplo (ver backend/deploy/jwt-produccion.example.md).";
+                return $"JwtSettings:Key de produccion es una clave de ejemplo o de desarrollo del repositorio " +
+                       $"(contiene \"{marca}\"). Falta JwtSettings__Key en la TaskDef de ECS: el deploy del " +
+                       "pipeline la genera sola (ver backend/deploy/jwt-produccion.example.md).";
         }
 
         return null;

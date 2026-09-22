@@ -9186,3 +9186,17 @@ Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_pla
 - [x] V2. `dotnet build` del API OK (8 min, sin errores ni advertencias). Harness con el `Configure` REAL compilado: token de la clave actual y de la anterior → válido; otra clave y la de dos rotaciones atrás → inválido; sin `PreviousKey` = comportamiento previo. Smoke en `Production` (BD falsa): `PreviousKey` del repo o de 20 bytes → no arranca; dos aleatorias → escucha.
 - [x] V3. Expresión `jq` EXTRAÍDA del workflow (jq 1.7.1 oficial, SHA-256 verificado, borrado al terminar) contra 7 TaskDefs de prueba: pasa la correcta, corta sin PreviousKey / PreviousKey sin AWSPREVIOUS / Key en environment / otro secreto / sin secrets / Key apuntando a AWSPREVIOUS. `bash -n` del paso de rotación OK; YAML parsea y el orden de pasos es Obtener → Verificar → Rotar → Actualizar imagen → Desplegar; el gate de la otra sesión sigue.
 - [x] R1. Commit solo de lo propio (hunks del workflow separados: el gate de VALIDACION-CLAVES-PRODUCCION queda sin commitear en el working tree). **Pendiente del usuario:** setup de AWS ANTES del próximo push a `main-produccion` (`backend/deploy/jwt-produccion.example.md`).
+
+---
+
+## JWT-SIN-AWS-NUEVO — Rotación por deploy sin Secrets Manager ni IAM (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md) (sección «Fase 3»). El usuario no administra AWS: se quita todo lo que necesite servicios o permisos nuevos.
+
+- [x] Q1. Quitados del workflow `JWT_SECRET_ID`, «Verificar que la TaskDef lea la clave JWT de Secrets Manager» y «Rotar clave JWT (Secrets Manager)»: 0 menciones a `secretsmanager` / `AWSPREVIOUS`; el `env` del job volvió al original.
+- [x] I1. `backend/scripts/rotar-clave-jwt-taskdef.js` + test `node --test` (8/8); paso «Rotar clave JWT en la TaskDef» en el job del back, entre «Obtener task definition» y «Actualizar imagen».
+- [x] I2. API: `PreviousKey` inválida se ignora (no tumba el arranque); `Configure(options, jwt, esProduccion)`; `MotivoRechazo` vuelve a un solo parámetro y sin mencionar Secrets Manager.
+- [x] I3. Ejemplo reescrito: no hay nada que hacer en AWS; qué esperar; rotar a demanda desde GitHub Actions; cómo saber que rotó.
+- [x] V1. Paso EXTRAÍDO del workflow corrido sobre una TaskDef sintética en dos deploys encadenados: Key nueva de 88, PreviousKey = la de antes, sin duplicados, el resto de la TaskDef idéntico, 0 claves en la salida fuera de `::add-mask::`. YAML parsea; el gate de la otra sesión sigue.
+- [x] V2. Application.Tests 4459/4459; `dotnet build` API 0 err / 0 warn (10 min 49 s). Harness con el `Configure` REAL 9/9 (actual/anterior válidas; otra y dos atrás inválidas; anterior del repo ignorada en prod y aceptada en dev). Smoke `Production` con BD falsa: sin Key no arranca; Key + anterior del repo / anterior de 20 bytes / anterior aleatoria → arranca. Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear en el workflow). **Nada pendiente en AWS.**

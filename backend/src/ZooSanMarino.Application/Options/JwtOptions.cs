@@ -9,9 +9,10 @@ public sealed class JwtOptions
     public string Key { get; set; } = string.Empty;
 
     /// <summary>
-    /// Clave ANTERIOR: solo VALIDA, nunca firma. En producción llega de Secrets Manager
-    /// (<c>AWSPREVIOUS</c>) para que rotar la clave en cada deploy no deje afuera los tokens ya
-    /// emitidos. Opcional: vacía = solo se acepta <see cref="Key"/>.
+    /// Clave ANTERIOR: solo VALIDA, nunca firma. En producción la pone el deploy en la TaskDef
+    /// (<c>backend/scripts/rotar-clave-jwt-taskdef.js</c>) para que rotar la clave en cada deploy no
+    /// deje afuera los tokens ya emitidos. Opcional: vacía = solo se acepta <see cref="Key"/>. Si no
+    /// sirve se ignora (ver <c>JwtRotacionClaveCalculos</c>); nunca impide arrancar.
     /// </summary>
     public string? PreviousKey { get; set; }
 
@@ -29,8 +30,6 @@ public sealed class JwtOptions
     {
         if (string.IsNullOrWhiteSpace(Key) || Encoding.UTF8.GetByteCount(Key) < 32)
             throw new InvalidOperationException("JwtOptions.Key no configurado o demasiado corto (>= 32 bytes UTF-8).");
-        if (!string.IsNullOrWhiteSpace(PreviousKey) && Encoding.UTF8.GetByteCount(PreviousKey) < 32)
-            throw new InvalidOperationException("JwtOptions.PreviousKey demasiado corto (>= 32 bytes UTF-8).");
         if (string.IsNullOrWhiteSpace(Issuer))
             throw new InvalidOperationException("JwtOptions.Issuer no configurado.");
         if (string.IsNullOrWhiteSpace(Audience))

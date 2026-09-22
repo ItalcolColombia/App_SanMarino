@@ -14,7 +14,7 @@ public static class JwtAuthenticationConfiguration
 {
     private const string EstadoSesionItem = "jwt:estado-sesion";
 
-    public static void Configure(JwtBearerOptions options, JwtOptions jwt)
+    public static void Configure(JwtBearerOptions options, JwtOptions jwt, bool esProduccion)
     {
         jwt.EnsureValid();
         options.IncludeErrorDetails = false;
@@ -32,7 +32,7 @@ public static class JwtAuthenticationConfiguration
             IgnoreTrailingSlashWhenValidatingAudience = false,
             // La actual y, tras una rotación, la anterior: los tokens emitidos antes del deploy
             // siguen valiendo hasta vencer. Se firma siempre con la actual (AuthService).
-            IssuerSigningKeys = JwtRotacionClaveCalculos.ClavesDeValidacion(jwt.Key, jwt.PreviousKey)
+            IssuerSigningKeys = JwtRotacionClaveCalculos.ClavesDeValidacion(jwt.Key, jwt.PreviousKey, esProduccion)
                 .Select(clave => new SymmetricSecurityKey(Encoding.UTF8.GetBytes(clave)))
                 .ToArray(),
             ClockSkew = TimeSpan.Zero

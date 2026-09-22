@@ -136,16 +136,10 @@ var jwt = builder.Configuration.GetSection("JwtSettings").Get<JwtOptions>() ?? n
 jwt.EnsureValid();
 // appsettings.json viaja en la imagen con la clave de desarrollo: si la TaskDef no define
 // JwtSettings__Key, producción firmaría con esa clave del repo sin avisar. Mejor no arrancar.
-// La anterior (PreviousKey, AWSPREVIOUS tras la rotación del deploy) es opcional, pero si viene
-// tampoco puede ser una del repo: también valida tokens.
-if (builder.Environment.IsProduction())
-{
-    if (JwtClaveProduccionCalculos.MotivoRechazo(jwt.Key) is { } motivoClaveJwt)
-        throw new InvalidOperationException(motivoClaveJwt);
-    if (!string.IsNullOrWhiteSpace(jwt.PreviousKey)
-        && JwtClaveProduccionCalculos.MotivoRechazo(jwt.PreviousKey, "JwtSettings:PreviousKey") is { } motivoAnteriorJwt)
-        throw new InvalidOperationException(motivoAnteriorJwt);
-}
+// (El deploy pone una clave nueva en cada revisión; la anterior, si no sirve, solo se ignora.)
+if (builder.Environment.IsProduction()
+    && JwtClaveProduccionCalculos.MotivoRechazo(jwt.Key) is { } motivoClaveJwt)
+    throw new InvalidOperationException(motivoClaveJwt);
 builder.Services.AddSingleton(jwt);
 
 // ─────────────────────────────────────
@@ -469,7 +463,8 @@ builder.Services.AddAuthentication(o =>
                 : JwtBearerDefaults.AuthenticationScheme;
         };
     })
-    .AddJwtBearer(opts => ZooSanMarino.API.Infrastructure.JwtAuthenticationConfiguration.Configure(opts, jwt))
+    .AddJwtBearer(opts => ZooSanMarino.API.Infrastructure.JwtAuthenticationConfiguration.Configure(
+        opts, jwt, builder.Environment.IsProduction()))
     // Esquema de PAT (Service Token): activado por el policy scheme "Smart" cuando el header
     // empieza con "Bearer sk_". El handler valida el token y limita el alcance a /api/tickets.
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,

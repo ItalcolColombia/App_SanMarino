@@ -15,12 +15,6 @@ namespace ZooSanMarino.Application.Tests;
 /// </summary>
 public class JwtClaveProduccionCalculosTests
 {
-    /// <summary>
-    /// El secreto de Secrets Manager que rota el pipeline. Tiene que ser el mismo en el workflow y en
-    /// el ejemplo de la TaskDef: si divergen, el deploy rota un secreto que la API no lee.
-    /// </summary>
-    private const string SecretoJwt = "sanmarino/produccion/jwt-key";
-
     // ───────────────────────── claves del repo ─────────────────────────
 
     [Theory]
@@ -33,28 +27,6 @@ public class JwtClaveProduccionCalculosTests
         var clave = ClaveJwtDe(archivo);
 
         Assert.NotNull(JwtClaveProduccionCalculos.MotivoRechazo(clave));
-    }
-
-    [Fact]
-    public void El_workflow_y_el_ejemplo_de_TaskDef_usan_el_mismo_secreto()
-    {
-        var workflow = File.ReadAllText(RutaDelRepo(".github", "workflows", "deploy-production.yml"));
-        var ejemplo = File.ReadAllText(RutaDelRepo("backend", "deploy", "jwt-produccion.example.md"));
-
-        Assert.Contains($"JWT_SECRET_ID: {SecretoJwt}", workflow);
-        Assert.Contains($"secret:{SecretoJwt}-", ejemplo);
-        Assert.Contains("JwtSettings__PreviousKey", workflow);
-        Assert.Contains("JwtSettings__PreviousKey", ejemplo);
-    }
-
-    [Fact]
-    public void El_motivo_nombra_la_clave_que_se_evaluo()
-    {
-        var motivo = JwtClaveProduccionCalculos.MotivoRechazo("zzzz_Development_zzzz", "JwtSettings:PreviousKey");
-
-        Assert.NotNull(motivo);
-        Assert.Contains("JwtSettings:PreviousKey", motivo);
-        Assert.Contains("JwtSettings__PreviousKey", motivo);
     }
 
     // ───────────────────────── marcas y vacíos ─────────────────────────

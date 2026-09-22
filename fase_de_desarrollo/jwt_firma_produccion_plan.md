@@ -123,3 +123,55 @@ los costos explicados: posibles 401 sueltos durante el rollout y el cambio de IA
   clave → inválido; sin anterior configurada, el de la anterior → inválido.
 - Expresión `jq` del workflow contra TaskDefs de prueba (correcta, sin PreviousKey, PreviousKey sin
   AWSPREVIOUS, clave aún en environment, secreto de otro nombre).
+
+---
+
+## Fase 3 — Sin nada nuevo de AWS (22-sep-2026, decisión del usuario)
+
+El usuario **no administra AWS**: no puede crear secretos, tocar IAM ni editar la TaskDef en la
+consola. Pide quitar todo lo que necesite servicios o administración de AWS que hoy no se usan, y que
+lo existente siga funcionando. Se conserva la rotación en cada deploy, pero hecha **solo con lo que el
+pipeline ya hace**: descargar la TaskDef, modificarla y registrar una revisión nueva (mismos permisos
+de `github-actions-deploy` que ya usa para cambiar la imagen).
+
+### Se quita (fase 2)
+
+- Secrets Manager (`sanmarino/produccion/jwt-key`), los permisos IAM nuevos y la verificación `jq` que
+  exigía `secrets` en la TaskDef (con ella, el próximo deploy habría cortado).
+- `JWT_SECRET_ID` del job.
+- El fallo de arranque por una `PreviousKey` inválida: pasa a **ignorarse** (no valida tokens) en vez de
+  tumbar la API — una anterior rara nunca debe bloquear un deploy que el usuario no puede arreglar.
+
+### Se hace
+
+- `backend/scripts/rotar-clave-jwt-taskdef.js` (+ test `node --test`): sobre el JSON de la TaskDef ya
+  descargado, en el contenedor `backend`: la `JwtSettings__Key` que había pasa a
+  `JwtSettings__PreviousKey`, y `JwtSettings__Key` recibe 64 bytes nuevos (`crypto.randomBytes`).
+  Enmascara ambas (`::add-mask::`), no imprime valores. Si la TaskDef ya trae `JwtSettings__Key` en
+  `secrets`, no toca nada (respeta una gestión por Secrets Manager si alguien la pusiera).
+- Workflow: un paso «Rotar clave JWT en la TaskDef» entre «Obtener task definition» y «Actualizar
+  imagen»; corre el test del script antes (si falla, no hay deploy).
+- API: `ClavesDeValidacion(clave, anterior, esProduccion)` ignora la anterior vacía, igual, de menos
+  de 32 bytes o —en producción— del repo. `Configure(options, jwt, esProduccion)`.
+- Se conserva la guarda de `Key` en producción: el pipeline garantiza una clave aleatoria en cada
+  revisión, así que no puede bloquear un deploy del pipeline.
+- Ejemplo reescrito: no hay setup; qué hace cada deploy, dónde vive la clave, cómo rotar a demanda
+  (correr el workflow a mano desde GitHub).
+
+### Costos / bordes
+
+- La clave vive en `environment` de la TaskDef, como hoy (visible para quien lea la TaskDef). Mejora:
+  cambia en cada deploy, así que la filtrada en los snapshots de `backend/deploy/*.json` muere en el
+  primer deploy.
+- Deploys manuales (`make deploy-backend`, `backend/deploy/*.ps1`) no rotan.
+- Mismos bordes de rollout que la fase 2 (401 sueltos en la ventana; dos deploys en < 60 min).
+
+### Casos de prueba (fase 3)
+
+- Script: con clave previa → Key nueva + PreviousKey = la previa; sin clave previa → solo Key; una
+  PreviousKey vieja se reemplaza (nunca quedan dos); otras variables y otros contenedores intactos;
+  `secrets` con Key → sin cambios; contenedor ausente → error; salida sin valores.
+- `ClavesDeValidacion`: anterior corta / del repo en producción → ignorada; del repo fuera de
+  producción → aceptada.
+- Harness con el `Configure` real y smoke del binario en `Production`.
+- Simulación del paso completo del workflow sobre una TaskDef de prueba + parseo YAML.
