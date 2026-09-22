@@ -29,26 +29,29 @@ public static class JwtClaveProduccionCalculos
     [
         "Development", // appsettings.json ("...Development_Only...") y appsettings.Development.json.example
         "YOUR_",       // appsettings.json.example / appsettings.Development.json.example
-        "REEMPLAZAR",  // backend/deploy/jwt-produccion.example.md
+        "REEMPLAZAR",  // placeholder en español de los ejemplos
         "CHANGE_ME",
     ];
 
     /// <summary>
     /// <c>null</c> si la clave sirve para producción; si no, el motivo para cortar el arranque.
-    /// El mensaje <b>nunca</b> incluye la clave.
+    /// <paramref name="nombre"/> es la clave de configuración que se evalúa (<c>JwtSettings:Key</c> o
+    /// <c>JwtSettings:PreviousKey</c>). El mensaje <b>nunca</b> incluye la clave.
     /// </summary>
-    public static string? MotivoRechazo(string? clave)
+    public static string? MotivoRechazo(string? clave, string nombre = "JwtSettings:Key")
     {
+        var variable = nombre.Replace(":", "__");
+
         if (string.IsNullOrWhiteSpace(clave))
-            return "JwtSettings:Key no esta configurada en produccion. Definila en la TaskDef de ECS " +
-                   "(JwtSettings__Key, idealmente desde Secrets Manager).";
+            return $"{nombre} no esta configurada en produccion. Definila en la TaskDef de ECS " +
+                   $"({variable} desde Secrets Manager; ver backend/deploy/jwt-produccion.example.md).";
 
         foreach (var marca in MarcasNoProductivas)
         {
             if (clave.Contains(marca, StringComparison.OrdinalIgnoreCase))
-                return $"JwtSettings:Key de produccion es una clave de ejemplo o de desarrollo del repositorio " +
-                       $"(contiene \"{marca}\"). Falta JwtSettings__Key en la TaskDef de ECS o sigue con el " +
-                       "valor de ejemplo: genera una clave aleatoria (ver backend/deploy/jwt-produccion.example.md).";
+                return $"{nombre} de produccion es una clave de ejemplo o de desarrollo del repositorio " +
+                       $"(contiene \"{marca}\"). Falta {variable} en la TaskDef de ECS o sigue con el " +
+                       "valor de ejemplo (ver backend/deploy/jwt-produccion.example.md).";
         }
 
         return null;

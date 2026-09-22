@@ -30,7 +30,11 @@ public static class JwtAuthenticationConfiguration
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
             IgnoreTrailingSlashWhenValidatingAudience = false,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
+            // La actual y, tras una rotación, la anterior: los tokens emitidos antes del deploy
+            // siguen valiendo hasta vencer. Se firma siempre con la actual (AuthService).
+            IssuerSigningKeys = JwtRotacionClaveCalculos.ClavesDeValidacion(jwt.Key, jwt.PreviousKey)
+                .Select(clave => new SymmetricSecurityKey(Encoding.UTF8.GetBytes(clave)))
+                .ToArray(),
             ClockSkew = TimeSpan.Zero
         };
 

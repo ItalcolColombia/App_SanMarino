@@ -68,3 +68,58 @@ Sin cambios de BD, migraciones, frontend ni contratos HTTP. No se toca la TaskDe
 - Clave base64 aleatoria de 64 bytes → aceptada (varias semillas).
 - El mensaje de rechazo no contiene la clave.
 - `dotnet build` 0 errores + `dotnet test` de Application.Tests.
+
+---
+
+## Fase 2 — Clave nueva en cada deploy (22-sep-2026, decisión del usuario)
+
+El usuario eligió rotar la clave **en cada deploy** (frente a rotación a demanda o mensual), aceptando
+los costos explicados: posibles 401 sueltos durante el rollout y el cambio de IAM.
+
+### Enfoque
+
+- **Secrets Manager es obligatorio** (la opción de variable directa desaparece del ejemplo): secreto
+  `sanmarino/produccion/jwt-key`. La TaskDef toma `JwtSettings__Key` ← `AWSCURRENT` y
+  `JwtSettings__PreviousKey` ← `AWSPREVIOUS` (`<arn>::AWSPREVIOUS:`; Fargate lo soporta).
+- **Pipeline** (`deploy-production.yml`, job del back, entre «Obtener task definition» y el render):
+  1. `jq -e` verifica que la TaskDef tome las dos claves del secreto y que no queden en `environment`.
+     Si no, corta **antes** de tocar el secreto o el servicio.
+  2. Genera 64 bytes (`openssl rand`), los enmascara (`::add-mask::`), los guarda con
+     `put-secret-value` desde un archivo `umask 077` que un `trap` borra. Secrets Manager mueve sola la
+     etiqueta: nueva = `AWSCURRENT`, la de antes = `AWSPREVIOUS`.
+- **API**: firma con `Key` (sin cambios en `AuthService`); valida con `Key` + `PreviousKey`
+  (`IssuerSigningKeys`, decisión pura en `JwtRotacionClaveCalculos`). Los tokens previos al deploy
+  siguen valiendo hasta vencer ⇒ el deploy no desloguea a nadie.
+- `JwtOptions.PreviousKey` opcional; `EnsureValid` exige ≥ 32 bytes si viene. En `Production` la guarda
+  también rechaza una `PreviousKey` del repo (valida tokens).
+
+### Archivos (además de la fase 1)
+
+| Archivo | Cambio |
+|---|---|
+| `Application/Options/JwtOptions.cs` | `PreviousKey` + validación de largo. |
+| `Application/Calculos/JwtRotacionClaveCalculos.cs` | Nuevo: `ClavesDeValidacion(clave, anterior)`. |
+| `Application/Calculos/JwtClaveProduccionCalculos.cs` | `MotivoRechazo(clave, nombre)`: mensaje con el nombre evaluado. |
+| `API/Infrastructure/JwtAuthenticationConfiguration.cs` | `IssuerSigningKeys` (actual + anterior). |
+| `API/Program.cs` | Guarda de producción también para `PreviousKey`. |
+| `.github/workflows/deploy-production.yml` | `JWT_SECRET_ID` + pasos «Verificar…» y «Rotar clave JWT». |
+| `backend/deploy/jwt-produccion.example.md` | Reescrito: setup único + funcionamiento por deploy. |
+| Tests | `JwtRotacionClaveCalculosTests` + ajuste de `JwtClaveProduccionCalculosTests` (workflow y ejemplo usan el mismo secreto). |
+
+### Costos / bordes aceptados
+
+- Ventana del rollout: token emitido por tarea nueva que cae en una vieja ⇒ 401 ⇒ re-login.
+- Dos deploys en menos de `DurationInMinutes` ⇒ los tokens de dos claves atrás dejan de valer.
+- Prerrequisito de despliegue: setup de AWS hecho (secreto con 2 versiones, IAM de los dos roles,
+  revisión de TaskDef). Sin él, el paso «Verificar» corta el job limpio (sin rollback de ECS).
+
+### Casos de prueba (fase 2)
+
+- `ClavesDeValidacion`: con anterior → [actual, anterior]; sin anterior / vacía / igual → [actual].
+- `EnsureValid`: sin anterior OK; anterior de 32 bytes OK; anterior de 31 bytes → excepción.
+- Motivo de rechazo nombra `JwtSettings:PreviousKey` / `JwtSettings__PreviousKey`.
+- Workflow y ejemplo nombran el mismo secreto y `JwtSettings__PreviousKey`.
+- Harness con el `Configure` real: token firmado con la actual y con la anterior → válido; con otra
+  clave → inválido; sin anterior configurada, el de la anterior → inválido.
+- Expresión `jq` del workflow contra TaskDefs de prueba (correcta, sin PreviousKey, PreviousKey sin
+  AWSPREVIOUS, clave aún en environment, secreto de otro nombre).

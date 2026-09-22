@@ -9172,3 +9172,17 @@ Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_pla
 - [x] I3. Ejemplo completo `backend/deploy/jwt-produccion.example.md` (Secrets Manager recomendado, variable directa como alternativa, IAM, verificación).
 - [x] V1. `dotnet test` Application.Tests 4446/4446 (16 nuevos) + `dotnet build` API 0 err / 0 warn (artifacts propios, 9 min 41 s). Smoke del binario en `Production` con BD falsa: sin `JwtSettings__Key` no arranca y el mensaje no trae la clave; con clave aleatoria pasa la guarda (escucha y cae solo por la BD falsa). Puerto 5599 libre.
 - [x] R1. Commit solo de lo propio. **Pendiente del usuario:** cargar la clave en AWS ANTES de desplegar este commit (ver `backend/deploy/jwt-produccion.example.md`).
+
+---
+
+## JWT-ROTACION-POR-DEPLOY — Clave nueva en cada deploy (22-sep-2026)
+
+Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_plan.md) (sección «Fase 2»). Decisión del usuario: rotar en cada deploy.
+
+- [x] I1. `JwtOptions.PreviousKey` + `JwtRotacionClaveCalculos` + `IssuerSigningKeys` (actual + anterior) + guarda de producción para `PreviousKey`.
+- [x] I2. Workflow: `JWT_SECRET_ID` + «Verificar que la TaskDef lea la clave JWT de Secrets Manager» + «Rotar clave JWT» (solo job del back; el gate de la otra sesión no se toca).
+- [x] I3. Ejemplo reescrito: setup único (secreto con 2 versiones, IAM de los 2 roles, TaskDef con `AWSPREVIOUS`) + qué esperar en cada deploy + emergencia.
+- [x] V1. Application.Tests 4454/4454 (24 de JWT).
+- [x] V2. `dotnet build` del API OK (8 min, sin errores ni advertencias). Harness con el `Configure` REAL compilado: token de la clave actual y de la anterior → válido; otra clave y la de dos rotaciones atrás → inválido; sin `PreviousKey` = comportamiento previo. Smoke en `Production` (BD falsa): `PreviousKey` del repo o de 20 bytes → no arranca; dos aleatorias → escucha.
+- [x] V3. Expresión `jq` EXTRAÍDA del workflow (jq 1.7.1 oficial, SHA-256 verificado, borrado al terminar) contra 7 TaskDefs de prueba: pasa la correcta, corta sin PreviousKey / PreviousKey sin AWSPREVIOUS / Key en environment / otro secreto / sin secrets / Key apuntando a AWSPREVIOUS. `bash -n` del paso de rotación OK; YAML parsea y el orden de pasos es Obtener → Verificar → Rotar → Actualizar imagen → Desplegar; el gate de la otra sesión sigue.
+- [x] R1. Commit solo de lo propio (hunks del workflow separados: el gate de VALIDACION-CLAVES-PRODUCCION queda sin commitear en el working tree). **Pendiente del usuario:** setup de AWS ANTES del próximo push a `main-produccion` (`backend/deploy/jwt-produccion.example.md`).

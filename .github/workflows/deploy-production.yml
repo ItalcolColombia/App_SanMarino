@@ -172,6 +172,8 @@ jobs:
       ECS_SERVICE: sanmarino-back-task-service-75khncfa
       ECS_TASK_FAMILY: sanmarino-back-task
       CONTAINER_NAME: backend
+      # Secreto con la clave de firma JWT; se rota en cada deploy (ver "Rotar clave JWT").
+      JWT_SECRET_ID: sanmarino/produccion/jwt-key
 
     steps:
       - name: Checkout código
@@ -279,6 +281,45 @@ jobs:
             > /tmp/task-def-backend.json
 
           echo "Task definition descargada correctamente."
+
+      # ── Clave JWT nueva en cada deploy ──────────────────────────────────────
+      # La API firma con JwtSettings__Key (AWSCURRENT del secreto) y valida además
+      # con JwtSettings__PreviousKey (AWSPREVIOUS): los tokens emitidos antes del
+      # deploy siguen valiendo hasta vencer. ECS resuelve los secretos al ARRANCAR
+      # cada tarea, por eso se rota acá, antes del deploy. Si la TaskDef no está
+      # preparada, se corta ANTES de tocar el secreto o el servicio.
+      # Setup y motivo: backend/deploy/jwt-produccion.example.md
+      - name: Verificar que la TaskDef lea la clave JWT de Secrets Manager
+        run: |
+          jq -e --arg c "$CONTAINER_NAME" --arg s "secret:$JWT_SECRET_ID" '
+            (.containerDefinitions[] | select(.name == $c)) as $ct
+            | ($ct.secrets // []) as $sec
+            | ($ct.environment // []) as $env
+            | ([$sec[] | select(.name == "JwtSettings__Key"
+                  and (.valueFrom | contains($s))
+                  and (.valueFrom | contains(":AWSPREVIOUS:") | not))] | length == 1)
+              and ([$sec[] | select(.name == "JwtSettings__PreviousKey"
+                  and (.valueFrom | contains($s))
+                  and (.valueFrom | contains(":AWSPREVIOUS:")))] | length == 1)
+              and ([$env[] | select(.name == "JwtSettings__Key" or .name == "JwtSettings__PreviousKey")] | length == 0)
+          ' /tmp/task-def-backend.json > /dev/null || {
+            echo "::error::La TaskDef no toma JwtSettings__Key (AWSCURRENT) y JwtSettings__PreviousKey (AWSPREVIOUS) del secreto $JWT_SECRET_ID, o todavia las tiene en environment. Ver backend/deploy/jwt-produccion.example.md"
+            exit 1
+          }
+          echo "TaskDef lista: JwtSettings__Key y JwtSettings__PreviousKey salen de $JWT_SECRET_ID."
+
+      - name: Rotar clave JWT (Secrets Manager)
+        run: |
+          umask 077
+          CLAVE_FILE="$RUNNER_TEMP/jwt-key"
+          trap 'rm -f "$CLAVE_FILE"' EXIT
+          openssl rand -base64 64 | tr -d '\n' > "$CLAVE_FILE"
+          echo "::add-mask::$(cat "$CLAVE_FILE")"
+          VERSION=$(aws secretsmanager put-secret-value \
+            --secret-id "$JWT_SECRET_ID" \
+            --secret-string "file://$CLAVE_FILE" \
+            --query VersionId --output text)
+          echo "Clave JWT rotada (version $VERSION). La anterior queda como AWSPREVIOUS."
 
       - name: Actualizar imagen en task definition
         id: render-task-def

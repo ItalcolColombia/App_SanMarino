@@ -15,8 +15,11 @@ namespace ZooSanMarino.Application.Tests;
 /// </summary>
 public class JwtClaveProduccionCalculosTests
 {
-    /// <summary>El placeholder de <c>backend/deploy/jwt-produccion.example.md</c>.</summary>
-    private const string PlaceholderDelEjemplo = "REEMPLAZAR_CON_CLAVE_GENERADA_DE_64_BYTES";
+    /// <summary>
+    /// El secreto de Secrets Manager que rota el pipeline. Tiene que ser el mismo en el workflow y en
+    /// el ejemplo de la TaskDef: si divergen, el deploy rota un secreto que la API no lee.
+    /// </summary>
+    private const string SecretoJwt = "sanmarino/produccion/jwt-key";
 
     // ───────────────────────── claves del repo ─────────────────────────
 
@@ -33,17 +36,25 @@ public class JwtClaveProduccionCalculosTests
     }
 
     [Fact]
-    public void Placeholder_del_ejemplo_de_TaskDef_se_rechaza()
+    public void El_workflow_y_el_ejemplo_de_TaskDef_usan_el_mismo_secreto()
     {
-        Assert.NotNull(JwtClaveProduccionCalculos.MotivoRechazo(PlaceholderDelEjemplo));
+        var workflow = File.ReadAllText(RutaDelRepo(".github", "workflows", "deploy-production.yml"));
+        var ejemplo = File.ReadAllText(RutaDelRepo("backend", "deploy", "jwt-produccion.example.md"));
+
+        Assert.Contains($"JWT_SECRET_ID: {SecretoJwt}", workflow);
+        Assert.Contains($"secret:{SecretoJwt}-", ejemplo);
+        Assert.Contains("JwtSettings__PreviousKey", workflow);
+        Assert.Contains("JwtSettings__PreviousKey", ejemplo);
     }
 
     [Fact]
-    public void El_ejemplo_de_TaskDef_usa_el_placeholder_que_la_regla_rechaza()
+    public void El_motivo_nombra_la_clave_que_se_evaluo()
     {
-        var ejemplo = File.ReadAllText(RutaDelRepo("backend", "deploy", "jwt-produccion.example.md"));
+        var motivo = JwtClaveProduccionCalculos.MotivoRechazo("zzzz_Development_zzzz", "JwtSettings:PreviousKey");
 
-        Assert.Contains(PlaceholderDelEjemplo, ejemplo);
+        Assert.NotNull(motivo);
+        Assert.Contains("JwtSettings:PreviousKey", motivo);
+        Assert.Contains("JwtSettings__PreviousKey", motivo);
     }
 
     // ───────────────────────── marcas y vacíos ─────────────────────────
