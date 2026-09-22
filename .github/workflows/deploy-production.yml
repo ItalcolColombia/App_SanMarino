@@ -293,6 +293,19 @@ jobs:
           node --test backend/scripts/tests/rotar-clave-jwt-taskdef.test.js
           node backend/scripts/rotar-clave-jwt-taskdef.js /tmp/task-def-backend.json "$CONTAINER_NAME"
 
+      # ── El ALB como proxy conocido (sin servicios nuevos de AWS) ────────────
+      # El rate limit cuenta por la IP que dejó UseForwardedHeaders. El Dockerfile
+      # fija ASPNETCORE_FORWARDEDHEADERS_ENABLED=true, que vacía la lista de
+      # proxies conocidos: sin ReverseProxy__KnownNetworks el cliente elegía su
+      # IP con un X-Forwarded-For inventado. Se declaran las redes privadas
+      # (RFC 1918): el ALB llega siempre desde una, internet nunca. Si la TaskDef
+      # ya trae ReverseProxy__*, se respeta. Primero su test: si falla, no hay
+      # deploy. Motivo y medición: fase_de_desarrollo/reverse_proxy_known_networks_pipeline_plan.md
+      - name: Confiar en el ALB (ReverseProxy) en la TaskDef
+        run: |
+          node --test backend/scripts/tests/confiar-proxy-alb-taskdef.test.js
+          node backend/scripts/confiar-proxy-alb-taskdef.js /tmp/task-def-backend.json "$CONTAINER_NAME"
+
       - name: Actualizar imagen en task definition
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1

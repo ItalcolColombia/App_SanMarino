@@ -9200,3 +9200,16 @@ Plan: [jwt_firma_produccion_plan.md](fase_de_desarrollo/jwt_firma_produccion_pla
 - [x] V1. Paso EXTRAÍDO del workflow corrido sobre una TaskDef sintética en dos deploys encadenados: Key nueva de 88, PreviousKey = la de antes, sin duplicados, el resto de la TaskDef idéntico, 0 claves en la salida fuera de `::add-mask::`. YAML parsea; el gate de la otra sesión sigue.
 - [x] V2. Application.Tests 4459/4459; `dotnet build` API 0 err / 0 warn (10 min 49 s). Harness con el `Configure` REAL 9/9 (actual/anterior válidas; otra y dos atrás inválidas; anterior del repo ignorada en prod y aceptada en dev). Smoke `Production` con BD falsa: sin Key no arranca; Key + anterior del repo / anterior de 20 bytes / anterior aleatoria → arranca. Puerto 5599 libre.
 - [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear en el workflow). **Nada pendiente en AWS.**
+
+---
+
+## REVERSE-PROXY-POR-PIPELINE — `ReverseProxy:KnownNetworks` sin AWS (22-sep-2026)
+
+Plan: [reverse_proxy_known_networks_pipeline_plan.md](fase_de_desarrollo/reverse_proxy_known_networks_pipeline_plan.md)
+
+- [x] A1. Topología medida por DNS/cabeceras públicas: dominio = alias directo del ALB, sin CloudFront; `/api` = Kestrel.
+- [x] A2. Medido con el binario de hoy: con `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` y sin `ReverseProxy` el rate limit **se elude** (XFF inventado = contador nuevo); sin la variable, un contador para toda la empresa; con KnownNetworks RFC 1918, correcto.
+- [x] I1. `backend/scripts/confiar-proxy-alb-taskdef.js` + test `node --test` (8/8): agrega `ReverseProxy__KnownNetworks__0..2` RFC 1918 si no hay `ReverseProxy__*`; si hay, respeta; `ForwardLimit` intacto; idempotente.
+- [x] I2. Paso «Confiar en el ALB (ReverseProxy) en la TaskDef» después de la rotación JWT y antes de «Actualizar imagen». Sin cambios de C#, Dockerfile ni AWS.
+- [x] V1. Pasos EXTRAÍDOS del workflow (JWT + proxy) sobre TaskDef sintética en 2 deploys: el 1.º agrega las 3 redes, el 2.º las respeta (7 variables, sin duplicados) y la JWT rota las dos veces. YAML OK. Medición con las variables EXACTAS de esa TaskDef + `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`: mismo cliente con XFF inventado 99→98→97, otro cliente 99. Puerto 5599 libre.
+- [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear). **Nada pendiente en AWS.**
