@@ -9222,6 +9222,6 @@ Plan: [wiki_documentacion_plan.md](fase_de_desarrollo/wiki_documentacion_plan.md
 
 - [x] I1. `backend/scripts/generar-wiki-documentacion.js` + test `node --test` (7/7).
 - [x] V1. Corrida real sobre `backend/documentacion`: 179 páginas + 13 adjuntos + Home/_Sidebar/_Footer; 179/179 páginas idénticas al original fuera de los destinos de link (14 con algún link ajustado); 0 links `.md` sin convertir; adjuntos iguales byte a byte.
-- [ ] U1. **Usuario:** crear la primera página de la wiki desde la web (GitHub no expone API para inicializarla).
-- [ ] P1. Push del árbol generado al repo de la wiki y verificación de páginas en la web.
-- [ ] R1. Commit solo de lo propio.
+- [x] U1. **Usuario:** creó la primera página de la wiki desde la web (GitHub no expone API para inicializarla).
+- [x] P1. Push al repo de la wiki (`e3c9ae1`, 195 archivos; solo se reemplazó la `Home.md` provisoria). Verificado por HTTP sin login: portada, `Documentacion`, `aws-infrastructure`, `requisito-ciberseguridad` y 12 páginas del índice → 200 (una inventada → 302); links que salen de la carpeta → 200 en GitHub; menú lateral y pie presentes.
+- [x] R1. Commit solo de lo propio (generador en `eb8c710`; este cierre aparte). Re-publicar: clonar `App_SanMarino.wiki.git`, `node backend/scripts/generar-wiki-documentacion.js <clon>`, commit y push.
