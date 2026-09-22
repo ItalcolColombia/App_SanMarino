@@ -146,6 +146,16 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
         var totales = ReporteDiarioCostosEngordeCalculos.ConstruirTotales(filas);
         var (avesActuales, avesActualesTotal) = ReporteDiarioCostosEngordeCalculos.AvesVivasActuales(filas);
 
+        // Desglose H/M de la mortalidad: solo si la empresa maneja el engorde por sexo.
+        // Empresa no encontrada ⇒ sin desglose (fail-closed: la tabla queda como siempre).
+        var seguimientoMixto = await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (bool?)c.SeguimientoEngordeMixto)
+            .FirstOrDefaultAsync(ct);
+        var mortalidadPorSexo = seguimientoMixto.HasValue
+            && ReporteDiarioCostosEngordeCalculos.MuestraMortalidadPorSexo(seguimientoMixto.Value);
+
         return new ReporteDiarioCostosReporteDto(
             FiltrosAplicados: request,
             FechaInicioEfectiva: request.FechaInicio?.Date ?? (filas.Count > 0 ? filas[0].Fecha : null),
@@ -159,7 +169,8 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
             AvesVivasActuales: avesActuales,
             AvesVivasActualesTotal: avesActualesTotal,
             Filas: filas,
-            Totales: totales);
+            Totales: totales,
+            MortalidadPorSexo: mortalidadPorSexo);
     }
 
     private async Task<int> GetEffectiveCompanyIdAsync()

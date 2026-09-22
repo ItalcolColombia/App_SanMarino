@@ -19,8 +19,21 @@ export interface ReporteDiarioCostosAlimento {
   consumoKg: number;
 }
 
+/**
+ * Desglose por sexo de la mortalidad + selección de un galpón (fn v4).
+ * Cumple `mortSelHembras + mortSelMachos === mortSel` (igual mortalidad y selección).
+ */
+export interface ReporteDiarioCostosDesgloseSexo {
+  mortalidadHembras: number;
+  mortalidadMachos: number;
+  seleccionHembras: number;
+  seleccionMachos: number;
+  mortSelHembras: number;
+  mortSelMachos: number;
+}
+
 /** Métricas del día para un galpón (columna dinámica). */
-export interface ReporteDiarioCostosGalponDia {
+export interface ReporteDiarioCostosGalponDia extends ReporteDiarioCostosDesgloseSexo {
   galponId: string;
   galponNombre: string;
   mortalidad: number;
@@ -61,7 +74,7 @@ export interface ReporteDiarioCostosAlimentoTotal {
   consumoKg: number;
 }
 
-export interface ReporteDiarioCostosGalponTotal {
+export interface ReporteDiarioCostosGalponTotal extends ReporteDiarioCostosDesgloseSexo {
   galponId: string;
   galponNombre: string;
   mortalidad: number;
@@ -99,4 +112,10 @@ export interface ReporteDiarioCostosReporte {
   avesVivasActualesTotal: number;
   filas: ReporteDiarioCostosFila[];
   totales: ReporteDiarioCostosTotales;
+  /**
+   * true = cada galpón del bloque «Mortalidad + selección» se abre en Hembras | Machos | Total.
+   * false (empresa con engorde mixto, p. ej. Panamá) = una sola columna por galpón, como siempre.
+   * Lo decide el backend (`companies.seguimiento_engorde_mixto`); ausente ⇒ false.
+   */
+  mortalidadPorSexo?: boolean;
 }

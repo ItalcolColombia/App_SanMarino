@@ -15,7 +15,10 @@ public sealed record ReporteDiarioCostosRequest(
 /// <summary>Desglose de alimento del día (granja completa). StockKg NULL = sin snapshot (fila vieja sin histórico).</summary>
 public sealed record ReporteDiarioCostosAlimentoDto(string NombreAlimento, double? StockKg, double ConsumoKg);
 
-/// <summary>Métricas del día para un galpón.</summary>
+/// <summary>
+/// Métricas del día para un galpón. El desglose por sexo (fn v4) cumple
+/// <c>MortalidadHembras + MortalidadMachos == Mortalidad</c>, igual selección y mort+sel.
+/// </summary>
 public sealed record ReporteDiarioCostosGalponDiaDto(
     string GalponId,
     string GalponNombre,
@@ -24,7 +27,13 @@ public sealed record ReporteDiarioCostosGalponDiaDto(
     int ErrSexaje,
     int MortSel,
     double ConsumoKg,
-    int AvesVivas
+    int AvesVivas,
+    int MortalidadHembras = 0,
+    int MortalidadMachos = 0,
+    int SeleccionHembras = 0,
+    int SeleccionMachos = 0,
+    int MortSelHembras = 0,
+    int MortSelMachos = 0
 );
 
 /// <summary>Una fila del reporte = una fecha (todos los lotes del alcance unificados).</summary>
@@ -62,7 +71,13 @@ public sealed record ReporteDiarioCostosGalponTotalDto(
     int Mortalidad,
     int Seleccion,
     int ErrSexaje,
-    int MortSel
+    int MortSel,
+    int MortalidadHembras = 0,
+    int MortalidadMachos = 0,
+    int SeleccionHembras = 0,
+    int SeleccionMachos = 0,
+    int MortSelHembras = 0,
+    int MortSelMachos = 0
 );
 
 /// <summary>Footer del reporte: SUMA TOTAL global, por alimento y por galpón.</summary>
@@ -89,7 +104,13 @@ public sealed record ReporteDiarioCostosReporteDto(
     IReadOnlyList<ReporteDiarioCostosAvesActualesDto> AvesVivasActuales,
     int AvesVivasActualesTotal,
     IReadOnlyList<ReporteDiarioCostosFilaDto> Filas,
-    ReporteDiarioCostosTotalesDto Totales
+    ReporteDiarioCostosTotalesDto Totales,
+    /// <summary>
+    /// true = la pantalla abre la mortalidad + selección de cada galpón en hembras y machos.
+    /// false (empresa con engorde mixto) = una sola columna por galpón, como siempre.
+    /// Ver <c>ReporteDiarioCostosEngordeCalculos.MuestraMortalidadPorSexo</c>.
+    /// </summary>
+    bool MortalidadPorSexo = false
 );
 
 /// <summary>

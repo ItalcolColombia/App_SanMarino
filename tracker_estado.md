@@ -9232,12 +9232,12 @@ Plan: [wiki_documentacion_plan.md](fase_de_desarrollo/wiki_documentacion_plan.md
 
 Plan: [reporte_costos_engorde_mortalidad_por_sexo_plan.md](fase_de_desarrollo/reporte_costos_engorde_mortalidad_por_sexo_plan.md). Pedido de Ecuador. Gate = flag existente `companies.seguimiento_engorde_mixto` (Panamá ON ⇒ sin cambios).
 
-- [ ] B1. fn v4 (`galpones` JSON + 6 claves por sexo) — espejo `.sql` + migración (Up v4 / Down v3) + Designer.
-- [ ] B2. DTOs + `ReporteDiarioCostosEngordeCalculos` (totales por sexo, `MuestraMortalidadPorSexo`) + service lee el flag.
-- [ ] B3. Tests xUnit del cálculo.
-- [ ] F1. Front: modelo + tabla H | M | Total por galpón (cuerpo y footer) gateado por `mortalidadPorSexo`.
-- [ ] F2. Excel con el mismo layout + spec de la función.
-- [ ] V1. SQL en transacción revertida, todas las empresas: v4 sin claves nuevas == v3; H+M = mort_sel.
-- [ ] V2. `dotnet build` + `dotnet test` + `yarn build` + test del front.
-- [ ] V3. Smoke API/UI: Ecuador (Kilometro 22 / 2604) con desglose; Panamá idéntico. Puertos libres al terminar.
-- [ ] R1. Commit solo de lo propio.
+- [x] B1. fn v4 (`galpones` JSON + 6 claves por sexo) — espejo `.sql` + migración `20260922150000_ReporteCostosEngordeMortalidadPorSexo` (Up v4 / Down v3 = prosrc local verificado) + Designer clonado con el modelo del snapshot actual.
+- [x] B2. DTOs (campos por sexo con default 0 + `MortalidadPorSexo`) + `ReporteDiarioCostosEngordeCalculos` (totales por sexo, `MuestraMortalidadPorSexo`) + service lee `seguimiento_engorde_mixto` (fail-closed).
+- [x] B3. Tests xUnit: totales H/M (H+M = combinado), filas sin desglose, flag mixto (theory) y contrato JSON fn↔DTO.
+- [x] F1. Front: modelo + tabla H | M | Total por galpón (encabezado de 3 niveles, cuerpo y footer, tooltips mortalidad/selección por sexo) gateado por `mortalidadPorSexo`.
+- [x] F2. Excel con el mismo layout (3.er nivel H/M/Total) + `construir-aoa-reporte-costos.funcion.spec.ts` (3 casos).
+- [x] V1. SQL en transacción revertida, 15 granjas de Ecuador y Panamá (2.070 filas, historia completa + rango por defecto): v4 sin claves nuevas == v3 → 0 diferencias; H+M = combinado en las 9.394 celdas galpón×día. Kilometro 22 27-ago Galpon-2: 36 = H 15 + M 21.
+- [x] V2. `dotnet build` API 0 err / 0 warn (14 min 34 s, sin otra compilación en paralelo); Application.Tests 4464/4464; `yarn build` 0 err; Karma del módulo 3/3; gates CI (sql-migracion, change-detection, lista-cacheable, inventario, señuelo, superficie, cuadre) OK. API.Tests/Domain.Tests no corridos (no referencian el reporte).
+- [x] V3. Migración aplicada en la BD local + ida y vuelta Down (== v3) / Up (== v4). Smoke con backend :5002 y front :4200 (sesiones minteadas, borradas al final): Ecuador Kilometro 22 / 2604 ⇒ `mortalidadPorSexo=true`, encabezado GALPON → H/M/TOTAL, 29-ago G1 44 = 14 + 30 y G2 79 = 24 + 55, footer 340+472=812 y 656+812=1.468, Excel con H/M/Total; Panamá DAYLAND ⇒ `false`, 2 filas de encabezado y 1 columna por galpón (igual que hoy). Puertos 5002/4200 libres.
+- [x] R1. Commit solo de lo propio (el workflow, `.devpilot/` y los archivos de VALIDACION-CLAVES-PRODUCCION siguen sin commitear: son de otra sesión). Se despliega con el próximo push a `main-produccion` (la migración corre sola al arrancar).

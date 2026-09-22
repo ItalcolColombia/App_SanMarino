@@ -122,6 +122,99 @@ public class ReporteDiarioCostosEngordeCalculosTests
         Assert.Equal(2, g2.MortSel);
     }
 
+    // ───────────────────── Desglose por sexo (fn v4, pedido de Ecuador) ─────────────────────
+
+    /// <summary>Galpón con mortalidad/selección por sexo; los combinados salen de sumar H + M (como la fn).</summary>
+    private static ReporteDiarioCostosGalponDiaDto GalponPorSexo(
+        string id, int mortH, int mortM, int selH, int selM, int aves) =>
+        new(id, "Galpón " + id, mortH + mortM, selH + selM, 0, mortH + mortM + selH + selM, 0, aves,
+            MortalidadHembras: mortH, MortalidadMachos: mortM,
+            SeleccionHembras: selH, SeleccionMachos: selM,
+            MortSelHembras: mortH + selH, MortSelMachos: mortM + selM);
+
+    [Fact]
+    public void ConstruirTotales_SumaPorGalpon_DesglosePorSexo_YHmasMEsElCombinado()
+    {
+        // Kilometro 22 / lote base 2604, Galpon-2 los días 27 y 28-ago (medido en la fn v4):
+        //   27-ago: mort H 15 · M 21, sel 0      → 36
+        //   28-ago: mort H 4 · M 10, sel H 10 · M 15 → 39
+        var filas = new[]
+        {
+            Fila(new DateTime(2026, 8, 27), 0, Array.Empty<ReporteDiarioCostosAlimentoDto>(),
+                new[] { GalponPorSexo("G0036", 15, 21, 0, 0, 47338) }),
+            Fila(new DateTime(2026, 8, 28), 0, Array.Empty<ReporteDiarioCostosAlimentoDto>(),
+                new[] { GalponPorSexo("G0036", 4, 10, 10, 15, 47299) })
+        };
+
+        var g = Assert.Single(ReporteDiarioCostosEngordeCalculos.ConstruirTotales(filas).PorGalpon);
+
+        Assert.Equal(19, g.MortalidadHembras);   // 15 + 4
+        Assert.Equal(31, g.MortalidadMachos);    // 21 + 10
+        Assert.Equal(10, g.SeleccionHembras);
+        Assert.Equal(15, g.SeleccionMachos);
+        Assert.Equal(29, g.MortSelHembras);      // 19 + 10
+        Assert.Equal(46, g.MortSelMachos);       // 31 + 15
+        Assert.Equal(75, g.MortSel);             // 36 + 39: el número de siempre
+        Assert.Equal(g.MortSel, g.MortSelHembras + g.MortSelMachos);
+        Assert.Equal(g.Mortalidad, g.MortalidadHembras + g.MortalidadMachos);
+        Assert.Equal(g.Seleccion, g.SeleccionHembras + g.SeleccionMachos);
+    }
+
+    [Fact]
+    public void ConstruirTotales_FilasSinDesglose_CombinadosIntactosYSexoEnCero()
+    {
+        // Filas como las de la fn v3 (sin las claves por sexo): los combinados no cambian.
+        var filas = new[]
+        {
+            Fila(new DateTime(2026, 7, 1), 0, Array.Empty<ReporteDiarioCostosAlimentoDto>(),
+                new[] { Galpon("G1", "Galpón 1", 2, 1, 1, 0, 50) })
+        };
+
+        var g = Assert.Single(ReporteDiarioCostosEngordeCalculos.ConstruirTotales(filas).PorGalpon);
+
+        Assert.Equal(2, g.Mortalidad);
+        Assert.Equal(3, g.MortSel);
+        Assert.Equal(0, g.MortSelHembras);
+        Assert.Equal(0, g.MortSelMachos);
+    }
+
+    [Theory]
+    [InlineData(false, true)]   // Ecuador (y toda empresa que maneja el engorde por sexo)
+    [InlineData(true, false)]   // Panamá: la mortalidad mixta vive en la columna H ⇒ sin desglose
+    public void MuestraMortalidadPorSexo_SoloSiElEngordeNoEsMixto(bool seguimientoEngordeMixto, bool esperado)
+    {
+        Assert.Equal(esperado, ReporteDiarioCostosEngordeCalculos.MuestraMortalidadPorSexo(seguimientoEngordeMixto));
+    }
+
+    [Fact]
+    public void GalponDiaDto_DeserializaLasClavesPorSexoDeLaFn()
+    {
+        // Contrato fn ↔ DTO: el service parsea el JSON `galpones` con SnakeCaseLower. Un nombre mal
+        // escrito no rompe nada: deja el campo en 0 en silencio. JSON real de la fn v4
+        // (Kilometro 22, Galpon-2, 28-ago).
+        const string json = """
+            [{"mort_sel": 39, "galpon_id": "G0036", "seleccion": 25, "aves_vivas": 47299, "consumo_kg": 2400,
+              "err_sexaje": 0, "mortalidad": 14, "galpon_nombre": "Galpon-2", "mort_sel_machos": 25,
+              "mort_sel_hembras": 14, "seleccion_machos": 15, "mortalidad_machos": 10,
+              "seleccion_hembras": 10, "mortalidad_hembras": 4}]
+            """;
+        var opts = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower,
+            PropertyNameCaseInsensitive = true
+        };
+
+        var g = Assert.Single(System.Text.Json.JsonSerializer.Deserialize<List<ReporteDiarioCostosGalponDiaDto>>(json, opts)!);
+
+        Assert.Equal(39, g.MortSel);
+        Assert.Equal(4, g.MortalidadHembras);
+        Assert.Equal(10, g.MortalidadMachos);
+        Assert.Equal(10, g.SeleccionHembras);
+        Assert.Equal(15, g.SeleccionMachos);
+        Assert.Equal(14, g.MortSelHembras);
+        Assert.Equal(25, g.MortSelMachos);
+    }
+
     [Fact]
     public void ConstruirTotales_RedondeaKgATresDecimales()
     {

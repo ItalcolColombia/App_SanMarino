@@ -52,6 +52,21 @@
     text-align: center;
   }
 
+  // Desglose por sexo (H | M | Total por galpón): separador entre galpones y total resaltado.
+  .rdc-th--sexo {
+    min-width: 3.25rem;
+  }
+
+  .rdc-th--galpon-ini,
+  .rdc-td--galpon-ini {
+    border-left: 2px solid var(--border-color-strong, #d1d5db);
+  }
+
+  .rdc-td--mort-total {
+    font-weight: 600;
+    background: var(--ital-cream, #faf8f5);
+  }
+
   .rdc-row--primera .rdc-td {
     border-top: 2px solid var(--border-color-strong, #d1d5db);
   }
