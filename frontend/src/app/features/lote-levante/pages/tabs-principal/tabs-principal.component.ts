@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { exportarTablaExcel, exportarAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { posicionesEnElDia } from '../../funciones/registros-por-dia.funcion';
@@ -93,7 +93,27 @@ const COLUMNAS_MACHOS_TABLA_DIARIA = 11;
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
-export class TabsPrincipalComponent implements OnInit, OnChanges {
+export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
+  @ViewChild('scrollSuperior') private scrollSuperior?: ElementRef<HTMLDivElement>;
+  @ViewChild('scrollTabla') private scrollTabla?: ElementRef<HTMLDivElement>;
+  anchoContenidoTablaPx = 2800;
+  private tablaSeguimiento?: ElementRef<HTMLTableElement>;
+  private observadorAnchoTabla?: ResizeObserver;
+
+  /** La tabla nace después de escoger lote; el setter también cubre ese render tardío. */
+  @ViewChild('tablaSeguimiento')
+  private set tablaSeguimientoRenderizada(elemento: ElementRef<HTMLTableElement> | undefined) {
+    if (this.tablaSeguimiento === elemento) return;
+    this.observadorAnchoTabla?.disconnect();
+    this.observadorAnchoTabla = undefined;
+    this.tablaSeguimiento = elemento;
+    if (!elemento) return;
+
+    queueMicrotask(() => this.actualizarAnchoScrollbar());
+    if (typeof ResizeObserver === 'undefined') return;
+    this.observadorAnchoTabla = new ResizeObserver(() => this.actualizarAnchoScrollbar());
+    this.observadorAnchoTabla.observe(elemento.nativeElement);
+  }
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
 
   /**
@@ -873,9 +893,34 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     }
   }
 
-  /** Clase de la FILA: solo se pinta la vencida, para que el rojo siga significando algo. */
+  /** Clase visual de la fila completa: pendiente neutra, retraso como alarma y validado sin fondo. */
   claseFilaValidacion(id: number | null | undefined): string {
-    return this.estadoValidacionFila(id) === 'EN_RETRASO' ? 'fila-validacion--retraso' : '';
+    switch (this.estadoValidacionFila(id)) {
+      case 'EN_RETRASO': return 'fila-validacion--retraso';
+      case 'PENDIENTE':  return 'fila-validacion--pendiente';
+      default:           return '';
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.observadorAnchoTabla?.disconnect();
+  }
+
+  private actualizarAnchoScrollbar(): void {
+    const tabla = this.tablaSeguimiento?.nativeElement;
+    if (!tabla) return;
+    this.anchoContenidoTablaPx = Math.max(2800, tabla.scrollWidth);
+  }
+
+  /** Mantiene alineadas la barra superior y la barra nativa de la tabla ancha. */
+  sincronizarScroll(origen: 'superior' | 'tabla', event: Event): void {
+    const origenEl = event.currentTarget as HTMLDivElement | null;
+    const destinoEl = origen === 'superior'
+      ? this.scrollTabla?.nativeElement
+      : this.scrollSuperior?.nativeElement;
+
+    if (!origenEl || !destinoEl || destinoEl.scrollLeft === origenEl.scrollLeft) return;
+    destinoEl.scrollLeft = origenEl.scrollLeft;
   }
 
   tooltipValidacionFila(id: number | null | undefined): string {

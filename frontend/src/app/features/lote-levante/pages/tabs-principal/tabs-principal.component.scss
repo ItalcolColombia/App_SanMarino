@@ -378,6 +378,7 @@
    ========================================================================== */
 .table-container {
   margin-top: var(--space-6);
+  --seguimiento-levante-table-min-width: 2800px;
 }
 
 .registro-diario__toolbar {
@@ -391,6 +392,36 @@
 .registro-diario__toolbar h4 {
   margin: 0;
 }
+.registro-diario__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.validation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.validation-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-sub);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.validation-legend__item::before {
+  content: '';
+  width: .65rem;
+  height: .65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--warm-200);
+}
+.validation-legend__item--validado::before { background: var(--success); border-color: var(--success); }
+.validation-legend__item--retraso::before { background: var(--danger); border-color: var(--danger); }
 .registro-diario__export {
   flex-shrink: 0;
   white-space: nowrap;
@@ -408,8 +439,32 @@
   max-height: min(70vh, 720px);
 }
 
+.table-scroll-guide {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 1.25rem;
+  color: var(--text-sub);
+  font-size: var(--fs-xs);
+}
+.table-scroll-guide span::before {
+  content: '↔ ';
+  color: var(--ital-orange-dark);
+  font-weight: 800;
+}
+.table-scrollbar-top {
+  width: 100%;
+  height: 15px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+}
+.table-scrollbar-top__content {
+  width: var(--seguimiento-levante-table-min-width);
+  height: 1px;
+}
+
 .ux-table--registro-diario {
-  min-width: 2800px;
+  min-width: var(--seguimiento-levante-table-min-width);
   table-layout: auto;
 }
 
@@ -453,9 +508,37 @@
 }
 
 .ux-table--registro-diario thead th.th-diario--actions {
-  min-width: 7.5rem;
+  min-width: 14rem;
   max-width: none;
   text-align: center;
+}
+
+.ux-table--registro-diario .sticky-actions {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  min-width: 14rem;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 14px rgba(31, 41, 55, .08);
+}
+.ux-table--registro-diario thead th.sticky-actions {
+  z-index: calc(var(--z-sticky) + 1);
+  background: var(--ital-green);
+}
+.ux-table--registro-diario tbody tr:nth-child(even) > td.sticky-actions { background: var(--ital-cream); }
+.ux-table--registro-diario tbody tr:hover > td.sticky-actions { background: var(--ital-orange-50); }
+.ux-table--registro-diario tbody tr.fila-validacion--pendiente > td {
+  background: var(--warm-100);
+}
+.ux-table--registro-diario tbody tr.fila-validacion--pendiente:hover > td {
+  background: var(--warm-200);
+}
+.ux-table--registro-diario tbody tr.fila-validacion--retraso > td {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
+}
+.ux-table--registro-diario tbody tr.fila-validacion--retraso:hover > td {
+  background: color-mix(in srgb, var(--danger) 13%, var(--bg-card));
 }
 
 .ux-table--registro-diario tbody td.num {
@@ -634,22 +717,34 @@
 .text-right { text-align: right; }
 
 .btn-group {
-  display: flex; gap: var(--space-1);
+  display: flex; gap: var(--space-1); justify-content: flex-end;
 }
 
 .icon-btn {
-  width: 32px; height: 32px; border: none; border-radius: var(--radius-sm);
+  min-width: 44px; height: 44px; padding: 0 var(--space-2); border: none; border-radius: var(--radius-sm);
   background: var(--warm-200); color: var(--warm-600);
   cursor: pointer; transition: all var(--t-fast);
   display: flex; align-items: center; justify-content: center;
 }
 
+.icon-btn--with-label {
+  width: auto;
+  gap: var(--space-1);
+  color: var(--ital-cream);
+  background: var(--ital-orange);
+  font-weight: 700;
+}
 .icon-btn:hover {
   background: var(--ital-orange-50); color: var(--ital-orange);
 }
 
+.icon-btn.icon-btn--with-label:hover {
+  color: var(--ital-cream);
+  background: var(--ital-orange-dark);
+}
+
 .icon-btn--danger:hover {
-  background: var(--ital-green); color: var(--ital-cream);
+  background: var(--danger); color: var(--ital-cream);
 }
 
 .btn {
@@ -675,6 +770,11 @@
   .tabs-nav {
     flex-direction: column;
   }
+  .registro-diario__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .registro-diario__export { width: 100%; }
   
   .tab-button {
     border-bottom: 1px solid var(--border);
