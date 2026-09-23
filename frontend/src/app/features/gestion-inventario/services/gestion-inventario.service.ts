@@ -425,6 +425,8 @@ export interface ItemInventarioDto {
   unidad: string;
   descripcion?: string | null;
   activo: boolean;
+  /** Código de referencia del ERP (ej. Santa Reyes), a mostrar en vez del código interno cuando exista. */
+  referencia?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

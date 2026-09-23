@@ -100,5 +100,17 @@ export function sanitizeFileName(name: string): string {
   return (name || '').replace(/[\\/:*?"<>|]/g, '_');
 }
 
+/**
+ * Código a mostrarle al usuario para un ítem de inventario: el de referencia del ERP
+ * (`catalogo_items.metadata.referencia` / `item_inventario.referencia`) si existe, si no el
+ * código interno de la app. Data-driven (sin ramificar por empresa/país): una empresa sin
+ * referencia sigue viendo exactamente el código de siempre.
+ */
+export function referenciaOCodigo(referencia: string | null | undefined, codigo: string | null | undefined): string {
+  const ref = (referencia ?? '').trim();
+  if (ref) return ref;
+  return (codigo ?? '').trim();
+}
+
 // Re-export de conveniencia del helper decimal ya existente (una sola puerta de entrada).
 export { formatDecimalTrim } from './format-decimal';

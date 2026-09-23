@@ -395,7 +395,7 @@
                 <select class="form-input" [(ngModel)]="ingresoItemInventarioEcuadorId">
                   <option [ngValue]="null">Seleccione…</option>
                   @for (i of ingresoItems; track i) {
-                    <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                    <option [ngValue]="i.id">{{ codigoMostrable(i) }} — {{ i.nombre }}</option>
                   }
                 </select>
               </div>
@@ -408,8 +408,8 @@
                 <div class="form-input form-input--readonly" aria-readonly="true">{{ ingresoSelectedUnit }}</div>
               </div>
               <div class="field">
-                <label class="form-label">Código Guía</label>
-                <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Referencia" />
+                <label class="form-label">Código Guía *</label>
+                <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Tiquete de planta o remisión" required />
               </div>
               @if (ingresoEsPorGalpon && ingresoOrigenTipo === 'planta') {
                 <div class="field">
@@ -618,7 +618,7 @@
                   <select class="form-input" [(ngModel)]="trasladoItemInventarioEcuadorId" (ngModelChange)="loadOriginStock()">
                     <option [ngValue]="null">Seleccione…</option>
                     @for (i of trasladoItems; track i) {
-                      <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                      <option [ngValue]="i.id">{{ codigoMostrable(i) }} — {{ i.nombre }}</option>
                     }
                   </select>
                 </div>
@@ -636,8 +636,8 @@
                   </div>
                 }
                 <div class="field">
-                  <label class="form-label">Código Guía</label>
-                  <input class="form-input" type="text" [(ngModel)]="trasladoReference" placeholder="Referencia" />
+                  <label class="form-label">Código Guía *</label>
+                  <input class="form-input" type="text" [(ngModel)]="trasladoReference" placeholder="Tiquete de planta o remisión" required />
                 </div>
                 <div class="field">
                   <label class="form-label">Motivo</label>
@@ -1111,7 +1111,7 @@
                   <select class="filter-step__select" [(ngModel)]="historicoItemInventarioEcuadorId">
                     <option [ngValue]="null">Todos</option>
                     @for (i of historicoItemsCatalogSorted; track i) {
-                      <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                      <option [ngValue]="i.id">{{ codigoMostrable(i) }} — {{ i.nombre }}</option>
                     }
                   </select>
                 </div>
@@ -1369,7 +1369,7 @@
                         @for (i of itemsList; track i) {
                           <tr>
                             <td>{{ i.id }}</td>
-                            <td>{{ i.codigo }}</td>
+                            <td>{{ codigoMostrable(i) }}</td>
                             <td>{{ i.nombre }}</td>
                             <td>{{ i.tipoItem }}</td>
                             <td>{{ i.unidad }}</td>

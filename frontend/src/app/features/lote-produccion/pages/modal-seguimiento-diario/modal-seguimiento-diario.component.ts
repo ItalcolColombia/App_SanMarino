@@ -29,6 +29,7 @@ import {
 } from '../../../../shared/utils/inventario/consumo-sin-item.funcion';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { referenciaOCodigo } from '../../../../shared/utils/format';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { HuevoFilaFija, HuevoGrupoFilasFijas, HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
 import {
@@ -818,9 +819,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   getItemDisplayText(item: CatalogItemExtended, excludeControl: AbstractControl | null = null): string {
+    const codigo = referenciaOCodigo(item.metadata?.referencia, item.codigo);
     const cantidad = this.getCantidadDisponibleAjustada(item.id ?? undefined, excludeControl);
-    if (cantidad) return `${item.codigo} — ${item.nombre} (Disp.: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
-    return `${item.codigo} — ${item.nombre}`;
+    if (cantidad) return `${codigo} — ${item.nombre} (Disp.: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
+    return `${codigo} — ${item.nombre}`;
   }
 
   // ================== CLASIFICACIÓN DE HUEVOS POR ÍTEMS (flag de empresa) ==================

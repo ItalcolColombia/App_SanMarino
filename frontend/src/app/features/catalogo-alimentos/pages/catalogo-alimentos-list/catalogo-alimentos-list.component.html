@@ -123,7 +123,7 @@
             <tbody>
               @for (it of items; track trackById($index, it)) {
                 <tr>
-                  <td><code>{{ it.codigo || '—' }}</code></td>
+                  <td><code>{{ codigoMostrable(it) || '—' }}</code></td>
                   <td>
                     <div class="cell-title">
                       <span class="title-text">{{ it.nombre }}</span>
@@ -460,7 +460,7 @@
                                             <div class="detail-grid">
                                               <div class="detail-item">
                                                 <span class="detail-label">Código:</span>
-                                                <span class="detail-value"><code>{{ selectedItem.codigo || '—' }}</code></span>
+                                                <span class="detail-value"><code>{{ codigoMostrable(selectedItem) || '—' }}</code></span>
                                               </div>
                                               <div class="detail-item">
                                                 <span class="detail-label">Nombre:</span>

@@ -234,6 +234,12 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegistrarIngreso([FromBody] InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
+        // Código Guía obligatorio en la puerta del usuario, no en el service: la carga masiva
+        // (MigracionService.AlimentoEngorde) reutiliza RegistrarIngresoAsync y ya trata la referencia
+        // como opcional para Ingreso/Traslado (solo la exige, con aviso, en Consumo).
+        if (string.IsNullOrWhiteSpace(req.Reference))
+            return BadRequest(new { message = "Debe indicar el Código Guía (tiquete de planta o remisión)." });
+
         var fueraDeVentana = await ValidarVentanaFechaIngresoAsync(
             req.FechaMovimiento,
             c => _service.ResolverVentanaAlimentoPrevioEncasetAsync(
@@ -274,6 +280,11 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegistrarTraslado([FromBody] InventarioGestionTrasladoRequest req, CancellationToken ct = default)
     {
+        // Mismo criterio que RegistrarIngreso: obligatorio en la puerta del usuario, no en el service
+        // (la carga masiva reutiliza RegistrarTrasladoAsync con referencia opcional).
+        if (string.IsNullOrWhiteSpace(req.Reference))
+            return BadRequest(new { message = "Debe indicar el Código Guía (tiquete de planta o remisión)." });
+
         if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
 
         // Aviso de «esta salida deja un día en rojo». Va en el CONTROLLER, igual que la ventana de
