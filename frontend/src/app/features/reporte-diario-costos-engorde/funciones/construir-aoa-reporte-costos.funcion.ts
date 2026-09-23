@@ -4,6 +4,7 @@
 // pasa el resultado a `exportarAoaExcel` (helper compartido).
 
 import {
+  ReporteDiarioCostosDesgloseSexo,
   ReporteDiarioCostosGalponHeader,
   ReporteDiarioCostosReporte
 } from '../models/reporte-diario-costos.model';
@@ -24,16 +25,29 @@ function kgExcel(v: number | null | undefined): number | string {
   return Math.round(v * 100) / 100;
 }
 
+/** Celdas de mortalidad + selección de UN galpón: [H, M, Total] con desglose por sexo, [Total] sin él. */
+function celdasMortGalpon(
+  g: (ReporteDiarioCostosDesgloseSexo & { mortSel: number }) | undefined,
+  porSexo: boolean
+): number[] {
+  const total = g?.mortSel ?? 0;
+  return porSexo ? [g?.mortSelHembras ?? 0, g?.mortSelMachos ?? 0, total] : [total];
+}
+
 /**
  * Layout (espejo del mockup):
  *  título · contexto (granja/lote base/rango) · lotes involucrados
  *  header 2 niveles: FECHA | ALIMENTO(3) | TOTAL DÍA | MORT+SEL×galpón | AVES VIVAS×galpón | TOTAL AVES
  *  una fila por fecha×alimento (los valores de día solo en la primera fila de la fecha)
  *  footer: SUMA TOTAL + suma por galpón + aves vivas actuales.
+ *
+ * Con `reporte.mortalidadPorSexo` cada galpón de MORT+SEL ocupa 3 columnas (H | M | Total) y se
+ * agrega un 3.er nivel de encabezado; sin él, el archivo es el de siempre.
  */
 export function construirAoaReporteCostos(reporte: ReporteDiarioCostosReporte): AoaReporteCostos {
   const galpones: ReporteDiarioCostosGalponHeader[] = reporte.galpones;
-  const nGal = galpones.length;
+  const porSexo = reporte.mortalidadPorSexo === true;
+  const colsMort = porSexo ? 3 : 1;
   const aoa: (string | number)[][] = [];
 
   aoa.push(['REPORTE DIARIO COSTOS — POLLO ENGORDE']);
@@ -51,17 +65,26 @@ export function construirAoaReporteCostos(reporte: ReporteDiarioCostosReporte): 
   // Header nivel 1
   aoa.push([
     'FECHA', 'ALIMENTO', '', '', 'TOTAL DÍA (kg)',
-    ...galpones.map(() => 'MORTALIDAD + SELECCIÓN'),
+    ...galpones.flatMap(() => Array<string>(colsMort).fill('MORTALIDAD + SELECCIÓN')),
     ...galpones.map(() => 'AVES VIVAS'),
     'TOTAL AVES'
   ]);
   // Header nivel 2
   aoa.push([
     '', 'Tipo alimento', 'Stock (kg)', 'Consumo (kg)', '',
-    ...galpones.map(g => g.galponNombre),
+    ...galpones.flatMap(g => Array<string>(colsMort).fill(g.galponNombre)),
     ...galpones.map(g => g.galponNombre),
     ''
   ]);
+  // Header nivel 3 (solo con desglose por sexo)
+  if (porSexo) {
+    aoa.push([
+      '', '', '', '', '',
+      ...galpones.flatMap(() => ['H', 'M', 'Total']),
+      ...galpones.map(() => ''),
+      ''
+    ]);
+  }
 
   // Filas: una por fecha×alimento
   for (const f of reporte.filas) {
@@ -78,7 +101,9 @@ export function construirAoaReporteCostos(reporte: ReporteDiarioCostosReporte): 
         kgExcel(a.stockKg),
         kgExcel(a.consumoKg),
         primera ? kgExcel(f.consumoTotalKg) : '',
-        ...galpones.map(g => (primera ? (porGalpon.get(g.galponId)?.mortSel ?? 0) : '')),
+        ...galpones.flatMap<string | number>(g => (primera
+          ? celdasMortGalpon(porGalpon.get(g.galponId), porSexo)
+          : Array<string>(colsMort).fill(''))),
         ...galpones.map(g => (primera ? (porGalpon.get(g.galponId)?.avesVivas ?? 0) : '')),
         primera ? f.avesVivasTotal : ''
       ]);
@@ -91,7 +116,7 @@ export function construirAoaReporteCostos(reporte: ReporteDiarioCostosReporte): 
   aoa.push([
     'SUMA TOTAL', '', '', '',
     kgExcel(reporte.totales.consumoTotalKg),
-    ...galpones.map(g => totPorGalpon.get(g.galponId)?.mortSel ?? 0),
+    ...galpones.flatMap(g => celdasMortGalpon(totPorGalpon.get(g.galponId), porSexo)),
     ...galpones.map(g => avesActuales.get(g.galponId)?.avesVivas ?? 0),
     reporte.avesVivasActualesTotal
   ]);
@@ -101,6 +126,11 @@ export function construirAoaReporteCostos(reporte: ReporteDiarioCostosReporte): 
     aoa.push(['', a.nombreAlimento, '', kgExcel(a.consumoKg)]);
   }
 
-  const colWidths = [12, 24, 12, 13, 14, ...galpones.map(() => 14), ...galpones.map(() => 12), 12];
+  const colWidths = [
+    12, 24, 12, 13, 14,
+    ...galpones.flatMap(() => (porSexo ? [8, 8, 10] : [14])),
+    ...galpones.map(() => 12),
+    12
+  ];
   return { aoa, colWidths };
 }

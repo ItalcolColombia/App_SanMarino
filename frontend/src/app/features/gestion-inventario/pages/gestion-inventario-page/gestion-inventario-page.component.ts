@@ -40,6 +40,7 @@ import {
   type VentanaFechaIngreso
 } from '../../funciones/ventana-fecha-movimiento.funcion';
 import { hintVentanaFechaRegistro } from '../../../../shared/utils/fecha/ventana-fecha-registro.funcion';
+import { referenciaOCodigo } from '../../../../shared/utils/format';
 import {
   formatFechaMovimiento as formatFechaMovimientoFn,
   formatFechaIngresoStock as formatFechaIngresoStockFn,
@@ -1238,6 +1239,10 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Complete granja, ítem y cantidad.');
       return;
     }
+    if (!this.ingresoReference?.trim()) {
+      this.openAlertModal('error', 'Validación', 'Indique el Código Guía (tiquete de planta o remisión).');
+      return;
+    }
     if (this.showNucleoGalpon) {
       if (this.ingresoOrigenTipo === 'granja') {
         if (this.ingresoOrigenFarmId == null) {
@@ -1275,6 +1280,10 @@ export class GestionInventarioPageComponent implements OnInit {
   submitTraslado(): void {
     if (this.fromFarmId == null || this.toFarmId == null || this.trasladoItemInventarioEcuadorId == null || this.trasladoQuantity <= 0) {
       this.openAlertModal('error', 'Validación', 'Complete origen, destino, ítem y cantidad.');
+      return;
+    }
+    if (!this.trasladoReference?.trim()) {
+      this.openAlertModal('error', 'Validación', 'Indique el Código Guía (tiquete de planta o remisión).');
       return;
     }
     if (!this.trasladoFechaMovimiento?.trim()) {
@@ -1444,6 +1453,11 @@ export class GestionInventarioPageComponent implements OnInit {
   /** Motivo cuando origen es Planta (solo lectura). */
   get ingresoReasonPlanta(): string {
     return 'Llegada a planta';
+  }
+
+  /** Código a mostrar en los selectores/listas de ítem: referencia ERP si existe, si no el código interno. */
+  codigoMostrable(item: { referencia?: string | null; codigo: string }): string {
+    return referenciaOCodigo(item.referencia, item.codigo);
   }
 
   /** Unidad del ítem de ingreso seleccionado (solo lectura). */

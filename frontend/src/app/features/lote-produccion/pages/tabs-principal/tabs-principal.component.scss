@@ -178,6 +178,83 @@
    ========================================================================== */
 .table-container {
   margin-top: var(--space-4);
+  --seguimiento-table-min-width: 1600px;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.table-toolbar__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.table-toolbar h4 {
+  margin: 0;
+}
+
+.validation-legend {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.validation-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.validation-legend__item::before {
+  content: '';
+  width: .65rem;
+  height: .65rem;
+  border-radius: 999px;
+  background: var(--ital-green-100);
+  border: 1px solid var(--border);
+}
+
+.validation-legend__item--validado::before { background: var(--success); border-color: var(--success); }
+.validation-legend__item--retraso::before { background: var(--danger); border-color: var(--danger); }
+
+.table-scroll-guide {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 1.25rem;
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+}
+
+.table-scroll-guide span::before {
+  content: '↔ ';
+  color: var(--ital-orange-dark);
+  font-weight: 800;
+}
+
+.table-scrollbar-top {
+  width: 100%;
+  height: 15px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: auto;
+}
+
+.table-scrollbar-top__content {
+  width: var(--seguimiento-table-min-width);
+  height: 1px;
 }
 
 .table-container .ux-scroll {
@@ -191,7 +268,7 @@
 
 .table-container .ux-table {
   /* Tabla “full fields”: muy ancha, se usa con scroll horizontal */
-  min-width: 1600px;
+  min-width: var(--seguimiento-table-min-width);
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -252,7 +329,7 @@
   text-align: right;
   box-shadow: -10px 0 14px rgba(31, 41, 55, .08);
   border-left: 1px solid var(--border);
-  min-width: 120px;
+  min-width: 180px;
 }
 
 .ux-table--seguimiento thead th.sticky-actions {
@@ -267,6 +344,24 @@
 
 .ux-table--seguimiento tbody tr:hover td.sticky-actions {
   background: var(--ital-orange-50);
+}
+
+/* Pendiente es un estado neutro: toda la fila, incluida Acciones, queda gris. */
+.ux-table--seguimiento tbody tr.fila-validacion--pendiente > td {
+  background: var(--ital-green-50);
+}
+
+.ux-table--seguimiento tbody tr.fila-validacion--pendiente:hover > td {
+  background: var(--ital-green-100);
+}
+
+/* La celda fija no debe tapar la alarma visual de una fila vencida. */
+.ux-table--seguimiento tbody tr.fila-validacion--retraso > td {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
+}
+
+.ux-table--seguimiento tbody tr.fila-validacion--retraso:hover > td {
+  background: color-mix(in srgb, var(--danger) 13%, var(--bg-card));
 }
 
 .mono {
@@ -398,14 +493,27 @@
 .text-right { text-align: right; }
 
 .btn-group {
-  display: flex; gap: var(--space-1);
+  display: flex; gap: var(--space-1); justify-content: flex-end;
 }
 
 .icon-btn {
-  width: 32px; height: 32px; border: none; border-radius: var(--radius-sm);
+  min-width: 36px; height: 36px; padding: 0 var(--space-2); border: none; border-radius: var(--radius-sm);
   background: var(--warm-200); color: var(--warm-600);
   cursor: pointer; transition: all var(--t-fast);
   display: flex; align-items: center; justify-content: center;
+}
+
+.icon-btn--with-label {
+  gap: var(--space-1);
+  width: auto;
+  background: var(--ital-orange);
+  color: var(--ital-cream);
+  font-weight: 700;
+}
+
+.icon-btn--with-label:hover {
+  background: var(--ital-orange-dark);
+  color: var(--ital-cream);
 }
 
 .icon-btn:hover {
@@ -440,9 +548,7 @@
     grid-template-columns: repeat(2, 1fr);
     gap: var(--space-2);
   }
-  .table-container .ux-table {
-    min-width: 700px;
-  }
+  .table-toolbar { align-items: stretch; }
 }
 
 @media (max-width: 768px) {
@@ -468,13 +574,16 @@
   .table-container {
     margin-top: var(--space-4);
   }
+  .table-toolbar {
+    flex-direction: column;
+  }
+  .table-toolbar .btn {
+    width: 100%;
+  }
   .table-container .ux-scroll {
     max-height: 45vh;
   }
-  .table-container .ux-table {
-    min-width: 650px;
-    font-size: var(--fs-xs);
-  }
+  .table-container .ux-table { font-size: var(--fs-xs); }
   .table-container .ux-table thead th,
   .table-container .ux-table tbody td {
     padding: var(--space-2) var(--space-3);
@@ -505,16 +614,13 @@
   .resumen-number {
     font-size: 1rem;
   }
-  .table-container .ux-table {
-    min-width: 580px;
-  }
   .btn-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
   .icon-btn {
-    width: 28px;
-    height: 28px;
+    min-width: 36px;
+    height: 36px;
   }
 }
 

@@ -1,319 +1,164 @@
-<!-- Modal de Detalle de Seguimiento Diario - UX mejorada: cerrar en header, footer y Escape/backdrop -->
 @if (isOpen) {
   <div class="ux-modal detalle-modal__backdrop" role="dialog" aria-modal="true" aria-labelledby="detalle-seguimiento-modal-title" (click)="onBackdropClick($event)">
-    <div class="ux-modal__dialog ux-modal__dialog--large detalle-modal__dialog" (click)="$event.stopPropagation()">
+    <div class="ux-modal__dialog detalle-modal__dialog" (click)="$event.stopPropagation()">
       <header class="ux-modal__header detalle-modal__header">
-        <h2 id="detalle-seguimiento-modal-title">Detalle del Seguimiento Diario</h2>
-        <button type="button" class="detalle-modal__close" (click)="onClose()" aria-label="Cerrar modal" title="Cerrar">
+        <div class="modal-heading">
+          <span class="modal-heading__eyebrow">Seguimiento diario · Levante</span>
+          <h2 id="detalle-seguimiento-modal-title">Detalle del registro</h2>
+          @if (seguimiento) {
+            <span class="modal-heading__context">Registro #{{ seguimiento.id || 'nuevo' }} · {{ formatDate(seguimiento.fechaRegistro) }}</span>
+          }
+        </div>
+        <button type="button" class="detalle-modal__close" (click)="onClose()" aria-label="Cerrar detalle" title="Cerrar">
           <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
         </button>
       </header>
-      @if (loading) {
-        <div class="ux-modal__content ux-modal__content--detail">
-          <div class="detail-loading">
-            <div class="spinner"></div>
-            <p>Cargando detalles...</p>
+
+      <div class="ux-modal__content">
+        @if (loading) {
+          <div class="detail-loading" role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <strong>Cargando detalle</strong>
+            <span>Estamos consultando la información del registro.</span>
           </div>
-        </div>
-      }
-      @if (!loading && seguimiento) {
-        <div class="ux-modal__content ux-modal__content--detail">
-          <div class="detail-form">
-            <!-- Información general -->
-            <section class="detail-section">
-              <h3 class="detail-section__title">Información general</h3>
-              <div class="detail-fields">
-                <div class="detail-field">
-                  <label class="detail-label">Fecha de registro</label>
-                  <input type="text" class="detail-input" [value]="formatDate(seguimiento.fechaRegistro)" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Lote ID</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.loteId" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Tipo de alimento</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.tipoAlimento || '—'" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Ciclo</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.ciclo || 'Normal'" readonly disabled>
-                </div>
-                @if (seguimiento.observaciones) {
-                  <div class="detail-field detail-field--full">
-                    <label class="detail-label">Observaciones</label>
-                    <input type="text" class="detail-input" [value]="seguimiento.observaciones" readonly disabled>
-                  </div>
-                }
-              </div>
+        }
+
+        @if (!loading && !seguimiento) {
+          <div class="empty-detail" role="alert">
+            <strong>No fue posible mostrar el registro.</strong>
+            <span>Reintenta la consulta o cierra este detalle.</span>
+          </div>
+        }
+
+        @if (!loading && seguimiento) {
+          <div class="detalle-body">
+            <section class="record-summary" aria-label="Resumen del registro">
+              <div class="record-summary__item"><span>Fecha</span><strong>{{ formatDate(seguimiento.fechaRegistro) }}</strong></div>
+              <div class="record-summary__item"><span>Mortalidad total</span><strong>{{ (seguimiento.mortalidadHembras || 0) + (seguimiento.mortalidadMachos || 0) | number:'1.0-0' }}</strong></div>
+              <div class="record-summary__item record-summary__item--accent"><span>Consumo total</span><strong>{{ (seguimiento.consumoKgHembras || 0) + (seguimiento.consumoKgMachos || 0) | number:'1.0-2' }} kg</strong></div>
             </section>
-            <!-- Hembras -->
-            <section class="detail-section">
-              <h3 class="detail-section__title">Hembras</h3>
-              <div class="detail-fields">
-                <div class="detail-field">
-                  <label class="detail-label">Mortalidad hembras</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.mortalidadHembras" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Sel H (retiradas)</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
-                </div>
-                @if (!ocultaMachosEnPostura) {
-                <div class="detail-field">
-                  <label class="detail-label">Error sexaje hembras</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
-                </div>
-                }
-                <div class="detail-field">
-                  <label class="detail-label">Consumo (kg)</label>
-                  <input type="text" class="detail-input" [value]="(seguimiento.consumoKgHembras != null ? formatNumber(seguimiento.consumoKgHembras) + ' kg' : '—')" readonly disabled>
-                </div>
-                @if (seguimiento.pesoPromH) {
-                  <div class="detail-field">
-                    <label class="detail-label">Peso promedio (kg)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.pesoPromH != null ? formatNumber(seguimiento.pesoPromH) + ' kg' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.uniformidadH) {
-                  <div class="detail-field">
-                    <label class="detail-label">Uniformidad (%)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.uniformidadH != null ? formatNumber(seguimiento.uniformidadH) + '%' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.cvH) {
-                  <div class="detail-field">
-                    <label class="detail-label">Coeficiente de variación (CV)</label>
-                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.cvH)" readonly disabled>
-                  </div>
-                }
-              </div>
-              @if (itemsHembras.length > 0) {
-                <div class="detail-items-wrap">
-                  <h4 class="detail-items-title">Ítems registrados (hembras)</h4>
-                  <div class="detail-table-wrap">
-                    <table class="detail-table">
-                      <thead>
-                        <tr>
-                          <th>Tipo</th>
-                          <th>Alimento / Ítem</th>
-                          <th>Cantidad</th>
-                          <th>Unidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of itemsHembras; track item) {
-                          <tr>
-                            <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
-                            <td>{{ getItemDisplay(item.catalogItemId) }}</td>
-                            <td>{{ formatNumber(item.cantidad) }}</td>
-                            <td>{{ item.unidad }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+
+            <nav class="detail-tabs" role="tablist" aria-label="Secciones del detalle">
+              <button id="det-levante-tab-general" type="button" class="detail-tab" role="tab" [class.detail-tab--active]="pestanaActiva === 'general'" [attr.aria-selected]="pestanaActiva === 'general'" aria-controls="det-levante-panel-general" (click)="seleccionarPestana('general')"><span aria-hidden="true">📋</span><span>General</span></button>
+              <button id="det-levante-tab-aves" type="button" class="detail-tab" role="tab" [class.detail-tab--active]="pestanaActiva === 'aves'" [attr.aria-selected]="pestanaActiva === 'aves'" aria-controls="det-levante-panel-aves" (click)="seleccionarPestana('aves')"><span aria-hidden="true">🐔</span><span>Aves</span></button>
+              <button id="det-levante-tab-items" type="button" class="detail-tab" role="tab" [class.detail-tab--active]="pestanaActiva === 'items'" [attr.aria-selected]="pestanaActiva === 'items'" aria-controls="det-levante-panel-items" (click)="seleccionarPestana('items')"><span aria-hidden="true">🌾</span><span>Ítems</span></button>
+              <button id="det-levante-tab-ambiente" type="button" class="detail-tab" role="tab" [class.detail-tab--active]="pestanaActiva === 'ambiente'" [attr.aria-selected]="pestanaActiva === 'ambiente'" aria-controls="det-levante-panel-ambiente" (click)="seleccionarPestana('ambiente')"><span aria-hidden="true">💧</span><span>Nutrición y agua</span></button>
+              @if (tieneHuevos) {
+                <button id="det-levante-tab-huevos" type="button" class="detail-tab" role="tab" [class.detail-tab--active]="pestanaActiva === 'huevos'" [attr.aria-selected]="pestanaActiva === 'huevos'" aria-controls="det-levante-panel-huevos" (click)="seleccionarPestana('huevos')"><span aria-hidden="true">🥚</span><span>Huevos</span></button>
               }
-            </section>
-            @if (itemsGenerales.length > 0) {
-              <section class="detail-section">
-                <h3 class="detail-section__title">Ítems generales (lote)</h3>
-                <div class="detail-items-wrap">
-                  <div class="detail-table-wrap">
-                    <table class="detail-table">
-                      <thead>
-                        <tr>
-                          <th>Tipo</th>
-                          <th>Ítem</th>
-                          <th>Cantidad</th>
-                          <th>Unidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of itemsGenerales; track item) {
-                          <tr>
-                            <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
-                            <td>{{ getItemDisplay(item.catalogItemId) }}</td>
-                            <td>{{ formatNumber(item.cantidad) }}</td>
-                            <td>{{ item.unidad }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
+            </nav>
+
+            <div class="detail-panels">
+              @if (pestanaActiva === 'general') {
+                <section id="det-levante-panel-general" class="detail-panel" role="tabpanel" aria-labelledby="det-levante-tab-general">
+                  <div class="panel-heading"><div><span class="section-kicker">Registro</span><h3>Información general</h3></div><p>Identificación, alimento y novedades de la jornada.</p></div>
+                  <div class="detail-fields">
+                    <div class="detail-field"><span class="detail-label">Fecha de registro</span><strong class="detail-value">{{ formatDate(seguimiento.fechaRegistro) }}</strong></div>
+                    <div class="detail-field"><span class="detail-label">Lote ID</span><strong class="detail-value">{{ seguimiento.loteId }}</strong></div>
+                    <div class="detail-field"><span class="detail-label">Ciclo</span><strong class="detail-value">{{ seguimiento.ciclo || 'Normal' }}</strong></div>
+                    <div class="detail-field"><span class="detail-label">Tipo de alimento</span><strong class="detail-value">{{ seguimiento.tipoAlimento || '—' }}</strong></div>
+                    <div class="detail-field detail-field--full"><span class="detail-label">Observaciones</span><strong class="detail-value detail-value--multiline">{{ seguimiento.observaciones || 'Sin observaciones' }}</strong></div>
                   </div>
-                </div>
-              </section>
-            }
-            @if (!ocultaMachosEnPostura) {
-            <!-- Machos -->
-            <section class="detail-section">
-              <h3 class="detail-section__title">Machos</h3>
-              <div class="detail-fields">
-                <div class="detail-field">
-                  <label class="detail-label">Mortalidad machos</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.mortalidadMachos" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Sel M (retiradas)</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.selM" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Error sexaje machos</label>
-                  <input type="text" class="detail-input" [value]="seguimiento.errorSexajeMachos" readonly disabled>
-                </div>
-                <div class="detail-field">
-                  <label class="detail-label">Consumo (kg)</label>
-                  <input type="text" class="detail-input" [value]="(seguimiento.consumoKgMachos != null ? formatNumber(seguimiento.consumoKgMachos) + ' kg' : '—')" readonly disabled>
-                </div>
-                @if (seguimiento.pesoPromM) {
-                  <div class="detail-field">
-                    <label class="detail-label">Peso promedio (kg)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.pesoPromM != null ? formatNumber(seguimiento.pesoPromM) + ' kg' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.uniformidadM) {
-                  <div class="detail-field">
-                    <label class="detail-label">Uniformidad (%)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.uniformidadM != null ? formatNumber(seguimiento.uniformidadM) + '%' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.cvM) {
-                  <div class="detail-field">
-                    <label class="detail-label">Coeficiente de variación (CV)</label>
-                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.cvM)" readonly disabled>
-                  </div>
-                }
-              </div>
-              @if (itemsMachos.length > 0) {
-                <div class="detail-items-wrap">
-                  <h4 class="detail-items-title">Ítems registrados (machos)</h4>
-                  <div class="detail-table-wrap">
-                    <table class="detail-table">
-                      <thead>
-                        <tr>
-                          <th>Tipo</th>
-                          <th>Alimento / Ítem</th>
-                          <th>Cantidad</th>
-                          <th>Unidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of itemsMachos; track item) {
-                          <tr>
-                            <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
-                            <td>{{ getItemDisplay(item.catalogItemId) }}</td>
-                            <td>{{ formatNumber(item.cantidad) }}</td>
-                            <td>{{ item.unidad }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                </section>
               }
-            </section>
-            }
-            <!-- Agua (Ecuador / Panamá) -->
-            <section class="detail-section" *appShowIfEcuadorPanama>
-              <h3 class="detail-section__title">Información de agua</h3>
-              <div class="detail-fields">
-                @if (seguimiento.consumoAguaDiario) {
-                  <div class="detail-field">
-                    <label class="detail-label">Consumo diario (litros)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaDiario != null ? formatNumber(seguimiento.consumoAguaDiario) + ' L' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.consumoAguaPh) {
-                  <div class="detail-field">
-                    <label class="detail-label">PH del agua</label>
-                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.consumoAguaPh)" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.consumoAguaOrp) {
-                  <div class="detail-field">
-                    <label class="detail-label">ORP (mV)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaOrp != null ? formatNumber(seguimiento.consumoAguaOrp) + ' mV' : '—')" readonly disabled>
-                  </div>
-                }
-                @if (seguimiento.consumoAguaTemperatura) {
-                  <div class="detail-field">
-                    <label class="detail-label">Temperatura (°C)</label>
-                    <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaTemperatura != null ? formatNumber(seguimiento.consumoAguaTemperatura) + ' °C' : '—')" readonly disabled>
-                  </div>
-                }
-              </div>
-            </section>
-            <!-- Nutricional -->
-            @if (seguimiento.kcalAlH || seguimiento.protAlH || seguimiento.kcalAveH || seguimiento.protAveH) {
-              <section class="detail-section">
-                <h3 class="detail-section__title">Información nutricional</h3>
-                <div class="detail-fields">
-                  @if (seguimiento.kcalAlH) {
-                    <div class="detail-field">
-                      <label class="detail-label">Kcal/Al H</label>
-                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.kcalAlH)" readonly disabled>
+
+              @if (pestanaActiva === 'aves') {
+                <section id="det-levante-panel-aves" class="detail-panel" role="tabpanel" aria-labelledby="det-levante-tab-aves">
+                  <div class="panel-heading"><div><span class="section-kicker">Movimiento diario</span><h3>Aves</h3></div><p>Mortalidad, selección, consumo y resultados de pesaje.</p></div>
+                  <div class="data-group data-group--first">
+                    <h4>♀ Hembras</h4>
+                    <div class="detail-fields detail-fields--metrics">
+                      <div class="detail-field detail-field--metric"><span class="detail-label">Mortalidad</span><strong class="detail-value">{{ seguimiento.mortalidadHembras | number:'1.0-0' }}</strong></div>
+                      <div class="detail-field detail-field--metric"><span class="detail-label">Selección / retiradas</span><strong class="detail-value">{{ seguimiento.selH | number:'1.0-0' }}</strong></div>
+                      @if (!ocultaMachosEnPostura) { <div class="detail-field detail-field--metric"><span class="detail-label">Error sexaje</span><strong class="detail-value">{{ seguimiento.errorSexajeHembras | number:'1.0-0' }}</strong></div> }
+                      <div class="detail-field detail-field--metric"><span class="detail-label">Consumo</span><strong class="detail-value">{{ seguimiento.consumoKgHembras | number:'1.0-2' }} kg</strong></div>
+                      <div class="detail-field"><span class="detail-label">Peso promedio</span><strong class="detail-value">{{ seguimiento.pesoPromH != null ? (seguimiento.pesoPromH | number:'1.0-2') + ' kg' : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Uniformidad</span><strong class="detail-value">{{ seguimiento.uniformidadH != null ? (seguimiento.uniformidadH | number:'1.0-2') + '%' : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Coeficiente de variación</span><strong class="detail-value">{{ seguimiento.cvH != null ? (seguimiento.cvH | number:'1.0-2') : '—' }}</strong></div>
                     </div>
-                  }
-                  @if (seguimiento.protAlH) {
-                    <div class="detail-field">
-                      <label class="detail-label">Prot/Al H</label>
-                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.protAlH)" readonly disabled>
-                    </div>
-                  }
-                  @if (seguimiento.kcalAveH) {
-                    <div class="detail-field">
-                      <label class="detail-label">Kcal/Ave H</label>
-                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.kcalAveH)" readonly disabled>
-                    </div>
-                  }
-                  @if (seguimiento.protAveH) {
-                    <div class="detail-field">
-                      <label class="detail-label">Prot/Ave H</label>
-                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.protAveH)" readonly disabled>
-                    </div>
-                  }
-                </div>
-              </section>
-            }
-            <!-- Huevos (levante semana 14+) -->
-            @if (tieneHuevos) {
-              <section class="detail-section">
-                <h3 class="detail-section__title">Huevos</h3>
-                <div class="detail-fields">
-                  <div class="detail-field">
-                    <label class="detail-label">Total huevos</label>
-                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.huevoTot ?? 0)" readonly disabled>
                   </div>
-                  <div class="detail-field">
-                    <label class="detail-label">Incubables</label>
-                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.huevoInc ?? 0)" readonly disabled>
-                  </div>
-                  @if (seguimiento.pesoHuevo) {
-                    <div class="detail-field">
-                      <label class="detail-label">Peso promedio</label>
-                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.pesoHuevo) + ' g'" readonly disabled>
-                    </div>
-                  }
-                  @for (c of categoriasHuevo; track c.label) {
-                    @if (c.valor) {
-                      <div class="detail-field">
-                        <label class="detail-label">{{ c.label }}</label>
-                        <input type="text" class="detail-input" [value]="formatNumber(c.valor)" readonly disabled>
+                  @if (!ocultaMachosEnPostura) {
+                    <div class="data-group">
+                      <h4>♂ Machos</h4>
+                      <div class="detail-fields detail-fields--metrics">
+                        <div class="detail-field detail-field--metric"><span class="detail-label">Mortalidad</span><strong class="detail-value">{{ seguimiento.mortalidadMachos | number:'1.0-0' }}</strong></div>
+                        <div class="detail-field detail-field--metric"><span class="detail-label">Selección / retiradas</span><strong class="detail-value">{{ seguimiento.selM | number:'1.0-0' }}</strong></div>
+                        <div class="detail-field detail-field--metric"><span class="detail-label">Error sexaje</span><strong class="detail-value">{{ seguimiento.errorSexajeMachos | number:'1.0-0' }}</strong></div>
+                        <div class="detail-field detail-field--metric"><span class="detail-label">Consumo</span><strong class="detail-value">{{ seguimiento.consumoKgMachos | number:'1.0-2' }} kg</strong></div>
+                        <div class="detail-field"><span class="detail-label">Peso promedio</span><strong class="detail-value">{{ seguimiento.pesoPromM != null ? (seguimiento.pesoPromM | number:'1.0-2') + ' kg' : '—' }}</strong></div>
+                        <div class="detail-field"><span class="detail-label">Uniformidad</span><strong class="detail-value">{{ seguimiento.uniformidadM != null ? (seguimiento.uniformidadM | number:'1.0-2') + '%' : '—' }}</strong></div>
+                        <div class="detail-field"><span class="detail-label">Coeficiente de variación</span><strong class="detail-value">{{ seguimiento.cvM != null ? (seguimiento.cvM | number:'1.0-2') : '—' }}</strong></div>
                       </div>
-                    }
+                    </div>
                   }
-                </div>
-              </section>
-            }
+                </section>
+              }
+
+              @if (pestanaActiva === 'items') {
+                <section id="det-levante-panel-items" class="detail-panel" role="tabpanel" aria-labelledby="det-levante-tab-items">
+                  <div class="panel-heading"><div><span class="section-kicker">Consumos registrados</span><h3>Ítems y alimento</h3></div><p>Detalle por sexo y consumibles generales del lote.</p></div>
+                  @if (itemsHembras.length === 0 && itemsMachos.length === 0 && itemsGenerales.length === 0) { <div class="empty-section"><strong>Sin ítems adicionales</strong><span>Este registro no contiene un desglose por catálogo.</span></div> }
+                  @if (itemsHembras.length > 0) {
+                    <div class="detail-items-wrap"><h4>Hembras</h4><div class="detail-table-wrap"><table class="detail-table"><thead><tr><th>Tipo</th><th>Alimento / ítem</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+                      @for (item of itemsHembras; track item) { <tr><td><span class="detail-badge">{{ item.tipoItem }}</span></td><td>{{ getItemDisplay(item.catalogItemId) }}</td><td>{{ formatNumber(item.cantidad) }}</td><td>{{ item.unidad }}</td></tr> }
+                    </tbody></table></div></div>
+                  }
+                  @if (!ocultaMachosEnPostura && itemsMachos.length > 0) {
+                    <div class="detail-items-wrap"><h4>Machos</h4><div class="detail-table-wrap"><table class="detail-table"><thead><tr><th>Tipo</th><th>Alimento / ítem</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+                      @for (item of itemsMachos; track item) { <tr><td><span class="detail-badge">{{ item.tipoItem }}</span></td><td>{{ getItemDisplay(item.catalogItemId) }}</td><td>{{ formatNumber(item.cantidad) }}</td><td>{{ item.unidad }}</td></tr> }
+                    </tbody></table></div></div>
+                  }
+                  @if (itemsGenerales.length > 0) {
+                    <div class="detail-items-wrap"><h4>Generales del lote</h4><div class="detail-table-wrap"><table class="detail-table"><thead><tr><th>Tipo</th><th>Ítem</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+                      @for (item of itemsGenerales; track item) { <tr><td><span class="detail-badge">{{ item.tipoItem }}</span></td><td>{{ getItemDisplay(item.catalogItemId) }}</td><td>{{ formatNumber(item.cantidad) }}</td><td>{{ item.unidad }}</td></tr> }
+                    </tbody></table></div></div>
+                  }
+                </section>
+              }
+
+              @if (pestanaActiva === 'ambiente') {
+                <section id="det-levante-panel-ambiente" class="detail-panel" role="tabpanel" aria-labelledby="det-levante-tab-ambiente">
+                  <div class="panel-heading"><div><span class="section-kicker">Control técnico</span><h3>Nutrición y agua</h3></div><p>Indicadores nutricionales y mediciones disponibles del agua.</p></div>
+                  <div class="data-group data-group--first">
+                    <h4>Nutrición · Hembras</h4>
+                    <div class="detail-fields">
+                      <div class="detail-field"><span class="detail-label">Kcal / alimento</span><strong class="detail-value">{{ seguimiento.kcalAlH != null ? formatNumber(seguimiento.kcalAlH) : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Proteína / alimento</span><strong class="detail-value">{{ seguimiento.protAlH != null ? formatNumber(seguimiento.protAlH) : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Kcal / ave</span><strong class="detail-value">{{ seguimiento.kcalAveH != null ? formatNumber(seguimiento.kcalAveH) : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Proteína / ave</span><strong class="detail-value">{{ seguimiento.protAveH != null ? formatNumber(seguimiento.protAveH) : '—' }}</strong></div>
+                    </div>
+                  </div>
+                  <div class="data-group" *appShowIfEcuadorPanama>
+                    <h4>Agua</h4>
+                    <div class="detail-fields">
+                      <div class="detail-field"><span class="detail-label">Consumo diario</span><strong class="detail-value">{{ seguimiento.consumoAguaDiario != null ? formatNumber(seguimiento.consumoAguaDiario) + ' L' : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">pH</span><strong class="detail-value">{{ seguimiento.consumoAguaPh != null ? formatNumber(seguimiento.consumoAguaPh) : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">ORP</span><strong class="detail-value">{{ seguimiento.consumoAguaOrp != null ? formatNumber(seguimiento.consumoAguaOrp) + ' mV' : '—' }}</strong></div>
+                      <div class="detail-field"><span class="detail-label">Temperatura</span><strong class="detail-value">{{ seguimiento.consumoAguaTemperatura != null ? formatNumber(seguimiento.consumoAguaTemperatura) + ' °C' : '—' }}</strong></div>
+                    </div>
+                  </div>
+                </section>
+              }
+
+              @if (pestanaActiva === 'huevos' && tieneHuevos) {
+                <section id="det-levante-panel-huevos" class="detail-panel" role="tabpanel" aria-labelledby="det-levante-tab-huevos">
+                  <div class="panel-heading"><div><span class="section-kicker">Levante · semana 14+</span><h3>Huevos</h3></div><p>Totales y clasificación informada en el registro.</p></div>
+                  <div class="detail-fields detail-fields--metrics">
+                    <div class="detail-field detail-field--metric"><span class="detail-label">Total huevos</span><strong class="detail-value">{{ seguimiento.huevoTot ?? 0 | number:'1.0-0' }}</strong></div>
+                    <div class="detail-field detail-field--metric"><span class="detail-label">Incubables</span><strong class="detail-value">{{ seguimiento.huevoInc ?? 0 | number:'1.0-0' }}</strong></div>
+                    <div class="detail-field"><span class="detail-label">Peso promedio</span><strong class="detail-value">{{ seguimiento.pesoHuevo != null ? formatNumber(seguimiento.pesoHuevo) + ' g' : '—' }}</strong></div>
+                    @for (c of categoriasHuevo; track c.label) { @if (c.valor) { <div class="detail-field"><span class="detail-label">{{ c.label }}</span><strong class="detail-value">{{ c.valor | number:'1.0-0' }}</strong></div> } }
+                  </div>
+                </section>
+              }
+            </div>
           </div>
-        </div>
-      }
+        }
+      </div>
+
       <footer class="ux-modal__footer detalle-modal__footer">
-        <button type="button" class="detalle-modal__btn-close" (click)="onClose()">
-          <fa-icon [icon]="faXmark" aria-hidden="true"></fa-icon>
-          <span>Cerrar</span>
-        </button>
+        <span class="footer-hint">Escape también cierra el detalle</span>
+        <button type="button" class="detalle-modal__btn-close" (click)="onClose()"><fa-icon [icon]="faXmark" aria-hidden="true"></fa-icon><span>Cerrar</span></button>
       </footer>
     </div>
   </div>

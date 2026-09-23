@@ -38,6 +38,7 @@ import {
   itemsConStockEnSilo,
   SaldoItem
 } from '../../../../shared/utils/inventario/stock-por-silo.funcion';
+import { referenciaOCodigo } from '../../../../shared/utils/format';
 import {
   BloqueConsumo,
   FilaConsumo,
@@ -1208,11 +1209,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // Obtener texto completo del ítem con cantidad disponible (ajustada por reservas de otras filas) para el dropdown
   getItemDisplayText(item: CatalogItemDto, excludeControl: AbstractControl | null = null): string {
+    const codigo = referenciaOCodigo(item.metadata?.referencia, item.codigo);
     const cantidad = this.getCantidadDisponibleAjustada(item.id, excludeControl);
     if (cantidad) {
-      return `${item.codigo} — ${item.nombre} (Disponible: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
+      return `${codigo} — ${item.nombre} (Disponible: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
     }
-    return `${item.codigo} — ${item.nombre}`;
+    return `${codigo} — ${item.nombre}`;
   }
 
   // Ya no necesitamos actualizar consumoKg aquí, el backend lo hace

@@ -11,6 +11,14 @@ namespace ZooSanMarino.Application.Calculos;
 /// </summary>
 public static class ReporteDiarioCostosEngordeCalculos
 {
+    /// <summary>
+    /// ¿La pantalla abre la mortalidad + selección de cada galpón en hembras y machos?
+    /// Solo si la empresa maneja el engorde POR SEXO. Con <c>companies.seguimiento_engorde_mixto</c>
+    /// (Panamá) la mortalidad mixta se guarda en la columna de hembras (la plantilla «Mort Mixta» es
+    /// alias de «Mort H»), así que partirla mostraría un «machos 0» falso: se deja una sola columna.
+    /// </summary>
+    public static bool MuestraMortalidadPorSexo(bool seguimientoEngordeMixto) => !seguimientoEngordeMixto;
+
     /// <summary>Redondeo estándar del reporte para kg (3 decimales, half away from zero como el resto del módulo).</summary>
     public static double RedondearKg(double valor) => Math.Round(valor, 3, MidpointRounding.AwayFromZero);
 
@@ -42,7 +50,13 @@ public static class ReporteDiarioCostosEngordeCalculos
                 g.Sum(x => x.Mortalidad),
                 g.Sum(x => x.Seleccion),
                 g.Sum(x => x.ErrSexaje),
-                g.Sum(x => x.MortSel)))
+                g.Sum(x => x.MortSel),
+                g.Sum(x => x.MortalidadHembras),
+                g.Sum(x => x.MortalidadMachos),
+                g.Sum(x => x.SeleccionHembras),
+                g.Sum(x => x.SeleccionMachos),
+                g.Sum(x => x.MortSelHembras),
+                g.Sum(x => x.MortSelMachos)))
             .OrderBy(g => g.GalponNombre, StringComparer.OrdinalIgnoreCase)
             .ThenBy(g => g.GalponId, StringComparer.OrdinalIgnoreCase)
             .ToList();

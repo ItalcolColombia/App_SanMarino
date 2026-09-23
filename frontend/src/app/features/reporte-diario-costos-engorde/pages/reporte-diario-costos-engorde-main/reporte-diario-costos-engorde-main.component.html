@@ -132,24 +132,34 @@
       <table class="rdc-table w-full text-sm">
         <thead>
           <tr>
-            <th rowspan="2" class="rdc-th rdc-th--fecha">Fecha</th>
+            <th [attr.rowspan]="filasHeader" class="rdc-th rdc-th--fecha">Fecha</th>
             <th colspan="3" class="rdc-th rdc-th--grupo">Resumen global de alimento por día (kg)</th>
-            <th rowspan="2" class="rdc-th rdc-th--total">Total día (kg)</th>
-            <th [attr.colspan]="galponesCols.length" class="rdc-th rdc-th--grupo rdc-th--mort">Mortalidad + selección</th>
+            <th [attr.rowspan]="filasHeader" class="rdc-th rdc-th--total">Total día (kg)</th>
+            <th [attr.colspan]="galponesCols.length * columnasMortPorGalpon" class="rdc-th rdc-th--grupo rdc-th--mort">Mortalidad + selección</th>
             <th [attr.colspan]="galponesCols.length + 1" class="rdc-th rdc-th--grupo">Aves vivas</th>
           </tr>
           <tr>
-            <th class="rdc-th">Tipo alimento</th>
-            <th class="rdc-th">Stock (kg)</th>
-            <th class="rdc-th">Consumo (kg)</th>
+            <th class="rdc-th" [attr.rowspan]="filasHeader - 1">Tipo alimento</th>
+            <th class="rdc-th" [attr.rowspan]="filasHeader - 1">Stock (kg)</th>
+            <th class="rdc-th" [attr.rowspan]="filasHeader - 1">Consumo (kg)</th>
             @for (g of galponesCols; track trackGalpon($index, g)) {
-              <th class="rdc-th rdc-th--mort" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
+              <th class="rdc-th rdc-th--mort" [class.rdc-th--galpon-ini]="porSexo" [attr.colspan]="columnasMortPorGalpon" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
             }
             @for (g of galponesCols; track trackGalpon($index, g)) {
-              <th class="rdc-th" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
+              <th class="rdc-th" [attr.rowspan]="filasHeader - 1" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
             }
-            <th class="rdc-th">Total</th>
+            <th class="rdc-th" [attr.rowspan]="filasHeader - 1">Total</th>
           </tr>
+          <!-- Desglose por sexo: solo empresas que manejan el engorde por sexo (lo decide el backend). -->
+          @if (porSexo) {
+            <tr>
+              @for (g of galponesCols; track trackGalpon($index, g)) {
+                <th class="rdc-th rdc-th--sexo rdc-th--galpon-ini" title="Hembras">H</th>
+                <th class="rdc-th rdc-th--sexo" title="Machos">M</th>
+                <th class="rdc-th rdc-th--sexo" title="Hembras + machos">Total</th>
+              }
+            </tr>
+          }
         </thead>
         <tbody>
           @for (f of filasView; track trackFila($index, f)) {
@@ -164,7 +174,17 @@
                 @if (primera) {
                   <td class="rdc-td rdc-td--total" [attr.rowspan]="f.alimentoRows.length">{{ kg(f.consumoTotalKg) }}</td>
                   @for (g of f.galpones; track g.galponId) {
-                    <td class="rdc-td rdc-td--mort" [attr.rowspan]="f.alimentoRows.length"
+                    @if (porSexo) {
+                      <td class="rdc-td rdc-td--mort rdc-td--galpon-ini" [attr.rowspan]="f.alimentoRows.length"
+                        [title]="'Hembras — mortalidad: ' + g.mortalidadHembras + ' · selección: ' + g.seleccionHembras">
+                        {{ ent(g.mortSelHembras) }}
+                      </td>
+                      <td class="rdc-td rdc-td--mort" [attr.rowspan]="f.alimentoRows.length"
+                        [title]="'Machos — mortalidad: ' + g.mortalidadMachos + ' · selección: ' + g.seleccionMachos">
+                        {{ ent(g.mortSelMachos) }}
+                      </td>
+                    }
+                    <td class="rdc-td rdc-td--mort" [class.rdc-td--mort-total]="porSexo" [attr.rowspan]="f.alimentoRows.length"
                       [title]="'Mortalidad: ' + g.mortalidad + ' · Selección: ' + g.seleccion + ' · Err. sexaje: ' + g.errSexaje">
                       {{ ent(g.mortSel) }}
                     </td>
@@ -183,6 +203,16 @@
             <td class="rdc-td rdc-td--foot" colspan="4">SUMA TOTAL</td>
             <td class="rdc-td rdc-td--foot">{{ kg(reporte.totales.consumoTotalKg) }}</td>
             @for (t of totalesPorGalpon; track t.galponId) {
+              @if (porSexo) {
+                <td class="rdc-td rdc-td--foot rdc-td--galpon-ini"
+                  [title]="'Hembras — mortalidad: ' + t.mortalidadHembras + ' · selección: ' + t.seleccionHembras">
+                  {{ ent(t.mortSelHembras) }}
+                </td>
+                <td class="rdc-td rdc-td--foot"
+                  [title]="'Machos — mortalidad: ' + t.mortalidadMachos + ' · selección: ' + t.seleccionMachos">
+                  {{ ent(t.mortSelMachos) }}
+                </td>
+              }
               <td class="rdc-td rdc-td--foot"
                 [title]="'Mortalidad: ' + t.mortalidad + ' · Selección: ' + t.seleccion + ' · Err. sexaje: ' + t.errSexaje">
                 {{ ent(t.mortSel) }}

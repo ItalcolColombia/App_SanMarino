@@ -10,6 +10,7 @@ import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.
 import { ReporteDiarioCostosEngordeService } from '../../services/reporte-diario-costos-engorde.service';
 import { construirAoaReporteCostos } from '../../funciones/construir-aoa-reporte-costos.funcion';
 import {
+  ReporteDiarioCostosDesgloseSexo,
   ReporteDiarioCostosFila,
   ReporteDiarioCostosGalponDia,
   ReporteDiarioCostosGalponHeader,
@@ -33,6 +34,15 @@ interface FilaView {
   galpones: ReporteDiarioCostosGalponDia[];
 }
 
+const DESGLOSE_SEXO_VACIO: ReporteDiarioCostosDesgloseSexo = {
+  mortalidadHembras: 0,
+  mortalidadMachos: 0,
+  seleccionHembras: 0,
+  seleccionMachos: 0,
+  mortSelHembras: 0,
+  mortSelMachos: 0
+};
+
 const GALPON_VACIO = (g: ReporteDiarioCostosGalponHeader): ReporteDiarioCostosGalponDia => ({
   galponId: g.galponId,
   galponNombre: g.galponNombre,
@@ -41,7 +51,8 @@ const GALPON_VACIO = (g: ReporteDiarioCostosGalponHeader): ReporteDiarioCostosGa
   errSexaje: 0,
   mortSel: 0,
   consumoKg: 0,
-  avesVivas: 0
+  avesVivas: 0,
+  ...DESGLOSE_SEXO_VACIO
 });
 
 @Component({
@@ -78,6 +89,15 @@ export class ReporteDiarioCostosEngordeMainComponent implements OnInit {
   filasView: FilaView[] = [];
   totalesPorGalpon: ReporteDiarioCostosGalponTotal[] = [];
   avesActualesPorGalpon: number[] = [];
+  /**
+   * Mortalidad + selección abierta en H | M | Total por galpón (lo decide el backend según la
+   * empresa: con engorde mixto viene en false y la tabla queda de una columna por galpón).
+   */
+  porSexo = false;
+  /** Filas del encabezado: 3 con el desglose por sexo (galpón → H/M/Total), 2 sin él. */
+  filasHeader = 2;
+  /** Columnas de cada galpón dentro del bloque de mortalidad. */
+  columnasMortPorGalpon = 1;
 
   ngOnInit(): void {
     this.cargarFilterData();
@@ -124,6 +144,7 @@ export class ReporteDiarioCostosEngordeMainComponent implements OnInit {
       this.filasView = [];
       this.totalesPorGalpon = [];
       this.avesActualesPorGalpon = [];
+      this.aplicarDesgloseSexo(false);
     } finally {
       this.loading = false;
     }
@@ -133,6 +154,7 @@ export class ReporteDiarioCostosEngordeMainComponent implements OnInit {
   private aplicarReporte(rep: ReporteDiarioCostosReporte): void {
     this.reporte = rep;
     this.galponesCols = rep.galpones;
+    this.aplicarDesgloseSexo(rep.mortalidadPorSexo === true);
 
     this.filasView = rep.filas.map((f: ReporteDiarioCostosFila): FilaView => {
       const porId = new Map(f.galpones.map(g => [g.galponId, g]));
@@ -151,11 +173,18 @@ export class ReporteDiarioCostosEngordeMainComponent implements OnInit {
 
     const totPorId = new Map(rep.totales.porGalpon.map(t => [t.galponId, t]));
     this.totalesPorGalpon = rep.galpones.map(g => totPorId.get(g.galponId) ?? {
-      galponId: g.galponId, galponNombre: g.galponNombre, mortalidad: 0, seleccion: 0, errSexaje: 0, mortSel: 0
+      galponId: g.galponId, galponNombre: g.galponNombre, mortalidad: 0, seleccion: 0, errSexaje: 0, mortSel: 0,
+      ...DESGLOSE_SEXO_VACIO
     });
 
     const avesPorId = new Map(rep.avesVivasActuales.map(a => [a.galponId, a.avesVivas]));
     this.avesActualesPorGalpon = rep.galpones.map(g => avesPorId.get(g.galponId) ?? 0);
+  }
+
+  private aplicarDesgloseSexo(porSexo: boolean): void {
+    this.porSexo = porSexo;
+    this.filasHeader = porSexo ? 3 : 2;
+    this.columnasMortPorGalpon = porSexo ? 3 : 1;
   }
 
   limpiar(): void {
@@ -169,6 +198,7 @@ export class ReporteDiarioCostosEngordeMainComponent implements OnInit {
     this.filasView = [];
     this.totalesPorGalpon = [];
     this.avesActualesPorGalpon = [];
+    this.aplicarDesgloseSexo(false);
   }
 
   // ── Formato (delegan en shared/utils/format) ────────────────────────────

@@ -24,6 +24,7 @@ import {
   PagedResult
 } from '../../services/catalogo-alimentos.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { referenciaOCodigo } from '../../../../shared/utils/format';
 
 type CatalogItemType = 'alimento'|'medicamento'|'accesorio'|'biologico'|'consumible'|'aves'|'otro';
 type Genero = 'Hembra'|'Macho'|'Mixto';
@@ -477,6 +478,11 @@ export class CatalogoAlimentosListComponent implements OnInit {
 
   typeOf(item: CatalogItemDto): string {
     return item.itemType || item.metadata?.type_item || '';
+  }
+
+  /** Código a mostrar: referencia ERP (`metadata.referencia`) si existe, si no el código interno. */
+  codigoMostrable(item: CatalogItemDto): string {
+    return referenciaOCodigo(item.metadata?.referencia, item.codigo);
   }
   
   showDetail(item: CatalogItemDto): void {

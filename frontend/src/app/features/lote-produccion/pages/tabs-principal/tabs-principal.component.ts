@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, inject, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionLoteDetalleDto, InformacionLoteDto, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -25,7 +25,12 @@ import { FilaGrillaProduccion, detalleTotalDia, filasGrillaProduccion, registros
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
-export class TabsPrincipalComponent implements OnInit, OnChanges {
+export class TabsPrincipalComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+  @ViewChild('scrollSuperior') private scrollSuperior?: ElementRef<HTMLDivElement>;
+  @ViewChild('scrollTabla') private scrollTabla?: ElementRef<HTMLDivElement>;
+  @ViewChild('tablaSeguimiento') private tablaSeguimiento?: ElementRef<HTMLTableElement>;
+  anchoContenidoTablaPx = 1600;
+  private observadorAnchoTabla?: ResizeObserver;
   /**
    * Las filas de la tabla se arman en el SETTER, no en `ngOnChanges`: `ngOnChanges` solo corre cuando
    * el input llega por binding, y una asignación directa (`component.seguimientos = …`, como hacen los
@@ -459,7 +464,43 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   /** Clase de la FILA: solo se pinta la vencida, para que el rojo siga significando algo. */
   claseFilaValidacion(id: number | null | undefined): string {
-    return this.estadoValidacionFila(id) === 'EN_RETRASO' ? 'fila-validacion--retraso' : '';
+    switch (this.estadoValidacionFila(id)) {
+      case 'EN_RETRASO': return 'fila-validacion--retraso';
+      case 'PENDIENTE':  return 'fila-validacion--pendiente';
+      default:           return '';
+    }
+  }
+
+  ngAfterViewInit(): void {
+    queueMicrotask(() => this.actualizarAnchoScrollbar());
+    if (typeof ResizeObserver === 'undefined' || !this.tablaSeguimiento) return;
+
+    this.observadorAnchoTabla = new ResizeObserver(() => this.actualizarAnchoScrollbar());
+    this.observadorAnchoTabla.observe(this.tablaSeguimiento.nativeElement);
+  }
+
+  ngOnDestroy(): void {
+    this.observadorAnchoTabla?.disconnect();
+  }
+
+  private actualizarAnchoScrollbar(): void {
+    const tabla = this.tablaSeguimiento?.nativeElement;
+    if (!tabla) return;
+    this.anchoContenidoTablaPx = Math.max(1600, tabla.scrollWidth);
+  }
+
+  /**
+   * La tabla tiene una barra horizontal arriba y la nativa abajo. Se mantienen espejadas para que
+   * el operario pueda revisar columnas desde cualquier altura del listado, especialmente en tablet.
+   */
+  sincronizarScroll(origen: 'superior' | 'tabla', event: Event): void {
+    const origenEl = event.currentTarget as HTMLDivElement | null;
+    const destinoEl = origen === 'superior'
+      ? this.scrollTabla?.nativeElement
+      : this.scrollSuperior?.nativeElement;
+
+    if (!origenEl || !destinoEl || destinoEl.scrollLeft === origenEl.scrollLeft) return;
+    destinoEl.scrollLeft = origenEl.scrollLeft;
   }
 
   tooltipValidacionFila(id: number | null | undefined): string {

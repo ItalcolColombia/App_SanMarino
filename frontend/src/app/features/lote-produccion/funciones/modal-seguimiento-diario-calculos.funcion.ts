@@ -20,7 +20,7 @@ export function itemEcuadorToExtended(i: ItemInventarioDto): CatalogItemExtended
     tipoItem: (i.concepto ?? i.tipoItem ?? '').trim() || i.tipoItem,
     unidad: (i.unidad ?? 'kg').trim() || 'kg',
     activo: i.activo,
-    metadata: { type_item: i.tipoItem, concepto: i.concepto }
+    metadata: { type_item: i.tipoItem, concepto: i.concepto, referencia: i.referencia }
   };
 }
 

@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
 
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
@@ -11,10 +12,12 @@ import { CountryFilterService } from '../../../../core/services/country/country-
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
+type PestanaDetalleLevante = 'general' | 'aves' | 'items' | 'ambiente' | 'huevos';
+
 @Component({
   selector: 'app-modal-detalle-seguimiento-levante',
   standalone: true,
-  imports: [FontAwesomeModule, ShowIfEcuadorPanamaDirective],
+  imports: [CommonModule, FontAwesomeModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-detalle-seguimiento.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-detalle-seguimiento.component.scss']
@@ -29,6 +32,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
   @Output() close = new EventEmitter<void>();
 
   loading: boolean = false;
+  pestanaActiva: PestanaDetalleLevante = 'general';
   itemsHembras: ItemSeguimientoDto[] = [];
   itemsMachos: ItemSeguimientoDto[] = [];
   itemsGenerales: ItemSeguimientoDto[] = [];
@@ -58,13 +62,11 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
       error: () => (this.ocultaMachosEnPostura = false)
     });
 
-    if (this.isOpen && this.seguimiento) {
-      this.cargarDetalle();
-    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen']?.currentValue && this.seguimiento) {
+      this.pestanaActiva = 'general';
       this.cargarDetalle();
     }
     if (changes['isOpen'] || changes['seguimiento']) this.recalcularHuevos();
@@ -115,6 +117,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
       this.seguimientoService.getById(this.seguimiento.id).subscribe({
         next: (data) => {
           this.seguimiento = data;
+          this.recalcularHuevos();
           this.procesarItems();
           this.loading = false;
         },
@@ -132,8 +135,19 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     }
   }
 
+  seleccionarPestana(pestana: PestanaDetalleLevante): void {
+    if (pestana === 'huevos' && !this.tieneHuevos) return;
+    this.pestanaActiva = pestana;
+  }
+
   private procesarItems(): void {
     if (!this.seguimiento) return;
+
+    // Cada apertura parte limpia: un registro sin desglose no debe heredar los ítems del anterior.
+    this.itemsHembras = [];
+    this.itemsMachos = [];
+    this.itemsGenerales = [];
+    this.itemNames.clear();
 
     // Cargar items desde metadata (nuevo formato)
     const metadata = this.seguimiento.metadata || {};

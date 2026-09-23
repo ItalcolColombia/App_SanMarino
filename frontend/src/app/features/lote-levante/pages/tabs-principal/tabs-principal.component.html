@@ -197,7 +197,16 @@
             <!-- Registros diarios (fechas, pérdidas, consumos, saldos) -->
             <div class="table-container table-container--diario">
               <div class="registro-diario__toolbar">
-                <h4>Registros Diarios</h4>
+                <div class="registro-diario__heading">
+                  <h4>Registros Diarios</h4>
+                  @if (requiereValidacion) {
+                    <div class="validation-legend" aria-label="Leyenda de estados de validación">
+                      <span class="validation-legend__item validation-legend__item--pendiente">Pendiente</span>
+                      <span class="validation-legend__item validation-legend__item--validado">Validado</span>
+                      <span class="validation-legend__item validation-legend__item--retraso">En retraso</span>
+                    </div>
+                  }
+                </div>
                 @if (showExportSeguimientoExcel) {
                   <button
                     type="button"
@@ -227,8 +236,14 @@
                   El <strong>consumo real</strong> (kg hembras/machos) sigue siendo el del seguimiento diario.
                 </p>
               }
-              <div class="ux-scroll ux-scroll--diario">
-                <table class="ux-table ux-table--registro-diario">
+              <div class="table-scroll-guide" aria-hidden="true">
+                <span>Desliza para revisar todas las columnas</span>
+              </div>
+              <div #scrollSuperior class="table-scrollbar-top" (scroll)="sincronizarScroll('superior', $event)" aria-label="Desplazamiento horizontal superior de la tabla" tabindex="0">
+                <div class="table-scrollbar-top__content" [style.width.px]="anchoContenidoTablaPx"></div>
+              </div>
+              <div #scrollTabla class="ux-scroll ux-scroll--diario" (scroll)="sincronizarScroll('tabla', $event)">
+                <table #tablaSeguimiento class="ux-table ux-table--registro-diario">
                   <thead>
                     <tr>
                       <th scope="col" class="th-diario">Fecha</th>
@@ -305,7 +320,7 @@
                       @if (requiereValidacion) {
                         <th scope="col" class="th-diario">Estado</th>
                       }
-                      <th scope="col" class="th-diario th-diario--actions">Acciones</th>
+                      <th scope="col" class="th-diario th-diario--actions sticky-actions">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -432,20 +447,21 @@
                             </span>
                           </td>
                         }
-                        <td class="text-right">
+                        <td class="text-right sticky-actions">
                           <div class="btn-group">
-                            <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
+                            <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
                             @if (puedeValidarFila(f.seg.id)) {
-                              <button type="button" (click)="onValidar(f.seg.id)" class="icon-btn icon-btn--validar"
+                              <button type="button" (click)="onValidar(f.seg.id)" class="icon-btn icon-btn--validar icon-btn--with-label"
                                 [disabled]="disableCreateEditDelete"
-                                title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura.">✓</button>
+                                title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura."
+                                aria-label="Validar registro"><span aria-hidden="true">✓</span><span>Validar</span></button>
                             }
                             <button type="button" (click)="onEdit(f.seg)" class="icon-btn"
                               [disabled]="disableCreateEditDelete || esSoloLecturaPorValidacion(f.seg.id)"
-                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para corregirlo' : (disableCreateEditDelete ? 'No se puede editar' : 'Editar')">✎</button>
+                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para corregirlo' : (disableCreateEditDelete ? 'No se puede editar' : 'Editar')" aria-label="Editar registro">✎</button>
                             <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger"
                               [disabled]="disableCreateEditDelete || esSoloLecturaPorValidacion(f.seg.id)"
-                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para poder eliminarlo' : (disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar')">🗑️</button>
+                              [title]="esSoloLecturaPorValidacion(f.seg.id) ? 'Registro validado: quítele la validación para poder eliminarlo' : (disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar')" aria-label="Eliminar registro">🗑️</button>
                           </div>
                         </td>
                       </tr>

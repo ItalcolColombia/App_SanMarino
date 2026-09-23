@@ -9213,3 +9213,75 @@ Plan: [reverse_proxy_known_networks_pipeline_plan.md](fase_de_desarrollo/reverse
 - [x] I2. Paso «Confiar en el ALB (ReverseProxy) en la TaskDef» después de la rotación JWT y antes de «Actualizar imagen». Sin cambios de C#, Dockerfile ni AWS.
 - [x] V1. Pasos EXTRAÍDOS del workflow (JWT + proxy) sobre TaskDef sintética en 2 deploys: el 1.º agrega las 3 redes, el 2.º las respeta (7 variables, sin duplicados) y la JWT rota las dos veces. YAML OK. Medición con las variables EXACTAS de esa TaskDef + `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`: mismo cliente con XFF inventado 99→98→97, otro cliente 99. Puerto 5599 libre.
 - [x] R1. Commit solo de lo propio (el gate de VALIDACION-CLAVES-PRODUCCION sigue sin commitear). **Nada pendiente en AWS.**
+
+---
+
+## WIKI-DOCUMENTACION — `backend/documentacion` en la wiki de GitHub (22-sep-2026)
+
+Plan: [wiki_documentacion_plan.md](fase_de_desarrollo/wiki_documentacion_plan.md). Decisión del usuario, avisado de que el repo es público: publicar la carpeta entera tal cual.
+
+- [x] I1. `backend/scripts/generar-wiki-documentacion.js` + test `node --test` (7/7).
+- [x] V1. Corrida real sobre `backend/documentacion`: 179 páginas + 13 adjuntos + Home/_Sidebar/_Footer; 179/179 páginas idénticas al original fuera de los destinos de link (14 con algún link ajustado); 0 links `.md` sin convertir; adjuntos iguales byte a byte.
+- [x] U1. **Usuario:** creó la primera página de la wiki desde la web (GitHub no expone API para inicializarla).
+- [x] P1. Push al repo de la wiki (`e3c9ae1`, 195 archivos; solo se reemplazó la `Home.md` provisoria). Verificado por HTTP sin login: portada, `Documentacion`, `aws-infrastructure`, `requisito-ciberseguridad` y 12 páginas del índice → 200 (una inventada → 302); links que salen de la carpeta → 200 en GitHub; menú lateral y pie presentes.
+- [x] R1. Commit solo de lo propio (generador en `eb8c710`; este cierre aparte). Re-publicar: clonar `App_SanMarino.wiki.git`, `node backend/scripts/generar-wiki-documentacion.js <clon>`, commit y push.
+
+---
+
+## REPORTE-COSTOS-MORTALIDAD-SEXO — Reporte Diario Costos engorde: mortalidad H/M por galpón (22-sep-2026)
+
+Plan: [reporte_costos_engorde_mortalidad_por_sexo_plan.md](fase_de_desarrollo/reporte_costos_engorde_mortalidad_por_sexo_plan.md). Pedido de Ecuador. Gate = flag existente `companies.seguimiento_engorde_mixto` (Panamá ON ⇒ sin cambios).
+
+- [x] B1. fn v4 (`galpones` JSON + 6 claves por sexo) — espejo `.sql` + migración `20260922150000_ReporteCostosEngordeMortalidadPorSexo` (Up v4 / Down v3 = prosrc local verificado) + Designer clonado con el modelo del snapshot actual.
+- [x] B2. DTOs (campos por sexo con default 0 + `MortalidadPorSexo`) + `ReporteDiarioCostosEngordeCalculos` (totales por sexo, `MuestraMortalidadPorSexo`) + service lee `seguimiento_engorde_mixto` (fail-closed).
+- [x] B3. Tests xUnit: totales H/M (H+M = combinado), filas sin desglose, flag mixto (theory) y contrato JSON fn↔DTO.
+- [x] F1. Front: modelo + tabla H | M | Total por galpón (encabezado de 3 niveles, cuerpo y footer, tooltips mortalidad/selección por sexo) gateado por `mortalidadPorSexo`.
+- [x] F2. Excel con el mismo layout (3.er nivel H/M/Total) + `construir-aoa-reporte-costos.funcion.spec.ts` (3 casos).
+- [x] V1. SQL en transacción revertida, 15 granjas de Ecuador y Panamá (2.070 filas, historia completa + rango por defecto): v4 sin claves nuevas == v3 → 0 diferencias; H+M = combinado en las 9.394 celdas galpón×día. Kilometro 22 27-ago Galpon-2: 36 = H 15 + M 21.
+- [x] V2. `dotnet build` API 0 err / 0 warn (14 min 34 s, sin otra compilación en paralelo); Application.Tests 4464/4464; `yarn build` 0 err; Karma del módulo 3/3; gates CI (sql-migracion, change-detection, lista-cacheable, inventario, señuelo, superficie, cuadre) OK. API.Tests/Domain.Tests no corridos (no referencian el reporte).
+- [x] V3. Migración aplicada en la BD local + ida y vuelta Down (== v3) / Up (== v4). Smoke con backend :5002 y front :4200 (sesiones minteadas, borradas al final): Ecuador Kilometro 22 / 2604 ⇒ `mortalidadPorSexo=true`, encabezado GALPON → H/M/TOTAL, 29-ago G1 44 = 14 + 30 y G2 79 = 24 + 55, footer 340+472=812 y 656+812=1.468, Excel con H/M/Total; Panamá DAYLAND ⇒ `false`, 2 filas de encabezado y 1 columna por galpón (igual que hoy). Puertos 5002/4200 libres.
+- [x] R1. Commit solo de lo propio (el workflow, `.devpilot/` y los archivos de VALIDACION-CLAVES-PRODUCCION siguen sin commitear: son de otra sesión). Se despliega con el próximo push a `main-produccion` (la migración corre sola al arrancar).
+
+---
+
+## CATALOGO-ITEMS-SANTA-REYES-ERP — Cierre de brecha item_inventario + código ERP + Código Guía obligatorio (22-sep-2026)
+
+Plan: [catalogo_items_santa_reyes_erp_plan.md](fase_de_desarrollo/catalogo_items_santa_reyes_erp_plan.md)
+
+- [x] A1. Auditoría Excel `Items.xlsx` vs BD: 45/45 alimento OK; 244/246 insumos ya en `catalogo_items` (2 son duplicados de alimento, no un hueco); hueco real = `item_inventario` solo tiene los 45 de alimento para Santa Reyes (company_id=6) → Gastos de Inventario le muestra 0 ítems.
+- [x] B1. `Application/Calculos/InferenciaUnidadInventarioCalculos.cs` + tests xUnit (parseo de texto + default por tipo_item).
+- [x] B2. Migración EF `AddItemInventarioInsumosSantaReyes`: backfill de 244 ítems no-alimento a `item_inventario` (unidad precalculada embebida, `ON CONFLICT DO NOTHING`, `Down` revierte). 🔴 Bug propio atrapado por el round-trip: el `Down` usaba `item_type` (columna de `catalogo_items`) en vez de `tipo_item` (la real de `item_inventario`) → 42703 al revertir; corregido antes de commitear.
+- [x] B3. Backend: `Reference` (Código Guía) obligatorio — en el CONTROLLER (`RegistrarIngreso`/`RegistrarTraslado`), no en el service: `MigracionService.AlimentoEngorde` (carga masiva) llama a `RegistrarIngresoAsync`/`RegistrarTrasladoAsync` directo con referencia opcional para Ingreso/Traslado (solo la exige, con aviso, en Consumo) — validar en el service la habría roto.
+- [x] F1. Frontend: `submitIngreso()`/`submitTraslado()` validan Código Guía antes de confirmar; label con asterisco + `required`.
+- [x] F2. Frontend: función pura `referenciaOCodigo` (`shared/utils/format.ts`) + reemplazo en `modal-create-edit` (Levante), `modal-seguimiento-diario` (Producción, + `itemEcuadorToExtended` ahora copia `referencia` a metadata), `gestion-inventario-page` (4 puntos, vía método `codigoMostrable`) y `catalogo-alimentos-list` (2 puntos).
+- [x] V1. `dotnet build` 0/0 (backend) + `dotnet test` Application.Tests **4489/4489** (25 nuevos, sin regresiones sobre los 4464 previos).
+- [x] V2. Migración aplicada en BD local: 45→289 (244 nuevos), `Down` 289→45 exacto, re-`Up` 45→289 de nuevo, `ON CONFLICT DO NOTHING` verificado insertando un subconjunto ya existente (0 filas nuevas) — idempotente confirmado con round-trip real, no solo leído.
+- [x] V3. `yarn build` 0 err (solo warning preexistente de license field, sin bundle-budget); Karma `--include` del spec nuevo 4/4 SUCCESS. Smoke real por API (JWT HS256 + `X-Secret-Up` = `DerivarClaveSesion` + fila en `sesiones_activas`, borrada al terminar): `GET /api/inventario/items` con `X-Active-Company-Id: 6` → 289 ítems, 45 con `referencia` (los de alimento) y los insumos con `referencia: null` (caen al código interno, confirmado con el 1951 A.C.P.M.); `POST /ingreso` y `/traslado` sin `reference` → 400 `"Debe indicar el Código Guía…"`; con `reference` presente → pasa el chequeo y falla más adelante por la granja inexistente (prueba que el check no bloquea envíos válidos). Puertos 5002/4200 y fila de sesión, todos liberados al final.
+- [x] R1. Commit acotado a mis archivos (backend + frontend del plan + este bloque del tracker); el resto de tracker_estado.md ya estaba modificado por otra sesion antes de empezar (reordenamiento + bloque SEGURIDAD-WEB-MOVIL) y se dejo intacto en el working tree, sin commitear.
+
+---
+
+## SEGUIMIENTO-PRODUCCION-UX — Validacion visible y detalle responsive (22-sep-2026)
+
+Plan: [seguimiento_produccion_responsive_validacion_plan.md](fase_de_desarrollo/seguimiento_produccion_responsive_validacion_plan.md)
+
+- [x] A1. Auditar el incidente de huevos en 0: backend y PWA conservan `huevoItems`; la carrera del modal y la lectura del total diario ya estan corregidas en `4f71cbe` + `d2543c2`, ambos en `origin/main-produccion`. La TaskDef viva NO se certifica: AWS local responde `UnrecognizedClientException` por token invalido; rama remota no se confunde con despliegue efectivo.
+- [x] F1. Tabla: scroll horizontal superior sincronizado con el ancho real, columnas legibles, acciones tactiles fijas y boton Validar explicito.
+- [x] F2. Estado pendiente: fila gris neutra + leyenda; retraso rojo y validado verde sin cambiar semantica.
+- [x] F3. Modal detalle: resumen, pestanas tactiles General/Aves/Huevos/Pesaje/Agua, una sola zona de scroll y grilla tablet/celular.
+- [x] T1. Specs tabla/modal 13/13; regresion del primer guardado, tipos de huevo y total diario 98/98.
+- [x] V1. `yarn build` final con Node 22.23.1: 0 errores, 0 advertencias Angular; solo aviso preexistente de licencia Yarn.
+- [x] R1. Diff propio revisado; cambios concurrentes de workflow/backend/.devpilot preservados. Puertos 5002/4200/9876 libres.
+---
+
+## SEGUIMIENTO-LEVANTE-UX — Detalle responsive y validación visible
+
+Plan: [fase_de_desarrollo/seguimiento_levante_responsive_validacion_plan.md](fase_de_desarrollo/seguimiento_levante_responsive_validacion_plan.md)
+
+- [x] Auditar diferencias entre los flujos de Producción y Levante.
+- [x] Mejorar navegación horizontal, columna de acciones y controles táctiles de la tabla.
+- [x] Diferenciar visualmente Pendiente, Validado y En retraso sin cambiar reglas.
+- [x] Reorganizar el modal de detalle de Levante para escritorio, tablet y celular.
+- [x] Agregar pruebas unitarias de tabla, validación y modal, incluida la no herencia de ítems entre aperturas.
+- [x] Verificar PWA: el DTO de Levante incluye categorías o `huevoItems` y el outbox conserva el `request.body` completo.
+- [x] Validar: 12/12 pruebas enfocadas y `yarn build` final con Node 22.23.1, sin errores Angular; puertos 5002/4200/9876 libres.
