@@ -4,6 +4,8 @@ import { HuevoItemSeguimiento, ProduccionService, SeguimientoItemDto, leerHuevoI
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
+type PestanaDetalle = 'general' | 'aves' | 'huevos' | 'pesaje' | 'agua';
+
 @Component({
   selector: 'app-modal-detalle-seguimiento',
   standalone: true,
@@ -19,11 +21,14 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
 
   loading: boolean = false;
   seguimiento: SeguimientoItemDto | null = null;
+  pestanaActiva: PestanaDetalle = 'general';
   isEcuadorOrPanama: boolean = false;
   /** Santa Reyes: los huevos se clasifican por ítem del catálogo (Primera/Pnc) en vez de las 11 columnas fijas. */
   clasificacionHuevoPorItems: boolean = false;
   /** Empresas sin machos en postura: se retira la pestaña Machos entera (SR-DEF-1). */
   ocultaMachosEnPostura = false;
+  /** Referencia estable: evita parsear `metadata` y crear un arreglo nuevo en cada ciclo de CD. */
+  huevoItemsGuardados: HuevoItemSeguimiento[] = [];
 
   constructor(
     private produccionService: ProduccionService,
@@ -39,13 +44,9 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
     });
   }
 
-  /** Desglose por ítem guardado en `metadata.huevoItems` (empresas con clasificación por ítems). */
-  get huevoItemsGuardados(): HuevoItemSeguimiento[] {
-    return leerHuevoItemsDeMetadata(this.seguimiento?.metadata);
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen']?.currentValue && this.seguimientoId) {
+      this.pestanaActiva = 'general';
       this.cargarDetalle();
     }
   }
@@ -54,16 +55,25 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
     if (!this.seguimientoId) return;
 
     this.loading = true;
+    this.seguimiento = null;
+    this.huevoItemsGuardados = [];
     this.produccionService.obtenerSeguimientoPorId(this.seguimientoId).subscribe({
       next: (data) => {
         this.seguimiento = data;
+        this.huevoItemsGuardados = leerHuevoItemsDeMetadata(data.metadata);
         this.loading = false;
       },
       error: (err) => {
         console.error('Error al cargar detalle:', err);
+        this.huevoItemsGuardados = [];
         this.loading = false;
       }
     });
+  }
+
+  seleccionarPestana(pestana: PestanaDetalle): void {
+    if (pestana === 'agua' && !this.isEcuadorOrPanama) return;
+    this.pestanaActiva = pestana;
   }
 
   onClose(): void {

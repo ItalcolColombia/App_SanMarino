@@ -97,6 +97,42 @@ describe('TabsPrincipalComponent (producción) · alineación de la grilla diari
     expect(badge.textContent!.trim()).toContain('En retraso');
   });
 
+  it('una fila pendiente queda marcada con el estado neutro gris', () => {
+    component.requiereValidacion = true;
+    component.estadoValidacionPorId = new Map<number, string>([[101, 'PENDIENTE']]);
+    fixture.detectChanges();
+
+    const fila: HTMLElement = fixture.nativeElement.querySelector('table.ux-table--seguimiento tbody tr.ux-row');
+    expect(fila.classList).toContain('fila-validacion--pendiente');
+    expect(fila.classList).not.toContain('fila-validacion--retraso');
+  });
+
+  it('sincroniza la barra horizontal superior y la tabla en ambos sentidos', () => {
+    const superior: HTMLDivElement = fixture.nativeElement.querySelector('.table-scrollbar-top');
+    const tabla: HTMLDivElement = fixture.nativeElement.querySelector('.table-container .ux-scroll');
+
+    superior.scrollLeft = 240;
+    superior.dispatchEvent(new Event('scroll'));
+    expect(tabla.scrollLeft).toBe(240);
+
+    tabla.scrollLeft = 85;
+    tabla.dispatchEvent(new Event('scroll'));
+    expect(superior.scrollLeft).toBe(85);
+  });
+
+  it('el boton Validar es explicito y conserva el mismo evento', () => {
+    component.requiereValidacion = true;
+    component.puedeValidar = true;
+    component.estadoValidacionPorId = new Map<number, string>([[101, 'PENDIENTE']]);
+    const emitSpy = spyOn(component.validar, 'emit');
+    fixture.detectChanges();
+
+    const boton: HTMLButtonElement = fixture.nativeElement.querySelector('.icon-btn--validar');
+    expect(boton.textContent!.trim()).toContain('Validar');
+    boton.click();
+    expect(emitSpy).toHaveBeenCalledOnceWith(101);
+  });
+
   it('con doble validación cada encabezado sigue cayendo sobre su propia celda', () => {
     component.requiereValidacion = true;
     component.estadoValidacionPorId = new Map<number, string>([[101, 'PENDIENTE']]);
