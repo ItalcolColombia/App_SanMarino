@@ -9258,3 +9258,30 @@ Plan: [catalogo_items_santa_reyes_erp_plan.md](fase_de_desarrollo/catalogo_items
 - [x] V2. Migración aplicada en BD local: 45→289 (244 nuevos), `Down` 289→45 exacto, re-`Up` 45→289 de nuevo, `ON CONFLICT DO NOTHING` verificado insertando un subconjunto ya existente (0 filas nuevas) — idempotente confirmado con round-trip real, no solo leído.
 - [x] V3. `yarn build` 0 err (solo warning preexistente de license field, sin bundle-budget); Karma `--include` del spec nuevo 4/4 SUCCESS. Smoke real por API (JWT HS256 + `X-Secret-Up` = `DerivarClaveSesion` + fila en `sesiones_activas`, borrada al terminar): `GET /api/inventario/items` con `X-Active-Company-Id: 6` → 289 ítems, 45 con `referencia` (los de alimento) y los insumos con `referencia: null` (caen al código interno, confirmado con el 1951 A.C.P.M.); `POST /ingreso` y `/traslado` sin `reference` → 400 `"Debe indicar el Código Guía…"`; con `reference` presente → pasa el chequeo y falla más adelante por la granja inexistente (prueba que el check no bloquea envíos válidos). Puertos 5002/4200 y fila de sesión, todos liberados al final.
 - [x] R1. Commit acotado a mis archivos (backend + frontend del plan + este bloque del tracker); el resto de tracker_estado.md ya estaba modificado por otra sesion antes de empezar (reordenamiento + bloque SEGURIDAD-WEB-MOVIL) y se dejo intacto en el working tree, sin commitear.
+
+---
+
+## SEGUIMIENTO-PRODUCCION-UX — Validacion visible y detalle responsive (22-sep-2026)
+
+Plan: [seguimiento_produccion_responsive_validacion_plan.md](fase_de_desarrollo/seguimiento_produccion_responsive_validacion_plan.md)
+
+- [x] A1. Auditar el incidente de huevos en 0: backend y PWA conservan `huevoItems`; la carrera del modal y la lectura del total diario ya estan corregidas en `4f71cbe` + `d2543c2`, ambos en `origin/main-produccion`. La TaskDef viva NO se certifica: AWS local responde `UnrecognizedClientException` por token invalido; rama remota no se confunde con despliegue efectivo.
+- [x] F1. Tabla: scroll horizontal superior sincronizado con el ancho real, columnas legibles, acciones tactiles fijas y boton Validar explicito.
+- [x] F2. Estado pendiente: fila gris neutra + leyenda; retraso rojo y validado verde sin cambiar semantica.
+- [x] F3. Modal detalle: resumen, pestanas tactiles General/Aves/Huevos/Pesaje/Agua, una sola zona de scroll y grilla tablet/celular.
+- [x] T1. Specs tabla/modal 13/13; regresion del primer guardado, tipos de huevo y total diario 98/98.
+- [x] V1. `yarn build` final con Node 22.23.1: 0 errores, 0 advertencias Angular; solo aviso preexistente de licencia Yarn.
+- [x] R1. Diff propio revisado; cambios concurrentes de workflow/backend/.devpilot preservados. Puertos 5002/4200/9876 libres.
+---
+
+## SEGUIMIENTO-LEVANTE-UX — Detalle responsive y validación visible
+
+Plan: [fase_de_desarrollo/seguimiento_levante_responsive_validacion_plan.md](fase_de_desarrollo/seguimiento_levante_responsive_validacion_plan.md)
+
+- [x] Auditar diferencias entre los flujos de Producción y Levante.
+- [x] Mejorar navegación horizontal, columna de acciones y controles táctiles de la tabla.
+- [x] Diferenciar visualmente Pendiente, Validado y En retraso sin cambiar reglas.
+- [x] Reorganizar el modal de detalle de Levante para escritorio, tablet y celular.
+- [x] Agregar pruebas unitarias de tabla, validación y modal, incluida la no herencia de ítems entre aperturas.
+- [x] Verificar PWA: el DTO de Levante incluye categorías o `huevoItems` y el outbox conserva el `request.body` completo.
+- [x] Validar: 12/12 pruebas enfocadas y `yarn build` final con Node 22.23.1, sin errores Angular; puertos 5002/4200/9876 libres.
