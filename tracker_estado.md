@@ -9426,28 +9426,46 @@ crear columnas o permisos nuevos por cada cantidad de validadores.
     NO crean una instancia nueva — solo re-separan reservas como siempre. `dotnet build` de la
     solución completa: **0 errores**. `dotnet test` (suite COMPLETA, sin filtro):
     **Passed: 4517, Failed: 0** — sin regresiones en Levante/Producción ni en el resto del backend.
-  - [!] F2.4. Tests de integración (autorización, concurrencia de doble aprobación, idempotencia)
-    contra Postgres real. **Bloqueado, necesita decisión del usuario:** `backend/tests/` NO tiene
-    infraestructura de integration tests — `ZooSanMarino.API.Tests` es una carpeta vacía, ni
-    siquiera referenciada en `ZooSanMarino.sln` (solo existen `Application.Tests` y `Domain.Tests`,
-    100% unitarios sin BD). Crear un proyecto de integración contra Postgres real (WebApplicationFactory,
-    connection string de test, aislamiento entre tests) es una decisión de infraestructura nueva para
-    el repo, no un patrón a copiar. Opciones planteadas al usuario: (a) integración real contra el
-    Postgres local del `docker` existente; (b) tests más livianos con el proveedor InMemory/Sqlite de
-    EF Core (prueban transición de estados pero NO el `FOR UPDATE`/concurrencia real de Postgres);
-    (c) diferir la concurrencia real a un smoke manual en F5 y no crear infraestructura nueva ahora.
+  - [x] F2.4. Decisión del usuario (24-sep-2026): tests livianos SIN Postgres real, sobre EF Core
+    InMemory en vez de un fake casero. Proyecto nuevo `backend/tests/ZooSanMarino.Infrastructure.Tests/`
+    (agregado a `ZooSanMarino.sln` → el `dotnet test` del CI, que corre desde `backend/` sin
+    especificar proyecto, ahora también lo recoge). `TestZooSanMarinoContext : ZooSanMarinoContext`
+    con `ConfigureConventions` registrando un `ValueConverter<JsonDocument,string>` global
+    (necesario: el contexto de test es el de PRODUCCIÓN completo, EF valida TODAS las entidades del
+    modelo aunque el test no las toque, y varias ajenas a flujos de validación usan `JsonDocument`,
+    que InMemory no sabe construir sin conversor). `FakeCurrentUser` + `FakeProcesoValidacionAdapter`
+    (doble de `IProcesoValidacionAdapter` que registra llamadas en vez de tocar seguimientos reales).
+    **13 tests xUnit, 13/13 en verde**, cubriendo: catálogo/borradores/clonado/preflight (rol o
+    usuario ajeno/sin candidatos), publicar retira la versión anterior, edición rechazada sobre
+    publicado, autorización de empresa ajena, `ResolverModoAsync` en sus 3 modos, ciclo de vida de
+    instancias (crear deja paso 1 pendiente/resto bloqueado, `ObtenerMisPendientesAsync` aísla
+    candidatos por etapa, cancelar libera vía el adaptador e idempotente sin instancia activa), y
+    novedades (leer no resuelve, aislamiento por empresa/destinatario).
+    **Límite documentado en el propio archivo de test:** `AprobarAsync`/`DevolverAsync`/
+    `CorregirYReenviarAsync`/`MarcarNovedadLeidaAsync` NO están cubiertos — usan `FromSqlInterpolated
+    "... FOR UPDATE"` o `ExecuteUpdateAsync`, que el proveedor InMemory no soporta. Probar la
+    finalización atómica y la concurrencia real de la última etapa queda diferido a un smoke manual
+    contra Postgres en F5 (decisión ya tomada con el usuario).
+  - **F2 (backend end-to-end) queda CERRADO** con esa única salvedad (F2.4 liviano, concurrencia real
+    diferida a F5).
 
-**Resumen de lo hecho en esta sesión (backend, 23-sep-2026):** F1 completo (motor persistente: 8
-tablas + configs + 2 migraciones idempotentes aplicadas en local + Calculos puros con 28 tests
-verdes + DTOs/interfaces) y F2 núcleo (service completo de 7 archivos + 2 adaptadores concretos +
-2 controllers), todo compilando limpio (`dotnet build` de la solución completa, API incluida) y
-102 tests unitarios en verde (28 nuevos + 74 legacy sin romper). **Pendiente inmediato:** F2.4
-(tests de integración/concurrencia contra Postgres real) y F2.5 (enganchar `CrearInstanciaAsync` en
-los Crud reales de Levante/Producción — sin esto nadie puede crear una instancia secuencial de
-verdad todavía). **Pendiente de fase:** F3 (constructor Angular + bandeja personal + panel de
-novedades del Home), F4 (integración visual en Levante/Producción), F5-F8 (validación, migraciones
-locales de concurrencia, smoke Santa Reyes, gates finales). Nada de esto se desplegó ni se commiteó;
-sigue en el working tree local para revisión.
+**Resumen de lo hecho en esta sesión (backend, 23/24-sep-2026):** F1 completo (motor persistente) y
+F2 completo (ejecución transaccional, adaptadores, controllers, integración con el Crud real de
+Levante/Producción, y ahora tests livianos del motor). 115 tests unitarios propios en verde (28
+Calculos + 13 Infrastructure.Tests InMemory + 74 legacy de ValidacionSeguimiento intactos), más
+4.517/4.517 en la corrida completa sin filtro de `Application.Tests`. **Pendiente de fase:** F3
+(constructor Angular + bandeja personal + panel de novedades del Home), F4 (integración visual en
+Levante/Producción), F5-F8 (validación, migraciones locales de concurrencia, smoke Santa Reyes,
+gates finales — incluida la prueba de concurrencia real diferida de F2.4).
+
+**⚠️ Nota de estado del repo (24-sep-2026, NO atribuible a este bloque):** el build de la SOLUCIÓN
+COMPLETA (`dotnet build ZooSanMarino.sln`) está roto ahora mismo por `CS0246: MovimientoAlimentoSeguimientoDto`
+no encontrado en `backend/src/ZooSanMarino.API/Controllers/ProduccionController.cs` y
+`SeguimientoLoteLevanteController.cs`. No se tocó ninguno de esos archivos desde este bloque; es
+trabajo en curso de otra sesión (ver §⚙️ de AGENTS.md sobre sesiones paralelas). El proyecto nuevo
+`ZooSanMarino.Infrastructure.Tests` compila y corre limpio de forma aislada
+(`dotnet test backend/tests/ZooSanMarino.Infrastructure.Tests`); revalidar el build completo cuando
+esa otra sesión termine su cambio.
 - [ ] F3. Implementar constructor Angular, bandeja personal, panel de novedades del Home e integración
   visual/correctiva en ambos seguimientos.
 - [ ] F4. Validar builds/tests, migración local, concurrencia, regresión OFF/legacy y smoke Santa Reyes
