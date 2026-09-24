@@ -312,6 +312,10 @@ builder.Services.AddScoped<ILoteHuevoItemService, LoteHuevoItemService>();
 builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
 // Doble validación de los seguimientos diarios: separa al guardar, descuenta al validar.
 builder.Services.AddScoped<IValidacionSeguimientoService, ValidacionSeguimientoService>();
+// Motor de flujos de validación parametrizables por empresa (1..20 etapas, por rol/usuario).
+builder.Services.AddScoped<IFlujoValidacionService, FlujoValidacionService>();
+builder.Services.AddScoped<IProcesoValidacionAdapter, SeguimientoLevanteValidacionAdapter>();
+builder.Services.AddScoped<IProcesoValidacionAdapter, SeguimientoProduccionValidacionAdapter>();
 builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 

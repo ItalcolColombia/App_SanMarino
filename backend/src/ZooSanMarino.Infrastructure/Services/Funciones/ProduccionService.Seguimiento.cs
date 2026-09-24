@@ -249,11 +249,14 @@ public partial class ProduccionService
         // stock/ítem → throw por ítem → rollback → NO se guarda el seguimiento.
         var (granjaId, paisId, modelo) = await ResolverGranjaYModeloAsync(loteId);
 
-        // ── Doble validación ───────────────────────────────────────────────────────────────────
-        // Con la empresa en doble validación no se descuenta al guardar: se separa. Con el flag
-        // apagado `separa` queda en false y todo lo que sigue corre igual que antes.
-        var separa = _validacion is not null
-                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        // ── Doble validación / flujo secuencial ────────────────────────────────────────────────
+        // Con la empresa en doble validación (legacy) O con un flujo PUBLICADO (secuencial) no se
+        // descuenta al guardar: se separa. Sin ninguno de los dos, `separa` queda en false y todo lo
+        // que sigue corre igual que antes.
+        var modoFlujo = await ResolverModoFlujoAsync();
+        var separa = (_validacion is not null
+                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                  || modoFlujo == ModoValidacionProceso.Secuencial;
 
         // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
         // apagado el registro descuenta AL GUARDAR, así que nace validado. Va AQUÍ, antes de cualquier
@@ -332,6 +335,15 @@ public partial class ProduccionService
                 entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
                 entity.MortalidadM, entity.SelM, entity.ErrorSexajeMachos,
                 poblacionEsMixta: false));
+
+            // Modo SECUENCIAL: crea la instancia del flujo publicado con el paso 1 pendiente.
+            if (modoFlujo == ModoValidacionProceso.Secuencial)
+            {
+                var creador = _currentUser.UserGuid
+                    ?? throw new InvalidOperationException("No se pudo resolver el usuario para crear la instancia del flujo de validación.");
+                await _flujoValidacion!.CrearInstanciaAsync(
+                    _currentUser.CompanyId, ValidacionProcesoKeys.SeguimientoProduccion, entity.Id.ToString(), creador);
+            }
         }
 
         if (lotePosturaProduccionId.HasValue)
@@ -689,8 +701,9 @@ public partial class ProduccionService
         // reservó, así que aplicar acá descontaría kilos que después la validación vuelve a descontar
         // leyendo la reserva. Con el flag ON se reescribe la reserva y listo — que es toda la ventaja
         // del modelo: como nunca se descontó, editar no necesita calcular `nuevo − viejo`.
-        var separaEd = _validacion is not null
-                    && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        var separaEd = (_validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                    || await ResolverModoFlujoAsync() == ModoValidacionProceso.Secuencial;
 
         // Sin granja resuelta no hay separación posible: `farm_id` es NOT NULL con FK a `farms`, así que
         // `granjaId ?? 0` revienta con 23503 y el usuario ve un 500 opaco. Pasa de verdad —un LPP vivo
@@ -786,15 +799,22 @@ public partial class ProduccionService
         // Con el flag ON el registro nunca descontó: solo separó. Devolver stock acá sería INFLAR el
         // inventario con kilos que jamás salieron. Lo correcto es liberar la reserva — y sin eso el
         // disponible quedaba comprometido para siempre por un registro que ya no existe.
-        var separaDel = _validacion is not null
-                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        var modoFlujoDel = await ResolverModoFlujoAsync();
+        var separaDel = (_validacion is not null
+                      && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                     || modoFlujoDel == ModoValidacionProceso.Secuencial;
         if (separaDel)
         {
             if (!ValidacionSeguimientoCalculos.EsEditable(true, e.Validado))
                 throw new InvalidOperationException(
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
 
-            await _validacion!.LiberarAsync(ModuloSeguimiento.Produccion, seguimientoId);
+            // SECUENCIAL: cancela la instancia (libera reservas vía el adaptador, resuelve
+            // novedades activas) en vez de liberar directo — evita duplicar la liberación.
+            if (modoFlujoDel == ModoValidacionProceso.Secuencial)
+                await _flujoValidacion!.CancelarInstanciaDelRecursoAsync(ValidacionProcesoKeys.SeguimientoProduccion, seguimientoId.ToString());
+            else
+                await _validacion!.LiberarAsync(ModuloSeguimiento.Produccion, seguimientoId);
 
             _context.SeguimientoProduccion.Remove(e);
             await _context.SaveChangesAsync().ConfigureAwait(false);

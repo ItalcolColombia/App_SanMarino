@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -25,11 +26,14 @@ public partial class SeguimientoLoteLevanteService
         // Corte de etapa: ese día no puede aportar consumo/bajas también desde producción (K345).
         await EnsureDiaSinAporteDeProduccionAsync(dto);
 
-        // ── Doble validación ───────────────────────────────────────────────────────────────────
-        // Con la empresa en doble validación no se descuenta al guardar: se separa. Con el flag
-        // apagado `separa` queda en false y el método corre exactamente como antes.
-        var separa = _validacion is not null
-                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        // ── Doble validación / flujo secuencial ────────────────────────────────────────────────
+        // Con la empresa en doble validación (legacy) O con un flujo de validación PUBLICADO
+        // (secuencial) no se descuenta al guardar: se separa. Sin ninguno de los dos, `separa`
+        // queda en false y el método corre exactamente como antes.
+        var modoFlujo = await ResolverModoFlujoAsync();
+        var separa = (_validacion is not null
+                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                  || modoFlujo == ModoValidacionProceso.Secuencial;
         if (separa)
         {
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(
@@ -180,6 +184,17 @@ public partial class SeguimientoLoteLevanteService
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
                 poblacionEsMixta: false));
+
+            // Modo SECUENCIAL: crea la instancia del flujo publicado con el paso 1 pendiente. La
+            // versión queda congelada en la instancia (plan §8.2); publicar una versión nueva
+            // después no afecta este registro.
+            if (modoFlujo == ModoValidacionProceso.Secuencial)
+            {
+                var creador = _current.UserGuid
+                    ?? throw new InvalidOperationException("No se pudo resolver el usuario para crear la instancia del flujo de validación.");
+                await _flujoValidacion!.CrearInstanciaAsync(
+                    _current.CompanyId, ValidacionProcesoKeys.SeguimientoLevante, created.Id.ToString(), creador);
+            }
         }
 
         return MapToLevanteDto(created);
@@ -195,9 +210,10 @@ public partial class SeguimientoLoteLevanteService
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
 
-        // ── Doble validación ───────────────────────────────────────────────────────────────────
-        var separa = _validacion is not null
-                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        // ── Doble validación / flujo secuencial ────────────────────────────────────────────────
+        var separa = (_validacion is not null
+                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                  || await ResolverModoFlujoAsync() == ModoValidacionProceso.Secuencial;
         if (separa)
         {
             var yaValidado = await _ctx.SeguimientoDiario.AsNoTracking()
@@ -396,10 +412,12 @@ public partial class SeguimientoLoteLevanteService
 
         int? loteIdInt = int.TryParse(rec.LoteId, out var lid) ? lid : null;
 
-        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // ── Doble validación / flujo secuencial ────────────────────────────────────────────────
         // Borrar un pendiente solo libera la separación: el inventario y el saldo nunca se movieron.
-        var separaDel = _validacion is not null
-                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        var modoFlujoDel = await ResolverModoFlujoAsync();
+        var separaDel = (_validacion is not null
+                      && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync()))
+                     || modoFlujoDel == ModoValidacionProceso.Secuencial;
         if (separaDel)
         {
             var yaValidado = await _ctx.SeguimientoDiario.AsNoTracking()
@@ -408,7 +426,12 @@ public partial class SeguimientoLoteLevanteService
                 throw new InvalidOperationException(
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
 
-            await _validacion!.LiberarAsync(ModuloSeguimiento.Levante, id);
+            // SECUENCIAL: cancela la instancia (libera reservas vía el adaptador, resuelve
+            // novedades activas) en vez de liberar directo — evita duplicar la liberación.
+            if (modoFlujoDel == ModoValidacionProceso.Secuencial)
+                await _flujoValidacion!.CancelarInstanciaDelRecursoAsync(ValidacionProcesoKeys.SeguimientoLevante, id.ToString());
+            else
+                await _validacion!.LiberarAsync(ModuloSeguimiento.Levante, id);
         }
 
         // REQ-006: bloqueo backend — no permitir eliminar seguimiento de un lote de levante cerrado.

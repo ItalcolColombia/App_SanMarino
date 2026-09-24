@@ -25,6 +25,9 @@ public partial class ProduccionService : IProduccionService
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;     // Fase 3 paso 2: modelo B nivel granja (Colombia)
     /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
     private readonly IValidacionSeguimientoService? _validacion;
+    /// <summary>Flujos de validación parametrizables: crea/cancela la instancia cuando el proceso
+    /// tiene un flujo PUBLICADO para la empresa (modo SECUENCIAL, ver <see cref="ModoValidacionProceso"/>).</summary>
+    private readonly IFlujoValidacionService? _flujoValidacion;
 
     /// <summary>
     /// Fase 3 (paso 2): producción postura Colombia descuenta inventario en el MODELO B unificado a
@@ -41,7 +44,8 @@ public partial class ProduccionService : IProduccionService
         ILocationScopeResolver scopeResolver,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
-        IValidacionSeguimientoService? validacion = null)
+        IValidacionSeguimientoService? validacion = null,
+        IFlujoValidacionService? flujoValidacion = null)
     {
         _context = context;
         _currentUser = currentUser;
@@ -51,7 +55,15 @@ public partial class ProduccionService : IProduccionService
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
         _validacion = validacion;
+        _flujoValidacion = flujoValidacion;
     }
+
+    /// <summary>Resuelve el modo del motor de flujos para SEGUIMIENTO_PRODUCCION en la empresa activa.
+    /// Fail-closed hacia INMEDIATO si el servicio no está inyectado (tests que no lo registran).</summary>
+    private async Task<ModoValidacionProceso> ResolverModoFlujoAsync(CancellationToken ct = default) =>
+        _flujoValidacion is null
+            ? ModoValidacionProceso.Inmediato
+            : await _flujoValidacion.ResolverModoAsync(_currentUser.CompanyId, ValidacionProcesoKeys.SeguimientoProduccion, ct);
 
     /// <summary>
     /// Resuelve (GranjaId, PaisId, ModeloInventarioConsumo) del lote de producción para gatear el descuento.
