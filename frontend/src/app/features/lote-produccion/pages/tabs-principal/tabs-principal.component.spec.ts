@@ -5,6 +5,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TabsPrincipalComponent } from './tabs-principal.component';
 import { SeguimientoItemDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 
 /**
  * La grilla «Registros Diarios» tiene columnas gateadas por flag. Si una columna se declara en el
@@ -154,5 +155,19 @@ describe('TabsPrincipalComponent (producción) · alineación de la grilla diari
 
     expect(encabezados[ultimo].textContent!.trim()).toBe('Acciones');
     expect(celdas[ultimo].querySelector('.btn-group')).withContext('la celda bajo «Acciones» son los botones').toBeTruthy();
+  });
+
+  it('muestra ingreso, dirección del traslado y referencia en la fecha del seguimiento', () => {
+    const movimientos: MovimientoAlimentoSeguimientoDto[] = [
+      { id: 1, fecha: '2026-08-20', tipoMovimiento: 'INV_INGRESO', cantidadKg: 300, alimento: 'POSTURA', referencia: 'OC-30' },
+      { id: 2, fecha: '2026-08-20', tipoMovimiento: 'INV_TRASLADO_ENTRADA', cantidadKg: 50, alimento: 'POSTURA', referencia: 'TR-40' }
+    ];
+    component.movimientosAlimento = movimientos;
+    fixture.detectChanges();
+
+    const fila: HTMLElement = fixture.nativeElement.querySelector('table.ux-table--seguimiento tbody tr.ux-row');
+    expect(fila.textContent).toContain('300 kg');
+    expect(fila.textContent).toContain('Entrada 50 kg');
+    expect(fila.textContent).toContain('OC-30 · TR-40');
   });
 });

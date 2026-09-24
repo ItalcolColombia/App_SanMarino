@@ -41,6 +41,9 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     private readonly ILogger<SeguimientoLoteLevanteService>? _logger;
     /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
     private readonly IValidacionSeguimientoService? _validacion;
+    /// <summary>Flujos de validación parametrizables: crea/cancela la instancia cuando el proceso
+    /// tiene un flujo PUBLICADO para la empresa (modo SECUENCIAL, ver <see cref="ModoValidacionProceso"/>).</summary>
+    private readonly IFlujoValidacionService? _flujoValidacion;
 
     public SeguimientoLoteLevanteService(
         ZooSanMarinoContext ctx,
@@ -54,7 +57,8 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
         ILogger<SeguimientoLoteLevanteService>? logger = null,
-        IValidacionSeguimientoService? validacion = null)
+        IValidacionSeguimientoService? validacion = null,
+        IFlujoValidacionService? flujoValidacion = null)
     {
         _ctx = ctx;
         _seguimientoDiarioService = seguimientoDiarioService;
@@ -68,7 +72,18 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
         _validacion = validacion;
+        _flujoValidacion = flujoValidacion;
     }
+
+    /// <summary>
+    /// Resuelve el modo del motor de flujos para SEGUIMIENTO_LEVANTE en la empresa activa.
+    /// <c>Inmediato</c> si no hay <see cref="IFlujoValidacionService"/> inyectado (tests unitarios
+    /// que no lo registran) — fail-closed hacia el comportamiento previo, nunca hacia SECUENCIAL.
+    /// </summary>
+    private async Task<ModoValidacionProceso> ResolverModoFlujoAsync(CancellationToken ct = default) =>
+        _flujoValidacion is null
+            ? ModoValidacionProceso.Inmediato
+            : await _flujoValidacion.ResolverModoAsync(_current.CompanyId, ValidacionProcesoKeys.SeguimientoLevante, ct);
 
     /// <summary>
     /// ¿Cómo captura huevos en LEVANTE la empresa del lote, y desde qué semana?

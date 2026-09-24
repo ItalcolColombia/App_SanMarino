@@ -12209,6 +12209,585 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionAccion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Accion")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("accion");
+
+                    b.Property<int?>("AsignadoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("asignado_id");
+
+                    b.Property<string>("Comentario")
+                        .HasColumnType("text")
+                        .HasColumnName("comentario");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("InstanciaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("instancia_id");
+
+                    b.Property<long>("InstanciaPasoId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("instancia_paso_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_acciones");
+
+                    b.HasIndex("InstanciaId")
+                        .HasDatabaseName("ix_validacion_acciones_instancia_id");
+
+                    b.HasIndex("InstanciaPasoId", "Accion")
+                        .HasDatabaseName("ix_validacion_acciones_paso_accion");
+
+                    b.ToTable("validacion_acciones", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_acciones_accion_valida", "accion IN ('APROBAR','DEVOLVER','EDITAR','REENVIAR','ELIMINAR','CANCELAR','OVERRIDE')");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("BORRADOR")
+                        .HasColumnName("estado");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("nombre");
+
+                    b.Property<bool>("PermiteAprobacionCreador")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("permite_aprobacion_creador");
+
+                    b.Property<int>("PlazoTotalHoras")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(24)
+                        .HasColumnName("plazo_total_horas");
+
+                    b.Property<int>("ProcesoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("proceso_id");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<bool>("RequierePersonasDistintas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("requiere_personas_distintas");
+
+                    b.Property<DateTime?>("RetiredAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("retired_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_flujos");
+
+                    b.HasIndex("ProcesoId")
+                        .HasDatabaseName("ix_validacion_flujos_proceso_id");
+
+                    b.HasIndex("CompanyId", "ProcesoId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ux_validacion_flujos_company_proceso_version");
+
+                    b.ToTable("validacion_flujos", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_flujos_estado_valido", "estado IN ('BORRADOR','PUBLICADO','RETIRADO')");
+
+                            t.HasCheckConstraint("ck_validacion_flujos_plazo_positivo", "plazo_total_horas > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujoAsignado", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PasoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("paso_id");
+
+                    b.Property<int?>("RolFiltroOrigenId")
+                        .HasColumnType("integer")
+                        .HasColumnName("rol_filtro_origen_id");
+
+                    b.Property<int?>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tipo");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_flujo_asignados");
+
+                    b.HasIndex("PasoId")
+                        .HasDatabaseName("ix_validacion_flujo_asignados_paso_id");
+
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("ix_validacion_flujo_asignados_role_id");
+
+                    b.HasIndex("PasoId", "RoleId")
+                        .HasDatabaseName("ix_validacion_flujo_asignados_paso_role");
+
+                    b.HasIndex("PasoId", "UserId")
+                        .HasDatabaseName("ix_validacion_flujo_asignados_paso_user");
+
+                    b.ToTable("validacion_flujo_asignados", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_flujo_asignados_tipo_responsable", "(tipo = 'ROL' AND role_id IS NOT NULL AND user_id IS NULL) OR (tipo = 'USUARIO' AND user_id IS NOT NULL AND role_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_validacion_flujo_asignados_tipo_valido", "tipo IN ('ROL','USUARIO')");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujoPaso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AprobacionesRequeridas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("aprobaciones_requeridas");
+
+                    b.Property<string>("Descripcion")
+                        .HasColumnType("text")
+                        .HasColumnName("descripcion");
+
+                    b.Property<int>("FlujoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("flujo_id");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nombre");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer")
+                        .HasColumnName("orden");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_flujo_pasos");
+
+                    b.HasIndex("FlujoId", "Orden")
+                        .IsUnique()
+                        .HasDatabaseName("ux_validacion_flujo_pasos_flujo_orden");
+
+                    b.ToTable("validacion_flujo_pasos", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_flujo_pasos_aprobaciones_positivas", "aprobaciones_requeridas > 0");
+
+                            t.HasCheckConstraint("ck_validacion_flujo_pasos_orden_rango", "orden BETWEEN 1 AND 20");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionInstancia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("PENDIENTE_VALIDACION")
+                        .HasColumnName("estado");
+
+                    b.Property<int>("FlujoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("flujo_id");
+
+                    b.Property<int>("Intento")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("intento");
+
+                    b.Property<string>("MotivoEstado")
+                        .HasColumnType("text")
+                        .HasColumnName("motivo_estado");
+
+                    b.Property<int>("PasoActualOrden")
+                        .HasColumnType("integer")
+                        .HasColumnName("paso_actual_orden");
+
+                    b.Property<int?>("PasoRetornoOrden")
+                        .HasColumnType("integer")
+                        .HasColumnName("paso_retorno_orden");
+
+                    b.Property<int>("ProcesoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("proceso_id");
+
+                    b.Property<string>("RecursoId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("recurso_id");
+
+                    b.Property<string>("RecursoTipo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("recurso_tipo");
+
+                    b.Property<DateTime?>("ReturnedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("returned_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_instancias");
+
+                    b.HasIndex("FlujoId")
+                        .HasDatabaseName("ix_validacion_instancias_flujo_id");
+
+                    b.HasIndex("ProcesoId")
+                        .HasDatabaseName("ix_validacion_instancias_proceso_id");
+
+                    b.HasIndex("CompanyId", "Estado")
+                        .HasDatabaseName("ix_validacion_instancias_company_estado");
+
+                    b.HasIndex("CompanyId", "ProcesoId", "RecursoTipo", "RecursoId")
+                        .HasDatabaseName("ix_validacion_instancias_recurso");
+
+                    b.ToTable("validacion_instancias", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_instancias_estado_valido", "estado IN ('PENDIENTE_VALIDACION','DEVUELTA_CORRECCION','APROBADA','CANCELADA','ERROR_FINALIZACION')");
+
+                            t.HasCheckConstraint("ck_validacion_instancias_intento_positivo", "intento > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionInstanciaPaso", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AprobacionesRequeridas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("aprobaciones_requeridas");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("BLOQUEADA")
+                        .HasColumnName("estado");
+
+                    b.Property<Guid>("InstanciaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("instancia_id");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nombre");
+
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("opened_at");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer")
+                        .HasColumnName("orden");
+
+                    b.Property<int>("PasoDefinicionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("paso_definicion_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_instancia_pasos");
+
+                    b.HasIndex("PasoDefinicionId")
+                        .HasDatabaseName("ix_validacion_instancia_pasos_paso_definicion_id");
+
+                    b.HasIndex("InstanciaId", "Estado")
+                        .HasDatabaseName("ix_validacion_instancia_pasos_instancia_estado");
+
+                    b.HasIndex("InstanciaId", "Orden")
+                        .IsUnique()
+                        .HasDatabaseName("ux_validacion_instancia_pasos_instancia_orden");
+
+                    b.ToTable("validacion_instancia_pasos", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_instancia_pasos_estado_valido", "estado IN ('BLOQUEADA','PENDIENTE','APROBADA','DEVUELTA','ESPERANDO_CORRECCION','CANCELADA')");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionNovedadUsuario", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AccionDevolucionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("accion_devolucion_id");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("ContextoResumen")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("contexto_resumen")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("DestinatarioUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destinatario_user_id");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("ACTIVA")
+                        .HasColumnName("estado");
+
+                    b.Property<Guid>("GeneradaPorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("generada_por_user_id");
+
+                    b.Property<Guid>("InstanciaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("instancia_id");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("read_at");
+
+                    b.Property<string>("Resolucion")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("resolucion");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_novedades_usuario");
+
+                    b.HasIndex("AccionDevolucionId")
+                        .HasDatabaseName("ix_validacion_novedades_usuario_accion_devolucion_id");
+
+                    b.HasIndex("InstanciaId")
+                        .HasDatabaseName("ix_validacion_novedades_instancia_id");
+
+                    b.HasIndex("CompanyId", "DestinatarioUserId", "Estado")
+                        .HasDatabaseName("ix_validacion_novedades_destinatario_estado");
+
+                    b.ToTable("validacion_novedades_usuario", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_validacion_novedades_estado_valido", "estado IN ('ACTIVA','RESUELTA','CANCELADA')");
+
+                            t.HasCheckConstraint("ck_validacion_novedades_resolucion_valida", "resolucion IS NULL OR resolucion IN ('CORREGIDO_REENVIADO','DEVUELTO_ATRAS','ELIMINADO')");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionProceso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdapterKey")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("adapter_key");
+
+                    b.Property<string>("Descripcion")
+                        .HasColumnType("text")
+                        .HasColumnName("descripcion");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("MenuRoute")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("menu_route");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nombre");
+
+                    b.Property<int>("Orden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("orden");
+
+                    b.HasKey("Id")
+                        .HasName("pk_validacion_procesos");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ux_validacion_procesos_key");
+
+                    b.ToTable("validacion_procesos", "public");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Zona", b =>
                 {
                     b.Property<int>("ZonaId")
@@ -14057,6 +14636,159 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("VacunacionCronogramaItem");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionAccion", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionInstancia", "Instancia")
+                        .WithMany("Acciones")
+                        .HasForeignKey("InstanciaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_acciones_validacion_instancias_instancia_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionInstanciaPaso", "InstanciaPaso")
+                        .WithMany()
+                        .HasForeignKey("InstanciaPasoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_acciones_validacion_instancia_pasos_instancia_pa");
+
+                    b.Navigation("Instancia");
+
+                    b.Navigation("InstanciaPaso");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujo", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_flujos_companies_company_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionProceso", "Proceso")
+                        .WithMany("Flujos")
+                        .HasForeignKey("ProcesoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_flujos_validacion_procesos_proceso_id");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Proceso");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujoAsignado", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionFlujoPaso", "Paso")
+                        .WithMany("Asignados")
+                        .HasForeignKey("PasoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_flujo_asignados_validacion_flujo_pasos_paso_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_validacion_flujo_asignados_roles_role_id");
+
+                    b.Navigation("Paso");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujoPaso", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionFlujo", "Flujo")
+                        .WithMany("Pasos")
+                        .HasForeignKey("FlujoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_flujo_pasos_validacion_flujos_flujo_id");
+
+                    b.Navigation("Flujo");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionInstancia", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_instancias_companies_company_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionFlujo", "Flujo")
+                        .WithMany("Instancias")
+                        .HasForeignKey("FlujoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_instancias_validacion_flujos_flujo_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionProceso", "Proceso")
+                        .WithMany()
+                        .HasForeignKey("ProcesoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_instancias_validacion_procesos_proceso_id");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Flujo");
+
+                    b.Navigation("Proceso");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionInstanciaPaso", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionInstancia", "Instancia")
+                        .WithMany("Pasos")
+                        .HasForeignKey("InstanciaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_instancia_pasos_validacion_instancias_instancia_");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionFlujoPaso", "PasoDefinicion")
+                        .WithMany()
+                        .HasForeignKey("PasoDefinicionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_instancia_pasos_validacion_flujo_pasos_paso_defi");
+
+                    b.Navigation("Instancia");
+
+                    b.Navigation("PasoDefinicion");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionNovedadUsuario", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionAccion", "AccionDevolucion")
+                        .WithMany()
+                        .HasForeignKey("AccionDevolucionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_novedades_usuario_validacion_acciones_accion_dev");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_novedades_usuario_companies_company_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.ValidacionInstancia", "Instancia")
+                        .WithMany("Novedades")
+                        .HasForeignKey("InstanciaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_validacion_novedades_usuario_validacion_instancias_instanci");
+
+                    b.Navigation("AccionDevolucion");
+
+                    b.Navigation("Instancia");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Zona", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
@@ -14269,6 +15001,32 @@ namespace ZooSanMarino.Infrastructure.Migrations
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.VacunacionPlanPlantilla", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujo", b =>
+                {
+                    b.Navigation("Instancias");
+
+                    b.Navigation("Pasos");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionFlujoPaso", b =>
+                {
+                    b.Navigation("Asignados");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionInstancia", b =>
+                {
+                    b.Navigation("Acciones");
+
+                    b.Navigation("Novedades");
+
+                    b.Navigation("Pasos");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionProceso", b =>
+                {
+                    b.Navigation("Flujos");
                 });
 #pragma warning restore 612, 618
         }

@@ -73,6 +73,15 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // sin tocar stock ni movimientos. Ver SeguimientoReservaAlimento.
         public DbSet<SeguimientoReservaAlimento> SeguimientoReservaAlimento => Set<SeguimientoReservaAlimento>();
         public DbSet<SeguimientoReservaAves> SeguimientoReservaAves => Set<SeguimientoReservaAves>();
+        // Motor de flujos de validación parametrizables por empresa (fase_de_desarrollo/flujos_validacion_parametrizables_por_empresa_plan.md).
+        public DbSet<ValidacionProceso> ValidacionProcesos => Set<ValidacionProceso>();
+        public DbSet<ValidacionFlujo> ValidacionFlujos => Set<ValidacionFlujo>();
+        public DbSet<ValidacionFlujoPaso> ValidacionFlujoPasos => Set<ValidacionFlujoPaso>();
+        public DbSet<ValidacionFlujoAsignado> ValidacionFlujoAsignados => Set<ValidacionFlujoAsignado>();
+        public DbSet<ValidacionInstancia> ValidacionInstancias => Set<ValidacionInstancia>();
+        public DbSet<ValidacionInstanciaPaso> ValidacionInstanciaPasos => Set<ValidacionInstanciaPaso>();
+        public DbSet<ValidacionAccion> ValidacionAcciones => Set<ValidacionAccion>();
+        public DbSet<ValidacionNovedadUsuario> ValidacionNovedadesUsuario => Set<ValidacionNovedadUsuario>();
         public DbSet<ItemInventario> ItemInventario => Set<ItemInventario>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();

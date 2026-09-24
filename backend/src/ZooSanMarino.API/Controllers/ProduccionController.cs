@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs.Produccion;
+using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using LoteDtos = ZooSanMarino.Application.DTOs.Lotes;
 using LiquidacionDto = ZooSanMarino.Application.DTOs.Produccion;
@@ -206,6 +207,28 @@ public class ProduccionController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>Ingresos y traslados de alimento de la fase, visibles por fecha en el seguimiento.</summary>
+    [HttpGet("seguimiento/movimientos-alimento")]
+    [ProducesResponseType(typeof(IEnumerable<MovimientoAlimentoSeguimientoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<MovimientoAlimentoSeguimientoDto>>> ListarMovimientosAlimento(
+        [FromQuery] int? loteId = null,
+        [FromQuery] int? lotePosturaProduccionId = null,
+        [FromQuery] DateTime? desde = null,
+        [FromQuery] DateTime? hasta = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var items = await _produccionService.ListarMovimientosAlimentoAsync(
+                loteId, lotePosturaProduccionId, desde, hasta, ct);
+            return Ok(items);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

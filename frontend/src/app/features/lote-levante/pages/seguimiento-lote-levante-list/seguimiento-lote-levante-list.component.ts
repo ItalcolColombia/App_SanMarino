@@ -8,6 +8,7 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
+import type { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -115,6 +116,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   private allLotes: LoteDto[] = [];
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
+  movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
 
   /**
    * Capturas de ESTE lote guardadas sin red y todavía sin enviar. Va **aparte** de `seguimientos`
@@ -360,6 +362,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.movimientosAlimento = [];
     this.galpones = [];
     this.hasSinGalpon = false;
     this.lotes = [];
@@ -391,6 +394,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.movimientosAlimento = [];
     this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
@@ -409,6 +413,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.movimientosAlimento = [];
     this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
@@ -418,6 +423,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
+    this.movimientosAlimento = [];
     this.capturasPendientes = [];
     this.selectedLote = null;
     this.resumenSelected = null;
@@ -439,6 +445,16 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
         next: rows => (this.seguimientos = rows || []),
         error: () => (this.seguimientos = [])
       });
+
+    const loteMovimientosSolicitado = this.selectedLoteId;
+    this.segSvc.getMovimientosAlimento(loteMovimientosSolicitado).subscribe({
+      next: rows => {
+        if (this.selectedLoteId === loteMovimientosSolicitado) this.movimientosAlimento = rows ?? [];
+      },
+      error: () => {
+        if (this.selectedLoteId === loteMovimientosSolicitado) this.movimientosAlimento = [];
+      }
+    });
 
     // Cargar información del lote levante desde lote_postura_levante
     this.lotePosturaLevanteSvc.getByLoteId(this.selectedLoteId).subscribe({

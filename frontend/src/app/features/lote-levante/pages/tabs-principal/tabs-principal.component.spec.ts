@@ -5,6 +5,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
+import { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import { TabsPrincipalComponent } from './tabs-principal.component';
 
 describe('TabsPrincipalComponent (levante) · tabla y validación', () => {
@@ -107,5 +108,19 @@ describe('TabsPrincipalComponent (levante) · tabla y validación', () => {
     expect(acciones.textContent?.trim()).toBe('Acciones');
     expect(acciones.classList).toContain('sticky-actions');
     expect(celdaAcciones.classList).toContain('sticky-actions');
+  });
+
+  it('muestra ingreso, dirección del traslado y referencia en la fecha del seguimiento', () => {
+    const movimientos: MovimientoAlimentoSeguimientoDto[] = [
+      { id: 1, fecha: '2026-01-12', tipoMovimiento: 'INV_INGRESO', cantidadKg: 125, alimento: 'PREINICIO', referencia: 'OC-10' },
+      { id: 2, fecha: '2026-01-12', tipoMovimiento: 'INV_TRASLADO_SALIDA', cantidadKg: 25, alimento: 'PREINICIO', referencia: 'TR-20' }
+    ];
+    fixture.componentRef.setInput('movimientosAlimento', movimientos);
+    fixture.detectChanges();
+
+    const fila: HTMLElement = fixture.nativeElement.querySelector('table.ux-table--registro-diario tbody tr.ux-row');
+    expect(fila.textContent).toContain('125 kg');
+    expect(fila.textContent).toContain('Salida 25 kg');
+    expect(fila.textContent).toContain('OC-10 · TR-20');
   });
 });

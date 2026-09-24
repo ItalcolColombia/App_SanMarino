@@ -107,6 +107,16 @@ public interface IValidacionSeguimientoService
     Task<ResultadoValidacionDto> ValidarAsync(string modulo, long seguimientoId, CancellationToken ct = default);
 
     /// <summary>
+    /// Mismo núcleo que <see cref="ValidarAsync"/> (marca atómica + aplica alimento/aves + reservas
+    /// APLICADA, todo en una transacción, idempotente ante llamadas concurrentes) pero SIN exigir el
+    /// permiso <c>*.validar</c> de módulo: la autorización ya la resolvió el motor de flujos de
+    /// validación (candidato de la última etapa, ver <c>FlujoValidacionAutorizacionCalculos</c>). Es
+    /// el "núcleo de finalización extraído del servicio existente" del plan de flujos de validación
+    /// (§8.3): no repite fórmulas, solo salta el chequeo de permiso legacy que no aplica acá.
+    /// </summary>
+    Task<ResultadoValidacionDto> ValidarSinPermisoAsync(string modulo, long seguimientoId, CancellationToken ct = default);
+
+    /// <summary>
     /// Valida en bloque todos los pendientes de un lote, en <b>orden cronológico</b> y cortando en la
     /// primera falla. Cada registro va en su propia transacción, así que el éxito es parcial y
     /// reintentar retoma donde paró.

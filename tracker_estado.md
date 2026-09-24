@@ -9008,6 +9008,33 @@ Pendiente del usuario (no es código): decidir qué hacer con el limbo de Santa 
 
 ---
 
+## APAGAR-FLAG-VALIDA-PENDIENTES — Al apagar la doble validación se validan los pendientes; el limbo de Santa Reyes por migración (19-sep-2026)
+
+Plan: [apagar_doble_validacion_valida_pendientes_plan.md](fase_de_desarrollo/apagar_doble_validacion_valida_pendientes_plan.md)
+
+Decisiones del usuario sobre los hallazgos de VALIDADO-NACE-BIEN: (1) si a la empresa se le quita el validador, todos sus pendientes pasan a
+validarse y recién ahí se apaga (solo en la transición encendido → apagado); (2) el limbo de Santa Reyes (6 pendientes con reserva, 1 reserva
+huérfana, 1 Ingreso fantasma sobre el ítem 373) se corrige **por migración**, para que se aplique en producción.
+
+- [x] P1. Plan escrito (diseño A + B, verificación diferencial contra la API, lo que NO se hace).
+- [x] A1. `ApagadoDobleValidacionCalculos` (puro: `EsApagado`, `PuedeValidarDesdeEmpresaActiva`, mensajes con tope de líneas y fecha independiente de la cultura) + `ApagadoDobleValidacionCalculosTests` (24 casos).
+- [x] A2. `ValidacionSeguimientoService`: núcleo sin permiso de `ValidarAsync` (`ValidarRegistroAsync`) y de `ValidarPendientesDelLoteAsync` (comportamiento idéntico) + `ValidarPendientesDeLaEmpresaAsync` (lotes con pendientes de los 4 módulos, bucle hasta agotar con re-lectura, corte por lote, sin exigir `*.validar`).
+- [x] A3. `CompanyService.UpdateAsync`: en la transición true → false valida antes de cargar/asignar nada; si algo falla lanza y NO guarda nada. `CompanyController.Update`: `InvalidOperationException` → 400 con el detalle.
+- [x] A4. Front `company-management`: confirmación (`ConfirmDialogService`) al desmarcar el flag de una empresa existente, descripción del flag actualizada, toast que respeta saltos de línea y dura 20 s con errores largos; función pura `apagaDobleValidacion` + spec (16 de 16 en verde con el spec del componente).
+- [x] B1. Migración `20260919120000_ValidarPendientesSinDobleValidacionProduccionColombia` (+ Designer): SQL `DO $$` con sub-bloque por registro; Colombia modelo B; replica `ValidarAsync`.
+- [x] B2. Migración `20260919121000_LiberarReservasHuerfanasYCorregirIngresoFantasma682` (+ Designer): reservas huérfanas → LIBERADA; Ingreso fantasma del #682 compensado con `AjusteStock` (con guardas y marca de idempotencia).
+- [x] B3. `verificar_validado_sin_reserva.sql` alineado: sección [4b] de ingresos fantasma y cuarta columna del resumen; sobre la copia real da 4 / 6 / 1 / 1 y sobre el clon migrado 0 / 0 / 0 / 0.
+- [x] V1. Prueba DIFERENCIAL (dos clones de la copia real): 6 registros validados por la API (`POST …/validar`, binarios de antes del cambio) vs el SQL EXTRAÍDO de la migración. Movimientos nuevos, `inventario_gestion_stock` entero, reservas de alimento y aves, registros de producción, histórico espejado y filas de TODAS las tablas: **idénticos** (única diferencia: la fila de `sesiones_activas` del smoke). Bordes en otro clon: sin stock → omite ese registro y sigue (#680), silo inactivo (#678), ítem sin equivalente (#677) — cada omitido queda con `validado=false`, reserva ACTIVA y sin movimiento (el sub-bloque deshace el «marcar primero»); ya validado no se toca; 2.ª corrida = 0; empresa con flag ENCENDIDO = 0. B2: libera la reserva, compensa 982 kg con UN `AjusteStock`, 2.ª corrida = 0; con solo 500 kg en el renglón NO compensa y lo avisa.
+- [x] V2. Arranque real sobre un clon con `RunMigrations=true`: la app aplicó SOLA las tres migraciones (historial 398 → 401); `verificar_validado_sin_reserva.sql` pasó de 4/6/1/1 a **0/0/0/0**; 6 consumos por 7.011 kg, un `AjusteStock`, renglón fantasma en 0, 6 registros con `validado_por = 'migracion'`. Bordes y 2.ª corrida: ver V1.
+- [x] V3. Parte A con backend aislado sobre un clon (Santa Reyes con el flag ENCENDIDO y 10 pendientes): empresa activa distinta → 400 «cambie a esa empresa» sin tocar nada; un lote sin stock → 400 con el detalle, flag ON, el teléfono del mismo PUT NO se guarda y quedan validados los otros 8; corregido el stock, el reintento → 200 con flag apagado, 6 consumos por 7.011 kg y `validado_por` = quien apagó; ENCENDER el flag u omitirlo no valida nada; apagar sin pendientes desde otra empresa activa → 200. Log sin errores. **Otros módulos:** Panamá (flag ENCENDIDO, 21 pendientes de engorde + 4 de reproductora, 24+21 reservas ACTIVAS) → PUT 200, 0 pendientes, 0 reservas ACTIVAS, 24 consumos por 41.324,2 kg y el cruce de reproductora disparado.
+- [x] V4. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.340/4.340 (24 nuevos) y Domain.Tests 1/1. Front: `ng test` de los 2 specs de `company-management` 16/16 y `yarn build` 0 errores/0 advertencias.
+- [x] V5. Sin procesos huérfanos: API :5501 detenida, servidores MSBuild/compilador apagados, las 6 BD clon eliminadas (verificado con `pg_database`), tokens, content roots, copias de binarios y scripts borrados del scratchpad; sin dotnet vivos.
+- [x] C1. Commit acotado a mis archivos (`git log --grep="apagar la doble validacion valida"`; el bloque y los archivos de otras sesiones quedaron intactos en el árbol). Sin push ni deploy: las migraciones corren solas al arrancar y requieren OK explícito.
+
+Pendiente del usuario (no es código): OK para desplegar `fa301b5` + este commit (tres migraciones data-only que corren solas al arrancar); después correr `backend/sql/verificar_validado_sin_reserva.sql` contra producción: los cuatro conteos tienen que dar 0 (un registro que ese día no tenga stock queda pendiente y el script lo lista, no aborta el arranque). Opcional: que borrar/editar decida por las reservas del propio registro.
+
+---
+
 ## VENTA-ENGORDE-EMPRESA — Núcleo + «Empresa de venta» parametrizable en la venta de pollo engorde, Panamá y Ecuador (19-sep-2026)
 
 Plan: [venta_engorde_empresa_nucleo_plan.md](fase_de_desarrollo/venta_engorde_empresa_nucleo_plan.md)
@@ -9044,30 +9071,6 @@ edición). Migración data-only, sin DDL ni cambios al snapshot. Sin flag nuevo:
 Pendiente del usuario (no es código): OK para desplegar; después del deploy correr `backend/sql/verificar_empresa_venta_engorde.sql`
 y cargar en Config → Listas maestras («Empresa de venta (pollo engorde)») las empresas reales de cada país además de «Planta».
 Una empresa NUEVA no trae la lista hasta que se cree con la key `venta_pollo_engorde_empresa` (o con otra migración seed).
-## APAGAR-FLAG-VALIDA-PENDIENTES — Al apagar la doble validación se validan los pendientes; el limbo de Santa Reyes por migración (19-sep-2026)
-
-Plan: [apagar_doble_validacion_valida_pendientes_plan.md](fase_de_desarrollo/apagar_doble_validacion_valida_pendientes_plan.md)
-
-Decisiones del usuario sobre los hallazgos de VALIDADO-NACE-BIEN: (1) si a la empresa se le quita el validador, todos sus pendientes pasan a
-validarse y recién ahí se apaga (solo en la transición encendido → apagado); (2) el limbo de Santa Reyes (6 pendientes con reserva, 1 reserva
-huérfana, 1 Ingreso fantasma sobre el ítem 373) se corrige **por migración**, para que se aplique en producción.
-
-- [x] P1. Plan escrito (diseño A + B, verificación diferencial contra la API, lo que NO se hace).
-- [x] A1. `ApagadoDobleValidacionCalculos` (puro: `EsApagado`, `PuedeValidarDesdeEmpresaActiva`, mensajes con tope de líneas y fecha independiente de la cultura) + `ApagadoDobleValidacionCalculosTests` (24 casos).
-- [x] A2. `ValidacionSeguimientoService`: núcleo sin permiso de `ValidarAsync` (`ValidarRegistroAsync`) y de `ValidarPendientesDelLoteAsync` (comportamiento idéntico) + `ValidarPendientesDeLaEmpresaAsync` (lotes con pendientes de los 4 módulos, bucle hasta agotar con re-lectura, corte por lote, sin exigir `*.validar`).
-- [x] A3. `CompanyService.UpdateAsync`: en la transición true → false valida antes de cargar/asignar nada; si algo falla lanza y NO guarda nada. `CompanyController.Update`: `InvalidOperationException` → 400 con el detalle.
-- [x] A4. Front `company-management`: confirmación (`ConfirmDialogService`) al desmarcar el flag de una empresa existente, descripción del flag actualizada, toast que respeta saltos de línea y dura 20 s con errores largos; función pura `apagaDobleValidacion` + spec (16 de 16 en verde con el spec del componente).
-- [x] B1. Migración `20260919120000_ValidarPendientesSinDobleValidacionProduccionColombia` (+ Designer): SQL `DO $$` con sub-bloque por registro; Colombia modelo B; replica `ValidarAsync`.
-- [x] B2. Migración `20260919121000_LiberarReservasHuerfanasYCorregirIngresoFantasma682` (+ Designer): reservas huérfanas → LIBERADA; Ingreso fantasma del #682 compensado con `AjusteStock` (con guardas y marca de idempotencia).
-- [x] B3. `verificar_validado_sin_reserva.sql` alineado: sección [4b] de ingresos fantasma y cuarta columna del resumen; sobre la copia real da 4 / 6 / 1 / 1 y sobre el clon migrado 0 / 0 / 0 / 0.
-- [x] V1. Prueba DIFERENCIAL (dos clones de la copia real): 6 registros validados por la API (`POST …/validar`, binarios de antes del cambio) vs el SQL EXTRAÍDO de la migración. Movimientos nuevos, `inventario_gestion_stock` entero, reservas de alimento y aves, registros de producción, histórico espejado y filas de TODAS las tablas: **idénticos** (única diferencia: la fila de `sesiones_activas` del smoke). Bordes en otro clon: sin stock → omite ese registro y sigue (#680), silo inactivo (#678), ítem sin equivalente (#677) — cada omitido queda con `validado=false`, reserva ACTIVA y sin movimiento (el sub-bloque deshace el «marcar primero»); ya validado no se toca; 2.ª corrida = 0; empresa con flag ENCENDIDO = 0. B2: libera la reserva, compensa 982 kg con UN `AjusteStock`, 2.ª corrida = 0; con solo 500 kg en el renglón NO compensa y lo avisa.
-- [x] V2. Arranque real sobre un clon con `RunMigrations=true`: la app aplicó SOLA las tres migraciones (historial 398 → 401); `verificar_validado_sin_reserva.sql` pasó de 4/6/1/1 a **0/0/0/0**; 6 consumos por 7.011 kg, un `AjusteStock`, renglón fantasma en 0, 6 registros con `validado_por = 'migracion'`. Bordes y 2.ª corrida: ver V1.
-- [x] V3. Parte A con backend aislado sobre un clon (Santa Reyes con el flag ENCENDIDO y 10 pendientes): empresa activa distinta → 400 «cambie a esa empresa» sin tocar nada; un lote sin stock → 400 con el detalle, flag ON, el teléfono del mismo PUT NO se guarda y quedan validados los otros 8; corregido el stock, el reintento → 200 con flag apagado, 6 consumos por 7.011 kg y `validado_por` = quien apagó; ENCENDER el flag u omitirlo no valida nada; apagar sin pendientes desde otra empresa activa → 200. Log sin errores. **Otros módulos:** Panamá (flag ENCENDIDO, 21 pendientes de engorde + 4 de reproductora, 24+21 reservas ACTIVAS) → PUT 200, 0 pendientes, 0 reservas ACTIVAS, 24 consumos por 41.324,2 kg y el cruce de reproductora disparado.
-- [x] V4. `dotnet build` de la solución: 0 errores, 0 advertencias. `dotnet test`: Application.Tests 4.340/4.340 (24 nuevos) y Domain.Tests 1/1. Front: `ng test` de los 2 specs de `company-management` 16/16 y `yarn build` 0 errores/0 advertencias.
-- [x] V5. Sin procesos huérfanos: API :5501 detenida, servidores MSBuild/compilador apagados, las 6 BD clon eliminadas (verificado con `pg_database`), tokens, content roots, copias de binarios y scripts borrados del scratchpad; sin dotnet vivos.
-- [x] C1. Commit acotado a mis archivos (`git log --grep="apagar la doble validacion valida"`; el bloque y los archivos de otras sesiones quedaron intactos en el árbol). Sin push ni deploy: las migraciones corren solas al arrancar y requieren OK explícito.
-
-Pendiente del usuario (no es código): OK para desplegar `fa301b5` + este commit (tres migraciones data-only que corren solas al arrancar); después correr `backend/sql/verificar_validado_sin_reserva.sql` contra producción: los cuatro conteos tienen que dar 0 (un registro que ese día no tenga stock queda pendiente y el script lo lista, no aborta el arranque). Opcional: que borrar/editar decida por las reservas del propio registro.
 
 ---
 
@@ -9126,6 +9129,22 @@ Nota para otras sesiones: hasta que esta rama llegue a `main`, las demás ramas 
 
 ---
 
+## SEGURIDAD-WEB-MOVIL — Autenticación, JWT y comunicación segura (19-sep-2026)
+
+Plan: [seguridad_comunicacion_web_movil_plan.md](fase_de_desarrollo/seguridad_comunicacion_web_movil_plan.md)
+
+- [x] P1. Revisar instrucciones, trabajo concurrente y registrar plan; aplicación adicional confirmada: móvil con usuarios.
+- [x] A1. Auditoría del flujo JWT/sesiones/middleware/clientes completada sin exponer secretos; se documentaron reset tokens, logout, almacenamiento local y ausencia de refresh token como fases posteriores.
+- [x] B1. Validación JWT estricta (HS256, issuer/audience/exp, 32 bytes UTF-8) y rechazo 503 ante verificación de sesiones indisponible; pruebas puras actualizadas.
+- [x] B2. Endurecidos límites HTTP atómicos, confianza de proxies explícitos, HSTS basado en esquema normalizado y CORS sin comodín.
+- [x] F1. Angular limita credenciales al origen/prefijo API, omite credenciales al login y evita logout por 401 tardío; specs de interceptor y destino agregados.
+- [x] M1. Flutter valida destino API, desactiva redirecciones con credenciales, adopta `platformKey`, exige HTTPS en release y tipifica 503/429; el almacenamiento SQLite del JWT queda como riesgo documentado para la siguiente fase.
+- [ ] V1. Parcial: `dotnet test` Application.Tests **4419/4419** y TypeScript Angular `tsc --noEmit` **OK**. El build completo de API/Infrastructure y `flutter analyze` excedieron el tiempo del entorno; el build Angular por `yarn` sigue bloqueado por Node del PATH `22.15.0` (Angular 22 exige `>=22.22.3`).
+- [x] R1. Diff revisado y contrato móvil/configuración/riesgos restantes documentados en el plan.
+- [ ] C1. Cerrar bloque con evidencia y confirmar que no quedan procesos propios activos; sin deploy.
+
+---
+
 ## USERS-CREATE-USERDTO — `POST /api/Users` responde `UserDto`, no `AuthResponseDto` (retomado 21-sep-2026)
 
 Plan: [users_create_endpoint_userdto_plan.md](fase_de_desarrollo/users_create_endpoint_userdto_plan.md) (ver la «Revisión 21-sep» al principio).
@@ -9147,6 +9166,25 @@ Decisión del usuario: fix de raíz (usar `_userService.CreateAsync`), no parche
 - [x] C1. Commit acotado a mis archivos (sin push ni deploy).
 
 Pendiente del usuario (no es código): OK para push. Al desplegar, el front y el back viajan juntos; el `??` del modal tolera el orden en que lleguen. La rama `claude/strange-babbage-dbf369` (WIP) queda obsoleta: se puede borrar.
+
+---
+
+## VALIDACION-CLAVES-PRODUCCION — Alineación de seguridad front/back (22-sep-2026)
+
+Plan: [validacion_claves_produccion_front_back_plan.md](fase_de_desarrollo/validacion_claves_produccion_front_back_plan.md)
+
+- [x] P1. Registrar plan y bloque propio; preservar sesiones concurrentes y no exponer secretos.
+- [x] A1. Cuatro pares de claves compartidas idénticos (sin valores en salida), JWT local válido y exclusivo del servidor; production/docker usan environment.prod.ts; los 7 orígenes CORS locales cumplen formato.
+- [x] A2. Alcance resuelto por el usuario: dejar AWS pendiente. Las consultas fueron rechazadas con UnrecognizedClientException (token inválido); NO se certifica la TaskDef efectiva ni sus overrides. Quedan por cotejar claves, DerivationKey y subredes de proxy reales.
+- [x] I1. Sin diferencias de claves que corregir. Agregado verificador local con AST/JSON sin ejecutar código ni revelar valores, 18 tests propios y gate previo al despliegue en deploy-production.yml. Corregidos falsos éxitos del parser para propiedades JSON duplicadas y lexemas numéricos que el binder Int32 rechaza.
+- [x] V1. Build solución backend Release con SDK portable .NET 10.0.301 y salida aislada: 0 errores, 10 advertencias NU1900 por imposibilidad de consultar vulnerabilidades en api.nuget.org; sin errores de código. Log backend/artifacts/security-prod-validation-20260922/backend-build.log.
+- [x] V2. Suite backend ejecutada directamente con VSTest sobre esos binarios: Application.Tests 4.430/4.430 y Domain.Tests 1/1, sin omitidos. El intento dotnet test inició demasiados nodos MSBuild y no completó; se cerraron únicamente sus 90 nodos y se usó VSTest sin recompilar. Log backend-tests.log.
+- [x] V3. Angular producción con Node portable 22.23.1 y yarn build --configuration production --output-path artifacts/security-prod-validation-20260922/dist: exit 0, sin advertencias Angular. Yarn advierte No license field de un package.json padre ajeno al proyecto. Primer intento bloqueado por spawn EPERM; reintento con permiso de ejecución completado. Log frontend/artifacts/security-prod-validation-20260922/frontend-build-retry.log.
+- [x] V4. Auth frontend con ChromeHeadless y --include=src/app/core/auth/**/*.spec.ts: 239/239 SUCCESS. Nuevo gate node --test: 18/18; junto con scripts JWT/proxy existentes: 34/34; CLI compatible desde raíz/backend. Gate de superficie de producción existente: 8/8 criterios.
+- [x] V5. Interoperabilidad con servicios reales Angular/.NET y configuración local cargada solo en memoria: 6/6 (WebCrypto/CryptoJS hacia .NET para payload/firma legacy y respuesta .NET hacia ambos), incluyendo Unicode. Runner fijado a UTF-8 para evitar que la consola Windows altere el fixture. Sin HTTP, BD ni secretos en archivos nuevos.
+- [x] V6. Probe real .NET10 sin socket/BD: flag Docker true + sin redes ⇒ acepta proxy desconocido; false ⇒ conserva loopback/rechaza; true + red explícita ⇒ rechaza externo. Esto depende de overrides ECS no verificados; no se cambiaron flag ni rangos productivos.
+- [ ] V7. Revalidar HEAD 65f733c tras cambios concurrentes de JWT/proxy: build actual en curso; el primer build/test era de 35dd5fe. Prueba sintética de integración de rotación+proxy conserva las cuatro claves compartidas. Se verifica además compatibilidad asimétrica entre instancias viejas/nuevas durante rolling deployment.
+- [ ] R1. Diff propio y sintaxis revisados; no se encontraron valores de las claves configuradas en los archivos nuevos. Informe en el plan. Cierre verificado: 0 procesos de validación propios, 0 nodos del runner anterior y puertos 5002/4200/9876 libres. Sin commit, push, deploy, rotación ni cambios de BD; se preservaron cambios ajenos.
 
 ---
 
@@ -9285,3 +9323,168 @@ Plan: [fase_de_desarrollo/seguimiento_levante_responsive_validacion_plan.md](fas
 - [x] Agregar pruebas unitarias de tabla, validación y modal, incluida la no herencia de ítems entre aperturas.
 - [x] Verificar PWA: el DTO de Levante incluye categorías o `huevoItems` y el outbox conserva el `request.body` completo.
 - [x] Validar: 12/12 pruebas enfocadas y `yarn build` final con Node 22.23.1, sin errores Angular; puertos 5002/4200/9876 libres.
+
+---
+
+## FLUJOS-VALIDACION-EMPRESA — Secuencias parametrizables por empresa (23-sep-2026)
+
+Plan: [flujos_validacion_parametrizables_por_empresa_plan.md](fase_de_desarrollo/flujos_validacion_parametrizables_por_empresa_plan.md)
+
+Pedido inicial: Santa Reyes necesita una tercera persona y una secuencia ordenada de confirmaciones
+para seguimientos diarios. El diseño debe servir después para inventario, ventas y movimientos sin
+crear columnas o permisos nuevos por cada cantidad de validadores.
+
+- [x] P1. Auditar el motor actual: flag por empresa, reservas persistentes, finalizador atómico,
+  endpoints, permisos y UI de Levante/Producción.
+- [x] P2. Definir arquitectura: motor genérico versionado + catálogo de procesos implementados +
+  adaptadores; no reutilizar `permission_modules` como catálogo de operaciones.
+- [x] P3. Diseñar modelo persistente de 8 tablas, estados, versionado, auditoría, concurrencia,
+  devolución/corrección/reenvío, novedades persistentes y reglas multiempresa.
+- [x] P4. Especificar integración compatible: flujo publicado → secuencial; sin flujo + flag → legacy;
+  sin flujo/flag → inmediato. Última etapa reutiliza el finalizador actual.
+- [x] P5. Especificar UX del constructor, bandeja personal, estado junto al seguimiento, APIs,
+  migraciones, pruebas, rollout y contrato para módulos futuros.
+- [x] P6. Aclaración del usuario: devolver retrocede una etapa; el firmante anterior/creador recibe
+  una novedad roja persistente en Home con granja/núcleo/galpón/lote/día y motivo; puede corregir y
+  reenviar, devolver otra etapa o eliminar. Leer el aviso no lo resuelve.
+- [x] D1. Confirmado por el usuario (23-sep-2026): candidatos múltiples = ANY (una firma, Fase 1);
+  personas distintas entre etapas = default ON; creador sin autoaprobación = default ON; plazo total
+  inicial = 24 h configurable por flujo.
+- [x] D2. Confirmado por el usuario: NO sembrar personas/roles concretos de Santa Reyes por migración.
+  La configuración se hace desde la UI después del despliegue. Sin vista especial de Costos.
+- [ ] F1. Implementar motor persistente, configuración backend, migraciones y tests puros.
+  - [x] F1.1. Entidades de dominio (8 tablas) en `Domain/Entities/FlujosValidacion/` + enums de
+    estado (ValidacionProceso, ValidacionFlujo, ValidacionFlujoPaso, ValidacionFlujoAsignado,
+    ValidacionInstancia, ValidacionInstanciaPaso, ValidacionAccion, ValidacionNovedadUsuario).
+  - [x] F1.2. Configuraciones EF (`Persistence/Configurations/`) + 8 `DbSet<>` en `ZooSanMarinoContext`.
+  - [x] F1.3. Migración `AddFlujosValidacionParametrizables` (SQL idempotente a mano, `CREATE TABLE
+    IF NOT EXISTS` + 3 índices únicos parciales: PUBLICADO único por empresa/proceso, instancia
+    ACTIVA única por recurso, APROBAR único por etapa/usuario) + Designer. Aplicada en BD local
+    (`dotnet ef database update`), verificada idempotente en una segunda corrida ("No migrations
+    were applied").
+  - [x] F1.4. Migración data-only `SeedProcesosValidacionInicial`: siembra `SEGUIMIENTO_LEVANTE` y
+    `SEGUIMIENTO_PRODUCCION` por `key` (`INSERT ... WHERE NOT EXISTS`), `menu_route` en NULL
+    (se completa en F3 cuando se sepa la ruta real del constructor). Aplicada y verificada
+    idempotente (segunda corrida: "No migrations were applied").
+  - [x] F1.5. `Calculos/FlujoValidacionCalculos.cs` (topología/orden/transiciones) + xUnit — VERDE.
+  - [x] F1.6. `Calculos/FlujoValidacionAutorizacionCalculos.cs` (alcance/reglas de firma) + xUnit — VERDE.
+    `dotnet test --filter FullyQualifiedName~FlujoValidacion`: **Passed: 28, Failed: 0** (23-sep-2026).
+  - [x] F1.7. DTOs `DTOs/FlujosValidacion/` (configuración + ejecución) + `Interfaces/IFlujoValidacionService.cs`
+    (con `ModoValidacionProceso`) + `Interfaces/IProcesoValidacionAdapter.cs`. Compila.
+  - [ ] F1.8. Migración seed menú/permisos (`flujos_validacion.ver/gestionar/override`) — diferida a
+    F3 (constructor Angular), cuando se conozca la ruta real del menú de configuración.
+  - F1 (motor persistente + configuración backend) queda **cerrado** salvo F1.8 diferido a F3.
+    Verificado: `dotnet build` limpio, migraciones aplicadas e idempotentes en BD local
+    (`zoo_sanmarino_db` :5433), 28/28 tests unitarios en verde.
+  - [x] F1.9. `dotnet build` limpio + migración aplicada en local (Up, segunda pasada idempotente).
+- [ ] F2. Implementar ejecución transaccional, retroceso escalonado, novedades persistentes y
+  adaptadores de Levante/Producción sin duplicar fórmulas de inventario/aves.
+  - [x] F2.1. `Infrastructure/Services/FlujosValidacion/FlujoValidacionService.cs` (ancla) +
+    `Funciones/` con 7 partials: `Configuracion.cs` (catálogo de procesos, CRUD de borradores,
+    clonado, asignables), `Publicacion.cs` (preflight con `FlujoValidacionCalculos` + rol/usuario
+    ajeno o inactivo, publicar retirando la versión anterior, retirar), `Consultas.cs`
+    (`ResolverModoAsync`: SECUENCIAL/LEGACY_UN_PASO/INMEDIATO), `Instancias.cs` (crear/cancelar
+    instancia, estado completo con `PuedeAprobar/Devolver/Corregir/Eliminar`, mis pendientes),
+    `Aprobacion.cs` (`SELECT ... FOR UPDATE`, autorización por `FlujoValidacionAutorizacionCalculos`,
+    avanza etapa o finaliza vía adaptador dentro de la misma transacción; si el adaptador falla,
+    rollback + `ERROR_FINALIZACION` por `ExecuteUpdateAsync` fuera de la tx revertida),
+    `Devoluciones.cs` (devolver primaria, corregir-y-reenviar, eliminar), `Novedades.cs` (mis
+    novedades, marcar leída sin resolver). Registrado `AddScoped<IFlujoValidacionService,
+    FlujoValidacionService>()` en `Program.cs`. **`dotnet build` de la solución completa (API
+    incluida): 0 errores.** `dotnet test --filter FlujoValidacion`: 28/28 verde (no se tocaron los
+    cálculos puros).
+    - **Limitación documentada, no implementada todavía:** la devolución EN CASCADA (destinatario de
+      una novedad activa decide devolver otra etapa más atrás, plan caso 26) se rechaza
+      explícitamente con un mensaje claro en vez de simularse mal; `DevolverAsync` solo cubre la
+      devolución primaria (desde PENDIENTE_VALIDACION). Pendiente para una iteración siguiente.
+    - **Sin adaptadores concretos todavía:** `IEnumerable<IProcesoValidacionAdapter>` está vacío en
+      runtime — el motor compila pero no puede finalizar/resumir/liberar ningún recurso real hasta
+      implementar los adaptadores de Levante y Producción (próxima tarea, F2.2).
+  - [x] F2.2. Adaptadores concretos `Adaptadores/SeguimientoLevanteValidacionAdapter.cs` y
+    `SeguimientoProduccionValidacionAdapter.cs`: resuelven empresa/resumen contra
+    `SeguimientoDiario`/`SeguimientoProduccion` + `LotePosturaLevante`/`LotePosturaProduccion`/`Farms`,
+    y **delegan el descuento real** en un nuevo método `IValidacionSeguimientoService.ValidarSinPermisoAsync`
+    que reutiliza el mismo `ValidarRegistroAsync` privado que ya usaba el flujo de apagado de empresa
+    (cero fórmulas duplicadas). Registrados como `IProcesoValidacionAdapter` en `Program.cs`.
+    `dotnet build` de la solución completa: 0 errores. `dotnet test --filter
+    "FlujoValidacion|ValidacionSeguimiento"`: **Passed: 102, Failed: 0** (28 nuevos + 74 legacy
+    intactos — confirma que exponer el núcleo no rompió el subsistema existente).
+  - [x] F2.3. Controllers `API/Controllers/FlujosValidacionController.cs` (`api/FlujosValidacion`:
+    procesos, GET/POST/PUT borrador, clonar, preflight, publicar, retirar, asignables) y
+    `ValidacionesFlujoController.cs` (`api/ValidacionesFlujo`: estado, aprobar, devolver,
+    corregir-y-reenviar, eliminar recurso, mis-pendientes, mis-novedades, marcar-leida). Mismo estilo
+    que `SeguimientoValidacionController` (403/400 por excepción), sin `admin` en las rutas.
+    `dotnet build` de la solución completa: **0 errores**.
+  - [x] F2.5. `SeguimientoLoteLevanteService` y `ProduccionService` inyectan `IFlujoValidacionService?`
+    (opcional, mismo patrón que `IValidacionSeguimientoService?`) + `ResolverModoFlujoAsync()`
+    fail-closed a INMEDIATO. `separa`/`separaEd`/`separaDel` ahora también se activan en modo
+    SECUENCIAL (aunque el flag legacy de empresa esté OFF). Al crear (`CreateAsync`/
+    `CrearSeguimientoAsync`) con modo SECUENCIAL: `CrearInstanciaAsync` con `_current.UserGuid` como
+    creador (lanza si no hay usuario resuelto). Al eliminar (`DeleteAsync`/`EliminarSeguimientoAsync`)
+    con modo SECUENCIAL: `CancelarInstanciaDelRecursoAsync` en vez de `LiberarAsync` directo (evita
+    duplicar la liberación, ya que cancela vía el adaptador). `UpdateAsync`/`ActualizarSeguimientoAsync`
+    NO crean una instancia nueva — solo re-separan reservas como siempre. `dotnet build` de la
+    solución completa: **0 errores**. `dotnet test` (suite COMPLETA, sin filtro):
+    **Passed: 4517, Failed: 0** — sin regresiones en Levante/Producción ni en el resto del backend.
+  - [x] F2.4. Decisión del usuario (24-sep-2026): tests livianos SIN Postgres real, sobre EF Core
+    InMemory en vez de un fake casero. Proyecto nuevo `backend/tests/ZooSanMarino.Infrastructure.Tests/`
+    (agregado a `ZooSanMarino.sln` → el `dotnet test` del CI, que corre desde `backend/` sin
+    especificar proyecto, ahora también lo recoge). `TestZooSanMarinoContext : ZooSanMarinoContext`
+    con `ConfigureConventions` registrando un `ValueConverter<JsonDocument,string>` global
+    (necesario: el contexto de test es el de PRODUCCIÓN completo, EF valida TODAS las entidades del
+    modelo aunque el test no las toque, y varias ajenas a flujos de validación usan `JsonDocument`,
+    que InMemory no sabe construir sin conversor). `FakeCurrentUser` + `FakeProcesoValidacionAdapter`
+    (doble de `IProcesoValidacionAdapter` que registra llamadas en vez de tocar seguimientos reales).
+    **13 tests xUnit, 13/13 en verde**, cubriendo: catálogo/borradores/clonado/preflight (rol o
+    usuario ajeno/sin candidatos), publicar retira la versión anterior, edición rechazada sobre
+    publicado, autorización de empresa ajena, `ResolverModoAsync` en sus 3 modos, ciclo de vida de
+    instancias (crear deja paso 1 pendiente/resto bloqueado, `ObtenerMisPendientesAsync` aísla
+    candidatos por etapa, cancelar libera vía el adaptador e idempotente sin instancia activa), y
+    novedades (leer no resuelve, aislamiento por empresa/destinatario).
+    **Límite documentado en el propio archivo de test:** `AprobarAsync`/`DevolverAsync`/
+    `CorregirYReenviarAsync`/`MarcarNovedadLeidaAsync` NO están cubiertos — usan `FromSqlInterpolated
+    "... FOR UPDATE"` o `ExecuteUpdateAsync`, que el proveedor InMemory no soporta. Probar la
+    finalización atómica y la concurrencia real de la última etapa queda diferido a un smoke manual
+    contra Postgres en F5 (decisión ya tomada con el usuario).
+  - **F2 (backend end-to-end) queda CERRADO** con esa única salvedad (F2.4 liviano, concurrencia real
+    diferida a F5).
+
+**Resumen de lo hecho en esta sesión (backend, 23/24-sep-2026):** F1 completo (motor persistente) y
+F2 completo (ejecución transaccional, adaptadores, controllers, integración con el Crud real de
+Levante/Producción, y ahora tests livianos del motor). 115 tests unitarios propios en verde (28
+Calculos + 13 Infrastructure.Tests InMemory + 74 legacy de ValidacionSeguimiento intactos), más
+4.517/4.517 en la corrida completa sin filtro de `Application.Tests`. **Pendiente de fase:** F3
+(constructor Angular + bandeja personal + panel de novedades del Home), F4 (integración visual en
+Levante/Producción), F5-F8 (validación, migraciones locales de concurrencia, smoke Santa Reyes,
+gates finales — incluida la prueba de concurrencia real diferida de F2.4).
+
+**⚠️ Nota de estado del repo (24-sep-2026, NO atribuible a este bloque):** el build de la SOLUCIÓN
+COMPLETA (`dotnet build ZooSanMarino.sln`) está roto ahora mismo por `CS0246: MovimientoAlimentoSeguimientoDto`
+no encontrado en `backend/src/ZooSanMarino.API/Controllers/ProduccionController.cs` y
+`SeguimientoLoteLevanteController.cs`. No se tocó ninguno de esos archivos desde este bloque; es
+trabajo en curso de otra sesión (ver §⚙️ de AGENTS.md sobre sesiones paralelas). El proyecto nuevo
+`ZooSanMarino.Infrastructure.Tests` compila y corre limpio de forma aislada
+(`dotnet test backend/tests/ZooSanMarino.Infrastructure.Tests`); revalidar el build completo cuando
+esa otra sesión termine su cambio.
+- [ ] F3. Implementar constructor Angular, bandeja personal, panel de novedades del Home e integración
+  visual/correctiva en ambos seguimientos.
+- [ ] F4. Validar builds/tests, migración local, concurrencia, regresión OFF/legacy y smoke Santa Reyes
+  de tres etapas. Sin deploy ni DDL en producción sin aprobación explícita.
+
+---
+
+## SEGUIMIENTO-POSTURA-MOVIMIENTOS-ALIMENTO — Levante/Producción por fecha (24-sep-2026)
+
+Plan: [seguimiento_levante_produccion_movimientos_alimento_plan.md](fase_de_desarrollo/seguimiento_levante_produccion_movimientos_alimento_plan.md)
+
+- [x] P1. Auditar la referencia de Pollo Engorde, contratos actuales, tabla espejo y alcance
+  multiempresa. Confirmado: no requiere DDL; `lote_registro_historico_unificado` ya contiene fecha,
+  tipo, cantidad, ítem y referencia.
+- [x] B1. Crear contrato/consulta backend común y endpoints fail-closed para Levante y Producción.
+- [x] F1. Crear modelo/agrupación pura frontend y conectar las cargas de ambos contenedores.
+- [x] F2. Mostrar Ingreso, Traslado y Referencia por fecha, incluida fecha sin seguimiento, y llevar
+  las columnas al Excel de Levante.
+- [x] T1. Agregar pruebas unitarias backend/frontend y regresiones de alineación/no duplicación.
+- [x] V1. Backend .NET 10 compilado por capas (0 errores/advertencias), 4522 tests Application en
+  verde; `yarn build` en verde y 18 specs Angular focalizadas en verde. Puertos 5002/4200/9876
+  verificados libres al cierre.

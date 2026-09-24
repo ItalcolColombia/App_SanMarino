@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import type { HuevoItemSeguimiento } from '../../lote-produccion/services/produccion.service';
+import type { MovimientoAlimentoSeguimientoDto } from '../../../shared/models/movimiento-alimento-seguimiento.model';
 
 export interface SeguimientoLoteLevanteDto {
   id: number;
@@ -371,6 +372,12 @@ export class SeguimientoLoteLevanteService {
   getByLoteId(loteId: number): Observable<SeguimientoLoteLevanteDto[]> {  // Changed from string to number
     return this.http.get<SeguimientoLoteLevanteDto[]>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}`  // Convert to string for URL
+    );
+  }
+
+  getMovimientosAlimento(loteId: number): Observable<MovimientoAlimentoSeguimientoDto[]> {
+    return this.http.get<MovimientoAlimentoSeguimientoDto[]>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/movimientos-alimento`
     );
   }
 

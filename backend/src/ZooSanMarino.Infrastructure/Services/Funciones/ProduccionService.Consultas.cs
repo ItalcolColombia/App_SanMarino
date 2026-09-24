@@ -123,6 +123,127 @@ public partial class ProduccionService
         return new ListaSeguimientoResponse(items, total);
     }
 
+    public async Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> ListarMovimientosAlimentoAsync(
+        int? loteId,
+        int? lotePosturaProduccionId,
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken ct = default)
+    {
+        if (!lotePosturaProduccionId.HasValue && !loteId.HasValue)
+            throw new ArgumentException("Debe especificar loteId o lotePosturaProduccionId.");
+
+        var companyId = _currentUser.CompanyId;
+        int produccionLoteId;
+        int? lppId = null;
+        int farmId;
+        string? nucleoId;
+        string? galponId;
+        DateTime? inicioFase;
+        DateTime? finFase;
+        string? estadoCierre;
+
+        if (lotePosturaProduccionId.HasValue)
+        {
+            var lpp = await _context.LotePosturaProduccion.AsNoTracking()
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null
+                    && l.LotePosturaProduccionId == lotePosturaProduccionId.Value)
+                .Select(l => new
+                {
+                    l.LotePosturaProduccionId,
+                    l.LoteId,
+                    l.GranjaId,
+                    l.NucleoId,
+                    l.GalponId,
+                    l.FechaInicioProduccion,
+                    l.FechaFinProduccion,
+                    l.EstadoCierre
+                })
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            if (lpp is null)
+                throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
+
+            var scope = await _scopeResolver.GetScopeAsync(lpp.GranjaId);
+            var permitido = scope.IsGlobal
+                || (lpp.LoteId.HasValue && scope.PermiteLote(lpp.LoteId.Value))
+                || (!lpp.LoteId.HasValue && !string.IsNullOrEmpty(lpp.GalponId) && scope.PermiteGalpon(lpp.GalponId))
+                || (!lpp.LoteId.HasValue && string.IsNullOrEmpty(lpp.GalponId)
+                    && !string.IsNullOrEmpty(lpp.NucleoId) && scope.PermiteNucleo(lpp.NucleoId));
+            if (!permitido)
+                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+            produccionLoteId = lpp.LoteId ?? 0;
+            lppId = lpp.LotePosturaProduccionId;
+            farmId = lpp.GranjaId;
+            nucleoId = lpp.NucleoId;
+            galponId = lpp.GalponId;
+            inicioFase = lpp.FechaInicioProduccion;
+            finFase = lpp.FechaFinProduccion;
+            estadoCierre = lpp.EstadoCierre;
+        }
+        else
+        {
+            var solicitado = loteId!.Value;
+            if (!await _scopeResolver.PermiteLoteAsync(solicitado).ConfigureAwait(false))
+                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+            var lote = await _context.Lotes.AsNoTracking()
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion"
+                    && (l.LotePadreId == solicitado || l.LoteId == solicitado))
+                .OrderBy(l => l.LoteId == solicitado ? 0 : 1)
+                .ThenBy(l => l.LoteId)
+                .Select(l => new
+                {
+                    l.LoteId,
+                    l.GranjaId,
+                    l.NucleoId,
+                    l.GalponId,
+                    l.FechaInicioProduccion,
+                    l.FechaFinProduccion
+                })
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            if (lote?.LoteId is not > 0)
+                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+            produccionLoteId = lote.LoteId.Value;
+            farmId = lote.GranjaId;
+            nucleoId = lote.NucleoId;
+            galponId = lote.GalponId;
+            inicioFase = lote.FechaInicioProduccion;
+            finFase = lote.FechaFinProduccion;
+            estadoCierre = finFase.HasValue ? "Cerrado" : "Abierto";
+        }
+
+        var seguimientos = _context.SeguimientoProduccion.AsNoTracking().Where(s => s.DeletedAt == null);
+        seguimientos = lppId.HasValue
+            ? seguimientos.Where(s => s.LotePosturaProduccionId == lppId.Value
+                || (s.LotePosturaProduccionId == null && produccionLoteId > 0 && s.LoteId == produccionLoteId))
+            : seguimientos.Where(s => s.LoteId == produccionLoteId);
+
+        var fechas = await seguimientos
+            .GroupBy(_ => 1)
+            .Select(g => new { Primera = (DateTime?)g.Min(s => s.Fecha), Ultima = (DateTime?)g.Max(s => s.Fecha) })
+            .SingleOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        var rango = MovimientosAlimentoSeguimientoCalculos.ResolverRango(
+            inicioFase,
+            finFase,
+            fechas?.Primera,
+            fechas?.Ultima,
+            CicloVidaPosturaCalculos.EstaCerrado(estadoCierre),
+            DateTime.Today,
+            desde,
+            hasta);
+        if (rango is null)
+            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+        return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
+            _context, companyId, farmId, nucleoId, galponId, rango, ct);
+    }
+
     public async Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId)
     {
         var companyId = _currentUser.CompanyId;

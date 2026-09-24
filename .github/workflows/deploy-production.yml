@@ -151,6 +151,13 @@ jobs:
         working-directory: backend
         run: node scripts/verificar-superficie-produccion.js
 
+      # Compara las claves compartidas sin imprimirlas. JWT y DerivationKey pertenecen
+      # solo al backend. Este gate local no certifica overrides/secretos efectivos de ECS.
+      - name: Gate — contrato de seguridad frontend/backend de producción
+        run: |
+          node --test backend/scripts/tests/verificar-contrato-seguridad-produccion.test.js
+          node backend/scripts/verificar-contrato-seguridad-produccion.js
+
       - name: Resumen
         if: success()
         run: echo "### Gate de tests superado" >> "$GITHUB_STEP_SUMMARY"

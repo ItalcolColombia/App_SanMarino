@@ -2,6 +2,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import type { MovimientoAlimentoSeguimientoDto } from '../../../shared/models/movimiento-alimento-seguimiento.model';
 import { environment } from '../../../../environments/environment';
 
 export interface ExisteProduccionLoteResponse {
@@ -383,6 +384,15 @@ export class ProduccionService {
     }
 
     return this.http.get<ListaSeguimientoResponse>(`${this.baseUrl}/seguimiento`, { params });
+  }
+
+  listarMovimientosAlimento(query: Pick<ListaSeguimientoQuery, 'loteId' | 'lotePosturaProduccionId' | 'desde' | 'hasta'>): Observable<MovimientoAlimentoSeguimientoDto[]> {
+    let params = new HttpParams();
+    if (query.lotePosturaProduccionId != null) params = params.set('lotePosturaProduccionId', query.lotePosturaProduccionId.toString());
+    if (query.loteId != null) params = params.set('loteId', query.loteId.toString());
+    if (query.desde) params = params.set('desde', query.desde);
+    if (query.hasta) params = params.set('hasta', query.hasta);
+    return this.http.get<MovimientoAlimentoSeguimientoDto[]>(`${this.baseUrl}/seguimiento/movimientos-alimento`, { params });
   }
 
   /**

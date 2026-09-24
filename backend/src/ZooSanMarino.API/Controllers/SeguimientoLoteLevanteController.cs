@@ -50,6 +50,16 @@ public class SeguimientoLoteLevanteController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>Ingresos y traslados de alimento de la fase, visibles por fecha en el seguimiento.</summary>
+    [HttpGet("por-lote/{loteId:int}/movimientos-alimento")]
+    [ProducesResponseType(typeof(IEnumerable<MovimientoAlimentoSeguimientoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<MovimientoAlimentoSeguimientoDto>>> GetMovimientosAlimento(
+        int loteId, CancellationToken ct = default)
+    {
+        var items = await _svc.GetMovimientosAlimentoAsync(loteId, ct);
+        return Ok(items);
+    }
+
     /// <summary>Obtener un registro por ID.</summary>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status200OK)]

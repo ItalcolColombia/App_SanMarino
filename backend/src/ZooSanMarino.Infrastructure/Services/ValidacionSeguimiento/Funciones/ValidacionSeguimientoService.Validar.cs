@@ -54,6 +54,15 @@ public partial class ValidacionSeguimientoService
         return await ValidarRegistroAsync(modulo, seguimientoId, ct);
     }
 
+    /// <inheritdoc cref="IValidacionSeguimientoService.ValidarSinPermisoAsync" />
+    public async Task<ResultadoValidacionDto> ValidarSinPermisoAsync(string modulo, long seguimientoId, CancellationToken ct = default)
+    {
+        if (!ModuloSeguimiento.EsValido(modulo))
+            throw new InvalidOperationException($"Módulo de seguimiento desconocido: '{modulo}'.");
+        modulo = ModuloSeguimiento.Canonico(modulo);
+        return await ValidarRegistroAsync(modulo, seguimientoId, ct);
+    }
+
     /// <summary>
     /// Núcleo de <see cref="ValidarAsync"/>: todo lo que sigue al chequeo del permiso, sin tocarlo. Existe
     /// para que el apagado de la doble validación de una empresa pueda validar sus pendientes en nombre de

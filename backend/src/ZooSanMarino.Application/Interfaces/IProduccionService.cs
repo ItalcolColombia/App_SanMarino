@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Application/Interfaces/IProduccionService.cs
 using ZooSanMarino.Application.DTOs.Produccion;
+using ZooSanMarino.Application.DTOs;
 using LoteDtos = ZooSanMarino.Application.DTOs.Lotes;
 
 namespace ZooSanMarino.Application.Interfaces;
@@ -12,6 +13,9 @@ public interface IProduccionService
     Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request);
     Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request);
     Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta, int page, int size);
+    Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> ListarMovimientosAlimentoAsync(
+        int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta,
+        CancellationToken ct = default);
     Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId);
     Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId);
     Task<bool> EliminarSeguimientoAsync(int seguimientoId);
