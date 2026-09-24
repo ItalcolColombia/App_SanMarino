@@ -9452,3 +9452,21 @@ sigue en el working tree local para revisión.
   visual/correctiva en ambos seguimientos.
 - [ ] F4. Validar builds/tests, migración local, concurrencia, regresión OFF/legacy y smoke Santa Reyes
   de tres etapas. Sin deploy ni DDL en producción sin aprobación explícita.
+
+---
+
+## SEGUIMIENTO-POSTURA-MOVIMIENTOS-ALIMENTO — Levante/Producción por fecha (24-sep-2026)
+
+Plan: [seguimiento_levante_produccion_movimientos_alimento_plan.md](fase_de_desarrollo/seguimiento_levante_produccion_movimientos_alimento_plan.md)
+
+- [x] P1. Auditar la referencia de Pollo Engorde, contratos actuales, tabla espejo y alcance
+  multiempresa. Confirmado: no requiere DDL; `lote_registro_historico_unificado` ya contiene fecha,
+  tipo, cantidad, ítem y referencia.
+- [x] B1. Crear contrato/consulta backend común y endpoints fail-closed para Levante y Producción.
+- [x] F1. Crear modelo/agrupación pura frontend y conectar las cargas de ambos contenedores.
+- [x] F2. Mostrar Ingreso, Traslado y Referencia por fecha, incluida fecha sin seguimiento, y llevar
+  las columnas al Excel de Levante.
+- [x] T1. Agregar pruebas unitarias backend/frontend y regresiones de alineación/no duplicación.
+- [x] V1. Backend .NET 10 compilado por capas (0 errores/advertencias), 4522 tests Application en
+  verde; `yarn build` en verde y 18 specs Angular focalizadas en verde. Puertos 5002/4200/9876
+  verificados libres al cierre.

@@ -912,3 +912,25 @@
   background: var(--ital-orange-100);
   color: var(--ital-orange-dark);
 }
+
+/* Movimientos de alimento: conservan el detalle incluso cuando ese día no tuvo captura diaria. */
+.movimiento-alimento-sin-seguimiento > td {
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--ital-orange-dark);
+  background: var(--warm-50);
+  color: var(--text-sub);
+  white-space: normal;
+}
+
+.movimiento-alimento-sin-seguimiento > td > * {
+  display: inline-block;
+  margin-right: var(--space-3);
+}
+
+.movimiento-alimento-sin-seguimiento__tag {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--ital-orange-dark);
+  font-weight: 700;
+}

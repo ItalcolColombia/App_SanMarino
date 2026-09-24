@@ -251,6 +251,9 @@
                       @if (!ocultaMachosEnPostura) {
                         <th>Alimento M</th>
                       }
+                      <th>Ingreso alimento</th>
+                      <th>Traslado alimento</th>
+                      <th>Referencia</th>
                       <th>Huevos Tot.</th>
                       <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
                            las 11 columnas fijas y "Huevos Inc." están siempre en 0 → Primera / Pnc. -->
@@ -289,7 +292,7 @@
                     @for (captura of capturasPendientes; track captura.clientOpId) {
                       <tr app-fila-captura-pendiente [captura]="captura"></tr>
                     }
-                    @if (!loading && (!seguimientos || seguimientos.length === 0) && capturasPendientes.length === 0) {
+                    @if (!loading && (!seguimientos || seguimientos.length === 0) && capturasPendientes.length === 0 && movimientosAlimentoSinSeguimiento.length === 0) {
                       <tr>
                         <td colspan="999" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>
@@ -300,6 +303,23 @@
                             </button>
                           } @else {
                             <p class="ux-hint">El lote de producción está cerrado. Ábralo para registrar información.</p>
+                          }
+                        </td>
+                      </tr>
+                    }
+                    @for (movimientoDia of movimientosAlimentoSinSeguimiento; track movimientoDia.fecha) {
+                      <tr class="movimiento-alimento-sin-seguimiento">
+                        <td colspan="999">
+                          <strong>{{ movimientoDia.fecha | date:'dd/MM/yyyy':'UTC' }}</strong>
+                          <span class="movimiento-alimento-sin-seguimiento__tag">Movimiento de alimento sin registro diario</span>
+                          @if (textoIngresoAlimento(movimientoDia)) {
+                            <span><b>Ingreso:</b> {{ textoIngresoAlimento(movimientoDia) }}</span>
+                          }
+                          @if (textoTrasladoAlimento(movimientoDia)) {
+                            <span><b>Traslado:</b> {{ textoTrasladoAlimento(movimientoDia) }}</span>
+                          }
+                          @if (textoReferenciasAlimento(movimientoDia)) {
+                            <span><b>Referencia:</b> {{ textoReferenciasAlimento(movimientoDia) }}</span>
                           }
                         </td>
                       </tr>
@@ -367,6 +387,16 @@
                         @if (!ocultaMachosEnPostura) {
                           <td class="truncate" [title]="getTipoAlimentoM(s)">{{ getTipoAlimentoM(s) }}</td>
                         }
+                        @let movimientosDia = movimientosAlimentoDia(s.fechaRegistro);
+                        <td class="truncate cell-mov-alimento" [title]="textoIngresoAlimento(movimientosDia)">
+                          {{ f.esPrimero ? (textoIngresoAlimento(movimientosDia) || '—') : '—' }}
+                        </td>
+                        <td class="truncate cell-mov-alimento" [title]="textoTrasladoAlimento(movimientosDia)">
+                          {{ f.esPrimero ? (textoTrasladoAlimento(movimientosDia) || '—') : '—' }}
+                        </td>
+                        <td class="truncate cell-mov-alimento" [title]="textoReferenciasAlimento(movimientosDia)">
+                          {{ f.esPrimero ? (textoReferenciasAlimento(movimientosDia) || '—') : '—' }}
+                        </td>
                         <td>{{ s.huevosTotales }}</td>
                         <!-- Clasificación por ítem (flag de empresa): Primera / Pnc desde metadata.huevoItems -->
                         @if (!clasificacionHuevoPorItems) {

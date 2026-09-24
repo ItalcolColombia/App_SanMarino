@@ -7,6 +7,9 @@ public interface ISeguimientoLoteLevanteService
 {
     Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId);
 
+    Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> GetMovimientosAlimentoAsync(
+        int loteId, CancellationToken ct = default);
+
     /// <summary>Indicadores semanales de levante calculados en la BD (fn_indicadores_levante_postura). El front solo pinta, no calcula.</summary>
     Task<IReadOnlyList<IndicadorSemanalLevanteDto>> GetIndicadoresSemanalesAsync(int loteId);
 

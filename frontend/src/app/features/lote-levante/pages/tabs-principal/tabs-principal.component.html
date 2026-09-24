@@ -277,6 +277,9 @@
                         <th scope="col" class="th-diario th-diario--num" title="Aves vivas machos al cierre del día">Saldo <span class="th-diario__sub">machos</span></th>
                       }
                       <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
+                      <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
+                      <th scope="col" class="th-diario th-diario--wide">Traslado <span class="th-diario__sub">alimento</span></th>
+                      <th scope="col" class="th-diario th-diario--wide">Referencia</th>
                       <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
                       @if (!ocultaMachosEnPostura) {
                         <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
@@ -330,7 +333,7 @@
                     @for (captura of capturasPendientes; track captura.clientOpId) {
                       <tr app-fila-captura-pendiente [captura]="captura"></tr>
                     }
-                    @if (!loading && (!diarioFilas || diarioFilas.length === 0) && capturasPendientes.length === 0) {
+                    @if (!loading && (!diarioFilas || diarioFilas.length === 0) && capturasPendientes.length === 0 && movimientosAlimentoSinSeguimiento.length === 0) {
                       <tr>
                         <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>
@@ -338,6 +341,23 @@
                           <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
                             Crear el primero
                           </button>
+                        </td>
+                      </tr>
+                    }
+                    @for (movimientoDia of movimientosAlimentoSinSeguimiento; track movimientoDia.fecha) {
+                      <tr class="movimiento-alimento-sin-seguimiento">
+                        <td [attr.colspan]="colspanRegistroDiario">
+                          <strong>{{ movimientoDia.fecha | date:'dd/MM/yyyy':'UTC' }}</strong>
+                          <span class="movimiento-alimento-sin-seguimiento__tag">Movimiento de alimento sin registro diario</span>
+                          @if (textoIngresoAlimento(movimientoDia)) {
+                            <span><b>Ingreso:</b> {{ textoIngresoAlimento(movimientoDia) }}</span>
+                          }
+                          @if (textoTrasladoAlimento(movimientoDia)) {
+                            <span><b>Traslado:</b> {{ textoTrasladoAlimento(movimientoDia) }}</span>
+                          }
+                          @if (textoReferenciasAlimento(movimientoDia)) {
+                            <span><b>Referencia:</b> {{ textoReferenciasAlimento(movimientoDia) }}</span>
+                          }
                         </td>
                       </tr>
                     }
@@ -385,6 +405,15 @@
                           <td class="num">{{ f.saldoAvesM | number:'1.0-0' }}</td>
                         }
                         <td>{{ f.tipoAlimentoCorto }}</td>
+                        <td class="cell-text cell-text--wide" [title]="textoIngresoAlimento(f.movimientosAlimento)">
+                          {{ textoIngresoAlimento(f.movimientosAlimento) || '—' }}
+                        </td>
+                        <td class="cell-text cell-text--wide" [title]="textoTrasladoAlimento(f.movimientosAlimento)">
+                          {{ textoTrasladoAlimento(f.movimientosAlimento) || '—' }}
+                        </td>
+                        <td class="cell-text cell-text--wide" [title]="textoReferenciasAlimento(f.movimientosAlimento)">
+                          {{ textoReferenciasAlimento(f.movimientosAlimento) || '—' }}
+                        </td>
                         <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
                         @if (!ocultaMachosEnPostura) {
                           <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>

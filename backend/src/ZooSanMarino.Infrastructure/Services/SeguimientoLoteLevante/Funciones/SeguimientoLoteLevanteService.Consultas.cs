@@ -2,6 +2,7 @@
 // (fn_indicadores_levante_postura), lectura por id (con metadata sintético legacy), filtros y el
 // resultado calculado (sp_recalcular_seguimiento_levante). Partial de SeguimientoLoteLevanteService.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -23,6 +24,51 @@ public partial class SeguimientoLoteLevanteService
             OrderAsc = true
         };
         return await FetchAllLevanteDtoPagesAsync(baseFilter).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> GetMovimientosAlimentoAsync(
+        int loteId, CancellationToken ct = default)
+    {
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+        var companyId = _current.CompanyId;
+        var fase = await _ctx.LotePosturaLevante.AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .OrderByDescending(l => l.LotePosturaLevanteId)
+            .Select(l => new
+            {
+                l.GranjaId,
+                l.NucleoId,
+                l.GalponId,
+                l.FechaEncaset,
+                l.EstadoCierre
+            })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+        if (fase is null)
+            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+        var loteTexto = loteId.ToString();
+        var fechas = await _ctx.SeguimientoDiario.AsNoTracking()
+            .Where(s => s.TipoSeguimiento == TipoLevante && s.LoteId == loteTexto)
+            .GroupBy(_ => 1)
+            .Select(g => new { Primera = (DateTime?)g.Min(s => s.Fecha), Ultima = (DateTime?)g.Max(s => s.Fecha) })
+            .SingleOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        var rango = MovimientosAlimentoSeguimientoCalculos.ResolverRango(
+            fase.FechaEncaset,
+            finFase: null,
+            fechas?.Primera,
+            fechas?.Ultima,
+            CicloVidaPosturaCalculos.EstaCerrado(fase.EstadoCierre),
+            DateTime.Today);
+        if (rango is null)
+            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+
+        return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
+            _ctx, companyId, fase.GranjaId, fase.NucleoId, fase.GalponId, rango, ct);
     }
 
     /// <summary>

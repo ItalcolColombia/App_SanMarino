@@ -13,6 +13,15 @@ import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/service
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
+import type {
+  MovimientoAlimentoSeguimientoDto,
+  ResumenMovimientosAlimentoDia
+} from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import {
+  agruparMovimientosAlimentoPorDia,
+  indexarMovimientosAlimentoPorDia,
+  movimientosSinSeguimiento
+} from '../../../../shared/utils/movimientos-alimento-seguimiento.funcion';
 
 /** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
 interface AggregadoHistoricoDia {
@@ -75,6 +84,7 @@ export interface RegistroDiarioTablaFila {
   ordinalDelDia: number;
   registrosDelDia: number;
   esPrimeraDelDia: boolean;
+  movimientosAlimento?: ResumenMovimientosAlimentoDia;
 }
 
 /**
@@ -115,6 +125,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
     this.observadorAnchoTabla.observe(elemento.nativeElement);
   }
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
+  @Input() movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
 
   /**
    * Capturas de este lote guardadas sin red y todavía sin enviar. Entra como **input aparte** de
@@ -164,6 +175,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Registros ordenados por fecha (asc) con acumulados y campos de metadata (traslado, ingreso, etc.). */
   diarioFilas: RegistroDiarioTablaFila[] = [];
+  movimientosAlimentoSinSeguimiento: ResumenMovimientosAlimentoDia[] = [];
+  private movimientosAlimentoPorFecha: ReadonlyMap<string, ResumenMovimientosAlimentoDia> = new Map();
 
 
   /**
@@ -229,9 +242,20 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['seguimientos'] || changes['selectedLote'] || changes['historicoUnificado'] || changes['enriquecerTablaConHistoricoInventario']) {
+    if (changes['seguimientos'] || changes['movimientosAlimento']) {
+      this.recalcularMovimientosAlimento();
+    }
+    if (changes['seguimientos'] || changes['movimientosAlimento'] || changes['selectedLote'] || changes['historicoUnificado'] || changes['enriquecerTablaConHistoricoInventario']) {
       this.diarioFilas = this.buildDiarioFilas();
     }
+  }
+
+  private recalcularMovimientosAlimento(): void {
+    const resumenes = agruparMovimientosAlimentoPorDia(this.movimientosAlimento);
+    this.movimientosAlimentoPorFecha = indexarMovimientosAlimentoPorDia(resumenes);
+    this.movimientosAlimentoSinSeguimiento = movimientosSinSeguimiento(
+      resumenes,
+      (this.seguimientos ?? []).map(s => s.fechaRegistro));
   }
 
   /** Columnas de la tabla de registros diarios. Feature 13: ahora son 4 columnas
@@ -247,7 +271,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
     // total mort+sel, saldo, consumo kg, consumo acum., peso, uniformidad, C.V., ingreso y salida
     // por traslado). Sin descontarlas, la fila de "sin registros" se estira de más y deja la tabla
     // torcida — el colspan es un número fijo, no se recalcula solo.
-    return 32
+    return 35
       + (this.enriquecerTablaConHistoricoInventario ? 3 : 0)
       - (this.ocultaMachosEnPostura ? COLUMNAS_MACHOS_TABLA_DIARIA : 0);
   }
@@ -379,6 +403,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
       // fila del día: repetirlo en cada registro mostraba (y exportaba al Excel) el mismo ingreso
       // de alimento y el mismo despacho una vez por registro, como si hubieran entrado dos veces.
       const agg = ymd && histPorFecha && posicion.esPrimero ? histPorFecha.get(ymd) : undefined;
+      const movimientosAlimento = ymd && posicion.esPrimero
+        ? this.movimientosAlimentoPorFecha.get(ymd)
+        : undefined;
 
       const metaIng = this.metaStr(seg, 'ingresoAlimento', 'ingreso_alimento', 'ingresoAlimentoKg');
       const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
@@ -439,12 +466,33 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
         pctRetiroSemana: null, // se completa abajo, agrupado por semana (REQ-007d)
         ordinalDelDia: posicion.ordinal,
         registrosDelDia: posicion.total,
-        esPrimeraDelDia: posicion.esPrimero
+        esPrimeraDelDia: posicion.esPrimero,
+        movimientosAlimento
       });
     }
 
     this.aplicarPctRetiroSemana(out);
     return out;
+  }
+
+  textoIngresoAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.ingresos ?? []).map(m => this.textoMovimientoAlimento(m)).join(' · ');
+  }
+
+  textoTrasladoAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.traslados ?? []).map(m => {
+      const direccion = m.tipoMovimiento === 'INV_TRASLADO_ENTRADA' ? 'Entrada' : 'Salida';
+      return `${direccion} ${this.textoMovimientoAlimento(m)}`;
+    }).join(' · ');
+  }
+
+  textoReferenciasAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.referencias ?? []).join(' · ');
+  }
+
+  private textoMovimientoAlimento(movimiento: MovimientoAlimentoSeguimientoDto): string {
+    const alimento = (movimiento.alimento ?? '').trim();
+    return `${this.formatKgNumber(movimiento.cantidadKg)} kg${alimento ? ` — ${alimento}` : ''}`;
   }
 
   /** REQ-007d: %Retiro (Mort+Sel) de la SEMANA sobre el saldo de aves al inicio de esa semana.
@@ -721,6 +769,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
       'Saldo hembras',
       ...this.soloConMachos('Saldo machos'),
       'Tipo alimento',
+      'Ingreso alimento',
+      'Traslado alimento',
+      'Referencia',
       'Consumo kg hembras',
       ...this.soloConMachos('Consumo kg machos'),
       'Consumo real día (kg)',
@@ -774,6 +825,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
         f.saldoAvesH,
         ...this.soloConMachos(f.saldoAvesM),
         f.tipoAlimentoCorto,
+        this.textoIngresoAlimento(f.movimientosAlimento),
+        this.textoTrasladoAlimento(f.movimientosAlimento),
+        this.textoReferenciasAlimento(f.movimientosAlimento),
         s.consumoKgHembras ?? 0,
         ...this.soloConMachos(s.consumoKgMachos ?? 0),
         f.consumoDiaKg,

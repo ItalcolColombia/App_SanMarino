@@ -16,6 +16,16 @@ import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-l
 import { FilaCapturaPendienteComponent } from '../../../../shared/components/fila-captura-pendiente/fila-captura-pendiente.component';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
 import { FilaGrillaProduccion, detalleTotalDia, filasGrillaProduccion, registrosDeLaGrilla } from '../../funciones/filas-grilla-produccion.funcion';
+import type {
+  MovimientoAlimentoSeguimientoDto,
+  ResumenMovimientosAlimentoDia
+} from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import {
+  agruparMovimientosAlimentoPorDia,
+  indexarMovimientosAlimentoPorDia,
+  movimientosSinSeguimiento
+} from '../../../../shared/utils/movimientos-alimento-seguimiento.funcion';
+import { formatearNumero as fmtNumero, ymdSinTz } from '../../../../shared/utils/format';
 
 @Component({
   selector: 'app-tabs-principal',
@@ -40,11 +50,24 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, AfterViewInit,
   set seguimientos(value: SeguimientoItemDto[]) {
     this._seguimientos = value ?? [];
     this.filasGrilla = filasGrillaProduccion(this._seguimientos);
+    this.recalcularMovimientosAlimento();
   }
   get seguimientos(): SeguimientoItemDto[] {
     return this._seguimientos;
   }
   private _seguimientos: SeguimientoItemDto[] = [];
+
+  @Input()
+  set movimientosAlimento(value: MovimientoAlimentoSeguimientoDto[]) {
+    this._movimientosAlimento = value ?? [];
+    this.recalcularMovimientosAlimento();
+  }
+  get movimientosAlimento(): MovimientoAlimentoSeguimientoDto[] {
+    return this._movimientosAlimento;
+  }
+  private _movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
+  movimientosAlimentoSinSeguimiento: ResumenMovimientosAlimentoDia[] = [];
+  private movimientosAlimentoPorFecha: ReadonlyMap<string, ResumenMovimientosAlimentoDia> = new Map();
 
   /**
    * Capturas de este lote guardadas sin red y todavía sin enviar. Input **aparte** de
@@ -107,6 +130,39 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, AfterViewInit,
    * una vez por carga (referencia estable para el CD). Indicadores, gráfica y Excel NO la usan.
    */
   filasGrilla: FilaGrillaProduccion[] = [];
+
+  private recalcularMovimientosAlimento(): void {
+    const resumenes = agruparMovimientosAlimentoPorDia(this._movimientosAlimento);
+    this.movimientosAlimentoPorFecha = indexarMovimientosAlimentoPorDia(resumenes);
+    this.movimientosAlimentoSinSeguimiento = movimientosSinSeguimiento(
+      resumenes,
+      this._seguimientos.map(s => s.fechaRegistro)).reverse();
+  }
+
+  movimientosAlimentoDia(fecha: string): ResumenMovimientosAlimentoDia | undefined {
+    const ymd = ymdSinTz(fecha);
+    return ymd ? this.movimientosAlimentoPorFecha.get(ymd) : undefined;
+  }
+
+  textoIngresoAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.ingresos ?? []).map(m => this.textoMovimientoAlimento(m)).join(' · ');
+  }
+
+  textoTrasladoAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.traslados ?? []).map(m => {
+      const direccion = m.tipoMovimiento === 'INV_TRASLADO_ENTRADA' ? 'Entrada' : 'Salida';
+      return `${direccion} ${this.textoMovimientoAlimento(m)}`;
+    }).join(' · ');
+  }
+
+  textoReferenciasAlimento(resumen?: ResumenMovimientosAlimentoDia): string {
+    return (resumen?.referencias ?? []).join(' · ');
+  }
+
+  private textoMovimientoAlimento(movimiento: MovimientoAlimentoSeguimientoDto): string {
+    const alimento = (movimiento.alimento ?? '').trim();
+    return `${fmtNumero(movimiento.cantidadKg)} kg${alimento ? ` — ${alimento}` : ''}`;
+  }
 
   constructor() { }
 
