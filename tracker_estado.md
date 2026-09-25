@@ -9488,3 +9488,16 @@ Plan: [seguimiento_levante_produccion_movimientos_alimento_plan.md](fase_de_desa
 - [x] V1. Backend .NET 10 compilado por capas (0 errores/advertencias), 4522 tests Application en
   verde; `yarn build` en verde y 18 specs Angular focalizadas en verde. Puertos 5002/4200/9876
   verificados libres al cierre.
+
+---
+
+## CARGA-MASIVA-POSTURA-4-ALIMENTOS — hasta 4 alimentos por sexo en Levante/Producción (24-sep-2026)
+
+Plan: [carga_masiva_postura_4_alimentos_plan.md](fase_de_desarrollo/carga_masiva_postura_4_alimentos_plan.md)
+
+- [x] B1. Extender `MigracionEsquemas.AlimentosPorSexoPostura()` a 4 slots por sexo (Alimento/Consumo/Silo × 4 × H/M).
+- [x] B2. Extender `PlantillaPosturaCalculos` (`AlimentoMachos`, `SilosPorSlot`) a los slots 3 y 4.
+- [x] B3. Extender `MigracionService.Historicos.cs`: dropdowns de alimento/silo en `GenerarPlantillaSeguimientoAsync` y `foreach (var n in new[] { 1, 2 })` → `{1,2,3,4}` en `LeerAlimentosPostura`.
+- [x] B4. Extender `MigracionEjemploPosturaCalculos.ValorDatos` con los slots 3/4.
+- [x] T1. Actualizado `PlantillaPosturaCalculosTests` (listas de silo ocultas 4→8, conteo de columnas emitidas 43→51) + 2 tests nuevos (4 slots presentes en el esquema; slots 3/4 de hembras no se ocultan en Sanmarino).
+- [x] V1. `dotnet build` Application (0/0) e Infrastructure (0/0) en verde; `dotnet test ZooSanMarino.Application.Tests` completo: **4525/4525** verdes. Sin migración EF (tipo_alimento ya soporta 4 nombres: Levante varchar(500), Producción text). Sin cambios de frontend (el módulo de Migraciones no hardcodea columnas de alimento).

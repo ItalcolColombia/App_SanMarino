@@ -35,27 +35,33 @@ public class PlantillaPosturaCalculosTests
     [InlineData(false)]
     public void Sanmarino_SoloOcultaLasColumnasDeSilo(bool esLevante)
     {
-        // Sin inventario por silo, lo UNICO que se omite son las 4 columnas de silo por slot: el
-        // parseo las rechaza en modo clasico, asi que ofrecerlas romperia el archivo.
+        // Sin inventario por silo, lo UNICO que se omite son las 8 columnas de silo por slot (4 slots
+        // x 2 sexos): el parseo las rechaza en modo clasico, asi que ofrecerlas romperia el archivo.
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante, Sanmarino);
 
         Assert.Equal(
-            new[] { "Silo Alimento 1 H", "Silo Alimento 1 M", "Silo Alimento 2 H", "Silo Alimento 2 M" },
+            new[]
+            {
+                "Silo Alimento 1 H", "Silo Alimento 1 M", "Silo Alimento 2 H", "Silo Alimento 2 M",
+                "Silo Alimento 3 H", "Silo Alimento 3 M", "Silo Alimento 4 H", "Silo Alimento 4 M",
+            },
             ocultas.OrderBy(t => t, StringComparer.Ordinal).ToArray());
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Sanmarino_LaPlantillaConservaLas43ColumnasHistoricas(bool esLevante)
+    public void Sanmarino_LaPlantillaConservaLas43ColumnasHistoricasMasLosDosSlotsNuevos(bool esLevante)
     {
         var esquema = esLevante ? MigracionEsquemas.SeguimientoLevante : MigracionEsquemas.SeguimientoProduccion;
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante, Sanmarino);
 
         var emitidas = esquema.Columnas.Where(c => !ocultas.Contains(c.Titulo)).ToList();
-        // El esquema crecio con las 4 columnas de silo, pero una empresa sin silo sigue emitiendo
-        // exactamente las 43 de siempre: delta cero.
-        Assert.Equal(43, emitidas.Count);
+        // El esquema crecio con las columnas de silo y con los slots 3/4 de alimento (12 columnas
+        // nuevas: Alimento/Consumo/Silo x 2 slots x 2 sexos), pero una empresa sin silo sigue sin ver
+        // NINGUNA columna de silo (delta cero ahi) y gana las 8 columnas nuevas de Alimento/Consumo
+        // 3/4 H-M: 43 historicas + 8 = 51.
+        Assert.Equal(51, emitidas.Count);
         Assert.DoesNotContain(emitidas, c => c.Titulo.StartsWith("Silo ", StringComparison.Ordinal));
     }
 
@@ -79,6 +85,10 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Consumo Alimento 1 M", ocultas);
         Assert.Contains("Alimento 2 M", ocultas);
         Assert.Contains("Consumo Alimento 2 M", ocultas);
+        Assert.Contains("Alimento 3 M", ocultas);
+        Assert.Contains("Consumo Alimento 3 M", ocultas);
+        Assert.Contains("Alimento 4 M", ocultas);
+        Assert.Contains("Consumo Alimento 4 M", ocultas);
         // Huevos: no captura en levante ⇒ las 11 categorías + el peso.
         Assert.Contains("Huevo Limpio", ocultas);
         Assert.Contains("Huevo Otro", ocultas);
@@ -87,11 +97,15 @@ public class PlantillaPosturaCalculosTests
         // El alimento del INVENTARIO si se ofrece, con su silo apareado a cada slot.
         Assert.DoesNotContain("Alimento 1 H", ocultas);
         Assert.DoesNotContain("Consumo Alimento 2 H", ocultas);
+        Assert.DoesNotContain("Alimento 4 H", ocultas);
         Assert.DoesNotContain("Silo Alimento 1 H", ocultas);
         Assert.DoesNotContain("Silo Alimento 2 H", ocultas);
+        Assert.DoesNotContain("Silo Alimento 4 H", ocultas);
         // Los silos de los slots de MACHOS se van junto con sus slots.
         Assert.Contains("Silo Alimento 1 M", ocultas);
         Assert.Contains("Silo Alimento 2 M", ocultas);
+        Assert.Contains("Silo Alimento 3 M", ocultas);
+        Assert.Contains("Silo Alimento 4 M", ocultas);
 
         // Lo de hembras que SI se digita se conserva entero.
         Assert.DoesNotContain("Mort H", ocultas);
@@ -112,6 +126,7 @@ public class PlantillaPosturaCalculosTests
         Assert.Contains("Consumo M (kg)", ocultas);
         Assert.Contains("Peso M (kg)", ocultas);
         Assert.Contains("Consumo Alimento 2 M", ocultas);
+        Assert.Contains("Consumo Alimento 4 M", ocultas);
         // Espejo exacto del modal: total, incubable, peso promedio y la clasificadora.
         Assert.Contains("Huevo Total", ocultas);
         Assert.Contains("Huevo Incubable", ocultas);
@@ -182,6 +197,38 @@ public class PlantillaPosturaCalculosTests
         // emitir la columna seria ofrecer una que hace fallar el archivo.
         var ocultas = PlantillaPosturaCalculos.ColumnasOcultasHojaAlimento(manejaInventarioPorSilo: false);
         Assert.Equal(new[] { "Silo", "Silo Origen" }, ocultas.OrderBy(t => t, StringComparer.Ordinal).ToArray());
+    }
+
+    // ── Hasta 4 alimentos por sexo ───────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Esquema_TraeLosCuatroSlotsDeAlimentoPorSexo(bool esLevante)
+    {
+        var esquema = esLevante ? MigracionEsquemas.SeguimientoLevante : MigracionEsquemas.SeguimientoProduccion;
+        var titulos = esquema.Columnas.Select(c => c.Titulo).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var sexo in new[] { "H", "M" })
+            foreach (var n in new[] { 1, 2, 3, 4 })
+            {
+                Assert.Contains($"Alimento {n} {sexo}", titulos);
+                Assert.Contains($"Consumo Alimento {n} {sexo}", titulos);
+                Assert.Contains($"Silo Alimento {n} {sexo}", titulos);
+            }
+    }
+
+    [Fact]
+    public void Sanmarino_LosSlots3Y4DeHembrasSeOfrecenSinRestriccion()
+    {
+        // Sanmarino no oculta machos ni pide consumo solo de hembras: los 4 slots de HEMBRAS se
+        // ofrecen siempre (solo su columna de silo se omite, por no manejar inventario por silo).
+        var ocultas = PlantillaPosturaCalculos.ColumnasOcultas(esLevante: true, Sanmarino);
+
+        Assert.DoesNotContain("Alimento 3 H", ocultas);
+        Assert.DoesNotContain("Consumo Alimento 3 H", ocultas);
+        Assert.DoesNotContain("Alimento 4 H", ocultas);
+        Assert.DoesNotContain("Consumo Alimento 4 H", ocultas);
     }
 
     // ── El invariante que protege al importador ──────────────────────────────────────────────────

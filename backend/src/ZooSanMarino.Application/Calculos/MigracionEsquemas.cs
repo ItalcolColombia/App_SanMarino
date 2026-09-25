@@ -48,14 +48,14 @@ public static class MigracionEsquemas
         new("Unidad Consumo", Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" });
 
     /// <summary>
-    /// Hasta DOS alimentos del INVENTARIO por sexo: el nombre/código se busca entre los ítems de
+    /// Hasta CUATRO alimentos del INVENTARIO por sexo: el nombre/código se busca entre los ítems de
     /// concepto alimento de la empresa y, cuando la fila los trae, el consumo DESCUENTA stock real
     /// (a nivel granja o galpón según <c>maneja_alimento_por_galpon</c>). Sin ellos, "Consumo H/M (kg)"
     /// sigue siendo el consumo directo de siempre, que no toca inventario.
     /// </summary>
     /// <remarks>
     /// Cada slot lleva su propio SILO, apareado al alimento y no a la fila: el formulario diario
-    /// también pide el silo POR ÍTEM (dos alimentos del mismo día pueden salir de silos distintos, y
+    /// también pide el silo POR ÍTEM (los alimentos del mismo día pueden salir de silos distintos, y
     /// el backend los descuenta por separado). Las columnas de silo solo se EMITEN en empresas con
     /// <c>maneja_inventario_por_silo</c>; en el esquema viven siempre porque es la fuente única de
     /// lectura.
@@ -68,12 +68,24 @@ public static class MigracionEsquemas
         yield return new("Alimento 2 H",         Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras" });
         yield return new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras" });
         yield return new("Silo Alimento 2 H",    Requerida: false, Alias: new[] { "silo 2 h", "silo alimento dos hembras", "bodega 2 h" });
+        yield return new("Alimento 3 H",         Requerida: false, Alias: new[] { "alimento 3 hembras", "alimento tres hembras" });
+        yield return new("Consumo Alimento 3 H", Requerida: false, Alias: new[] { "consumo 3 h", "consumo alimento tres hembras" });
+        yield return new("Silo Alimento 3 H",    Requerida: false, Alias: new[] { "silo 3 h", "silo alimento tres hembras", "bodega 3 h" });
+        yield return new("Alimento 4 H",         Requerida: false, Alias: new[] { "alimento 4 hembras", "alimento cuatro hembras" });
+        yield return new("Consumo Alimento 4 H", Requerida: false, Alias: new[] { "consumo 4 h", "consumo alimento cuatro hembras" });
+        yield return new("Silo Alimento 4 H",    Requerida: false, Alias: new[] { "silo 4 h", "silo alimento cuatro hembras", "bodega 4 h" });
         yield return new("Alimento 1 M",         Requerida: false, Alias: new[] { "alimento 1 machos", "alimento uno machos" });
         yield return new("Consumo Alimento 1 M", Requerida: false, Alias: new[] { "consumo 1 m", "consumo alimento uno machos" });
         yield return new("Silo Alimento 1 M",    Requerida: false, Alias: new[] { "silo 1 m", "silo alimento uno machos", "bodega 1 m" });
         yield return new("Alimento 2 M",         Requerida: false, Alias: new[] { "alimento 2 machos", "alimento dos machos" });
         yield return new("Consumo Alimento 2 M", Requerida: false, Alias: new[] { "consumo 2 m", "consumo alimento dos machos" });
         yield return new("Silo Alimento 2 M",    Requerida: false, Alias: new[] { "silo 2 m", "silo alimento dos machos", "bodega 2 m" });
+        yield return new("Alimento 3 M",         Requerida: false, Alias: new[] { "alimento 3 machos", "alimento tres machos" });
+        yield return new("Consumo Alimento 3 M", Requerida: false, Alias: new[] { "consumo 3 m", "consumo alimento tres machos" });
+        yield return new("Silo Alimento 3 M",    Requerida: false, Alias: new[] { "silo 3 m", "silo alimento tres machos", "bodega 3 m" });
+        yield return new("Alimento 4 M",         Requerida: false, Alias: new[] { "alimento 4 machos", "alimento cuatro machos" });
+        yield return new("Consumo Alimento 4 M", Requerida: false, Alias: new[] { "consumo 4 m", "consumo alimento cuatro machos" });
+        yield return new("Silo Alimento 4 M",    Requerida: false, Alias: new[] { "silo 4 m", "silo alimento cuatro machos", "bodega 4 m" });
     }
 
     /// <summary>
