@@ -32,4 +32,14 @@
     <ProjectReference Include="..\ZooSanMarino.Infrastructure\ZooSanMarino.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- appsettings.Development.json trae secretos de desarrollo (BD local, firma de plataforma) y en
+       Production NUNCA se carga (el contenedor arranca con ASPNETCORE_ENVIRONMENT=Production). El SDK
+       Web lo publicaba igual por globbing por defecto: quedaba horneado en la imagen y descargable de
+       /app. CopyToPublishDirectory=Never lo deja fuera del publish sin tocar el build local (sigue en
+       el output de dev). appsettings.json real de prod: sus valores los pisan las env vars de la
+       TaskDef; la limpieza de ese archivo va en su propia entrega, con fail-fast. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>

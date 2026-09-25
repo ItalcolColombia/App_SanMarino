@@ -40,9 +40,13 @@ on:
         type: boolean
         default: true
 
-# OIDC requiere este permiso para solicitar el JWT
+# Permiso por defecto para TODOS los jobs: solo lectura del repo (para checkout).
+# El id-token (OIDC, que permite asumir el rol de deploy en AWS) NO se concede acá a proposito:
+# el job `tests` corre `yarn install` y `dotnet test` con dependencias de terceros, y si tuviera
+# id-token:write una dependencia comprometida podria pedir el token y asumir el rol
+# `github-actions-deploy` (el trust policy confia en la rama, no en el job). El token se concede
+# SOLO en los jobs de deploy, que si lo necesitan. Regla: id-token minimo, por job.
 permissions:
-  id-token: write
   contents: read
 
 # ─── Variables compartidas entre jobs ────────────────────────────────────────
@@ -173,6 +177,11 @@ jobs:
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.deploy_backend == true)
     timeout-minutes: 30
+
+    # OIDC solo acá (no en `tests`): este job asume el rol de deploy en AWS.
+    permissions:
+      id-token: write
+      contents: read
 
     env:
       ECR_REPOSITORY: sanmarino/zootecnia/granjas/backend
@@ -363,6 +372,11 @@ jobs:
       (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true))
     timeout-minutes: 30
+
+    # OIDC solo acá (no en `tests`): este job asume el rol de deploy en AWS.
+    permissions:
+      id-token: write
+      contents: read
 
     env:
       ECR_REPOSITORY: sanmarino/zootecnia/granjas/frontend
