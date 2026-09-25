@@ -9488,3 +9488,61 @@ Plan: [seguimiento_levante_produccion_movimientos_alimento_plan.md](fase_de_desa
 - [x] V1. Backend .NET 10 compilado por capas (0 errores/advertencias), 4522 tests Application en
   verde; `yarn build` en verde y 18 specs Angular focalizadas en verde. Puertos 5002/4200/9876
   verificados libres al cierre.
+
+---
+
+## CARGA-MASIVA-POSTURA-4-ALIMENTOS — hasta 4 alimentos por sexo en Levante/Producción (24-sep-2026)
+
+Plan: [carga_masiva_postura_4_alimentos_plan.md](fase_de_desarrollo/carga_masiva_postura_4_alimentos_plan.md)
+
+- [x] B1. Extender `MigracionEsquemas.AlimentosPorSexoPostura()` a 4 slots por sexo (Alimento/Consumo/Silo × 4 × H/M).
+- [x] B2. Extender `PlantillaPosturaCalculos` (`AlimentoMachos`, `SilosPorSlot`) a los slots 3 y 4.
+- [x] B3. Extender `MigracionService.Historicos.cs`: dropdowns de alimento/silo en `GenerarPlantillaSeguimientoAsync` y `foreach (var n in new[] { 1, 2 })` → `{1,2,3,4}` en `LeerAlimentosPostura`.
+- [x] B4. Extender `MigracionEjemploPosturaCalculos.ValorDatos` con los slots 3/4.
+- [x] T1. Actualizado `PlantillaPosturaCalculosTests` (listas de silo ocultas 4→8, conteo de columnas emitidas 43→51) + 2 tests nuevos (4 slots presentes en el esquema; slots 3/4 de hembras no se ocultan en Sanmarino).
+- [x] V1. `dotnet build` Application (0/0) e Infrastructure (0/0) en verde; `dotnet test ZooSanMarino.Application.Tests` completo: **4525/4525** verdes. Sin migración EF (tipo_alimento ya soporta 4 nombres: Levante varchar(500), Producción text). Sin cambios de frontend (el módulo de Migraciones no hardcodea columnas de alimento).
+
+---
+
+## GESTIÓN-VETERINARIA-VISITAS-TAREAS — agenda, tareas y evidencia (25-sep-2026)
+
+Plan: [gestion_veterinaria_visitas_tareas_plan.md](fase_de_desarrollo/gestion_veterinaria_visitas_tareas_plan.md)
+
+- [x] P1. Auditar Implementación, panel de Inicio, asignaciones `user_farms`, alcance granular y patrón
+  de imágenes; definir separación de dominio y nombre del módulo.
+- [x] P2. Documentar arquitectura, modelo, reglas, API, UX mobile-first y casos de prueba.
+- [x] B1. Implementar entidades, configuraciones EF, cálculos puros, DTOs, servicio y controller.
+- [x] B2. Crear migración EF idempotente y seed de menú por `route`; el menú queda habilitado por
+  empresa y sin asignación automática de rol.
+- [x] F1. Implementar dashboard Gestión veterinaria, Mis granjas, Agenda y creación/consulta de tareas.
+- [x] F2. Implementar Mis tareas, página móvil de cumplimiento con foto/observación y panel de Inicio.
+- [x] T1. Agregar tests de reglas/autorización/evidencia y validaciones frontend focalizadas.
+- [x] V1. API/Infrastructure .NET 10 compilados (0 errores); solución backend **4560/4560 tests**
+  verdes (4546 Application + 1 Domain + 13 Infrastructure); Angular `tsc`, `ngc`, build producción y
+  **2/2 specs** focalizadas verdes; gate SQL verde y puertos 5002/4200/9876 libres. La migración se
+  compiló y se generó como script idempotente, pero no se aplicó porque Docker local no está activo.
+
+---
+
+## SEGURIDAD-CRYPTOGRAPHY-XML — remediación NU1903 (25-sep-2026)
+
+Plan: [correccion_vulnerabilidad_cryptography_xml_plan.md](fase_de_desarrollo/correccion_vulnerabilidad_cryptography_xml_plan.md)
+
+- [x] P1. Documentar alcance, estrategia de actualización mínima y validaciones.
+- [x] D1. Identificar la cadena: `Infrastructure → EPPlus 8.2.0 → System.Security.Cryptography.Xml 9.0.3`.
+- [x] S1. Actualizar EPPlus a 8.7.1, versión estable que incorpora la corrección del transitivo.
+- [x] V1. Ejecutar auditoría NuGet, build y suite completa; verificar puertos libres.
+
+---
+
+## OPTIMIZACIÓN-BUILD-LOCAL-DOTNET10 — compilación y arranque sin admin (25-sep-2026)
+
+Plan: [optimizacion_build_local_dotnet10_plan.md](fase_de_desarrollo/optimizacion_build_local_dotnet10_plan.md)
+
+- [x] P1. Medir SDK, compilación completa/incremental, memoria y arranque puro.
+- [x] D1. Fijar SDK 10.0.301 en el repositorio.
+- [x] D2. Optimizar `dev-back.ps1` y agregar modos rápido/migración en Makefile.
+- [x] D3. Documentar el flujo local sin permisos de administrador.
+- [x] V1. Sintaxis PowerShell y Makefile válidas; SDK fijado en 10.0.301; build incremental medido
+  en 1,44 s (6,62 s tras cambiar API); modos normal/rápido escuchan en :5002 sin migraciones, DDL
+  ni error de Event Log; suite backend 4560/4560 verde y procesos cerrados.

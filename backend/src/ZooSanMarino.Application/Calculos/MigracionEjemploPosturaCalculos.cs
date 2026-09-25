@@ -158,12 +158,16 @@ public static class MigracionEjemploPosturaCalculos
             "Alimento 1 H" => datos.AlimentoNombre ?? "",
             // El silo va por ÍTEM: es la ubicación real de la que sale ESE alimento.
             "Silo Alimento 1 H" or "Silo Alimento 1 M" => datos.SiloNombre ?? "",
-            "Silo Alimento 2 H" or "Silo Alimento 2 M" => "",
+            "Silo Alimento 2 H" or "Silo Alimento 2 M"
+                or "Silo Alimento 3 H" or "Silo Alimento 3 M"
+                or "Silo Alimento 4 H" or "Silo Alimento 4 M" => "",
             "Consumo Alimento 1 H" => usaAlimentoDelInventario ? Serie(dia, "320.5", "318.0", "325.4") : "",
             "Alimento 1 M" => datos.AlimentoNombre ?? "",
             "Consumo Alimento 1 M" => usaAlimentoDelInventario ? Serie(dia, "41.2", "40.8", "42.0") : "",
-            // El segundo alimento es opcional: se deja vacío para no sugerir que hace falta.
-            "Alimento 2 H" or "Consumo Alimento 2 H" or "Alimento 2 M" or "Consumo Alimento 2 M" => "",
+            // El 2°/3°/4° alimento son opcionales: se dejan vacíos para no sugerir que hacen falta.
+            "Alimento 2 H" or "Consumo Alimento 2 H" or "Alimento 2 M" or "Consumo Alimento 2 M"
+                or "Alimento 3 H" or "Consumo Alimento 3 H" or "Alimento 3 M" or "Consumo Alimento 3 M"
+                or "Alimento 4 H" or "Consumo Alimento 4 H" or "Alimento 4 M" or "Consumo Alimento 4 M" => "",
 
             "Peso H (kg)" => esLevante ? Serie(dia, "1.45", "", "") : Serie(dia, "1.76", "", ""),
             "Peso M (kg)" => esLevante ? Serie(dia, "1.98", "", "") : Serie(dia, "2.31", "", ""),

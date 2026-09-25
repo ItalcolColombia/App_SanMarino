@@ -259,7 +259,7 @@ public partial class MigracionService
         if (alimentos.Count > 0)
         {
             var rango = $"Referencias!$A$2:$A${alimentos.Count + 1}";
-            foreach (var titulo in new[] { "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" })
+            foreach (var titulo in new[] { "Alimento 1 H", "Alimento 2 H", "Alimento 3 H", "Alimento 4 H", "Alimento 1 M", "Alimento 2 M", "Alimento 3 M", "Alimento 4 M" })
             {
                 // El índice se calcula sobre las columnas EMITIDAS: si la empresa oculta los slots de
                 // machos, las letras de los demás se corren y el desplegable caería en otra columna.
@@ -271,7 +271,7 @@ public partial class MigracionService
         if (silosRef.Count > 0)
         {
             var rangoSilos = $"Referencias!$L$2:$L${silosRef.Count + 1}";
-            foreach (var titulo in new[] { "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 1 M", "Silo Alimento 2 M" })
+            foreach (var titulo in new[] { "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 3 H", "Silo Alimento 4 H", "Silo Alimento 1 M", "Silo Alimento 2 M", "Silo Alimento 3 M", "Silo Alimento 4 M" })
             {
                 var i = titulosDatos.IndexOf(titulo);
                 if (i >= 0) DropdownRango(ws, ColumnaLetra(i + 1), rangoSilos);
@@ -312,8 +312,8 @@ public partial class MigracionService
             instrucciones.AddRange(new[]
             {
                 $"• Este lote maneja el alimento a nivel {nivel}.",
-                "• Si completás 'Alimento 1/2 H-M' + su consumo, ese consumo DESCUENTA el stock real (igual",
-                "  que el registro diario). Si además ponés 'Consumo H/M (kg)', ese número se ignora.",
+                "• Si completás 'Alimento 1/2/3/4 H-M' + su consumo, ese consumo DESCUENTA el stock real",
+                "  (igual que el registro diario). Si además ponés 'Consumo H/M (kg)', ese número se ignora.",
                 "• Si solo ponés 'Consumo H/M (kg)', se guarda como consumo directo y NO toca el inventario.",
                 "• La hoja 'Alimento' carga las ENTRADAS del período (Ingreso / Traslado / Recepción) y",
                 "  consumos sueltos. Se aplican ANTES del seguimiento, para que haya stock que descontar.",
@@ -798,7 +798,7 @@ public partial class MigracionService
         var itemsH = new List<ItemSeguimientoDto>();
         var itemsM = new List<ItemSeguimientoDto>();
         foreach (var (destino, sexo) in new[] { (itemsH, "H"), (itemsM, "M") })
-            foreach (var n in new[] { 1, 2 })
+            foreach (var n in new[] { 1, 2, 3, 4 })
             {
                 var colSilo = $"Silo Alimento {n} {sexo}";
                 var usaSlot = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, $"Alimento {n} {sexo}"))) is not null;

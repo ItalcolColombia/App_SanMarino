@@ -1,0 +1,22 @@
+@if (open) {
+  <div class="gv-modal-backdrop" (click)="closed.emit()">
+    <section class="gv-modal" role="dialog" aria-modal="true" aria-labelledby="visita-title" (click)="$event.stopPropagation()">
+      <header class="gv-modal__head">
+        <div><span class="gv-eyebrow">Agenda de campo</span><h2 id="visita-title">{{ visita ? 'Editar visita' : 'Programar visita' }}</h2></div>
+        <button type="button" class="gv-icon-button" aria-label="Cerrar" (click)="closed.emit()">×</button>
+      </header>
+      <div class="gv-form-grid">
+        <label class="gv-field gv-field--wide"><span>Granja *</span>
+          <select [(ngModel)]="model.farmId" (ngModelChange)="changeFarm()"><option [ngValue]="0">Seleccioná una granja</option>@for (granja of granjas; track granja.id) { <option [ngValue]="granja.id">{{ granja.nombre }}</option> }</select>
+        </label>
+        <label class="gv-field"><span>Núcleo</span><select [(ngModel)]="model.nucleoId" (ngModelChange)="changeNucleo()" [disabled]="!model.farmId"><option [ngValue]="null">Toda la granja</option>@for (nucleo of nucleos; track nucleo.id) { <option [ngValue]="nucleo.id">{{ nucleo.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Galpón</span><select [(ngModel)]="model.galponId" (ngModelChange)="changeGalpon()" [disabled]="!model.nucleoId"><option [ngValue]="null">Todo el núcleo</option>@for (galpon of galpones; track galpon.id) { <option [ngValue]="galpon.id">{{ galpon.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Lote</span><select [(ngModel)]="model.loteId" [disabled]="!model.farmId"><option [ngValue]="null">Sin lote específico</option>@for (lote of lotes; track lote.id) { <option [ngValue]="lote.id">{{ lote.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Fecha y hora *</span><input type="datetime-local" [(ngModel)]="model.fechaProgramada"></label>
+        <label class="gv-field gv-field--wide"><span>Título *</span><input maxlength="200" [(ngModel)]="model.titulo" placeholder="Ej. Visita sanitaria semana 32"></label>
+        <label class="gv-field gv-field--wide"><span>Objetivo</span><textarea rows="3" maxlength="2000" [(ngModel)]="model.objetivo" placeholder="Qué se revisará durante la visita"></textarea></label>
+      </div>
+      <footer class="gv-modal__actions"><button type="button" class="gv-btn gv-btn--ghost" (click)="closed.emit()">Cancelar</button><button type="button" class="gv-btn gv-btn--primary" [disabled]="saving" (click)="save()">{{ saving ? 'Guardando…' : 'Guardar visita' }}</button></footer>
+    </section>
+  </div>
+}

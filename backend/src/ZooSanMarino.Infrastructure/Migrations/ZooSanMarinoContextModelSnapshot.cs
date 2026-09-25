@@ -10380,6 +10380,194 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("system_configurations", (string)null);
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TareaCampo", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<Guid>("CreadaPorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("creada_por_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("PENDIENTE")
+                        .HasColumnName("estado");
+
+                    b.Property<int>("FarmId")
+                        .HasColumnType("integer")
+                        .HasColumnName("farm_id");
+
+                    b.Property<DateTime>("FechaFin")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_fin");
+
+                    b.Property<DateTime>("FechaInicio")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_inicio");
+
+                    b.Property<DateTime?>("FechaRealizada")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_realizada");
+
+                    b.Property<string>("GalponId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("galpon_id");
+
+                    b.Property<string>("Instrucciones")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)")
+                        .HasColumnName("instrucciones");
+
+                    b.Property<int?>("LoteId")
+                        .HasColumnType("integer")
+                        .HasColumnName("lote_id");
+
+                    b.Property<string>("NucleoId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("nucleo_id");
+
+                    b.Property<string>("ObservacionCumplimiento")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observacion_cumplimiento");
+
+                    b.Property<Guid?>("RealizadaPorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("realizada_por_user_id");
+
+                    b.Property<bool>("RequiereFoto")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("requiere_foto");
+
+                    b.Property<bool>("RequiereObservacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("requiere_observacion");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<long?>("VisitaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("visita_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tareas_campo");
+
+                    b.HasIndex("CreadaPorUserId")
+                        .HasDatabaseName("ix_tareas_campo_creada_por");
+
+                    b.HasIndex("RealizadaPorUserId")
+                        .HasDatabaseName("ix_tareas_campo_realizada_por_user_id");
+
+                    b.HasIndex("VisitaId")
+                        .HasDatabaseName("ix_tareas_campo_visita_id");
+
+                    b.HasIndex("CompanyId", "Estado", "FechaFin")
+                        .HasDatabaseName("ix_tareas_campo_company_estado_fecha");
+
+                    b.HasIndex("FarmId", "NucleoId", "GalponId", "LoteId")
+                        .HasDatabaseName("ix_tareas_campo_ubicacion");
+
+                    b.ToTable("tareas_campo", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_tareas_campo_estado", "estado IN ('PENDIENTE', 'REALIZADA', 'CANCELADA')");
+                        });
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TareaCampoEvidencia", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("ImagenBase64")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("imagen_base64");
+
+                    b.Property<int>("SizeBytes")
+                        .HasColumnType("integer")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<long>("TareaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tarea_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tarea_campo_evidencias");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_tarea_campo_evidencias_created_by_user_id");
+
+                    b.HasIndex("TareaId")
+                        .HasDatabaseName("ix_tarea_campo_evidencias_tarea");
+
+                    b.ToTable("tarea_campo_evidencias", "public");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Ticket", b =>
                 {
                     b.Property<long>("Id")
@@ -12788,6 +12976,111 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("validacion_procesos", "public");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.VisitaTecnica", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("PROGRAMADA")
+                        .HasColumnName("estado");
+
+                    b.Property<int>("FarmId")
+                        .HasColumnType("integer")
+                        .HasColumnName("farm_id");
+
+                    b.Property<DateTime>("FechaProgramada")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_programada");
+
+                    b.Property<DateTime?>("FechaRealizada")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_realizada");
+
+                    b.Property<string>("GalponId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("galpon_id");
+
+                    b.Property<int?>("LoteId")
+                        .HasColumnType("integer")
+                        .HasColumnName("lote_id");
+
+                    b.Property<string>("NucleoId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("nucleo_id");
+
+                    b.Property<string>("Objetivo")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("objetivo");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("observaciones");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("VeterinarioUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("veterinario_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_visitas_tecnicas");
+
+                    b.HasIndex("FarmId")
+                        .HasDatabaseName("ix_visitas_tecnicas_farm_id");
+
+                    b.HasIndex("CompanyId", "FechaProgramada")
+                        .HasDatabaseName("ix_visitas_tecnicas_company_fecha");
+
+                    b.HasIndex("VeterinarioUserId", "Estado")
+                        .HasDatabaseName("ix_visitas_tecnicas_veterinario_estado");
+
+                    b.ToTable("visitas_tecnicas", "public", t =>
+                        {
+                            t.HasCheckConstraint("ck_visitas_tecnicas_estado", "estado IN ('PROGRAMADA', 'REALIZADA', 'CANCELADA')");
+                        });
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Zona", b =>
                 {
                     b.Property<int>("ZonaId")
@@ -14298,6 +14591,64 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasConstraintName("fk_silo_catalogo_company");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TareaCampo", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.User", "CreadaPorUser")
+                        .WithMany()
+                        .HasForeignKey("CreadaPorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tareas_campo_users_creada_por_user_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Farm", "Farm")
+                        .WithMany()
+                        .HasForeignKey("FarmId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tareas_campo_farms_farm_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.User", "RealizadaPorUser")
+                        .WithMany()
+                        .HasForeignKey("RealizadaPorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tareas_campo_users_realizada_por_user_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.VisitaTecnica", "Visita")
+                        .WithMany("Tareas")
+                        .HasForeignKey("VisitaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tareas_campo_visitas_tecnicas_visita_id");
+
+                    b.Navigation("CreadaPorUser");
+
+                    b.Navigation("Farm");
+
+                    b.Navigation("RealizadaPorUser");
+
+                    b.Navigation("Visita");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TareaCampoEvidencia", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tarea_campo_evidencias_users_created_by_user_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.TareaCampo", "Tarea")
+                        .WithMany("Evidencias")
+                        .HasForeignKey("TareaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tarea_campo_evidencias_tareas_campo_tarea_id");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Tarea");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Ticket", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Historia", "Historia")
@@ -14789,6 +15140,27 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Instancia");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.VisitaTecnica", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Farm", "Farm")
+                        .WithMany()
+                        .HasForeignKey("FarmId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_visitas_tecnicas_farms_farm_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.User", "VeterinarioUser")
+                        .WithMany()
+                        .HasForeignKey("VeterinarioUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_visitas_tecnicas_users_veterinario_user_id");
+
+                    b.Navigation("Farm");
+
+                    b.Navigation("VeterinarioUser");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Zona", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
@@ -14957,6 +15329,11 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("UserRoles");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TareaCampo", b =>
+                {
+                    b.Navigation("Evidencias");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Ticket", b =>
                 {
                     b.Navigation("Adjuntos");
@@ -15027,6 +15404,11 @@ namespace ZooSanMarino.Infrastructure.Migrations
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.ValidacionProceso", b =>
                 {
                     b.Navigation("Flujos");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.VisitaTecnica", b =>
+                {
+                    b.Navigation("Tareas");
                 });
 #pragma warning restore 612, 618
         }

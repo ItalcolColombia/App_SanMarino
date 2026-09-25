@@ -1,0 +1,23 @@
+<main class="gv-page gv-complete-page">
+  <a class="gv-back" routerLink="/gestion-veterinaria">← Volver a gestión veterinaria</a>
+  @if (loading) { <section class="gv-state"><span class="gv-spinner"></span><p>Abriendo tarea…</p></section> }
+  @else if (error || !tarea) { <section class="gv-state gv-state--error"><strong>No pudimos abrir esta tarea</strong><p>{{ error }}</p></section> }
+  @else if (tarea.estado !== 'PENDIENTE') { <section class="gv-state"><span class="gv-complete-check">✓</span><h2>Esta tarea ya está cerrada</h2><p>Su estado actual es {{ tarea.estado.toLowerCase() }}.</p><a class="gv-btn gv-btn--primary" routerLink="/home">Ir al inicio</a></section> }
+  @else {
+    <section class="gv-complete-hero"><div><span class="gv-eyebrow">Trabajo en campo</span><h1>{{ tarea.titulo }}</h1><p>{{ etiquetaUbicacion(tarea) }}</p></div><div class="gv-complete-due"><small>Plazo</small><strong>{{ tarea.fechaInicio | date:'dd MMM' }} — {{ tarea.fechaFin | date:'dd MMM yyyy' }}</strong></div></section>
+    <section class="gv-complete-layout">
+      <article class="gv-capture-card">
+        <div class="gv-step"><span>1</span><div><h2>Evidencia fotográfica</h2><p>{{ tarea.requiereFoto ? 'Obligatoria para completar esta actividad.' : 'Opcional; ayuda a documentar el resultado.' }}</p></div><b [class.required]="tarea.requiereFoto">{{ tarea.requiereFoto ? 'REQUERIDA' : 'OPCIONAL' }}</b></div>
+        <label class="gv-camera" [class.gv-camera--busy]="processingPhoto"><input type="file" accept="image/*" capture="environment" multiple (change)="addPhotos($event)" [disabled]="processingPhoto || evidencias.length >= 3"><span class="gv-camera__icon">◎</span><strong>{{ processingPhoto ? 'Preparando foto…' : 'Tomar foto o elegir imagen' }}</strong><small>JPG, PNG o WEBP · máximo 3 fotos</small></label>
+        @if (evidencias.length) { <div class="gv-photo-grid">@for (foto of evidencias; track $index) { <figure><img [src]="foto.base64" [alt]="foto.fileName"><button type="button" aria-label="Quitar fotografía" (click)="removePhoto($index)">×</button></figure> }</div> }
+      </article>
+      <article class="gv-notes-card">
+        <div class="gv-step"><span>2</span><div><h2>Resultado de la tarea</h2><p>{{ tarea.requiereObservacion ? 'Contá qué se hizo y cualquier novedad encontrada.' : 'Podés dejar una nota breve si aplica.' }}</p></div><b [class.required]="tarea.requiereObservacion">{{ tarea.requiereObservacion ? 'REQUERIDA' : 'OPCIONAL' }}</b></div>
+        @if (tarea.instrucciones) { <aside class="gv-instructions"><small>INDICACIÓN DEL VETERINARIO</small><p>{{ tarea.instrucciones }}</p></aside> }
+        <label class="gv-field"><span>Observación de cumplimiento</span><textarea rows="7" maxlength="2000" [(ngModel)]="observacion" placeholder="Ej. Se revisó el lote, se ajustaron los comederos y no se encontraron novedades…"></textarea><small>{{ observacion.length }}/2000</small></label>
+        <button type="button" class="gv-btn gv-btn--primary gv-submit" [disabled]="saving || processingPhoto" (click)="submit()"><span>✓</span>{{ saving ? 'Guardando cumplimiento…' : 'Marcar tarea como realizada' }}</button>
+        <p class="gv-submit-note">Al confirmar, la tarea dejará de aparecer en la bandeja de pendientes.</p>
+      </article>
+    </section>
+  }
+</main>

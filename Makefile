@@ -1,11 +1,13 @@
-.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all dev dev-back dev-front pwa-build pwa-serve pwa-panic
+.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all dev dev-back dev-back-fast dev-back-migrate dev-front pwa-build pwa-serve pwa-panic
 
 help:
 	@echo "🧰 Opciones disponibles:"
 	@echo ""
 	@echo "📦 Desarrollo Local (nativo, sin Docker):"
 	@echo "  make dev            👉 Levanta BACK (:5002) + FRONT (:4200) en ventanas separadas"
-	@echo "  make dev-back       👉 Solo Backend .NET 10 (:5002)  [usa .dotnet user-local]"
+	@echo "  make dev-back       👉 Backend .NET 10: build incremental seguro + arranque"
+	@echo "  make dev-back-fast  👉 Backend inmediato: reutiliza el ultimo build"
+	@echo "  make dev-back-migrate 👉 Backend + aplica migraciones locales pendientes"
 	@echo "  make dev-front      👉 Solo Frontend Angular 22 (:4200)  [usa Node portable]"
 	@echo ""
 	@echo "📦 Desarrollo Local (Docker):"
@@ -41,6 +43,14 @@ dev:
 dev-back:
 	@cmd /c ".\dev-kill-back.cmd"
 	powershell -NoProfile -ExecutionPolicy Bypass -File dev-back.ps1
+
+dev-back-fast:
+	@cmd /c ".\dev-kill-back.cmd"
+	powershell -NoProfile -ExecutionPolicy Bypass -File dev-back.ps1 -NoBuild
+
+dev-back-migrate:
+	@cmd /c ".\dev-kill-back.cmd"
+	powershell -NoProfile -ExecutionPolicy Bypass -File dev-back.ps1 -Migrate
 
 dev-front:
 	powershell -NoProfile -ExecutionPolicy Bypass -File dev-front.ps1

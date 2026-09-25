@@ -272,6 +272,7 @@ builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService
 builder.Services.AddScoped<IVacunacionPlantillaService, VacunacionPlantillaService>();
 builder.Services.AddScoped<IVacunacionMaterializadorService, VacunacionMaterializadorService>();
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
+builder.Services.AddScoped<IGestionVeterinariaService, GestionVeterinariaService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 // Push de capturas offline (PWA F3).
@@ -706,7 +707,8 @@ app.UseForwardedHeaders();
 // 13.1) Dev bootstrap (solo Development)
 // Crea tabla faltante cuando la BD no tiene historia EF alineada
 // ─────────────────────────────────────
-if (app.Environment.EnvironmentName == "Development")
+var runDevBootstrap = app.Configuration.GetValue<bool?>("Database:RunDevBootstrap") ?? true;
+if (app.Environment.IsDevelopment() && runDevBootstrap)
 {
     try
     {

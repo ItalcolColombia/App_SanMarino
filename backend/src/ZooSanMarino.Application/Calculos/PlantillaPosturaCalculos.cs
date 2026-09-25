@@ -61,6 +61,7 @@ public static class PlantillaPosturaCalculos
     private static readonly string[] AlimentoMachos =
     {
         "Alimento 1 M", "Consumo Alimento 1 M", "Alimento 2 M", "Consumo Alimento 2 M",
+        "Alimento 3 M", "Consumo Alimento 3 M", "Alimento 4 M", "Consumo Alimento 4 M",
     };
 
     /// <summary>
@@ -71,7 +72,8 @@ public static class PlantillaPosturaCalculos
     /// </summary>
     private static readonly string[] SilosPorSlot =
     {
-        "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 1 M", "Silo Alimento 2 M",
+        "Silo Alimento 1 H", "Silo Alimento 2 H", "Silo Alimento 3 H", "Silo Alimento 4 H",
+        "Silo Alimento 1 M", "Silo Alimento 2 M", "Silo Alimento 3 M", "Silo Alimento 4 M",
     };
 
     /// <summary>Columnas de silo de la hoja <c>Alimento</c> (destino y origen del movimiento).</summary>
@@ -121,6 +123,8 @@ public static class PlantillaPosturaCalculos
         {
             ocultas.Add("Silo Alimento 1 M");
             ocultas.Add("Silo Alimento 2 M");
+            ocultas.Add("Silo Alimento 3 M");
+            ocultas.Add("Silo Alimento 4 M");
         }
 
         if (esLevante)
