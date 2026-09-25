@@ -272,6 +272,7 @@ builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService
 builder.Services.AddScoped<IVacunacionPlantillaService, VacunacionPlantillaService>();
 builder.Services.AddScoped<IVacunacionMaterializadorService, VacunacionMaterializadorService>();
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
+builder.Services.AddScoped<IGestionVeterinariaService, GestionVeterinariaService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 // Push de capturas offline (PWA F3).

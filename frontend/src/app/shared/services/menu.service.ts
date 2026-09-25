@@ -7,7 +7,7 @@ import {
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
   faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
   faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
-  faDna
+  faDna, faStethoscope
 } from '@fortawesome/free-solid-svg-icons';
 import { environment } from '../../../environments/environment';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
@@ -49,6 +49,7 @@ const ICON_MAP: Record<string, IconDefinition> = {
   'chart-bar':      faChartBar,
   'chart-line':     faChartLine,
   'heartbeat':      faHeartbeat,
+  'stethoscope':    faStethoscope,
   'cog':            faCog,
   'users':          faUsers,
   'chevron-down':   faChevronDown,

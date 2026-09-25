@@ -197,6 +197,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<ImplementacionTarea> ImplementacionTareas => Set<ImplementacionTarea>();
         public DbSet<ImplementacionTareaFirma> ImplementacionTareaFirmas => Set<ImplementacionTareaFirma>();
 
+        // Gestión veterinaria: agenda, tareas territoriales y evidencia de cumplimiento.
+        public DbSet<VisitaTecnica> VisitasTecnicas => Set<VisitaTecnica>();
+        public DbSet<TareaCampo> TareasCampo => Set<TareaCampo>();
+        public DbSet<TareaCampoEvidencia> TareaCampoEvidencias => Set<TareaCampoEvidencia>();
+
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 

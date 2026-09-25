@@ -1,0 +1,19 @@
+@if (open) {
+  <div class="gv-modal-backdrop" (click)="closed.emit()">
+    <section class="gv-modal gv-modal--wide" role="dialog" aria-modal="true" aria-labelledby="tarea-title" (click)="$event.stopPropagation()">
+      <header class="gv-modal__head"><div><span class="gv-eyebrow">Plan de trabajo</span><h2 id="tarea-title">{{ tarea ? 'Editar tarea' : 'Nueva tarea de campo' }}</h2></div><button type="button" class="gv-icon-button" aria-label="Cerrar" (click)="closed.emit()">×</button></header>
+      <div class="gv-form-grid">
+        <label class="gv-field gv-field--wide"><span>Visita relacionada</span><select [(ngModel)]="model.visitaId" (ngModelChange)="changeVisita()"><option [ngValue]="null">Tarea independiente</option>@for (visita of visitas; track visita.id) { <option [ngValue]="visita.id">{{ visita.fechaProgramada | date:'dd MMM' }} · {{ visita.farmNombre }} · {{ visita.titulo }}</option> }</select></label>
+        <label class="gv-field gv-field--wide"><span>Granja *</span><select [(ngModel)]="model.farmId" (ngModelChange)="changeFarm()"><option [ngValue]="0">Seleccioná una granja</option>@for (granja of granjas; track granja.id) { <option [ngValue]="granja.id">{{ granja.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Núcleo</span><select [(ngModel)]="model.nucleoId" (ngModelChange)="changeNucleo()" [disabled]="!model.farmId"><option [ngValue]="null">Toda la granja</option>@for (nucleo of nucleos; track nucleo.id) { <option [ngValue]="nucleo.id">{{ nucleo.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Galpón</span><select [(ngModel)]="model.galponId" (ngModelChange)="changeGalpon()" [disabled]="!model.nucleoId"><option [ngValue]="null">Todo el núcleo</option>@for (galpon of galpones; track galpon.id) { <option [ngValue]="galpon.id">{{ galpon.nombre }}</option> }</select></label>
+        <label class="gv-field gv-field--wide"><span>Lote</span><select [(ngModel)]="model.loteId" [disabled]="!model.farmId"><option [ngValue]="null">Sin lote específico</option>@for (lote of lotes; track lote.id) { <option [ngValue]="lote.id">{{ lote.nombre }}</option> }</select></label>
+        <label class="gv-field"><span>Desde *</span><input type="date" [(ngModel)]="model.fechaInicio"></label><label class="gv-field"><span>Hasta *</span><input type="date" [(ngModel)]="model.fechaFin"></label>
+        <label class="gv-field gv-field--wide"><span>Tarea *</span><input maxlength="200" [(ngModel)]="model.titulo" placeholder="Ej. Verificar consumo y ajustar comederos"></label>
+        <label class="gv-field gv-field--wide"><span>Instrucciones</span><textarea rows="4" maxlength="3000" [(ngModel)]="model.instrucciones" placeholder="Indicaciones claras para quien ejecutará la tarea"></textarea></label>
+        <div class="gv-field gv-field--wide"><span>Evidencia obligatoria</span><div class="gv-check-row"><label class="gv-check"><input type="checkbox" [(ngModel)]="model.requiereObservacion"><span>Solicitar observación</span></label><label class="gv-check"><input type="checkbox" [(ngModel)]="model.requiereFoto"><span>Solicitar fotografía</span></label></div></div>
+      </div>
+      <footer class="gv-modal__actions"><button type="button" class="gv-btn gv-btn--ghost" (click)="closed.emit()">Cancelar</button>@if (!tarea) { <button type="button" class="gv-btn gv-btn--secondary" [disabled]="saving" (click)="save(true)">Guardar y agregar otra</button> }<button type="button" class="gv-btn gv-btn--primary" [disabled]="saving" (click)="save()">{{ saving ? 'Guardando…' : 'Guardar tarea' }}</button></footer>
+    </section>
+  </div>
+}

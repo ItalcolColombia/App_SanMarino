@@ -235,6 +235,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.IMPLEMENTACION_ROUTES)
       },
 
+      // Gestión veterinaria (granjas asignadas, visitas y tareas de campo)
+      {
+        path: 'gestion-veterinaria',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/gestion-veterinaria/gestion-veterinaria.routes')
+            .then(m => m.GESTION_VETERINARIA_ROUTES)
+      },
+
       // Migraciones Masivas (módulo independiente)
       {
         path: 'migraciones-masivas',

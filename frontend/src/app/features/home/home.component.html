@@ -37,6 +37,11 @@
       <app-panel-pendientes-vacunacion />
     }
 
+    <!-- Tareas operativas en las granjas y ubicaciones asignadas al usuario -->
+    @if (!loadingMenu && !menuError) {
+      <app-panel-tareas-campo />
+    }
+
     <!-- Welcome content -->
     @if (!loadingMenu && !menuError) {
       <div class="welcome-container">

@@ -1,0 +1,83 @@
+<main class="gv-page">
+  <section class="gv-hero">
+    <div class="gv-hero__copy">
+      <span class="gv-eyebrow">Operación sanitaria · trabajo en campo</span>
+      <h1>Gestión veterinaria</h1>
+      <p>Organizá tus visitas, dejá instrucciones precisas y seguí la ejecución en cada granja asignada.</p>
+    </div>
+    <div class="gv-hero__actions"><button type="button" class="gv-btn gv-btn--light" (click)="abrirVisita()">＋ Programar visita</button><button type="button" class="gv-btn gv-btn--primary" (click)="abrirTarea()">＋ Crear tarea</button></div>
+    <div class="gv-route-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+  </section>
+
+  @if (loading) { <section class="gv-state"><span class="gv-spinner"></span><p>Preparando tu ruta de trabajo…</p></section> }
+  @else if (error) { <section class="gv-state gv-state--error"><strong>No pudimos cargar el módulo</strong><p>{{ error }}</p><button class="gv-btn gv-btn--ghost" (click)="load()">Reintentar</button></section> }
+  @else {
+    <section class="gv-stats" aria-label="Resumen">
+      <article><span class="gv-stat__icon">⌂</span><div><strong>{{ resumen.granjasAsignadas }}</strong><small>Granjas en mi ruta</small></div></article>
+      <article><span class="gv-stat__icon">◷</span><div><strong>{{ resumen.visitasProximas }}</strong><small>Visitas próximas</small></div></article>
+      <article><span class="gv-stat__icon">✓</span><div><strong>{{ resumen.tareasPendientes }}</strong><small>Tareas por realizar</small></div></article>
+      <article [class.gv-stat--alert]="resumen.tareasVencidas"><span class="gv-stat__icon">!</span><div><strong>{{ resumen.tareasVencidas }}</strong><small>Tareas vencidas</small></div></article>
+    </section>
+
+    <nav class="gv-tabs" aria-label="Secciones de gestión veterinaria">
+      <button [class.active]="tab === 'granjas'" (click)="setTab('granjas')">Mis granjas</button>
+      <button [class.active]="tab === 'agenda'" (click)="setTab('agenda')">Agenda <span>{{ visitasProgramadas().length }}</span></button>
+      <button [class.active]="tab === 'planes'" (click)="setTab('planes')">Planes de tareas <span>{{ tareasCreadas.length }}</span></button>
+      <button [class.active]="tab === 'mis-tareas'" (click)="setTab('mis-tareas')">Mis tareas <span>{{ misTareas.length }}</span></button>
+    </nav>
+
+    @if (tab === 'granjas') {
+      <section class="gv-section-head"><div><span class="gv-eyebrow">Mapa operativo</span><h2>Granjas asignadas</h2><p>La información que ves respeta el alcance configurado para tu usuario.</p></div></section>
+      <section class="gv-farm-grid">
+        @for (granja of granjas; track granja.id) {
+          <article class="gv-farm-card" [class.gv-farm-card--open]="granjaAbierta === granja.id">
+            <button class="gv-farm-card__head" type="button" (click)="toggleGranja(granja.id)">
+              <span class="gv-pin">●</span><span><small>GRANJA</small><strong>{{ granja.nombre }}</strong></span><span class="gv-farm-metrics"><b>{{ granja.totalGalpones }}</b> galpones · <b>{{ granja.totalLotes }}</b> lotes</span><span class="gv-chevron">›</span>
+            </button>
+            @if (granjaAbierta === granja.id) {
+              <div class="gv-farm-card__body">
+                @if (granja.latitud != null && granja.longitud != null) { <a class="gv-map-link" target="_blank" rel="noopener" [href]="'https://www.google.com/maps?q=' + granja.latitud + ',' + granja.longitud">Ver ubicación ↗</a> }
+                @for (nucleo of granja.nucleos; track nucleo.id) {
+                  <div class="gv-location-row"><div class="gv-location-row__title"><span>NÚCLEO</span><strong>{{ nucleo.nombre }}</strong></div><div class="gv-shed-list">@for (galpon of nucleo.galpones; track galpon.id) { <div class="gv-shed"><b>{{ galpon.nombre }}</b><small>{{ galpon.lotes.length }} lote(s)</small>@for (lote of galpon.lotes; track lote.id) { <span>{{ lote.nombre }}{{ lote.fase ? ' · ' + lote.fase : '' }}</span> }</div> }</div></div>
+                }
+                @if (!granja.nucleos.length && !granja.lotesSinUbicacion.length) { <p class="gv-empty-inline">No hay núcleos, galpones o lotes visibles para tu alcance.</p> }
+              </div>
+            }
+          </article>
+        } @empty { <div class="gv-empty"><span>⌂</span><h3>No tenés granjas asignadas</h3><p>Solicitá al administrador que configure tu acceso para empezar.</p></div> }
+      </section>
+    }
+
+    @if (tab === 'agenda') {
+      <section class="gv-section-head"><div><span class="gv-eyebrow">Próxima parada</span><h2>Agenda de visitas</h2><p>Programá, documentá y convertí los hallazgos en acciones.</p></div><button class="gv-btn gv-btn--primary" (click)="abrirVisita()">Programar visita</button></section>
+      <section class="gv-list">
+        @for (visita of visitas; track visita.id) {
+          <article class="gv-visit" [class.gv-visit--closed]="visita.estado !== 'PROGRAMADA'">
+            <div class="gv-date-card"><strong>{{ visita.fechaProgramada | date:'dd' }}</strong><span>{{ visita.fechaProgramada | date:'MMM' }}</span><small>{{ visita.fechaProgramada | date:'HH:mm' }}</small></div>
+            <div class="gv-list__body"><div class="gv-list__top"><span class="gv-status" [attr.data-status]="visita.estado">{{ visita.estado }}</span><small>{{ visita.farmNombre }}{{ visita.galponNombre ? ' · ' + visita.galponNombre : '' }}</small></div><h3>{{ visita.titulo }}</h3><p>{{ visita.objetivo || 'Sin objetivo adicional.' }}</p><div class="gv-list__meta"><span>{{ visita.totalTareas }} tareas</span><span>{{ visita.tareasPendientes }} pendientes</span></div></div>
+            <div class="gv-row-actions">@if (visita.estado === 'PROGRAMADA') { <button class="gv-btn gv-btn--secondary" (click)="abrirTarea(visita)">Crear tareas</button><button class="gv-btn gv-btn--ghost" (click)="realizarVisita(visita)">Cerrar visita</button><button class="gv-icon-button" title="Editar" (click)="abrirVisita(visita)">✎</button><button class="gv-icon-button gv-icon-button--danger" title="Cancelar" (click)="cancelarVisita(visita)">×</button> }</div>
+          </article>
+        } @empty { <div class="gv-empty"><span>◷</span><h3>Tu agenda está libre</h3><p>Programá la primera visita para organizar la ruta de campo.</p></div> }
+      </section>
+    }
+
+    @if (tab === 'planes') {
+      <section class="gv-section-head"><div><span class="gv-eyebrow">Acciones dejadas en campo</span><h2>Planes de tareas</h2><p>Seguimiento de las instrucciones creadas por vos.</p></div><button class="gv-btn gv-btn--primary" (click)="abrirTarea()">Crear tarea</button></section>
+      <section class="gv-task-grid">
+        @for (tarea of tareasCreadas; track tarea.id) {
+          <article class="gv-task-card"><header><span class="gv-status" [attr.data-status]="tarea.estadoTemporal">{{ tarea.estadoTemporal }}</span><span class="gv-evidence">{{ tarea.requiereFoto ? '📷' : '' }} {{ tarea.requiereObservacion ? '≡' : '' }}</span></header><h3>{{ tarea.titulo }}</h3><p class="gv-location">{{ etiquetaUbicacion(tarea) }}</p><p>{{ tarea.instrucciones || 'Sin instrucciones adicionales.' }}</p><div class="gv-period"><span>{{ tarea.fechaInicio | date:'dd MMM' }}</span><i></i><span>{{ tarea.fechaFin | date:'dd MMM yyyy' }}</span></div>@if (tarea.estado === 'REALIZADA') { <div class="gv-completion"><strong>Realizada por {{ tarea.realizadaPorNombre }}</strong><span>{{ tarea.fechaRealizada | date:'dd MMM, HH:mm' }} · {{ tarea.cantidadEvidencias }} evidencia(s)</span></div> }<footer>@if (tarea.estado === 'PENDIENTE') { <button class="gv-btn gv-btn--ghost" (click)="abrirTarea(null, tarea)">Editar</button><button class="gv-btn gv-btn--danger" (click)="cancelarTarea(tarea)">Cancelar</button> } @else if (tarea.estado === 'REALIZADA') { <button class="gv-btn gv-btn--ghost" (click)="reabrirTarea(tarea)">Reabrir</button> }</footer></article>
+        } @empty { <div class="gv-empty"><span>✓</span><h3>Todavía no creaste tareas</h3><p>Convertí una recomendación de campo en una actividad con responsable implícito por ubicación.</p></div> }
+      </section>
+    }
+
+    @if (tab === 'mis-tareas') {
+      <section class="gv-section-head"><div><span class="gv-eyebrow">Mi jornada</span><h2>Tareas por realizar</h2><p>Actividades abiertas en las granjas y ubicaciones a las que tenés acceso.</p></div></section>
+      <section class="gv-task-grid">
+        @for (tarea of misTareas; track tarea.id) { <article class="gv-task-card gv-task-card--mine"><header><span class="gv-status" [attr.data-status]="tarea.estadoTemporal">{{ tarea.estadoTemporal }}</span><span class="gv-due">Hasta {{ tarea.fechaFin | date:'dd MMM' }}</span></header><h3>{{ tarea.titulo }}</h3><p class="gv-location">{{ etiquetaUbicacion(tarea) }}</p><p>{{ tarea.instrucciones || 'Sin instrucciones adicionales.' }}</p><div class="gv-requirements">@if (tarea.requiereFoto) { <span>📷 Foto obligatoria</span> } @if (tarea.requiereObservacion) { <span>≡ Observación obligatoria</span> }</div><a class="gv-btn gv-btn--primary gv-btn--full" [routerLink]="['/gestion-veterinaria/tareas', tarea.id, 'cumplir']">Realizar tarea →</a></article> } @empty { <div class="gv-empty"><span>✓</span><h3>Estás al día</h3><p>No hay tareas pendientes en tus ubicaciones asignadas.</p></div> }
+      </section>
+    }
+  }
+</main>
+
+<app-visita-form [open]="visitaFormOpen" [granjas]="granjas" [visita]="visitaEditando" (closed)="visitaFormOpen = false" (saved)="savedVisita()" />
+<app-tarea-form [open]="tareaFormOpen" [granjas]="granjas" [visitas]="visitasProgramadas()" [visitaInicial]="visitaParaTarea" [tarea]="tareaEditando" (closed)="tareaFormOpen = false" (saved)="savedTarea()" />
