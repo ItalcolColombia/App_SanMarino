@@ -707,7 +707,8 @@ app.UseForwardedHeaders();
 // 13.1) Dev bootstrap (solo Development)
 // Crea tabla faltante cuando la BD no tiene historia EF alineada
 // ─────────────────────────────────────
-if (app.Environment.EnvironmentName == "Development")
+var runDevBootstrap = app.Configuration.GetValue<bool?>("Database:RunDevBootstrap") ?? true;
+if (app.Environment.IsDevelopment() && runDevBootstrap)
 {
     try
     {

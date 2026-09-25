@@ -80,8 +80,13 @@ builder.Services.AddDbContext<ZooSanMarinoContext>(options =>
 ------------------------------------------------------------
 4) Restaurar y compilar
 ------------------------------------------------------------
-dotnet restore
-dotnet build
+Desde la raiz del repositorio, el flujo recomendado sin permisos de administrador es:
+
+make dev-back
+
+El script usa explicitamente `%USERPROFILE%\.dotnet\dotnet.exe` (SDK 10), restaura solo cuando
+los assets estan ausentes/desactualizados y compila con un unico proceso para evitar que Roslyn
+agote la memoria con las migraciones historicas.
 
 ------------------------------------------------------------
 5) Migraciones de EF Core (migraciones en Infrastructure)
@@ -112,12 +117,18 @@ dotnet ef database update   --project ../ZooSanMarino.Infrastructure   --startup
 ------------------------------------------------------------
 6) Levantar la API (Development)
 ------------------------------------------------------------
-cd src/ZooSanMarino.API
-dotnet run
-# o con hot reload:
-dotnet watch run
+Desde la raiz del repositorio:
 
-Swagger: https://localhost:<puerto>/swagger
+- `make dev-back`: valida el build incremental y levanta la API. No aplica migraciones ni el
+  bootstrap DDL heredado de Development.
+- `make dev-back-fast`: reutiliza el ultimo binario y evita build/restore y DDL.
+- `make dev-back-migrate`: valida el build, aplica migraciones locales pendientes y levanta la API.
+
+El SDK 10 esta instalado en `%USERPROFILE%\.dotnet`; no se requiere acceso de administrador. El
+`global.json` de la raiz fija la version esperada, pero para comandos manuales se recomienda usar
+el ejecutable completo o los targets anteriores porque el `dotnet` global de esta maquina es SDK 9.
+
+Swagger: http://localhost:5002/swagger
 
 ------------------------------------------------------------
 7) Endpoints de prueba (curl)

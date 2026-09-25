@@ -9532,3 +9532,17 @@ Plan: [correccion_vulnerabilidad_cryptography_xml_plan.md](fase_de_desarrollo/co
 - [x] D1. Identificar la cadena: `Infrastructure → EPPlus 8.2.0 → System.Security.Cryptography.Xml 9.0.3`.
 - [x] S1. Actualizar EPPlus a 8.7.1, versión estable que incorpora la corrección del transitivo.
 - [x] V1. Ejecutar auditoría NuGet, build y suite completa; verificar puertos libres.
+
+---
+
+## OPTIMIZACIÓN-BUILD-LOCAL-DOTNET10 — compilación y arranque sin admin (25-sep-2026)
+
+Plan: [optimizacion_build_local_dotnet10_plan.md](fase_de_desarrollo/optimizacion_build_local_dotnet10_plan.md)
+
+- [x] P1. Medir SDK, compilación completa/incremental, memoria y arranque puro.
+- [x] D1. Fijar SDK 10.0.301 en el repositorio.
+- [x] D2. Optimizar `dev-back.ps1` y agregar modos rápido/migración en Makefile.
+- [x] D3. Documentar el flujo local sin permisos de administrador.
+- [x] V1. Sintaxis PowerShell y Makefile válidas; SDK fijado en 10.0.301; build incremental medido
+  en 1,44 s (6,62 s tras cambiar API); modos normal/rápido escuchan en :5002 sin migraciones, DDL
+  ni error de Event Log; suite backend 4560/4560 verde y procesos cerrados.
