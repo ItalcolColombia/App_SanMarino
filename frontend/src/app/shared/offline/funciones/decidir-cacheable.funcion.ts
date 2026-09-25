@@ -85,7 +85,11 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
 
   // Vacunación: cronograma y registros que el galponero consulta en el galpón.
   'vacunacioncronograma',
-  'vacunacionregistro'
+  'vacunacionregistro',
+
+  // Gestión veterinaria: el mapa de granjas, las tareas y visitas asignadas al técnico de campo
+  // ("mi-mapa", "mis-tareas") — mismo rol que vacunación: se consulta y se cumple desde el galpón.
+  'gestionveterinaria'
 ];
 
 /**
