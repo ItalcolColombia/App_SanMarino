@@ -9683,6 +9683,10 @@ la ruta interna.
 - [x] P1. Diagnóstico (prod medido 16:13Z) + lectura del router v22.0.5 (`setBrowserUrl`, `initialNavigation`) + plan.
 - [ ] F1. `core/navegacion/rutas-publicas.ts` + `funciones/ruta-enmascarada.funcion.ts` (puras) + README + spec.
 - [ ] F2. `RutaEnmascaradaLocationStrategy` + spec de integración (Router real + `MockPlatformLocation`).
+  28-sep: F1 y F2 ESCRITOS pero SIN correr, guardados en la rama `wip/rutas-enmascaradas` (`c414b2a`),
+  fuera de `main` a propósito: specs sin correr en `main` podrían cortar el gate de CI. Karma no arrancó:
+  el Node del PATH es v22.15.0 y Angular CLI pide >= 22.22.3 (usar el Node portable).
+  Para retomar: `git checkout wip/rutas-enmascaradas -- frontend/src/app/core/navegacion`.
 - [ ] F3. `app.config.ts`: provider + raíz con `redirigirDesdeLaRaiz` (`/?ir=`).
 - [ ] F4. Entradas por carga completa: login `'/'`, `href` de Diagnóstico ×3, atajos del manifest.
 - [ ] B1. `rutas-spa-nginx.js`: lista blanca = raíz + `RUTAS_PUBLICAS` (fail-closed contra el router).
