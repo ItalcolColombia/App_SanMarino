@@ -90,9 +90,9 @@ public class ReporteContableSeguimientoDiaCalculosTests
     {
         var res = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(
         [
-            new SeguimientoProduccionContableFila(152, D(4), 5, 0, 0, 399m, 0m),
-            new SeguimientoProduccionContableFila(152, D(4), 2, 0, 0, 50m, 0m),
-            new SeguimientoProduccionContableFila(152, D(2), 125, 0, 0, 200m, 0m)
+            new SeguimientoProduccionContableFila(152, D(4), 5, 0, 0, 0, 399m, 0m),
+            new SeguimientoProduccionContableFila(152, D(4), 2, 0, 0, 0, 50m, 0m),
+            new SeguimientoProduccionContableFila(152, D(2), 125, 0, 0, 0, 200m, 0m)
         ]);
 
         Assert.Equal(2, res.Count);
@@ -102,10 +102,30 @@ public class ReporteContableSeguimientoDiaCalculosTests
         Assert.Equal(125, res.Single(r => r.Fecha.Date == D(2).Date).MortalidadH);
     }
 
+    /// <summary>
+    /// La selección de MACHOS de producción se consolida igual que la de hembras y que la mortalidad
+    /// de machos. Antes se caía (el reporte contable la mostraba en 0 en fase Producción).
+    /// </summary>
+    [Fact]
+    public void Produccion_DosRegistrosElMismoDia_SumaSelHYSelM()
+    {
+        var res = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(
+        [
+            new SeguimientoProduccionContableFila(200, D(6), 1, 2, 3, 4, 10m, 5m),
+            new SeguimientoProduccionContableFila(200, D(6), 0, 1, 2, 6, 20m, 5m)
+        ]);
+
+        var dia = Assert.Single(res);
+        Assert.Equal(5, dia.SelH);         // 3 + 2
+        Assert.Equal(10, dia.SelM);        // 4 + 6  ← el que antes se perdía
+        Assert.Equal(3, dia.MortalidadM);  // 2 + 1
+        Assert.Equal(10m, dia.ConsKgM);    // 5 + 5
+    }
+
     [Fact]
     public void Produccion_UnRegistroPorDia_DevuelveElMismoRegistro()
     {
-        var a = new SeguimientoProduccionContableFila(7, D(1), 1, 0, 0, 10m, 0m);
+        var a = new SeguimientoProduccionContableFila(7, D(1), 1, 0, 0, 0, 10m, 0m);
         Assert.Same(a, ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia([a]).Single());
     }
 

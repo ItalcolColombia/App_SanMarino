@@ -60,6 +60,16 @@ public class SeguimientoLoteLevanteController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>Movimientos de alimento ya clasificados y agrupados por fecha en PostgreSQL.</summary>
+    [HttpGet("por-lote/{loteId:int}/movimientos-alimento-diarios")]
+    [ProducesResponseType(typeof(IEnumerable<ResumenMovimientosAlimentoDiaDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ResumenMovimientosAlimentoDiaDto>>> GetMovimientosAlimentoDiarios(
+        int loteId, CancellationToken ct = default)
+    {
+        var items = await _svc.GetMovimientosAlimentoDiariosAsync(loteId, ct);
+        return Ok(items);
+    }
+
     /// <summary>Obtener un registro por ID.</summary>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status200OK)]

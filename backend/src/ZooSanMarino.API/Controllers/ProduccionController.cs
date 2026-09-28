@@ -232,6 +232,28 @@ public class ProduccionController : ControllerBase
         }
     }
 
+    /// <summary>Movimientos de alimento ya clasificados y agrupados por fecha en PostgreSQL.</summary>
+    [HttpGet("seguimiento/movimientos-alimento-diarios")]
+    [ProducesResponseType(typeof(IEnumerable<ResumenMovimientosAlimentoDiaDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ResumenMovimientosAlimentoDiaDto>>> ListarMovimientosAlimentoDiarios(
+        [FromQuery] int? loteId = null,
+        [FromQuery] int? lotePosturaProduccionId = null,
+        [FromQuery] DateTime? desde = null,
+        [FromQuery] DateTime? hasta = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var items = await _produccionService.ListarMovimientosAlimentoDiariosAsync(
+                loteId, lotePosturaProduccionId, desde, hasta, ct);
+            return Ok(items);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Devuelve la información general del lote para el módulo Seguimiento (Postura Producción).
     /// Calcula edad en semanas de producción (desde semana 26 del encaset), totales y consumo.

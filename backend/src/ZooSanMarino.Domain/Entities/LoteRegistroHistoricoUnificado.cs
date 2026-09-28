@@ -23,6 +23,12 @@ public class LoteRegistroHistoricoUnificado
 
     public string? GalponId { get; set; }
 
+    /// <summary>
+    /// Silo/bodega donde ocurrió el movimiento de inventario. En empresas con inventario por silo,
+    /// núcleo y galpón son NULL y esta columna es la ubicación física que llena el trigger.
+    /// </summary>
+    public int? SiloId { get; set; }
+
     public DateTime FechaOperacion { get; set; }
 
     public string TipoEvento { get; set; } = null!;

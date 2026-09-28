@@ -9546,3 +9546,122 @@ Plan: [optimizacion_build_local_dotnet10_plan.md](fase_de_desarrollo/optimizacio
 - [x] V1. Sintaxis PowerShell y Makefile válidas; SDK fijado en 10.0.301; build incremental medido
   en 1,44 s (6,62 s tras cambiar API); modos normal/rápido escuchan en :5002 sin migraciones, DDL
   ni error de Event Log; suite backend 4560/4560 verde y procesos cerrados.
+
+---
+
+## SEGUIMIENTO-POSTURA-ALCANCE-INVENTARIO — silo/galpón/granja (25-sep-2026)
+
+Plan: [seguimiento_postura_alcance_inventario_alimento_plan.md](fase_de_desarrollo/seguimiento_postura_alcance_inventario_alimento_plan.md)
+
+- [x] P1. Auditar flags efectivos, persistencia del movimiento, trigger histórico y causa del vacío
+  en Santa Reyes.
+- [x] B1. Mapear `silo_id`, resolver alcance efectivo y ajustar la consulta compartida.
+- [x] B2. Pasar el lote maestro validado desde Levante y Producción sin alterar contratos HTTP.
+- [x] T1. Cubrir silo, galpón, granja, referencia e aislamiento multiempresa con pruebas: 10/10
+  Application y 3/3 Infrastructure focalizadas en verde.
+- [x] V1. Backend Release recompilado con 0 errores/0 advertencias y 4568/4568 tests verdes;
+  gates SQL, seguridad y superficie de producción verdes. Frontend producción compilado y
+  1091/1091 tests verdes; puertos 5002/4200/9876 libres. Docker 28.1.1 está instalado, pero el
+  daemon local no está activo, por lo que no fue posible construir las imágenes de contenedor.
+- [x] C1. Crear un commit exclusivo con la mejora validada.
+
+---
+
+## SEGUIMIENTO-POSTURA-MOVIMIENTOS-DESDE-BD — Levante y Producción (27-sep-2026)
+
+Plan: [seguimiento_postura_movimientos_alimento_desde_bd_plan.md](fase_de_desarrollo/seguimiento_postura_movimientos_alimento_desde_bd_plan.md)
+
+- [x] P1. Auditar funciones canónicas, endpoints y composición Angular de Levante/Producción.
+- [x] B1. Crear función SQL diaria compartida y migración EF idempotente.
+- [x] B2. Exponer contratos/endpoints diarios desde la función conservando compatibilidad plana.
+- [x] F1. Hacer que ambas grillas consuman el resumen diario sin agrupar movimientos en Angular.
+- [x] T1. Cubrir alcance silo/galpón/granja en la lógica pura y validar contrato diario, varios
+  movimientos, referencias y días sin seguimiento con pruebas backend/frontend.
+- [x] V1. Backend Release 0 errores/0 advertencias y 4567/4567 tests verdes; frontend producción
+  compilado y 1090/1090 tests verdes; EF sin cambios de modelo pendientes y gates SQL, seguridad,
+  superficie, change detection, inventario y caché verdes. Puertos 5002/4200/9876/5432/5433
+  libres; sin PostgreSQL/Docker local activo para ejecutar la función contra una BD real.
+- [x] C1. Crear commit exclusivo con la mejora validada.
+
+---
+
+## SEGUIMIENTO-POSTURA-ROBUSTECIMIENTO-HISTÓRICO — silo/galpón/granja (28-sep-2026)
+
+Plan: [seguimiento_postura_robustecimiento_alcance_historico_plan.md](fase_de_desarrollo/seguimiento_postura_robustecimiento_alcance_historico_plan.md)
+
+- [x] P0. Documentar semántica canónica, riesgos, arquitectura objetivo, fases, rollback y criterios
+  de aceptación.
+- [ ] A1. Crear y ejecutar diagnósticos de solo lectura; congelar línea base y decidir el backfill de
+  vigencias con evidencia por empresa.
+- [ ] A2. Confirmar que el día de inicio de Producción pertenece sólo a Producción y cerrar la regla
+  de fechas históricas ambiguas.
+- [ ] B1. Implementar vigencias lote–silo y fecha efectiva de fin de Levante mediante migración EF
+  idempotente, sin alterar stock ni movimientos.
+- [ ] B2. Hacer temporal la consulta por silo, rechazar nuevas asignaciones a silos inactivos y
+  proteger cambios de alcance con movimientos existentes.
+- [ ] B3. Crear `fn_resumen_movimientos_alimento_postura_v2` y su espejo SQL; devolver alcance,
+  rango, ubicaciones, días y advertencias aun cuando no existan movimientos.
+- [ ] B4. Agregar DTOs/endpoints v2 de Levante y Producción conservando función y endpoints v1 para
+  despliegue rodante y rollback.
+- [ ] F1. Mostrar alcance/ubicación y diferenciar cargando, vacío y error; impedir respuestas HTTP
+  obsoletas al cambiar rápidamente de lote o filtros.
+- [ ] F2. Mantener filas sin seguimiento y varias capturas por día; actualizar el Excel de Levante
+  sin duplicar movimientos.
+- [ ] T1. Cubrir reglas puras, servicios, API y Angular con la matriz silo/galpón/granja, vigencias,
+  transición de fase, multiempresa, exclusiones y errores.
+- [ ] T2. Ejecutar migración y función real en PostgreSQL con pruebas de integración; EF InMemory no
+  cuenta como validación de esta fase.
+- [ ] V1. Medir `EXPLAIN (ANALYZE, BUFFERS)` antes/después y crear índices sólo si la evidencia lo
+  exige.
+- [ ] V2. Ejecutar builds, suites completas y gates SQL/seguridad/frontend; dejar puertos y procesos
+  libres.
+- [ ] D1. Hacer smoke en ambiente de pruebas para una empresa por silo, una por galpón y una por
+  granja; comparar paridad con la línea base.
+- [ ] D2. Solicitar aprobación antes de producción y verificar TaskDef, imagen ECS, migración,
+  métricas y ausencia de rollback silencioso.
+- [ ] C1. Crear commits exclusivos por fase sin incluir cambios de otras sesiones.
+
+---
+
+## REPORTE-CONTABLE-SELECCIÓN-MACHOS-PRODUCCIÓN — Sanmarino (28-sep-2026)
+
+Plan: [reporte_contable_seleccion_machos_produccion_plan.md](fase_de_desarrollo/reporte_contable_seleccion_machos_produccion_plan.md)
+
+Novedad contable Sanmarino: el Reporte Contable muestra mortalidad de machos pero la **selección de
+machos sale 0 en Producción** (el dato existe en `produccion_diaria.sel_m` y Costos Postura ya lo lee).
+
+- [x] P1. Plan escrito: diagnóstico (3 puntos donde se pierde `SelM`), enfoque, archivos, reglas y casos.
+- [x] B1. `SeguimientoProduccionContableFila` gana `SelM`; `AgruparProduccionPorLoteDia` lo suma.
+- [x] B2. `CalculoSemanal.cs`: proyección principal (`:217`) y fallback (`:244`) traen `SelM`; `:332` `SeleccionMachos = levante?.SelM ?? produccion?.SelM ?? 0`.
+- [x] T1. Actualizados los 4 constructores de test existentes + test nuevo `Produccion_DosRegistrosElMismoDia_SumaSelHYSelM`.
+- [x] V1. `dotnet build` solución 0 errores/0 advertencias; `dotnet test` Application **4552/4552** verdes (88 focalizados ReporteContable incl. el nuevo).
+- [~] V2. Validación BD local (`sanmarinoapplocal`): congelado en la BD → lotes Sanmarino K345A(13)+K345B(14) tienen en producción `SUM(sel_m)=618` y `SUM(sel_h)=11434`; el código viejo mostraba `SelM=0`. Smoke con el path real EF+cálculo corriendo.
+- [ ] C1. Commit exclusivo de estos archivos (sin tocar el bloque de otras sesiones) + borrar test temporal live-DB.
+
+---
+
+## BORDE-RUTAS-SPA-404 — solo las rutas reales del SPA responden 200 (hallazgo `/env` → 200) (28-sep-2026)
+
+Plan: [borde_rutas_spa_404_plan.md](fase_de_desarrollo/borde_rutas_spa_404_plan.md)
+
+Validación de seguridad de producción: `/env` (y cualquier ruta inventada) responde 200 con el
+`index.html` del SPA (fallback de nginx). No filtra archivos, pero una ruta inexistente tiene que dar 404.
+
+- [x] P1. Diagnóstico en vivo (solo lectura) + plan: lista blanca top-level generada desde `app.config.ts`.
+- [x] B1. `frontend/scripts/rutas-spa-nginx.js`: generador fail-closed (compilador TS) + `map $uri $ruta_spa`.
+  39 rutas top-level (15 exactas + 24 con subrutas) + la raíz.
+- [x] B2. `nginx.conf`: include + `if ($ruta_spa = 0) { return 404; }` + `404.html` interna.
+- [x] B3. Dockerfile + `.dockerignore`: generar en el build y copiar al runtime.
+- [x] B4. `src/404.html` + `angular.json` assets; `servir-pwa-local.js` replica la regla.
+- [x] T1. `scripts/tests/rutas-spa-nginx.test.js` (`node --test`, 11/11) + gate en el job `tests`.
+  9 mutaciones (sin `if`, sin include, sin COPY, sin `.dockerignore`, todo prefijo, sin regla del
+  punto, parámetro top-level, 404 fuera del build, 404 con script): las 9 las caza.
+- [x] T2. Gate del borde: ruta del SPA real + bloque C7 (sondas → 404 sin index; entradas reales → 200).
+- [x] V1. `yarn build` + `node --test` + replica local contra `dist/browser`.
+  Build 0 errores, `404.html` copiado idéntico; réplica: sondas 404 con `404.html`, entradas reales 200.
+- [x] V2. nginx real (`nginx:1.27-alpine`) con el script del gate del borde (C2–C7) + prueba negativa.
+  `nginx -t` OK y el gate del workflow, tal cual, «Borde OK». Sin el `if`: 11 criterios en FALLA y
+  «No se publica». Extra: `/config/.env` 403, `/assets` 404, `/ENV` y `//env` 404, assets reales 200.
+- [x] D1. Sección del hallazgo en `respuesta_auditoria_ciberseguridad_2026-09.md` (§7).
+- [x] C1. Commit exclusivo de estos archivos (sin el bloque ni los archivos de otras sesiones).
+- [ ] D2. Deploy (push a `main-produccion`) con OK explícito + verificación post-deploy en producción.

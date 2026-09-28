@@ -71,6 +71,7 @@ temp/
 scripts/*
 !scripts/build-version.js
 !scripts/verificar-ngsw.js
+!scripts/rutas-spa-nginx.js
 deploy/
 
 # Configuración local

@@ -5,7 +5,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
-import { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import { ResumenMovimientosAlimentoDia } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import { TabsPrincipalComponent } from './tabs-principal.component';
 
 describe('TabsPrincipalComponent (levante) · tabla y validación', () => {
@@ -111,10 +111,16 @@ describe('TabsPrincipalComponent (levante) · tabla y validación', () => {
   });
 
   it('muestra ingreso, dirección del traslado y referencia en la fecha del seguimiento', () => {
-    const movimientos: MovimientoAlimentoSeguimientoDto[] = [
-      { id: 1, fecha: '2026-01-12', tipoMovimiento: 'INV_INGRESO', cantidadKg: 125, alimento: 'PREINICIO', referencia: 'OC-10' },
-      { id: 2, fecha: '2026-01-12', tipoMovimiento: 'INV_TRASLADO_SALIDA', cantidadKg: 25, alimento: 'PREINICIO', referencia: 'TR-20' }
-    ];
+    const movimientos: ResumenMovimientosAlimentoDia[] = [{
+      fecha: '2026-01-12',
+      ingresos: [
+        { id: 1, fecha: '2026-01-12', tipoMovimiento: 'INV_INGRESO', cantidadKg: 125, alimento: 'PREINICIO', referencia: 'OC-10' }
+      ],
+      traslados: [
+        { id: 2, fecha: '2026-01-12', tipoMovimiento: 'INV_TRASLADO_SALIDA', cantidadKg: 25, alimento: 'PREINICIO', referencia: 'TR-20' }
+      ],
+      referencias: ['OC-10', 'TR-20']
+    }];
     fixture.componentRef.setInput('movimientosAlimento', movimientos);
     fixture.detectChanges();
 

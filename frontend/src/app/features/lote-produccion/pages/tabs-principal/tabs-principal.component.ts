@@ -21,7 +21,6 @@ import type {
   ResumenMovimientosAlimentoDia
 } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import {
-  agruparMovimientosAlimentoPorDia,
   indexarMovimientosAlimentoPorDia,
   movimientosSinSeguimiento
 } from '../../../../shared/utils/movimientos-alimento-seguimiento.funcion';
@@ -58,14 +57,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, AfterViewInit,
   private _seguimientos: SeguimientoItemDto[] = [];
 
   @Input()
-  set movimientosAlimento(value: MovimientoAlimentoSeguimientoDto[]) {
+  set movimientosAlimento(value: ResumenMovimientosAlimentoDia[]) {
     this._movimientosAlimento = value ?? [];
     this.recalcularMovimientosAlimento();
   }
-  get movimientosAlimento(): MovimientoAlimentoSeguimientoDto[] {
+  get movimientosAlimento(): ResumenMovimientosAlimentoDia[] {
     return this._movimientosAlimento;
   }
-  private _movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
+  private _movimientosAlimento: ResumenMovimientosAlimentoDia[] = [];
   movimientosAlimentoSinSeguimiento: ResumenMovimientosAlimentoDia[] = [];
   private movimientosAlimentoPorFecha: ReadonlyMap<string, ResumenMovimientosAlimentoDia> = new Map();
 
@@ -132,7 +131,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, AfterViewInit,
   filasGrilla: FilaGrillaProduccion[] = [];
 
   private recalcularMovimientosAlimento(): void {
-    const resumenes = agruparMovimientosAlimentoPorDia(this._movimientosAlimento);
+    const resumenes = this._movimientosAlimento ?? [];
     this.movimientosAlimentoPorFecha = indexarMovimientosAlimentoPorDia(resumenes);
     this.movimientosAlimentoSinSeguimiento = movimientosSinSeguimiento(
       resumenes,

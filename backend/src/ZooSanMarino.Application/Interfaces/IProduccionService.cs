@@ -16,6 +16,9 @@ public interface IProduccionService
     Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> ListarMovimientosAlimentoAsync(
         int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta,
         CancellationToken ct = default);
+    Task<IReadOnlyList<ResumenMovimientosAlimentoDiaDto>> ListarMovimientosAlimentoDiariosAsync(
+        int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta,
+        CancellationToken ct = default);
     Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId);
     Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId);
     Task<bool> EliminarSeguimientoAsync(int seguimientoId);

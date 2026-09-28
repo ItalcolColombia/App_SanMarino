@@ -4,6 +4,22 @@ namespace ZooSanMarino.Application.Tests;
 
 public class MovimientosAlimentoSeguimientoCalculosTests
 {
+    [Theory]
+    [InlineData(true, false, false, MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento.Silo)]
+    [InlineData(false, true, false, MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento.Galpon)]
+    [InlineData(false, null, true, MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento.Galpon)]
+    [InlineData(false, false, true, MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento.Granja)]
+    [InlineData(false, null, false, MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento.Granja)]
+    public void ResolverAlcance_RespetaSiloYOverrideDeGranja(
+        bool porSilo,
+        bool? granjaPorGalpon,
+        bool empresaPorGalpon,
+        MovimientosAlimentoSeguimientoCalculos.AlcanceInventarioAlimento esperado)
+    {
+        Assert.Equal(esperado, MovimientosAlimentoSeguimientoCalculos.ResolverAlcance(
+            porSilo, granjaPorGalpon, empresaPorGalpon));
+    }
+
     [Fact]
     public void ResolverRango_FaseAbierta_LlegaHastaHoy()
     {

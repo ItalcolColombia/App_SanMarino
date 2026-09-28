@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ZooSanMarino.Infrastructure.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Referencia al proyecto de Dominio, para la entidad User -->
     <ProjectReference Include="..\ZooSanMarino.Domain\ZooSanMarino.Domain.csproj" />
 
