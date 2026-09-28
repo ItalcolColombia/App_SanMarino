@@ -241,7 +241,7 @@ public partial class ProduccionService
             return Array.Empty<MovimientoAlimentoSeguimientoDto>();
 
         return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
-            _context, companyId, farmId, nucleoId, galponId, rango, ct);
+            _context, companyId, produccionLoteId, farmId, nucleoId, galponId, rango, ct);
     }
 
     public async Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId)

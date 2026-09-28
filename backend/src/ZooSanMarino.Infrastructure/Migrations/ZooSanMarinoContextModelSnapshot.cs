@@ -6006,6 +6006,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("referencia");
 
+                    b.Property<int?>("SiloId")
+                        .HasColumnType("integer")
+                        .HasColumnName("silo_id");
+
                     b.Property<string>("TipoEvento")
                         .IsRequired()
                         .HasMaxLength(40)

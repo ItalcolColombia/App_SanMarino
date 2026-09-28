@@ -9546,3 +9546,21 @@ Plan: [optimizacion_build_local_dotnet10_plan.md](fase_de_desarrollo/optimizacio
 - [x] V1. Sintaxis PowerShell y Makefile válidas; SDK fijado en 10.0.301; build incremental medido
   en 1,44 s (6,62 s tras cambiar API); modos normal/rápido escuchan en :5002 sin migraciones, DDL
   ni error de Event Log; suite backend 4560/4560 verde y procesos cerrados.
+
+---
+
+## SEGUIMIENTO-POSTURA-ALCANCE-INVENTARIO — silo/galpón/granja (25-sep-2026)
+
+Plan: [seguimiento_postura_alcance_inventario_alimento_plan.md](fase_de_desarrollo/seguimiento_postura_alcance_inventario_alimento_plan.md)
+
+- [x] P1. Auditar flags efectivos, persistencia del movimiento, trigger histórico y causa del vacío
+  en Santa Reyes.
+- [x] B1. Mapear `silo_id`, resolver alcance efectivo y ajustar la consulta compartida.
+- [x] B2. Pasar el lote maestro validado desde Levante y Producción sin alterar contratos HTTP.
+- [x] T1. Cubrir silo, galpón, granja, referencia e aislamiento multiempresa con pruebas: 10/10
+  Application y 3/3 Infrastructure focalizadas en verde.
+- [x] V1. Backend Release recompilado con 0 errores/0 advertencias y 4568/4568 tests verdes;
+  gates SQL, seguridad y superficie de producción verdes. Frontend producción compilado y
+  1091/1091 tests verdes; puertos 5002/4200/9876 libres. Docker 28.1.1 está instalado, pero el
+  daemon local no está activo, por lo que no fue posible construir las imágenes de contenedor.
+- [x] C1. Crear un commit exclusivo con la mejora validada.

@@ -68,7 +68,7 @@ public partial class SeguimientoLoteLevanteService
             return Array.Empty<MovimientoAlimentoSeguimientoDto>();
 
         return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
-            _ctx, companyId, fase.GranjaId, fase.NucleoId, fase.GalponId, rango, ct);
+            _ctx, companyId, loteId, fase.GranjaId, fase.NucleoId, fase.GalponId, rango, ct);
     }
 
     /// <summary>

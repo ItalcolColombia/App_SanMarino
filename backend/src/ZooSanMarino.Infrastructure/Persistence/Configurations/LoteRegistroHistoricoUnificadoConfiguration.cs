@@ -20,6 +20,8 @@ public class LoteRegistroHistoricoUnificadoConfiguration : IEntityTypeConfigurat
 
         b.Property(x => x.NucleoId).HasColumnName("nucleo_id").HasMaxLength(64);
         b.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(64);
+        // La columna existe desde AddInventarioPorSiloEnStockYMovimiento; faltaba exponerla en EF.
+        b.Property(x => x.SiloId).HasColumnName("silo_id");
 
         b.Property(x => x.FechaOperacion).HasColumnName("fecha_operacion").HasColumnType("date").IsRequired();
         b.Property(x => x.TipoEvento).HasColumnName("tipo_evento").HasMaxLength(40).IsRequired();
@@ -50,4 +52,3 @@ public class LoteRegistroHistoricoUnificadoConfiguration : IEntityTypeConfigurat
         b.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").IsRequired();
     }
 }
-
