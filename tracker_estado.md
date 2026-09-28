@@ -9665,3 +9665,7 @@ Validación de seguridad de producción: `/env` (y cualquier ruta inventada) res
 - [x] D1. Sección del hallazgo en `respuesta_auditoria_ciberseguridad_2026-09.md` (§7).
 - [x] C1. Commit exclusivo de estos archivos (sin el bloque ni los archivos de otras sesiones).
 - [ ] D2. Deploy (push a `main-produccion`) con OK explícito + verificación post-deploy en producción.
+  28-sep 10:16: el arreglo entró a `main-produccion` con el PR #118, pero el run 36442385271 falló en
+  «Tests del backend» (CS1729: los tests de reporte contable de "orueba fubak" subieron sin su
+  implementación, que está en `3e81774`, todavía sin push). Deploys skipped: prod sigue en el build
+  del 25-sep y `/env` todavía da 200. Falta: push de `main` + PR nuevo + verificar `/env` → 404.
