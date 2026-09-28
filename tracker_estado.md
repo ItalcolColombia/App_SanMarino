@@ -9582,3 +9582,41 @@ Plan: [seguimiento_postura_movimientos_alimento_desde_bd_plan.md](fase_de_desarr
   superficie, change detection, inventario y caché verdes. Puertos 5002/4200/9876/5432/5433
   libres; sin PostgreSQL/Docker local activo para ejecutar la función contra una BD real.
 - [x] C1. Crear commit exclusivo con la mejora validada.
+
+---
+
+## SEGUIMIENTO-POSTURA-ROBUSTECIMIENTO-HISTÓRICO — silo/galpón/granja (28-sep-2026)
+
+Plan: [seguimiento_postura_robustecimiento_alcance_historico_plan.md](fase_de_desarrollo/seguimiento_postura_robustecimiento_alcance_historico_plan.md)
+
+- [x] P0. Documentar semántica canónica, riesgos, arquitectura objetivo, fases, rollback y criterios
+  de aceptación.
+- [ ] A1. Crear y ejecutar diagnósticos de solo lectura; congelar línea base y decidir el backfill de
+  vigencias con evidencia por empresa.
+- [ ] A2. Confirmar que el día de inicio de Producción pertenece sólo a Producción y cerrar la regla
+  de fechas históricas ambiguas.
+- [ ] B1. Implementar vigencias lote–silo y fecha efectiva de fin de Levante mediante migración EF
+  idempotente, sin alterar stock ni movimientos.
+- [ ] B2. Hacer temporal la consulta por silo, rechazar nuevas asignaciones a silos inactivos y
+  proteger cambios de alcance con movimientos existentes.
+- [ ] B3. Crear `fn_resumen_movimientos_alimento_postura_v2` y su espejo SQL; devolver alcance,
+  rango, ubicaciones, días y advertencias aun cuando no existan movimientos.
+- [ ] B4. Agregar DTOs/endpoints v2 de Levante y Producción conservando función y endpoints v1 para
+  despliegue rodante y rollback.
+- [ ] F1. Mostrar alcance/ubicación y diferenciar cargando, vacío y error; impedir respuestas HTTP
+  obsoletas al cambiar rápidamente de lote o filtros.
+- [ ] F2. Mantener filas sin seguimiento y varias capturas por día; actualizar el Excel de Levante
+  sin duplicar movimientos.
+- [ ] T1. Cubrir reglas puras, servicios, API y Angular con la matriz silo/galpón/granja, vigencias,
+  transición de fase, multiempresa, exclusiones y errores.
+- [ ] T2. Ejecutar migración y función real en PostgreSQL con pruebas de integración; EF InMemory no
+  cuenta como validación de esta fase.
+- [ ] V1. Medir `EXPLAIN (ANALYZE, BUFFERS)` antes/después y crear índices sólo si la evidencia lo
+  exige.
+- [ ] V2. Ejecutar builds, suites completas y gates SQL/seguridad/frontend; dejar puertos y procesos
+  libres.
+- [ ] D1. Hacer smoke en ambiente de pruebas para una empresa por silo, una por galpón y una por
+  granja; comparar paridad con la línea base.
+- [ ] D2. Solicitar aprobación antes de producción y verificar TaskDef, imagen ECS, migración,
+  métricas y ausencia de rollback silencioso.
+- [ ] C1. Crear commits exclusivos por fase sin incluir cambios de otras sesiones.
