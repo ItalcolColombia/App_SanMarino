@@ -9620,3 +9620,24 @@ Plan: [seguimiento_postura_robustecimiento_alcance_historico_plan.md](fase_de_de
 - [ ] D2. Solicitar aprobación antes de producción y verificar TaskDef, imagen ECS, migración,
   métricas y ausencia de rollback silencioso.
 - [ ] C1. Crear commits exclusivos por fase sin incluir cambios de otras sesiones.
+
+---
+
+## BORDE-RUTAS-SPA-404 — solo las rutas reales del SPA responden 200 (hallazgo `/env` → 200) (28-sep-2026)
+
+Plan: [borde_rutas_spa_404_plan.md](fase_de_desarrollo/borde_rutas_spa_404_plan.md)
+
+Validación de seguridad de producción: `/env` (y cualquier ruta inventada) responde 200 con el
+`index.html` del SPA (fallback de nginx). No filtra archivos, pero una ruta inexistente tiene que dar 404.
+
+- [x] P1. Diagnóstico en vivo (solo lectura) + plan: lista blanca top-level generada desde `app.config.ts`.
+- [ ] B1. `frontend/scripts/rutas-spa-nginx.js`: generador fail-closed (compilador TS) + `map $uri $ruta_spa`.
+- [ ] B2. `nginx.conf`: include + `if ($ruta_spa = 0) { return 404; }` + `404.html` interna.
+- [ ] B3. Dockerfile + `.dockerignore`: generar en el build y copiar al runtime.
+- [ ] B4. `src/404.html` + `angular.json` assets; `servir-pwa-local.js` replica la regla.
+- [ ] T1. `scripts/tests/rutas-spa-nginx.test.js` (`node --test`) + gate en el job `tests`.
+- [ ] T2. Gate del borde: ruta del SPA real + bloque C7 (sondas → 404 sin index; entradas reales → 200).
+- [ ] V1. `yarn build` + `node --test` + replica local contra `dist/browser`.
+- [ ] V2. nginx real (`nginx:1.27-alpine`) con el script del gate del borde (C2–C7) + prueba negativa.
+- [ ] D1. Sección del hallazgo en `respuesta_auditoria_ciberseguridad_2026-09.md`.
+- [ ] C1. Commit exclusivo de estos archivos (sin el bloque ni los archivos de otras sesiones).
