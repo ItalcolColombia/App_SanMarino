@@ -9623,6 +9623,23 @@ Plan: [seguimiento_postura_robustecimiento_alcance_historico_plan.md](fase_de_de
 
 ---
 
+## REPORTE-CONTABLE-SELECCIÓN-MACHOS-PRODUCCIÓN — Sanmarino (28-sep-2026)
+
+Plan: [reporte_contable_seleccion_machos_produccion_plan.md](fase_de_desarrollo/reporte_contable_seleccion_machos_produccion_plan.md)
+
+Novedad contable Sanmarino: el Reporte Contable muestra mortalidad de machos pero la **selección de
+machos sale 0 en Producción** (el dato existe en `produccion_diaria.sel_m` y Costos Postura ya lo lee).
+
+- [x] P1. Plan escrito: diagnóstico (3 puntos donde se pierde `SelM`), enfoque, archivos, reglas y casos.
+- [x] B1. `SeguimientoProduccionContableFila` gana `SelM`; `AgruparProduccionPorLoteDia` lo suma.
+- [x] B2. `CalculoSemanal.cs`: proyección principal (`:217`) y fallback (`:244`) traen `SelM`; `:332` `SeleccionMachos = levante?.SelM ?? produccion?.SelM ?? 0`.
+- [x] T1. Actualizados los 4 constructores de test existentes + test nuevo `Produccion_DosRegistrosElMismoDia_SumaSelHYSelM`.
+- [x] V1. `dotnet build` solución 0 errores/0 advertencias; `dotnet test` Application **4552/4552** verdes (88 focalizados ReporteContable incl. el nuevo).
+- [~] V2. Validación BD local (`sanmarinoapplocal`): congelado en la BD → lotes Sanmarino K345A(13)+K345B(14) tienen en producción `SUM(sel_m)=618` y `SUM(sel_h)=11434`; el código viejo mostraba `SelM=0`. Smoke con el path real EF+cálculo corriendo.
+- [ ] C1. Commit exclusivo de estos archivos (sin tocar el bloque de otras sesiones) + borrar test temporal live-DB.
+
+---
+
 ## BORDE-RUTAS-SPA-404 — solo las rutas reales del SPA responden 200 (hallazgo `/env` → 200) (28-sep-2026)
 
 Plan: [borde_rutas_spa_404_plan.md](fase_de_desarrollo/borde_rutas_spa_404_plan.md)
