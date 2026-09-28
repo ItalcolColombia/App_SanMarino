@@ -18,6 +18,7 @@ public sealed record SeguimientoProduccionContableFila(
     int MortalidadH,
     int MortalidadM,
     int SelH,
+    int SelM,
     decimal ConsKgH,
     decimal ConsKgM);
 
@@ -69,6 +70,7 @@ public static class ReporteContableSeguimientoDiaCalculos
                     g.Sum(f => f.MortalidadH),
                     g.Sum(f => f.MortalidadM),
                     g.Sum(f => f.SelH),
+                    g.Sum(f => f.SelM),
                     g.Sum(f => f.ConsKgH),
                     g.Sum(f => f.ConsKgM)))
             .ToList();
