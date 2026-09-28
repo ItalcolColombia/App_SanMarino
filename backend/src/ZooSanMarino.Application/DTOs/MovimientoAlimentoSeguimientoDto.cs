@@ -12,3 +12,13 @@ public sealed record MovimientoAlimentoSeguimientoDto(
     string? Alimento,
     string? Referencia,
     string? NumeroDocumento);
+
+/// <summary>
+/// Movimientos ya clasificados y agrupados por día por PostgreSQL. El backend sólo deserializa el
+/// JSON retornado por <c>fn_movimientos_alimento_postura_diario</c>.
+/// </summary>
+public sealed record ResumenMovimientosAlimentoDiaDto(
+    DateTime Fecha,
+    IReadOnlyList<MovimientoAlimentoSeguimientoDto> Ingresos,
+    IReadOnlyList<MovimientoAlimentoSeguimientoDto> Traslados,
+    IReadOnlyList<string> Referencias);

@@ -29,8 +29,18 @@ public partial class SeguimientoLoteLevanteService
     public async Task<IReadOnlyList<MovimientoAlimentoSeguimientoDto>> GetMovimientosAlimentoAsync(
         int loteId, CancellationToken ct = default)
     {
+        var dias = await GetMovimientosAlimentoDiariosAsync(loteId, ct).ConfigureAwait(false);
+        return dias.SelectMany(d => d.Ingresos.Concat(d.Traslados))
+            .OrderBy(m => m.Fecha)
+            .ThenBy(m => m.Id)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ResumenMovimientosAlimentoDiaDto>> GetMovimientosAlimentoDiariosAsync(
+        int loteId, CancellationToken ct = default)
+    {
         if (!await _scopeResolver.PermiteLoteAsync(loteId))
-            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+            return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
         var companyId = _current.CompanyId;
         var fase = await _ctx.LotePosturaLevante.AsNoTracking()
@@ -47,7 +57,7 @@ public partial class SeguimientoLoteLevanteService
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
         if (fase is null)
-            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+            return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
         var loteTexto = loteId.ToString();
         var fechas = await _ctx.SeguimientoDiario.AsNoTracking()
@@ -65,9 +75,9 @@ public partial class SeguimientoLoteLevanteService
             CicloVidaPosturaCalculos.EstaCerrado(fase.EstadoCierre),
             DateTime.Today);
         if (rango is null)
-            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+            return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
-        return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
+        return await MovimientosAlimentoSeguimientoConsultas.ConsultarPorDiaAsync(
             _ctx, companyId, loteId, fase.GranjaId, fase.NucleoId, fase.GalponId, rango, ct);
     }
 

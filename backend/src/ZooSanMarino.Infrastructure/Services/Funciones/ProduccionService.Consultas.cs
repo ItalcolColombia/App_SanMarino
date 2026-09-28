@@ -130,6 +130,21 @@ public partial class ProduccionService
         DateTime? hasta,
         CancellationToken ct = default)
     {
+        var dias = await ListarMovimientosAlimentoDiariosAsync(
+            loteId, lotePosturaProduccionId, desde, hasta, ct).ConfigureAwait(false);
+        return dias.SelectMany(d => d.Ingresos.Concat(d.Traslados))
+            .OrderBy(m => m.Fecha)
+            .ThenBy(m => m.Id)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ResumenMovimientosAlimentoDiaDto>> ListarMovimientosAlimentoDiariosAsync(
+        int? loteId,
+        int? lotePosturaProduccionId,
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken ct = default)
+    {
         if (!lotePosturaProduccionId.HasValue && !loteId.HasValue)
             throw new ArgumentException("Debe especificar loteId o lotePosturaProduccionId.");
 
@@ -171,7 +186,7 @@ public partial class ProduccionService
                 || (!lpp.LoteId.HasValue && string.IsNullOrEmpty(lpp.GalponId)
                     && !string.IsNullOrEmpty(lpp.NucleoId) && scope.PermiteNucleo(lpp.NucleoId));
             if (!permitido)
-                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+                return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
             produccionLoteId = lpp.LoteId ?? 0;
             lppId = lpp.LotePosturaProduccionId;
@@ -186,7 +201,7 @@ public partial class ProduccionService
         {
             var solicitado = loteId!.Value;
             if (!await _scopeResolver.PermiteLoteAsync(solicitado).ConfigureAwait(false))
-                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+                return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
             var lote = await _context.Lotes.AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion"
@@ -205,7 +220,7 @@ public partial class ProduccionService
                 .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
             if (lote?.LoteId is not > 0)
-                return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+                return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
             produccionLoteId = lote.LoteId.Value;
             farmId = lote.GranjaId;
@@ -238,9 +253,9 @@ public partial class ProduccionService
             desde,
             hasta);
         if (rango is null)
-            return Array.Empty<MovimientoAlimentoSeguimientoDto>();
+            return Array.Empty<ResumenMovimientosAlimentoDiaDto>();
 
-        return await MovimientosAlimentoSeguimientoConsultas.ConsultarAsync(
+        return await MovimientosAlimentoSeguimientoConsultas.ConsultarPorDiaAsync(
             _context, companyId, produccionLoteId, farmId, nucleoId, galponId, rango, ct);
     }
 

@@ -8,7 +8,7 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
-import type { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import type { ResumenMovimientosAlimentoDia } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -116,7 +116,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   private allLotes: LoteDto[] = [];
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
-  movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
+  movimientosAlimento: ResumenMovimientosAlimentoDia[] = [];
 
   /**
    * Capturas de ESTE lote guardadas sin red y todavía sin enviar. Va **aparte** de `seguimientos`
@@ -447,7 +447,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       });
 
     const loteMovimientosSolicitado = this.selectedLoteId;
-    this.segSvc.getMovimientosAlimento(loteMovimientosSolicitado).subscribe({
+    this.segSvc.getMovimientosAlimentoDiarios(loteMovimientosSolicitado).subscribe({
       next: rows => {
         if (this.selectedLoteId === loteMovimientosSolicitado) this.movimientosAlimento = rows ?? [];
       },

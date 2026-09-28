@@ -5,7 +5,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TabsPrincipalComponent } from './tabs-principal.component';
 import { SeguimientoItemDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
-import { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import { ResumenMovimientosAlimentoDia } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 
 /**
  * La grilla «Registros Diarios» tiene columnas gateadas por flag. Si una columna se declara en el
@@ -158,10 +158,16 @@ describe('TabsPrincipalComponent (producción) · alineación de la grilla diari
   });
 
   it('muestra ingreso, dirección del traslado y referencia en la fecha del seguimiento', () => {
-    const movimientos: MovimientoAlimentoSeguimientoDto[] = [
-      { id: 1, fecha: '2026-08-20', tipoMovimiento: 'INV_INGRESO', cantidadKg: 300, alimento: 'POSTURA', referencia: 'OC-30' },
-      { id: 2, fecha: '2026-08-20', tipoMovimiento: 'INV_TRASLADO_ENTRADA', cantidadKg: 50, alimento: 'POSTURA', referencia: 'TR-40' }
-    ];
+    const movimientos: ResumenMovimientosAlimentoDia[] = [{
+      fecha: '2026-08-20',
+      ingresos: [
+        { id: 1, fecha: '2026-08-20', tipoMovimiento: 'INV_INGRESO', cantidadKg: 300, alimento: 'POSTURA', referencia: 'OC-30' }
+      ],
+      traslados: [
+        { id: 2, fecha: '2026-08-20', tipoMovimiento: 'INV_TRASLADO_ENTRADA', cantidadKg: 50, alimento: 'POSTURA', referencia: 'TR-40' }
+      ],
+      referencias: ['OC-30', 'TR-40']
+    }];
     component.movimientosAlimento = movimientos;
     fixture.detectChanges();
 

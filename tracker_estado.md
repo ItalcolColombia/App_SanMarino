@@ -9564,3 +9564,21 @@ Plan: [seguimiento_postura_alcance_inventario_alimento_plan.md](fase_de_desarrol
   1091/1091 tests verdes; puertos 5002/4200/9876 libres. Docker 28.1.1 está instalado, pero el
   daemon local no está activo, por lo que no fue posible construir las imágenes de contenedor.
 - [x] C1. Crear un commit exclusivo con la mejora validada.
+
+---
+
+## SEGUIMIENTO-POSTURA-MOVIMIENTOS-DESDE-BD — Levante y Producción (27-sep-2026)
+
+Plan: [seguimiento_postura_movimientos_alimento_desde_bd_plan.md](fase_de_desarrollo/seguimiento_postura_movimientos_alimento_desde_bd_plan.md)
+
+- [x] P1. Auditar funciones canónicas, endpoints y composición Angular de Levante/Producción.
+- [x] B1. Crear función SQL diaria compartida y migración EF idempotente.
+- [x] B2. Exponer contratos/endpoints diarios desde la función conservando compatibilidad plana.
+- [x] F1. Hacer que ambas grillas consuman el resumen diario sin agrupar movimientos en Angular.
+- [x] T1. Cubrir alcance silo/galpón/granja en la lógica pura y validar contrato diario, varios
+  movimientos, referencias y días sin seguimiento con pruebas backend/frontend.
+- [x] V1. Backend Release 0 errores/0 advertencias y 4567/4567 tests verdes; frontend producción
+  compilado y 1090/1090 tests verdes; EF sin cambios de modelo pendientes y gates SQL, seguridad,
+  superficie, change detection, inventario y caché verdes. Puertos 5002/4200/9876/5432/5433
+  libres; sin PostgreSQL/Docker local activo para ejecutar la función contra una BD real.
+- [x] C1. Crear commit exclusivo con la mejora validada.

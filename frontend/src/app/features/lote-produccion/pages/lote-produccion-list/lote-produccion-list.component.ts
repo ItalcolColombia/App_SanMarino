@@ -14,7 +14,7 @@ import { buscarRegistroPorId } from '../../funciones/filas-grilla-produccion.fun
 import { resumirGuardadoSeguimiento } from '../../funciones/resumen-guardado-seguimiento.funcion';
 import { CapturasPendientesLoteService } from '../../../../shared/offline/capturas-pendientes-lote.service';
 import type { CapturaPendienteResumen } from '../../../../shared/offline/models/outbox.model';
-import type { MovimientoAlimentoSeguimientoDto } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
+import type { ResumenMovimientosAlimentoDia } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import { finalize, map, tap } from 'rxjs/operators';
 
 import { GalponService } from '../../../galpon/services/galpon.service';
@@ -101,7 +101,7 @@ export class LoteProduccionListComponent implements OnInit {
   private allLotes: LoteDto[] = [];
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoItemDto[] = [];
-  movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
+  movimientosAlimento: ResumenMovimientosAlimentoDia[] = [];
 
   /**
    * Capturas de ESTE lote guardadas sin red y sin enviar. Va aparte de `seguimientos` a propósito:
@@ -552,7 +552,7 @@ export class LoteProduccionListComponent implements OnInit {
     });
 
     const loteMovimientosSolicitado = this.selectedLoteId;
-    this.produccionSvc.listarMovimientosAlimento(query).subscribe({
+    this.produccionSvc.listarMovimientosAlimentoDiarios(query).subscribe({
       next: response => {
         if (this.selectedLoteId === loteMovimientosSolicitado) this.movimientosAlimento = response ?? [];
       },

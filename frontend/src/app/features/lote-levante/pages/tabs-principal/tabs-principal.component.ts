@@ -18,7 +18,6 @@ import type {
   ResumenMovimientosAlimentoDia
 } from '../../../../shared/models/movimiento-alimento-seguimiento.model';
 import {
-  agruparMovimientosAlimentoPorDia,
   indexarMovimientosAlimentoPorDia,
   movimientosSinSeguimiento
 } from '../../../../shared/utils/movimientos-alimento-seguimiento.funcion';
@@ -125,7 +124,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
     this.observadorAnchoTabla.observe(elemento.nativeElement);
   }
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
-  @Input() movimientosAlimento: MovimientoAlimentoSeguimientoDto[] = [];
+  @Input() movimientosAlimento: ResumenMovimientosAlimentoDia[] = [];
 
   /**
    * Capturas de este lote guardadas sin red y todavía sin enviar. Entra como **input aparte** de
@@ -251,7 +250,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private recalcularMovimientosAlimento(): void {
-    const resumenes = agruparMovimientosAlimentoPorDia(this.movimientosAlimento);
+    const resumenes = this.movimientosAlimento ?? [];
     this.movimientosAlimentoPorFecha = indexarMovimientosAlimentoPorDia(resumenes);
     this.movimientosAlimentoSinSeguimiento = movimientosSinSeguimiento(
       resumenes,
