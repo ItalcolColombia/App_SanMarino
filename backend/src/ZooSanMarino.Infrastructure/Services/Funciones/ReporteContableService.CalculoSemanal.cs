@@ -214,13 +214,13 @@ public partial class ReporteContableService
                 queryProd = queryProd.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
 
             var produccionDiariaRaw = await queryProd
-                .Select(s => new { LoteId = s.LoteId, s.Fecha, MortalidadH = s.MortalidadH, MortalidadM = s.MortalidadM, SelH = s.SelH, ConsKgH = s.ConsKgH, ConsKgM = s.ConsKgM })
+                .Select(s => new { LoteId = s.LoteId, s.Fecha, MortalidadH = s.MortalidadH, MortalidadM = s.MortalidadM, SelH = s.SelH, SelM = s.SelM, ConsKgH = s.ConsKgH, ConsKgM = s.ConsKgM })
                 .ToListAsync(ct);
 
             if (produccionDiariaRaw.Any())
             {
                 datosProduccion = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(produccionDiariaRaw
-                    .Select(s => new SeguimientoProduccionContableFila(s.LoteId, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM)));
+                    .Select(s => new SeguimientoProduccionContableFila(s.LoteId, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.SelM, s.ConsKgH, s.ConsKgM)));
             }
             else
             {
@@ -242,6 +242,7 @@ public partial class ReporteContableService
                         MortalidadH = s.MortalidadHembras ?? 0,
                         MortalidadM = s.MortalidadMachos ?? 0,
                         SelH       = s.SelH ?? 0,
+                        SelM       = s.SelM ?? 0,
                         ConsKgH    = s.ConsumoKgHembras ?? 0m,
                         ConsKgM    = s.ConsumoKgMachos ?? 0m,
                         LoteIdStr  = s.LoteId
@@ -249,7 +250,7 @@ public partial class ReporteContableService
                     .ToListAsync(ct);
 
                 datosProduccion = ReporteContableSeguimientoDiaCalculos.AgruparProduccionPorLoteDia(datosProduccionRaw
-                    .Select(s => new SeguimientoProduccionContableFila(int.TryParse(s.LoteIdStr, out var id) ? id : 0, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM))
+                    .Select(s => new SeguimientoProduccionContableFila(int.TryParse(s.LoteIdStr, out var id) ? id : 0, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.SelM, s.ConsKgH, s.ConsKgM))
                     .Where(x => x.LoteId > 0));
             }
         }
@@ -329,7 +330,7 @@ public partial class ReporteContableService
                     MortalidadHembras = levante?.MortalidadHembras ?? produccion?.MortalidadH ?? 0,
                     MortalidadMachos = levante?.MortalidadMachos ?? produccion?.MortalidadM ?? 0,
                     SeleccionHembras = levante?.SelH ?? produccion?.SelH ?? 0,
-                    SeleccionMachos = levante?.SelM ?? 0,
+                    SeleccionMachos = levante?.SelM ?? produccion?.SelM ?? 0,
                     VentasHembras = ventasH,
                     VentasMachos = ventasM,
                     TrasladosHembras = trasladosH,
