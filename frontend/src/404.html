@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+  Estática a propósito: sin scripts y con rutas absolutas (se sirve en cualquier path).
+  Colores = tokens de la marca, copiados porque esta página vive fuera de Angular.
+  Por qué existe y quién la sirve: bloques 4 y 4b de frontend/nginx.conf (este comentario
+  viaja al navegador: los detalles quedan allá).
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Página no encontrada · ItalGranja</title>
+  <link rel="icon" type="image/png" href="/assets/brand/italcol-naraanja.png">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #FAFAF9;
+      color: #1c1917;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main {
+      max-width: 26rem;
+      margin: 1rem;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      background: #fff;
+      border-top: 4px solid #D2181E;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+    }
+    .codigo { margin: 0 0 .25rem; font-size: .875rem; font-weight: 600; letter-spacing: .08em; color: #57534e; }
+    h1 { margin: 0 0 .75rem; font-size: 1.375rem; }
+    p { margin: 0 0 1.5rem; line-height: 1.5; color: #44403c; }
+    a {
+      display: inline-block;
+      padding: .625rem 1.25rem;
+      border-radius: 8px;
+      background: #F5821F;
+      color: #1c1917;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    a:hover { background: #FBB040; }
+    a:focus-visible { outline: 3px solid #1c1917; outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="codigo">ERROR 404</p>
+    <h1>Esta página no existe</h1>
+    <p>La dirección que abriste no corresponde a ninguna pantalla de ItalGranja. Revisa el enlace o vuelve al inicio.</p>
+    <a href="/">Ir al inicio</a>
+  </main>
+</body>
+</html>

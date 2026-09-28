@@ -155,6 +155,16 @@ jobs:
         working-directory: backend
         run: node scripts/verificar-superficie-produccion.js
 
+      # Validación de seguridad sep-2026: `/env` (y cualquier ruta inventada) respondía 200 con el
+      # index.html del SPA. nginx ahora sirve el index SOLO para las rutas top-level del router y
+      # responde 404 al resto; la lista la genera el Dockerfile con scripts/rutas-spa-nginx.js.
+      # Esto corta ANTES de construir la imagen si el generador deja de entender app.config.ts, si
+      # una entrada por carga completa (correo, manifest, window.location) queda afuera, o si se
+      # descablea nginx.conf/Dockerfile/.dockerignore. Plan: fase_de_desarrollo/borde_rutas_spa_404_plan.md
+      - name: Gate — solo las rutas del router responden 200 en el borde
+        working-directory: frontend
+        run: node --test scripts/tests/rutas-spa-nginx.test.js
+
       # Compara las claves compartidas sin imprimirlas. JWT y DerivationKey pertenecen
       # solo al backend. Este gate local no certifica overrides/secretos efectivos de ECS.
       - name: Gate — contrato de seguridad frontend/backend de producción
@@ -501,7 +511,9 @@ jobs:
           check "chunk-inexistente.js -> 404"      "$H/chunk-inexistente.js"        "^HTTP/[0-9.]+ 404"
           check ".json inexistente -> 404"         "$H/no-existe-1234.json"         "^HTTP/[0-9.]+ 404"
           check ".webmanifest inexistente -> 404"  "$H/no-existe-1234.webmanifest"  "^HTTP/[0-9.]+ 404"
-          check "ruta del SPA -> 200"              "$H/lotes/detalle/9"             "^HTTP/[0-9.]+ 200"
+          # Ruta REAL del router con parámetro (hasta sep-2026 era /lotes/detalle/9, que el router no
+          # tiene: pasaba solo porque nginx devolvía el index a cualquier ruta. Ver C7).
+          check "ruta del SPA -> 200"              "$H/traslados-aves/historial/9"  "^HTTP/[0-9.]+ 200"
 
           echo "== C3: archivos de control con no-cache =="
           check "version.json -> no-cache"         "$H/version.json"            "^Cache-Control:.*no-cache"
@@ -543,19 +555,47 @@ jobs:
           check "/ -> recaptcha en frame-src"       "$H/"                       "frame-src[^;]*https://www\.google\.com/recaptcha/"
           [ -n "$JS" ] && check "$JS -> CSP"         "$H/$JS"                    "^Content-Security-Policy:"
           [ -n "$JS" ] && check "$JS -> HSTS"        "$H/$JS"                    "^Strict-Transport-Security:"
-          check "ruta del SPA -> CSP"               "$H/lotes/detalle/9"        "^Content-Security-Policy:"
+          check "ruta del SPA -> CSP"               "$H/traslados-aves/historial/9" "^Content-Security-Policy:"
 
           echo "== C6: archivos ocultos denegados en el borde =="
           # Hallazgo #3 de la auditoría externa de sep-2026: el analista probó .env, .git/config y
           # .aws/credentials y obtuvo 403 consistente. Ese 403 lo emite `location ~ /\. { deny all; }`
           # en nginx.conf (el WAF del ALB es la otra capa, y no se puede probar desde acá).
           # Sin este bloque, borrar esa `location` no rompe ningún test: los dotfiles pasarían a caer
-          # en el `try_files ... /index.html` del SPA y responderían 200 con el index — que no filtra
-          # nada hoy, pero convierte el "bloqueo deliberado" que le respondimos al analista en una
+          # en el bloque 4 de nginx.conf (antes de C7 respondían 200 con el index; hoy, 404) — que no
+          # filtra nada, pero convierte el "bloqueo deliberado" que le respondimos al analista en una
           # afirmación falsa, y deja el camino abierto el día que el build copie un archivo oculto.
           check ".env -> 403"                       "$H/.env"                   "^HTTP/[0-9.]+ 403"
           check ".git/config -> 403"                "$H/.git/config"            "^HTTP/[0-9.]+ 403"
           check ".aws/credentials -> 403"           "$H/.aws/credentials"       "^HTTP/[0-9.]+ 403"
+
+          echo "== C7: el index sale SOLO para rutas del router; lo inventado es 404 =="
+          # Validación de seguridad de producción, sep-2026: "Responde ELB de AWS, código 200 en
+          # /env". Era el index.html (mismo hash que /), no un archivo, pero una ruta que no existe
+          # no puede responder 200. nginx sirve el index solo para las rutas top-level que declara
+          # provideRouter (lista que el Dockerfile genera con scripts/rutas-spa-nginx.js) y responde
+          # 404.html al resto. Plan: fase_de_desarrollo/borde_rutas_spa_404_plan.md
+          for ruta in /env /environment /aws /actuator/env /swagger /server-status /backup \
+                      /no-existe-1234 /login/no-existe /config/database.yml; do
+            check "$ruta -> 404"                    "$H$ruta"                   "^HTTP/[0-9.]+ 404"
+          done
+          check "/env (404) -> CSP"                 "$H/env"                    "^Content-Security-Policy:"
+          check "/env (404) -> HSTS"                "$H/env"                    "^Strict-Transport-Security:"
+          check "/404.html pedido directo -> 404"   "$H/404.html"               "^HTTP/[0-9.]+ 404"
+          CUERPO_404=$(curl -s --max-time 10 "$H/env")
+          if echo "$CUERPO_404" | grep -q "<app-root"; then
+            echo "  FALLA /env devuelve el index del SPA en el cuerpo"; fallos=$((fallos+1))
+          elif ! echo "$CUERPO_404" | grep -q "ERROR 404"; then
+            echo "  FALLA /env no devuelve la página 404.html (¿salió del build?)"; fallos=$((fallos+1))
+          else
+            echo "  OK    /env devuelve 404.html, no el index del SPA"
+          fi
+          # La otra mitad: las entradas que llegan por carga completa siguen en 200 (correos:
+          # /login y /reset-password; manifest: /?fuente=pwa y los atajos; window.location: /home).
+          for ruta in / "/?fuente=pwa" /login "/reset-password?token=x" /home /diagnostico \
+                      /daily-log/seguimiento /config/users /indicador-ecuador/corridas; do
+            check "$ruta -> 200"                    "$H$ruta"                   "^HTTP/[0-9.]+ 200"
+          done
 
           docker logs front-check 2>&1 | tail -20 || true
           docker rm -f front-check >/dev/null 2>&1 || true

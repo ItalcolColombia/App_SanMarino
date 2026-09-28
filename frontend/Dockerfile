@@ -78,6 +78,7 @@ COPY src ./src
 # después dentro del RUN con un MODULE_NOT_FOUND. Ver frontend/.dockerignore.
 COPY scripts/build-version.js ./scripts/build-version.js
 COPY scripts/verificar-ngsw.js ./scripts/verificar-ngsw.js
+COPY scripts/rutas-spa-nginx.js ./scripts/rutas-spa-nginx.js
 
 # Build optimizado con variables de entorno
 ENV NODE_ENV=production
@@ -94,7 +95,15 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 # si alguno divergió. Sin este paso, el modo de falla es una imagen que se despliega
 # perfecto, arranca perfecto, y no funciona sin red en la granja — sin un solo error en
 # ningún log. Ya cazó un caso real (ver frontend/PWA.md).
-RUN node scripts/build-version.js prepare \
+#
+# `rutas-spa-nginx.js` corre PRIMERO (es lo más barato y corta antes del build largo):
+# genera la lista blanca de rutas del SPA desde src/app/app.config.ts. nginx sirve el
+# index.html solo para esas rutas y responde 404 al resto (hallazgo de seguridad
+# sep-2026: /env respondía 200). Generarla acá, y no tenerla a mano en el repo, es lo
+# que impide que una ruta nueva quede en 404 por olvido. Si no entiende las rutas,
+# falla con el motivo y la imagen no se construye.
+RUN node scripts/rutas-spa-nginx.js --salida /app/rutas-spa.conf \
+    && node scripts/build-version.js prepare \
     && yarn build --configuration docker \
     && node scripts/build-version.js emit \
     && node scripts/verificar-ngsw.js \
@@ -114,6 +123,10 @@ RUN apk add --no-cache curl \
 # no perder CSP/HSTS es repetirlos por location desde un archivo compartido.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx-security-headers.conf /etc/nginx/security-headers.conf
+# Lista blanca de rutas del SPA (generada en la etapa build). Va en /etc/nginx y no en
+# conf.d/: nginx.conf la incluye explícitamente, y el glob de conf.d/*.conf la cargaría
+# una segunda vez (variable $ruta_spa duplicada => nginx no arranca).
+COPY --from=build /app/rutas-spa.conf /etc/nginx/rutas-spa.conf
 
 # Copiar artefactos del build
 COPY --from=build /app/dist/browser /usr/share/nginx/html

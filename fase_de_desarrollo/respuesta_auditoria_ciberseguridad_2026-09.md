@@ -293,3 +293,51 @@ refactor distraído.
 - Una **cuenta de prueba de bajo privilegio** (para verificar la pared de 403 de DB Studio).
 - Acceso de lectura a la **consola de AWS WAF** (o el export del Web ACL) para el hallazgo 3.
 - Este documento.
+
+---
+
+## 7) `/env` (y cualquier ruta inventada) respondía `200` — validación de producción, 28-sep-2026
+
+### Qué se observó
+> "Responde ELB de AWS, código 200 en /env."
+
+### Qué era en realidad
+- **Ningún archivo.** Medido el 28-sep-2026 contra producción (solo status, tipo, tamaño y hash del
+  cuerpo): `/env`, `/environment`, `/aws`, `/config`, `/actuator/env`, `/swagger`, `/backup`,
+  `/server-status`, `/no-existe-1234` ⇒ `200 text/html`, 2234 B, **el mismo hash que `/`**: es el
+  `index.html` del SPA. Lo sensible de verdad ya respondía 403/404/401 (§1, §3).
+- **Causa:** el fallback del SPA en nginx (`try_files $uri $uri/ /index.html`) contestaba 200 a
+  **cualquier** ruta sin extensión.
+- **Aun así el punto es válido:** un 200 en una ruta inexistente hace que cada sonda de un escáner
+  parezca un hallazgo y le confirma al reconocimiento que "algo" responde en cualquier path.
+
+### Corrección
+- nginx sirve el `index.html` **solo** para las rutas top-level que declara el router de Angular; el
+  resto responde **404** (página estática `404.html`, con CSP/HSTS). La lista **se genera en cada
+  build** desde `src/app/app.config.ts` (`frontend/scripts/rutas-spa-nginx.js`): una ruta nueva no
+  puede quedar afuera por olvido, y si el generador no entiende las rutas, la imagen no se construye.
+- Gates: `node --test scripts/tests/rutas-spa-nginx.test.js` en el job `tests`, y el bloque **C7** del
+  gate del borde sobre la imagen ya construida, **antes** del push a ECR.
+- Plan: `borde_rutas_spa_404_plan.md`.
+
+### Cómo verificarlo (contra producción, después del deploy)
+```bash
+H=https://zootecnico.sanmarino.com.co
+for p in /env /environment /aws /actuator/env /swagger /backup /no-existe-1234; do
+  printf '%-18s ' "$p"; curl -s -o /dev/null -w '%{http_code}\n' "$H$p"
+done                                                                # → 404 en todas
+curl -s "$H/env" | grep -c '<app-root'                              # → 0: no es el index del SPA
+curl -s -o /dev/null -w '%{http_code}\n' "$H/login"                 # → 200
+curl -s -o /dev/null -w '%{http_code}\n' "$H/daily-log/seguimiento" # → 200
+```
+
+### ¿Se puede cerrar?
+**Sí, después del deploy**, adjuntando las salidas de arriba. Hasta que se despliegue, `/env` sigue
+respondiendo 200 con el `index.html` (sin exponer ningún archivo).
+
+### Riesgo residual (bajo, aceptado)
+- Las subrutas de un módulo real (`/config/<cualquier-cosa>`) siguen devolviendo el `index.html`: la
+  lista es por prefijo top-level, que es lo que se puede derivar sin reproducir el router de Angular
+  en el borde. Una sonda con extensión bajo esos prefijos (`/config/database.yml`) sí da 404.
+- `/health` responde `200 healthy`: lo usan los health checks del contenedor.
+- `/api/*` sin `X-Secret-Up` sigue en 401 uniforme (§1).

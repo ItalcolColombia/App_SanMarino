@@ -20,6 +20,9 @@
  *     4. `.webmanifest` con `Content-Type: application/manifest+json` — nginx no lo trae
  *        en su mime.types por defecto y sin ese tipo el navegador descarta el manifest
  *        en silencio y la app deja de ser instalable.
+ *     5. El index.html sale SOLO para las rutas que declara el router; cualquier otra
+ *        navegación es **404** con `404.html` (hallazgo de seguridad sep-2026: `/env`
+ *        respondía 200). La lista es la misma que genera `rutas-spa-nginx.js` para nginx.
  *
  * `localhost` cuenta como contexto seguro, así que el SW se registra sin HTTPS.
  *
@@ -29,9 +32,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { FUENTE_RUTAS, extraerRutasTopLevel, construirPatron, esRutaSpa } = require('./rutas-spa-nginx');
 
 const RAIZ = path.join(__dirname, '..', 'dist', 'browser');
 const PUERTO = Number(process.argv[2] || 4400);
+
+/** Rutas del SPA: la misma lista blanca que el Dockerfile le genera a nginx. */
+const RUTAS_SPA = construirPatron(extraerRutasTopLevel(fs.readFileSync(FUENTE_RUTAS, 'utf8'), FUENTE_RUTAS));
 
 /** Los 5 archivos de control: si se cachean, la PWA deja de poder actualizarse. */
 const SIN_CACHE = new Set([
@@ -118,7 +125,15 @@ const servidor = http.createServer((req, res) => {
     });
   }
 
-  // Navegación (path sin extensión) -> index.html
+  // Navegación a una ruta que el router no declara -> 404, nunca el index (nginx: bloque 4).
+  if (!esRutaSpa(rutaUrl, RUTAS_SPA)) {
+    const pagina404 = path.join(RAIZ, '404.html');
+    return fs.existsSync(pagina404)
+      ? enviar(res, 404, fs.readFileSync(pagina404), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+      : enviar(res, 404, 'Not Found', { 'Content-Type': 'text/plain', 'Cache-Control': 'no-cache' });
+  }
+
+  // Navegación a una ruta del SPA -> index.html
   const index = path.join(RAIZ, 'index.html');
   if (!fs.existsSync(index)) {
     return enviar(res, 500, 'Falta dist/browser/index.html. ¿Corriste yarn build?', {
@@ -130,5 +145,5 @@ const servidor = http.createServer((req, res) => {
 
 servidor.listen(PUERTO, () => {
   console.log(`[servir-pwa-local] http://localhost:${PUERTO}  (raíz: ${RAIZ})`);
-  console.log('[servir-pwa-local] Reglas de nginx replicadas: no-cache de control, 404 de assets, fallback solo en navegaciones.');
+  console.log('[servir-pwa-local] Reglas de nginx replicadas: no-cache de control, 404 de assets, index solo para rutas del router.');
 });

@@ -9631,13 +9631,20 @@ Validación de seguridad de producción: `/env` (y cualquier ruta inventada) res
 `index.html` del SPA (fallback de nginx). No filtra archivos, pero una ruta inexistente tiene que dar 404.
 
 - [x] P1. Diagnóstico en vivo (solo lectura) + plan: lista blanca top-level generada desde `app.config.ts`.
-- [ ] B1. `frontend/scripts/rutas-spa-nginx.js`: generador fail-closed (compilador TS) + `map $uri $ruta_spa`.
-- [ ] B2. `nginx.conf`: include + `if ($ruta_spa = 0) { return 404; }` + `404.html` interna.
-- [ ] B3. Dockerfile + `.dockerignore`: generar en el build y copiar al runtime.
-- [ ] B4. `src/404.html` + `angular.json` assets; `servir-pwa-local.js` replica la regla.
-- [ ] T1. `scripts/tests/rutas-spa-nginx.test.js` (`node --test`) + gate en el job `tests`.
-- [ ] T2. Gate del borde: ruta del SPA real + bloque C7 (sondas → 404 sin index; entradas reales → 200).
-- [ ] V1. `yarn build` + `node --test` + replica local contra `dist/browser`.
-- [ ] V2. nginx real (`nginx:1.27-alpine`) con el script del gate del borde (C2–C7) + prueba negativa.
-- [ ] D1. Sección del hallazgo en `respuesta_auditoria_ciberseguridad_2026-09.md`.
-- [ ] C1. Commit exclusivo de estos archivos (sin el bloque ni los archivos de otras sesiones).
+- [x] B1. `frontend/scripts/rutas-spa-nginx.js`: generador fail-closed (compilador TS) + `map $uri $ruta_spa`.
+  39 rutas top-level (15 exactas + 24 con subrutas) + la raíz.
+- [x] B2. `nginx.conf`: include + `if ($ruta_spa = 0) { return 404; }` + `404.html` interna.
+- [x] B3. Dockerfile + `.dockerignore`: generar en el build y copiar al runtime.
+- [x] B4. `src/404.html` + `angular.json` assets; `servir-pwa-local.js` replica la regla.
+- [x] T1. `scripts/tests/rutas-spa-nginx.test.js` (`node --test`, 11/11) + gate en el job `tests`.
+  9 mutaciones (sin `if`, sin include, sin COPY, sin `.dockerignore`, todo prefijo, sin regla del
+  punto, parámetro top-level, 404 fuera del build, 404 con script): las 9 las caza.
+- [x] T2. Gate del borde: ruta del SPA real + bloque C7 (sondas → 404 sin index; entradas reales → 200).
+- [x] V1. `yarn build` + `node --test` + replica local contra `dist/browser`.
+  Build 0 errores, `404.html` copiado idéntico; réplica: sondas 404 con `404.html`, entradas reales 200.
+- [x] V2. nginx real (`nginx:1.27-alpine`) con el script del gate del borde (C2–C7) + prueba negativa.
+  `nginx -t` OK y el gate del workflow, tal cual, «Borde OK». Sin el `if`: 11 criterios en FALLA y
+  «No se publica». Extra: `/config/.env` 403, `/assets` 404, `/ENV` y `//env` 404, assets reales 200.
+- [x] D1. Sección del hallazgo en `respuesta_auditoria_ciberseguridad_2026-09.md` (§7).
+- [x] C1. Commit exclusivo de estos archivos (sin el bloque ni los archivos de otras sesiones).
+- [ ] D2. Deploy (push a `main-produccion`) con OK explícito + verificación post-deploy en producción.
