@@ -64,6 +64,12 @@ env:
 # =============================================================================
 
 jobs:
+  # Runner fijo en ubuntu-24.04 (los tres jobs), no ubuntu-latest: GitHub mueve ese label a Ubuntu 26
+  # entre el 19-oct y el 19-nov-2026 (actions/runner-images#14748), y este workflow depende de lo que
+  # trae la imagen: Chrome en /usr/bin/google-chrome (Karma), docker, aws, jq, curl y el node del
+  # sistema (deploy-backend no usa setup-node). Pasar a Ubuntu 26 es una decisión deliberada y probada
+  # en un run, no un cambio silencioso del label.
+
   # ===========================================================================
   # JOB 0 — Gate de tests: NADA se despliega si los tests no pasan
   # ===========================================================================
@@ -77,7 +83,7 @@ jobs:
   # test para lo que se tocó, se escribe antes de mergear.
   tests:
     name: "Tests — Backend & Frontend"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
@@ -95,7 +101,7 @@ jobs:
         run: dotnet test --configuration Release --logger "console;verbosity=normal"
 
       # ── Frontend: Karma + Jasmine sobre Chrome headless ─────────────────────
-      # ubuntu-latest trae Google Chrome preinstalado; karma-chrome-launcher lo
+      # ubuntu-24.04 trae Google Chrome preinstalado; karma-chrome-launcher lo
       # localiza vía CHROME_BIN.
       - name: Configurar Node 22
         uses: actions/setup-node@v7
@@ -181,7 +187,7 @@ jobs:
   # ===========================================================================
   deploy-backend:
     name: "Backend — Build & Deploy"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [tests]
     if: |
       github.event_name == 'push' ||
@@ -364,7 +370,7 @@ jobs:
   # ===========================================================================
   deploy-frontend:
     name: "Frontend — Build & Deploy"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # El frontend se despliega DESPUÉS del backend, nunca en paralelo.
     # Si sale primero, los clientes quedan con un bundle que le habla a un backend que
     # todavía no tiene los endpoints nuevos. Hoy esa ventana dura minutos; con un Service

@@ -9669,3 +9669,48 @@ Validación de seguridad de producción: `/env` (y cualquier ruta inventada) res
   «Tests del backend» (CS1729: los tests de reporte contable de "orueba fubak" subieron sin su
   implementación, que está en `3e81774`, todavía sin push). Deploys skipped: prod sigue en el build
   del 25-sep y `/env` todavía da 200. Falta: push de `main` + PR nuevo + verificar `/env` → 404.
+
+---
+
+## RUTAS-ENMASCARADAS — el borde solo sirve las entradas públicas y la barra no muestra rutas internas (28-sep-2026)
+
+Plan: [rutas_enmascaradas_solo_login_publico_plan.md](fase_de_desarrollo/rutas_enmascaradas_solo_login_publico_plan.md)
+
+Pedido del usuario tras el deploy de `/env` → 404: que solo el login sea público y que las rutas se
+enmascaren. Hoy las 39 rutas top-level dan 200 a un anónimo (se pueden enumerar) y la barra muestra
+la ruta interna.
+
+- [x] P1. Diagnóstico (prod medido 16:13Z) + lectura del router v22.0.5 (`setBrowserUrl`, `initialNavigation`) + plan.
+- [ ] F1. `core/navegacion/rutas-publicas.ts` + `funciones/ruta-enmascarada.funcion.ts` (puras) + README + spec.
+- [ ] F2. `RutaEnmascaradaLocationStrategy` + spec de integración (Router real + `MockPlatformLocation`).
+  28-sep: F1 y F2 ESCRITOS pero SIN correr, guardados en la rama `wip/rutas-enmascaradas` (`c414b2a`),
+  fuera de `main` a propósito: specs sin correr en `main` podrían cortar el gate de CI. Karma no arrancó:
+  el Node del PATH es v22.15.0 y Angular CLI pide >= 22.22.3 (usar el Node portable).
+  Para retomar: `git checkout wip/rutas-enmascaradas -- frontend/src/app/core/navegacion`.
+- [ ] F3. `app.config.ts`: provider + raíz con `redirigirDesdeLaRaiz` (`/?ir=`).
+- [ ] F4. Entradas por carga completa: login `'/'`, `href` de Diagnóstico ×3, atajos del manifest.
+- [ ] B1. `rutas-spa-nginx.js`: lista blanca = raíz + `RUTAS_PUBLICAS` (fail-closed contra el router).
+- [ ] B2. `rutas-spa-nginx.test.js` (borde, fail-closed, `href`/manifest) + `servir-pwa-local.js` + comentarios de `nginx.conf`.
+- [ ] K1. Backend: `TicketEmailTemplates` → `/?ir=tickets` + test xUnit.
+- [ ] G1. Gate del borde (`deploy-production.yml`): C2/C5 con `/login`; C7 internas → 404, entradas → 200.
+- [ ] V1. `node --test` + Karma (specs nuevos y suite) + `yarn build` + `dotnet build`/`dotnet test`.
+- [ ] V2. Navegador sobre el build de producción (`servir-pwa-local.js`): 404/200, `?ir=`, F5, atrás/adelante.
+- [ ] C1. Commit exclusivo de estos archivos.
+- [ ] D1. Deploy con OK explícito + verificación en producción (`/config` → 404, `/login` → 200).
+
+---
+
+## CI-RUNNER-UBUNTU-24.04 — fijar el runner del deploy antes de que `ubuntu-latest` pase a Ubuntu 26 (28-sep-2026)
+
+Plan: [ci_runner_ubuntu_2404_fijo_plan.md](fase_de_desarrollo/ci_runner_ubuntu_2404_fijo_plan.md)
+
+Aviso de GitHub en el run 36446721389: `ubuntu-latest` migra a Ubuntu 26 entre el 19-oct y el
+19-nov-2026 (actions/runner-images#14748). El pipeline usa Chrome, docker y node que trae la imagen.
+
+- [x] P1. Plan + diagnóstico: único workflow `deploy-production.yml`; sus 3 jobs en `ubuntu-latest`.
+- [x] B1. `runs-on: ubuntu-24.04` en `tests`, `deploy-backend` y `deploy-frontend` + comentario del porqué.
+- [x] V1. YAML parsea (estricto) antes/después; única diferencia = los 3 `runs-on`; trigger, sin dorny,
+  `wait-for-minutes: 25`, `needs` y pasos del gate intactos. Control negativo: el validador caza la regresión.
+- [x] C1. Commit exclusivo de estos archivos en `main` (sin push).
+- [ ] D1. Validación real en el próximo run de «Deploy to Production» (merge a `main-produccion`):
+  `Image: ubuntu-24.04` en los 3 jobs y gate + deploys en verde.
