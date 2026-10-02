@@ -116,7 +116,9 @@ public partial class TicketService
 
     public async Task<TicketAdjuntoDto?> AddDocumentoAsync(long ticketId, AddTicketDocumentoRequest req, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(req.Base64))
+        // Base64 puro: el form de creación manda la data URL completa y la descarga salía dañada.
+        var contenido = TicketAdjuntoCalculos.NormalizarBase64(req.Base64);
+        if (contenido.Length == 0)
             throw new InvalidOperationException("El archivo está vacío.");
 
         var exists = await _ctx.Tickets.AsNoTracking()
@@ -127,7 +129,7 @@ public partial class TicketService
         {
             TicketId        = ticketId,
             Tipo            = TicketAdjuntoTipos.Archivo,
-            ContenidoBase64 = req.Base64,
+            ContenidoBase64 = contenido,
             FileName        = req.FileName,
             ContentType     = req.ContentType,
             SizeBytes       = req.SizeBytes,
@@ -172,12 +174,15 @@ public partial class TicketService
 
     public async Task<TicketDocumentoDto?> GetDocumentoAsync(long ticketId, long adjuntoId, CancellationToken ct)
     {
-        return await _ctx.TicketAdjuntos.AsNoTracking()
+        var doc = await _ctx.TicketAdjuntos.AsNoTracking()
             .Where(a => a.Id == adjuntoId && a.TicketId == ticketId
                         && a.Tipo == TicketAdjuntoTipos.Archivo
                         && a.Ticket!.DeletedAt == null)
             .Select(a => new TicketDocumentoDto(a.Id, a.ContenidoBase64!, a.ContentType, a.FileName))
             .FirstOrDefaultAsync(ct);
+
+        // Filas viejas se guardaron con prefijo data URL: se sirven limpias sin backfill.
+        return doc is null ? null : doc with { ContenidoBase64 = TicketAdjuntoCalculos.NormalizarBase64(doc.ContenidoBase64) };
     }
 
     public async Task<bool> DeleteAdjuntoAsync(long ticketId, long adjuntoId, CancellationToken ct)

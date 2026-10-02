@@ -6,6 +6,7 @@ import {
 
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { base64Puro } from '../../funciones/base64-a-blob.funcion';
 
 export interface AdjuntoArchivoStaged {
   base64: string;
@@ -329,7 +330,8 @@ export class TicketAdjuntosInputComponent implements OnDestroy {
   private fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      // El backend guarda base64 PURO (sin prefijo data URL), igual que el detalle del ticket.
+      reader.onload = () => resolve(base64Puro(reader.result as string));
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });

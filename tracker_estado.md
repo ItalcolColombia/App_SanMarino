@@ -9714,3 +9714,14 @@ Aviso de GitHub en el run 36446721389: `ubuntu-latest` migra a Ubuntu 26 entre e
 - [x] C1. Commit exclusivo de estos archivos en `main` (sin push).
 - [ ] D1. Validación real en el próximo run de «Deploy to Production» (merge a `main-produccion`):
   `Image: ubuntu-24.04` en los 3 jobs y gate + deploys en verde.
+
+---
+
+## Tickets — descarga de adjuntos dañada (30-sep-2026)
+Plan: [fase_de_desarrollo/tickets_descarga_adjuntos_danados_plan.md](fase_de_desarrollo/tickets_descarga_adjuntos_danados_plan.md)
+
+- [x] Back: `TicketAdjuntoCalculos.NormalizarBase64` + tests xUnit (11/11 verdes)
+- [x] Back: normalizar al escribir y al leer en `TicketService.Adjuntos`
+- [x] Front: `ticket-adjuntos-input` envía base64 puro
+- [x] Front: descarga por `Blob` + `createObjectURL` (función pura `base64-a-blob`)
+- [i] Validación completa NO corrida por decisión del usuario (02-oct): `dotnet build` completo, `yarn build` y spec del front pendientes; el gate del CI los corre.

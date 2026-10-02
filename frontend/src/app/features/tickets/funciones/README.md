@@ -9,6 +9,7 @@ se ocupan de la red y de la UI (patrón canónico del repo: `features/movimiento
 | Archivo | Qué resuelve |
 |---|---|
 | `estado-resolutores.funcion.ts` | De las filas de resolutor que devuelve el backend al estado del editor (un toggle y un alcance por tipo) y al resumen «qué atiende hoy». La regla que sostiene: una fila **GLOBAL** manda sobre la de empresa del mismo tipo, y un alcance ausente o desconocido cuenta como EMPRESA. |
+| `base64-a-blob.funcion.ts` | Contenido de un documento adjunto: quita el prefijo de data URL (`base64Puro`) y lo decodifica a `Blob` para descargarlo (`base64ABlob`). Espejo de `Application/Calculos/TicketAdjuntoCalculos` del backend. |
 
 **Reutilización:** la decisión de fondo (a qué tickets aplica una fila, quién puede marcar GLOBAL) vive en
 el backend, en `Application/Calculos/TicketResolutorAlcanceCalculos` y

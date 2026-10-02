@@ -24,6 +24,7 @@ import { WorklogPanelComponent } from '../../components/worklog-panel/worklog-pa
 import { OpcionAsignable } from '../../components/tarea-modal/tarea-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { base64ABlob } from '../../funciones/base64-a-blob.funcion';
 
 /**
  * Pestañas de la columna del caso. La conversación NO es una pestaña: vive en su propia
@@ -359,12 +360,21 @@ export class TicketDetalleComponent implements OnInit {
     if (adj.tipo === 'LINK') { if (adj.url) window.open(adj.url, '_blank', 'noopener'); return; }
     this.svc.descargarDocumento(this.id, adj.id).subscribe({
       next: doc => {
+        // Blob + object URL: la data URL se rompía con archivos de varios MB.
+        let url: string;
+        try {
+          url = URL.createObjectURL(base64ABlob(doc.contenidoBase64, doc.contentType || adj.contentType));
+        } catch {
+          this.toast.error('El documento está dañado y no se puede abrir.');
+          return;
+        }
         const a = document.createElement('a');
-        a.href = `data:${doc.contentType || 'application/octet-stream'};base64,${doc.contenidoBase64}`;
+        a.href = url;
         a.download = doc.fileName || adj.fileName || 'documento';
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
       },
       error: () => this.toast.error('No se pudo descargar el documento.'),
     });
