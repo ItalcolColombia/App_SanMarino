@@ -9741,4 +9741,5 @@ Plan: [fase_de_desarrollo/levante_hasta_semana_por_empresa_plan.md](fase_de_desa
 - [x] `dotnet build` + `dotnet test` + `yarn build`
 - [x] DDL validado en local en transacción con rollback (idempotente; 5/5 empresas quedan en NULL = sin cambios)
 - [x] Tests: backend 4589/4589 (7 nuevos de `LevanteSemanaLimiteCalculosTests`), front specs 20/20, `yarn build` OK
-- [ ] Smoke en pantalla: la BD local tiene 5 migraciones AJENAS pendientes (20260923…–20260927…); no se aplicaron sin OK. Tras aplicarlas: configurar 25 en Empresas y probar semana 25 (pasa) / 26 (400)
+- [x] Migraciones aplicadas en `sanmarinoapplocal` (02-oct, con OK del usuario): las 5 ajenas pendientes + `AddLevanteHastaSemana`
+- [x] Smoke HTTP real (backend aislado :5501 sobre clon descartable, lote 147 Sanmarino, encaset 23-jul): límite 10 → POST 01-oct (sem 11) **400** con el mensaje; POST 30-sep (último día sem 10) **201**; sin límite → POST 02-oct **201**; PUT sin cambiar fecha fuera de límite **200**; PUT moviendo 30-sep→01-oct **400**. Empresas: PUT 25 → BD 25, `null` conserva, `0` borra → NULL. Clon borrado, puerto libre, BD compartida sin datos de smoke (0 empresas con límite)
