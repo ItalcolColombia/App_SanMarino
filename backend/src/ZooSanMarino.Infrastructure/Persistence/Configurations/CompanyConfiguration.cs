@@ -156,6 +156,11 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.HuevosLevanteDesdeSemana)
             .HasColumnName("huevos_levante_desde_semana");
 
+        // Parámetro operativo: última semana de vida del lote con seguimiento diario de LEVANTE.
+        // Null = sin límite (comportamiento de siempre).
+        builder.Property(x => x.LevanteHastaSemana)
+            .HasColumnName("levante_hasta_semana");
+
         // Parámetro operativo: semana de vida desde la que arrancan los indicadores de producción.
         // El DEFAULT 25 es el número que estuvo hardcodeado en fn_indicadores_produccion_postura,
         // así que una empresa que no lo toque se comporta igual que antes.

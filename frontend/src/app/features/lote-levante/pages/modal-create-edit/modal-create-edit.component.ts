@@ -52,6 +52,12 @@ import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
 import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
 import {
+  fechaLimiteLevante,
+  maxFechaRegistroLevante,
+  mensajeLevanteFueraDeLimite,
+  permiteRegistroLevante
+} from '../../funciones/levante-hasta-semana.funcion';
+import {
   ModoHuevosLevante,
   resolverModoHuevosLevante,
   mostrarTabHuevosLevante,
@@ -260,6 +266,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   fechaRegistroMin: string | null = '';
   fechaRegistroMax = '';
   fechaRegistroHint = '';
+  /** `max` de la ventana de fechas antes de aplicar el límite de semanas del levante. */
+  private fechaRegistroMaxVentana = '';
+
+  /** Flag de empresa `levante_hasta_semana`: última semana de vida con seguimiento diario. `null` = sin límite. */
+  levanteHastaSemana: number | null = null;
+  /** Último día permitido para este lote (`yyyy-MM-dd`), o `null` sin límite / sin encaset. */
+  fechaLimiteLevante: string | null = null;
 
   constructor(private toast: ToastService,
     private confirmDialog: ConfirmDialogService,
@@ -281,8 +294,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const hoy = new Date();
     const extremos = extremosVentanaRegistro(hoy, puedeRetroactivar);
     this.fechaRegistroMin = extremos.min;
-    this.fechaRegistroMax = extremos.max;
+    this.fechaRegistroMaxVentana = extremos.max;
     this.fechaRegistroHint = hintVentanaFechaRegistro(hoy, puedeRetroactivar);
+    this.aplicarLimiteLevante();
+  }
+
+  /** Recorta el `max` de la fecha al último día del levante (flag de empresa + encaset del lote). */
+  private aplicarLimiteLevante(): void {
+    this.fechaLimiteLevante = fechaLimiteLevante(this.fechaEncaset, this.levanteHastaSemana);
+    this.fechaRegistroMax = maxFechaRegistroLevante(this.fechaRegistroMaxVentana, this.fechaLimiteLevante);
   }
 
   /** Opciones de "Tipo de ítem": en Ecuador/Panamá son los conceptos de item_inventario_ecuador; si no, la lista fija. */
@@ -390,6 +410,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     // Flag de empresa (llega async; fail-closed mientras no responda).
     this.flagsSubscription = this.companyConfig.getFlags().subscribe(flags => {
+      // Límite de semanas del levante: se resuelve antes de cualquier corte temprano de abajo.
+      if (this.levanteHastaSemana !== flags.levanteHastaSemana) {
+        this.levanteHastaSemana = flags.levanteHastaSemana;
+        this.aplicarLimiteLevante();
+      }
       // El silo se resuelve ANTES del corte de abajo: ese `return` mira solo el flag de huevos, y
       // colgar de él la lectura del silo dejaría la pantalla sin selector en media empresa.
       if (this.manejaPorSilo !== flags.manejaInventarioPorSilo) {
@@ -573,6 +598,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (changes['isOpen']?.currentValue === true) {
       this.levanteTab = 'general';
     }
+    // El encaset llega por @Input (cambia con el lote): el último día del levante se recalcula.
+    this.aplicarLimiteLevante();
     // Evitar repoblar al cambiar solo lotes/loading (borraría lo que el usuario editó en el modal)
     if (!changes['isOpen'] && !changes['editing']) return;
 
@@ -2622,6 +2649,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      return;
+    }
+
+    // Límite de semanas del levante (el backend es el autoritativo). En edición sin cambiar la fecha
+    // se deja pasar, igual que el backend: corregir una fila vieja no la mueve fuera de la ventana.
+    const fechaForm = this.form.get('fechaRegistro')?.value ?? null;
+    const fechaSinCambios = !!this.editing && this.toYMD(this.editing.fechaRegistro) === fechaForm;
+    if (!fechaSinCambios && this.fechaLimiteLevante && this.levanteHastaSemana != null
+        && !permiteRegistroLevante(this.fechaEncaset, fechaForm, this.levanteHastaSemana)) {
+      this.levanteTab = 'general';
+      this.toast.error(
+        mensajeLevanteFueraDeLimite(this.levanteHastaSemana, this.fechaLimiteLevante, semanaVidaLevante(this.fechaEncaset, fechaForm)),
+        'Levante fuera de límite');
       return;
     }
 

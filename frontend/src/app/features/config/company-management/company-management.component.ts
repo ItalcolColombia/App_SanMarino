@@ -228,7 +228,9 @@ export class CompanyManagementComponent implements OnInit {
       // Última semana con huevo de primera postura habilitado. Vacío = la empresa no usa el concepto.
       huevoPrimeraPosturaHastaSemana: [null, [Validators.min(1), Validators.max(60)]],
       // Semana de vida desde la que el levante captura huevos. Vacío = desde el encaset.
-      huevosLevanteDesdeSemana: [null, [Validators.min(1), Validators.max(140)]]
+      huevosLevanteDesdeSemana: [null, [Validators.min(1), Validators.max(140)]],
+      // Última semana de vida con seguimiento diario de levante. Vacío = sin límite.
+      levanteHastaSemana: [null, [Validators.min(1), Validators.max(60)]]
     });
 
     this.mlSvc.getByKey('type_identit').subscribe({
@@ -414,6 +416,7 @@ export class CompanyManagementComponent implements OnInit {
         country: '', state: '', city: '', mobileAccess: false, diasAlimentoPrevioEncaset: 10,
         huevoPrimeraPosturaHastaSemana: null,
         huevosLevanteDesdeSemana: null,
+        levanteHastaSemana: null,
         ...valoresDeFlags(null)
       });
       this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
@@ -440,6 +443,7 @@ export class CompanyManagementComponent implements OnInit {
       diasAlimentoPrevioEncaset: c.diasAlimentoPrevioEncaset ?? 10,
       huevoPrimeraPosturaHastaSemana: c.huevoPrimeraPosturaHastaSemana ?? null,
       huevosLevanteDesdeSemana: c.huevosLevanteDesdeSemana ?? null,
+      levanteHastaSemana: c.levanteHastaSemana ?? null,
       ...valoresDeFlags(c as unknown as Record<string, unknown>)
     });
 
@@ -500,6 +504,7 @@ export class CompanyManagementComponent implements OnInit {
       // y el campo quedó vacío. Al crear no aplica (ver resolverSemanaOpcionalParaGuardar).
       huevoPrimeraPosturaHastaSemana: resolverSemanaOpcionalParaGuardar(v.huevoPrimeraPosturaHastaSemana, !!this.editing),
       huevosLevanteDesdeSemana: resolverSemanaOpcionalParaGuardar(v.huevosLevanteDesdeSemana, !!this.editing),
+      levanteHastaSemana: resolverSemanaOpcionalParaGuardar(v.levanteHastaSemana, !!this.editing),
       // Los flags viajan SIEMPRE con su valor booleano. Mandar solo los encendidos haría que
       // apagar uno no llegara al backend (que interpreta la ausencia como «no lo toques»).
       ...flagsDelFormulario(v as Record<string, unknown>),

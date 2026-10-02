@@ -116,6 +116,29 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     }
 
     /// <summary>
+    /// Límite de semanas del levante (<c>companies.levante_hasta_semana</c>): rechaza un registro
+    /// cuya fecha cae después del último día de la semana configurada, para forzar el cierre del lote.
+    /// <para>
+    /// Empresa efectiva <b>por datos</b> (<c>farms.company_id</c> de la granja del lote), como el gate
+    /// de huevos. Sin límite configurado, granja no resoluble o sin fecha de encaset ⇒ no restringe:
+    /// idéntico a antes.
+    /// </para>
+    /// </summary>
+    private async Task EnsureDentroDeSemanaLimiteLevanteAsync(Lote lote, DateTime fechaRegistro, CancellationToken ct = default)
+    {
+        if (!lote.FechaEncaset.HasValue) return;
+
+        var hastaSemana = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == lote.GranjaId)
+            .Join(_ctx.Companies.AsNoTracking(), f => f.CompanyId, c => c.Id, (f, c) => c.LevanteHastaSemana)
+            .FirstOrDefaultAsync(ct);
+
+        if (!LevanteSemanaLimiteCalculos.PermiteRegistro(lote.FechaEncaset, fechaRegistro, hastaSemana))
+            throw new InvalidOperationException(
+                LevanteSemanaLimiteCalculos.Mensaje(hastaSemana!.Value, lote.FechaEncaset.Value, fechaRegistro));
+    }
+
+    /// <summary>
     /// Aplica el gate de captura de huevos en levante sobre el DTO entrante y devuelve el DTO ya
     /// saneado:
     /// <list type="bullet">

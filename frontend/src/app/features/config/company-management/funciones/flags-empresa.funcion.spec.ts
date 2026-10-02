@@ -46,6 +46,7 @@ describe('flags-empresa (catálogo de flags por empresa)', () => {
     separaLotesPosturaPorEtapa: false,
     huevoPrimeraPosturaHastaSemana: null,
     huevosLevanteDesdeSemana: null,
+    levanteHastaSemana: null,
     permiteMultiplesSeguimientosDiarios: false,
     permiteSeguimientoDiarioParcial: false,
     guiaGeneticaPerfil: 'sanmarino'

@@ -298,6 +298,13 @@ namespace ZooSanMarino.Domain.Entities
         public int? HuevosLevanteDesdeSemana { get; set; }
 
         /// <summary>
+        /// Última semana de vida del lote que admite seguimiento diario de LEVANTE: se registra hasta el
+        /// último día de esa semana y desde la siguiente el backend rechaza el registro, para forzar el
+        /// cierre del lote. <c>null</c> (default) = sin límite, el comportamiento de siempre.
+        /// </summary>
+        public int? LevanteHastaSemana { get; set; }
+
+        /// <summary>
         /// Semana de VIDA desde la que los indicadores de producción muestran datos.
         /// <c>25</c> (default) = el valor que estuvo hardcodeado en
         /// <c>fn_indicadores_produccion_postura</c> hasta el 30-ago-2026, o sea el comportamiento

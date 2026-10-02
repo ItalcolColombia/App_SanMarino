@@ -9725,3 +9725,20 @@ Plan: [fase_de_desarrollo/tickets_descarga_adjuntos_danados_plan.md](fase_de_des
 - [x] Front: `ticket-adjuntos-input` envía base64 puro
 - [x] Front: descarga por `Blob` + `createObjectURL` (función pura `base64-a-blob`)
 - [i] Validación completa NO corrida por decisión del usuario (02-oct): `dotnet build` completo, `yarn build` y spec del front pendientes; el gate del CI los corre.
+
+---
+
+## LEVANTE-HASTA-SEMANA — límite de semanas del seguimiento de levante por empresa (02-oct-2026)
+
+Plan: [fase_de_desarrollo/levante_hasta_semana_por_empresa_plan.md](fase_de_desarrollo/levante_hasta_semana_por_empresa_plan.md)
+
+- [x] Cálculo puro `LevanteSemanaLimiteCalculos` + tests xUnit
+- [x] Columna `companies.levante_hasta_semana` (entidad, configuración, migración idempotente + snapshot)
+- [x] DTOs + todas las proyecciones (`ToDto`, `Crud` con sentinel 0, `CompanyResolver` ×2, `CompanyPaisService`)
+- [x] Gate en `SeguimientoLoteLevanteService` (Create + Update si cambia la fecha)
+- [x] Front: campo en Configuración → Empresas + `ActiveCompanyConfigService`
+- [x] Front: modal de seguimiento de levante (max de fecha, hint, guard en `onSave`)
+- [x] `dotnet build` + `dotnet test` + `yarn build`
+- [x] DDL validado en local en transacción con rollback (idempotente; 5/5 empresas quedan en NULL = sin cambios)
+- [x] Tests: backend 4589/4589 (7 nuevos de `LevanteSemanaLimiteCalculosTests`), front specs 20/20, `yarn build` OK
+- [ ] Smoke en pantalla: la BD local tiene 5 migraciones AJENAS pendientes (20260923…–20260927…); no se aplicaron sin OK. Tras aplicarlas: configurar 25 en Empresas y probar semana 25 (pasa) / 26 (400)

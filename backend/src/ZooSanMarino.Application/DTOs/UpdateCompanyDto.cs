@@ -92,5 +92,9 @@ public record UpdateCompanyDto(
     int?     HuevosLevanteDesdeSemana           = null,
     /// <summary>En Levante y Producción, ningún campo del seguimiento diario es obligatorio. `null` =
     /// omitido, conserva el valor actual. Enviar <c>false</c> explícito sigue apagando el flag.</summary>
-    bool?    PermiteSeguimientoDiarioParcial    = null
+    bool?    PermiteSeguimientoDiarioParcial    = null,
+    /// <summary>Última semana de vida del lote que admite seguimiento diario de LEVANTE. `null` = omitido,
+    /// conserva el valor actual; <c>0</c> = sentinel de borrado explícito (vuelve a `null`, sin límite) —
+    /// ver <c>ParametroEmpresaOpcionalCalculos</c>.</summary>
+    int?     LevanteHastaSemana                 = null
 );

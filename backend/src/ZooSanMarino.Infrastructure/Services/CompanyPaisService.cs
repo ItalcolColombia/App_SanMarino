@@ -138,7 +138,8 @@ public class CompanyPaisService : ICompanyPaisService
             SemanaInicioIndicadoresProduccion: cp.Company.SemanaInicioIndicadoresProduccion,
             VentaEngordePesoNetoUnico: cp.Company.VentaEngordePesoNetoUnico,
             HuevosLevanteDesdeSemana: cp.Company.HuevosLevanteDesdeSemana,
-            PermiteSeguimientoDiarioParcial: cp.Company.PermiteSeguimientoDiarioParcial
+            PermiteSeguimientoDiarioParcial: cp.Company.PermiteSeguimientoDiarioParcial,
+            LevanteHastaSemana: cp.Company.LevanteHastaSemana
         )).ToList();
     }
 

@@ -71,6 +71,8 @@ export interface Company {
   huevoPrimeraPosturaHastaSemana?: number | null;
   /** Semana de vida desde la que el seguimiento diario de levante captura huevos. Sin valor = desde el encaset. */
   huevosLevanteDesdeSemana?: number | null;
+  /** Última semana de vida del lote con seguimiento diario de levante (hasta su último día). Sin valor = sin límite. */
+  levanteHastaSemana?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

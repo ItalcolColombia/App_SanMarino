@@ -862,6 +862,23 @@
                               </span>
                             </label>
                           </section>
+                          <!-- Fila 7 · Duración del levante (límite del seguimiento diario) -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Duración del levante</div>
+                            </div>
+                            <label class="block max-w-sm">
+                              <span class="form-label">Seguimiento diario hasta la semana</span>
+                              <input type="number" formControlName="levanteHastaSemana" min="1" max="60" class="form-input"
+                                [class.form-input--invalid]="form.get('levanteHastaSemana')?.invalid && form.get('levanteHastaSemana')?.touched"/>
+                              @if (form.get('levanteHastaSemana')?.invalid && form.get('levanteHastaSemana')?.touched) {
+                                <p class="form-error">Debe estar entre 1 y 60</p>
+                              }
+                              <span class="block text-xs text-warm-gray-500 mt-1">
+                                El seguimiento diario de levante admite registros hasta el último día de esta semana de vida del lote; desde la semana siguiente se bloquea y hay que cerrar el levante. Vacío = sin límite (guardá el campo vacío para quitar un límite ya configurado).
+                              </span>
+                            </label>
+                          </section>
                       </div>
                     }
                   </div>

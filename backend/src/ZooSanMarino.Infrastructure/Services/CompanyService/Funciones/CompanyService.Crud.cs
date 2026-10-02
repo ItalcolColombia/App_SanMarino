@@ -100,7 +100,8 @@ public partial class CompanyService
             PermiteMultiplesSeguimientosDiarios = dto.PermiteMultiplesSeguimientosDiarios,
             VentaEngordePesoNetoUnico = dto.VentaEngordePesoNetoUnico,
             HuevosLevanteDesdeSemana = dto.HuevosLevanteDesdeSemana,
-            PermiteSeguimientoDiarioParcial = dto.PermiteSeguimientoDiarioParcial
+            PermiteSeguimientoDiarioParcial = dto.PermiteSeguimientoDiarioParcial,
+            LevanteHastaSemana = dto.LevanteHastaSemana
         };
 
         _ctx.Companies.Add(c);
@@ -195,6 +196,8 @@ public partial class CompanyService
             ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional(dto.HuevoPrimeraPosturaHastaSemana, c.HuevoPrimeraPosturaHastaSemana);
         c.HuevosLevanteDesdeSemana =
             ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional(dto.HuevosLevanteDesdeSemana, c.HuevosLevanteDesdeSemana);
+        c.LevanteHastaSemana =
+            ParametroEmpresaOpcionalCalculos.ResolverEnteroOpcional(dto.LevanteHastaSemana, c.LevanteHastaSemana);
         c.SemanaInicioIndicadoresProduccion =
             dto.SemanaInicioIndicadoresProduccion ?? c.SemanaInicioIndicadoresProduccion;
         c.PermiteMultiplesSeguimientosDiarios =

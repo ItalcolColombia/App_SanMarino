@@ -124,6 +124,12 @@ export interface CompanyFlags {
    */
   huevosLevanteDesdeSemana: number | null;
   /**
+   * Última semana de vida del lote que admite seguimiento diario de LEVANTE
+   * (`companies.levante_hasta_semana`): se registra hasta el último día de esa semana; desde la
+   * siguiente el backend rechaza y hay que cerrar el lote. `null` = sin límite, como siempre.
+   */
+  levanteHastaSemana: number | null;
+  /**
    * Santa Reyes: un mismo lote puede tener MÁS DE UN registro de seguimiento diario el mismo día
    * (dos turnos), tanto en levante como en producción. Los registros del día se agregan para la
    * grilla, los indicadores y los reportes: lo aditivo SUMA (mortalidad, selección, error de
@@ -171,6 +177,7 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   separaLotesPosturaPorEtapa: false,
   huevoPrimeraPosturaHastaSemana: null,
   huevosLevanteDesdeSemana: null,
+  levanteHastaSemana: null,
   permiteMultiplesSeguimientosDiarios: false,
   permiteSeguimientoDiarioParcial: false,
   guiaGeneticaPerfil: GUIA_GENETICA_PERFIL_DEFECTO
@@ -204,6 +211,7 @@ interface CompanyFlagsResponse {
   separaLotesPosturaPorEtapa?: boolean | null;
   huevoPrimeraPosturaHastaSemana?: number | null;
   huevosLevanteDesdeSemana?: number | null;
+  levanteHastaSemana?: number | null;
   permiteMultiplesSeguimientosDiarios?: boolean | null;
   permiteSeguimientoDiarioParcial?: boolean | null;
   /** `companies.guia_genetica_perfil` — llega como texto libre; se valida contra los conocidos. */
@@ -484,6 +492,9 @@ export class ActiveCompanyConfigService {
       huevosLevanteDesdeSemana: typeof dto?.huevosLevanteDesdeSemana === 'number'
         ? dto.huevosLevanteDesdeSemana
         : null,
+      levanteHastaSemana: typeof dto?.levanteHastaSemana === 'number' && dto.levanteHastaSemana > 0
+        ? dto.levanteHastaSemana
+        : null,
       permiteMultiplesSeguimientosDiarios: dto?.permiteMultiplesSeguimientosDiarios === true,
       permiteSeguimientoDiarioParcial: dto?.permiteSeguimientoDiarioParcial === true,
       // Sólo se acepta un perfil CONOCIDO. Un valor nuevo que el front todavía no entiende cae al
@@ -518,6 +529,7 @@ export class ActiveCompanyConfigService {
       actual.separaLotesPosturaPorEtapa === flags.separaLotesPosturaPorEtapa &&
       actual.huevoPrimeraPosturaHastaSemana === flags.huevoPrimeraPosturaHastaSemana &&
       actual.huevosLevanteDesdeSemana === flags.huevosLevanteDesdeSemana &&
+      actual.levanteHastaSemana === flags.levanteHastaSemana &&
       actual.permiteMultiplesSeguimientosDiarios === flags.permiteMultiplesSeguimientosDiarios &&
       actual.permiteSeguimientoDiarioParcial === flags.permiteSeguimientoDiarioParcial &&
       actual.guiaGeneticaPerfil === flags.guiaGeneticaPerfil

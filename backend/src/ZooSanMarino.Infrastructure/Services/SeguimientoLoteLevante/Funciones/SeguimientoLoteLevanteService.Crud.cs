@@ -23,6 +23,9 @@ public partial class SeguimientoLoteLevanteService
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
 
+        // Límite de semanas del levante por empresa: pasada la semana configurada hay que cerrar el lote.
+        await EnsureDentroDeSemanaLimiteLevanteAsync(lote, dto.FechaRegistro);
+
         // Corte de etapa: ese día no puede aportar consumo/bajas también desde producción (K345).
         await EnsureDiaSinAporteDeProduccionAsync(dto);
 
@@ -209,6 +212,13 @@ public partial class SeguimientoLoteLevanteService
 
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
+
+        // Límite de semanas del levante: solo si la fecha CAMBIA. Corregir una fila vieja que ya pasaba
+        // el límite antes de configurarlo se permite; moverla fuera de la ventana, no.
+        var fechaOriginal = await _ctx.SeguimientoDiario.AsNoTracking()
+            .Where(sd => sd.Id == dto.Id).Select(sd => (DateTime?)sd.Fecha).FirstOrDefaultAsync();
+        if (fechaOriginal?.Date != dto.FechaRegistro.Date)
+            await EnsureDentroDeSemanaLimiteLevanteAsync(lote, dto.FechaRegistro);
 
         // ── Doble validación / flujo secuencial ────────────────────────────────────────────────
         var separa = (_validacion is not null
